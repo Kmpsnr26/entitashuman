@@ -2,112 +2,398 @@ package com.alestudio.aleprivateai;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RectF;
 import android.os.Bundle;
+import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
-import android.webkit.JavascriptInterface;
-import android.webkit.PermissionRequest;
-import android.webkit.WebChromeClient;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
+import android.speech.tts.UtteranceProgressListener;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
-    private WebView webView;
+    private static final int REQ_AUDIO = 41;
+    private static final int REQ_CAMERA = 42;
+    private static final int REQ_SPEECH = 43;
+    private static final String ENDPOINT =
+            "https://kirim-cetak-dokumen.sitihasnah109.chatgpt.site/api/chat";
+
+    private AvatarView avatar;
+    private TextView statusView;
+    private TextView logView;
+    private EditText input;
     private TextToSpeech tts;
+    private boolean privacy = false;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(Color.rgb(3, 8, 6));
-        getWindow().setNavigationBarColor(Color.rgb(3, 8, 6));
+        getWindow().setStatusBarColor(Color.rgb(2, 8, 5));
+        getWindow().setNavigationBarColor(Color.rgb(2, 8, 5));
+        buildNativeUi();
+        initTts();
+    }
 
-        webView = new WebView(this);
-        setContentView(webView);
+    private TextView text(String value, float sp, int color) {
+        TextView v = new TextView(this);
+        v.setText(value);
+        v.setTextSize(sp);
+        v.setTextColor(color);
+        return v;
+    }
 
-        WebSettings s = webView.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
-        s.setMediaPlaybackRequiresUserGesture(false);
-        s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+    private Button button(String label) {
+        Button b = new Button(this);
+        b.setText(label);
+        b.setAllCaps(false);
+        b.setTextColor(Color.WHITE);
+        b.setBackgroundColor(Color.rgb(14, 57, 31));
+        b.setPadding(8, 8, 8, 8);
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(50), 1f);
+        p.setMargins(dp(4), dp(4), dp(4), dp(4));
+        b.setLayoutParams(p);
+        return b;
+    }
 
-        webView.setWebViewClient(new WebViewClient());
-        tts = new TextToSpeech(this, status -> {
-            if (status == TextToSpeech.SUCCESS) {
+    private void buildNativeUi() {
+        int green = Color.rgb(105, 255, 154);
+        int pale = Color.rgb(232, 255, 239);
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.rgb(3, 9, 6));
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.VERTICAL);
+        header.setPadding(dp(16), dp(14), dp(16), dp(12));
+        TextView title = text("ALE • PRIVATE AI HUMAN", 17, green);
+        title.setTypeface(null, 1);
+        statusView = text("Native Android • Ready", 12, Color.rgb(174, 208, 185));
+        header.addView(title);
+        header.addView(statusView);
+        root.addView(header);
+
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(12), dp(4), dp(12), dp(24));
+        scroll.addView(body);
+
+        avatar = new AvatarView();
+        body.addView(avatar, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(365)));
+
+        LinearLayout buttons = new LinearLayout(this);
+        buttons.setOrientation(LinearLayout.HORIZONTAL);
+        Button speak = button("🔊 Speak");
+        Button mic = button("🎙 Mic");
+        Button camera = button("📷 Kamera");
+        buttons.addView(speak);
+        buttons.addView(mic);
+        buttons.addView(camera);
+        body.addView(buttons);
+
+        Button privacyButton = new Button(this);
+        privacyButton.setText("Privacy Mode: OFF");
+        privacyButton.setAllCaps(false);
+        privacyButton.setTextColor(Color.WHITE);
+        privacyButton.setBackgroundColor(Color.rgb(34, 58, 42));
+        body.addView(privacyButton, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(48)));
+
+        TextView hint = text(
+                "Avatar ini native Android. Ia tetap bergerak tanpa WebView atau JavaScript. " +
+                "Chat memiliki mode lokal jika endpoint AI tidak tersedia.",
+                12, Color.rgb(174, 208, 185));
+        hint.setPadding(dp(4), dp(12), dp(4), dp(8));
+        body.addView(hint);
+
+        input = new EditText(this);
+        input.setHint("Ketik pesan ke ALE...");
+        input.setHintTextColor(Color.rgb(120, 145, 128));
+        input.setTextColor(Color.WHITE);
+        input.setSingleLine(false);
+        input.setMinLines(2);
+        input.setBackgroundColor(Color.rgb(7, 22, 13));
+        input.setPadding(dp(12), dp(10), dp(12), dp(10));
+        body.addView(input, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        Button send = new Button(this);
+        send.setText("Kirim ke ALE");
+        send.setAllCaps(false);
+        send.setTextColor(Color.rgb(3, 20, 9));
+        send.setBackgroundColor(green);
+        LinearLayout.LayoutParams sendParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(52));
+        sendParams.setMargins(0, dp(8), 0, dp(8));
+        body.addView(send, sendParams);
+
+        logView = text("ALE ready. Avatar native aktif.", 13, pale);
+        logView.setBackgroundColor(Color.rgb(2, 7, 4));
+        logView.setPadding(dp(12), dp(12), dp(12), dp(12));
+        logView.setMinHeight(dp(120));
+        body.addView(logView);
+
+        root.addView(scroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        setContentView(root);
+
+        speak.setOnClickListener(v -> speakText(
+                "Halo, saya ALE. Avatar native Android saya sekarang bergerak dan berbicara."));
+
+        mic.setOnClickListener(v -> startSpeechInput());
+
+        camera.setOnClickListener(v -> {
+            if (privacy) {
+                setStatus("Privacy mode aktif");
+                return;
+            }
+            if (checkSelfPermission(Manifest.permission.CAMERA)
+                    != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.CAMERA}, REQ_CAMERA);
+            } else {
+                openCamera();
+            }
+        });
+
+        privacyButton.setOnClickListener(v -> {
+            privacy = !privacy;
+            avatar.setPrivacy(privacy);
+            privacyButton.setText("Privacy Mode: " + (privacy ? "ON" : "OFF"));
+            setStatus(privacy ? "Privacy mode" : "Ready");
+            if (privacy && tts != null) {
+                tts.stop();
+                avatar.setSpeaking(false);
+            }
+        });
+
+        send.setOnClickListener(v -> sendMessage());
+    }
+
+    private void initTts() {
+        tts = new TextToSpeech(this, result -> {
+            if (result == TextToSpeech.SUCCESS) {
                 tts.setLanguage(new Locale("id", "ID"));
                 tts.setSpeechRate(1.0f);
                 tts.setPitch(1.0f);
-            }
-        });
-        webView.addJavascriptInterface(new AndroidBridge(), "ALEAndroid");
-        webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public void onPermissionRequest(PermissionRequest request) {
-                runOnUiThread(() -> {
-                    List<String> allowed = new ArrayList<>();
-                    for (String r : request.getResources()) {
-                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(r)
-                                && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                            allowed.add(r);
-                        }
-                        if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(r)
-                                && checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                            allowed.add(r);
-                        }
+                tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                    @Override public void onStart(String utteranceId) {
+                        runOnUiThread(() -> {
+                            avatar.setSpeaking(true);
+                            setStatus("ALE berbicara");
+                        });
                     }
-                    if (allowed.isEmpty()) request.deny();
-                    else request.grant(allowed.toArray(new String[0]));
+                    @Override public void onDone(String utteranceId) {
+                        runOnUiThread(() -> {
+                            avatar.setSpeaking(false);
+                            setStatus("Ready");
+                        });
+                    }
+                    @Override public void onError(String utteranceId) {
+                        runOnUiThread(() -> {
+                            avatar.setSpeaking(false);
+                            setStatus("TTS error");
+                        });
+                    }
                 });
+                setStatus("Native Android • Ready");
+            } else {
+                setStatus("TTS tidak tersedia");
             }
         });
-
-        requestMediaPermissions();
-        webView.loadDataWithBaseURL(
-            "https://ale.local/",
-            HTML,
-            "text/html",
-            "UTF-8",
-            null
-        );
     }
 
-    private void requestMediaPermissions() {
-        List<String> missing = new ArrayList<>();
-        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            missing.add(Manifest.permission.CAMERA);
+    private void speakText(String value) {
+        if (privacy) {
+            setStatus("Privacy mode aktif");
+            return;
         }
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            missing.add(Manifest.permission.RECORD_AUDIO);
-        }
-        if (!missing.isEmpty()) requestPermissions(missing.toArray(new String[0]), 42);
+        if (tts == null) return;
+        avatar.setSpeaking(true);
+        tts.speak(value, TextToSpeech.QUEUE_FLUSH, null,
+                "ale-" + System.currentTimeMillis());
     }
 
-    private class AndroidBridge {
-        @JavascriptInterface
-        public void speak(String text) {
+    private void startSpeechInput() {
+        if (privacy) {
+            setStatus("Privacy mode aktif");
+            return;
+        }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_AUDIO);
+            return;
+        }
+        try {
+            Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "id-ID");
+            i.putExtra(RecognizerIntent.EXTRA_PROMPT, "Bicara ke ALE");
+            startActivityForResult(i, REQ_SPEECH);
+            setStatus("Mendengarkan...");
+        } catch (Exception e) {
+            Toast.makeText(this,
+                    "Speech recognition tidak tersedia di perangkat ini.",
+                    Toast.LENGTH_LONG).show();
+            setStatus("Mic tidak tersedia");
+        }
+    }
+
+    private void openCamera() {
+        try {
+            Intent i = new Intent("android.media.action.IMAGE_CAPTURE");
+            startActivity(i);
+            setStatus("Kamera dibuka");
+        } catch (Exception e) {
+            Toast.makeText(this, "Aplikasi kamera tidak tersedia.",
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void sendMessage() {
+        String message = input.getText().toString().trim();
+        if (message.isEmpty()) return;
+
+        input.setText("");
+        logView.setText("Anda: " + message + "\nALE: memproses...");
+        avatar.setThinking(true);
+        setStatus("Thinking");
+
+        executor.execute(() -> {
+            String answer;
+            boolean online = false;
+            try {
+                answer = callEndpoint(message);
+                online = answer != null && !answer.trim().isEmpty();
+                if (!online) answer = localReply(message);
+            } catch (Exception e) {
+                answer = localReply(message);
+            }
+            final String result = answer;
+            final boolean usedOnline = online;
             runOnUiThread(() -> {
-                if (tts != null && text != null && !text.trim().isEmpty()) {
-                    tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ale_reply");
-                }
+                avatar.setThinking(false);
+                logView.setText("Anda: " + message + "\nALE: " + result);
+                setStatus(usedOnline ? "Online response" : "Local mode");
+                speakText(result);
             });
+        });
+    }
+
+    private String callEndpoint(String message) throws Exception {
+        HttpURLConnection conn = (HttpURLConnection) new URL(ENDPOINT).openConnection();
+        conn.setConnectTimeout(3500);
+        conn.setReadTimeout(5000);
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+        conn.setDoOutput(true);
+
+        JSONObject request = new JSONObject();
+        request.put("message", message);
+        byte[] bytes = request.toString().getBytes(StandardCharsets.UTF_8);
+        try (OutputStream out = conn.getOutputStream()) {
+            out.write(bytes);
         }
 
-        @JavascriptInterface
-        public String deviceStatus() {
-            return "android-bridge-ready";
+        int code = conn.getResponseCode();
+        InputStream stream = code >= 200 && code < 300
+                ? conn.getInputStream() : conn.getErrorStream();
+        if (stream == null) throw new Exception("HTTP " + code);
+
+        StringBuilder body = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) body.append(line);
+        }
+        if (code < 200 || code >= 300) throw new Exception("HTTP " + code);
+
+        JSONObject json = new JSONObject(body.toString());
+        String reply = json.optString("reply", "");
+        if (reply.isEmpty()) reply = json.optString("message", "");
+        if (reply.isEmpty()) reply = json.optString("response", "");
+        if (reply.isEmpty()) throw new Exception("Respons kosong");
+        return reply;
+    }
+
+    private String localReply(String message) {
+        String m = message.toLowerCase(Locale.ROOT);
+        if (m.contains("halo") || m.contains("hai")) {
+            return "Halo. Saya ALE. Mode native Android aktif.";
+        }
+        if (m.contains("siapa kamu")) {
+            return "Saya ALE Private AI Human. Avatar dan suara saya berjalan langsung secara native di Android.";
+        }
+        if (m.contains("tes") || m.contains("test")) {
+            return "Tes berhasil. Avatar native, chat lokal, dan suara Android berfungsi.";
+        }
+        if (m.contains("bergerak") || m.contains("avatar")) {
+            return "Avatar saya seharusnya terus bergerak, berkedip, melihat ke kiri dan kanan, serta menggerakkan mulut saat berbicara.";
+        }
+        return "Pesan diterima. Mode lokal ALE berfungsi. Endpoint AI online belum memberikan respons.";
+    }
+
+    private void setStatus(String value) {
+        statusView.setText(value);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_SPEECH && resultCode == RESULT_OK && data != null) {
+            ArrayList<String> list =
+                    data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);
+            if (list != null && !list.isEmpty()) {
+                input.setText(list.get(0));
+                sendMessage();
+            } else {
+                setStatus("Ready");
+            }
         }
     }
 
     @Override
+    public void onRequestPermissionsResult(
+            int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        boolean granted = grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+        if (requestCode == REQ_AUDIO && granted) startSpeechInput();
+        if (requestCode == REQ_CAMERA && granted) openCamera();
+        if (!granted) setStatus("Izin ditolak");
+    }
+
+    @Override
     protected void onDestroy() {
-        if (webView != null) {
-            webView.loadUrl("about:blank");
-            webView.destroy();
-        }
+        executor.shutdownNow();
         if (tts != null) {
             tts.stop();
             tts.shutdown();
@@ -115,66 +401,139 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    private static final String HTML = """
-<!doctype html>
-<html lang='id'>
-<head>
-<meta name='viewport' content='width=device-width,initial-scale=1,viewport-fit=cover'>
-<title>ALE Private AI</title>
-<style>
-:root{--a:#69ff9a;--bg:#030806}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% 20%,#082615 0,#030806 50%,#010302 100%);color:#eaffef;font-family:system-ui,Arial;min-height:100vh}
-header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #194c2b;background:#06100bcc;position:sticky;top:0;z-index:3}
-h1{font-size:15px;margin:0;color:var(--a);letter-spacing:.8px}.status{font-size:12px;opacity:.75}
-main{padding:14px;max-width:760px;margin:auto}
-.card{background:#06110bd9;border:1px solid #1f5a35;border-radius:22px;padding:16px;box-shadow:0 0 28px #0aff6a18;margin-bottom:14px}
-.face{position:relative;display:grid;place-items:center;min-height:300px;overflow:hidden}
-canvas{width:min(88vw,420px);height:auto;filter:drop-shadow(0 0 14px #55ff8866);transform-origin:center;will-change:transform}
-.row{display:flex;gap:9px;flex-wrap:wrap}.row>*{flex:1}
-button,input{border-radius:14px;border:1px solid #2c6e42;background:#07140c;color:#eaffef;padding:12px;font-size:14px}
-button{min-width:110px}.active{background:#124e29;border-color:var(--a);box-shadow:0 0 15px #4cff7a44}
-input{width:100%;margin-top:8px}
-pre{white-space:pre-wrap;background:#020604;border:1px solid #143c22;border-radius:14px;padding:12px;min-height:90px;font-family:ui-monospace,monospace;font-size:12px}
-.note{font-size:11px;opacity:.7;line-height:1.5;margin-top:10px}
-.private canvas{opacity:.18}.private .face:after{content:'PRIVACY MODE';position:absolute;color:#fff;font-weight:700;letter-spacing:2px}
-</style>
-</head>
-<body>
-<header><div><h1>ALE • PRIVATE AI HUMAN</h1><div id='status' class='status'>Ready • Android APK</div></div><button id='privacy'>Privacy</button></header>
-<main>
-<section class='card face' id='faceBox'><canvas id='c' width='520' height='520'></canvas></section>
-<section class='card'>
-<div class='row'>
-<button id='mic'>🎙️ Mikrofon</button>
-<button id='cam'>📷 Kamera</button>
-<button id='speak'>💬 Speak</button>
-</div>
-<div class='note'>Privacy Mode mematikan mikrofon dan kamera. ALE UI dapat berjalan lokal; jawaban AI penuh memerlukan endpoint HTTPS privat.</div>
-</section>
-<section class='card'>
-<label>Private AI endpoint</label>
-<input id='endpoint' value='https://kirim-cetak-dokumen.sitihasnah109.chatgpt.site/api/chat' autocomplete='off'>
-<input id='msg' placeholder='Ketik pesan ke ALE...' autocomplete='off'>
-<button id='send' style='width:100%;margin-top:8px'>Kirim</button>
-<pre id='log'>ALE ready.</pre>
-</section>
-</main>
-<script>
-const q=s=>document.querySelector(s),c=q('#c'),x=c.getContext('2d');
-let mic=null,cam=null,ctx=null,an=null,audio=0,speaking=false,privacy=false,blink=0,nextBlink=performance.now()+1400,replyPulse=0;
-function status(t){q('#status').textContent=t}
-function stopMic(){if(mic)mic.getTracks().forEach(t=>t.stop());mic=null;if(ctx)ctx.close();ctx=null;an=null;audio=0;q('#mic').classList.remove('active')}
-function stopCam(){if(cam)cam.getTracks().forEach(t=>t.stop());cam=null;q('#cam').classList.remove('active')}
-q('#mic').onclick=async()=>{if(privacy)return;if(mic){stopMic();status('Microphone off');return}try{mic=await navigator.mediaDevices.getUserMedia({audio:true});ctx=new AudioContext();let src=ctx.createMediaStreamSource(mic);an=ctx.createAnalyser();src.connect(an);q('#mic').classList.add('active');status('Listening')}catch(e){q('#log').textContent='Mic error: '+e.message}}
-q('#cam').onclick=async()=>{if(privacy)return;if(cam){stopCam();status('Camera off');return}try{cam=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});q('#cam').classList.add('active');status('Camera active')}catch(e){q('#log').textContent='Camera error: '+e.message}}
-q('#speak').onclick=()=>{speaking=!speaking;q('#speak').classList.toggle('active',speaking);status(speaking?'Avatar speaking':'Ready');if(speaking&&window.ALEAndroid){ALEAndroid.speak('Halo, saya ALE. Avatar saya sekarang aktif dan bergerak.')}}
-q('#privacy').onclick=()=>{privacy=!privacy;document.body.classList.toggle('private',privacy);q('#privacy').classList.toggle('active',privacy);if(privacy){stopMic();stopCam();speaking=false;status('Privacy mode')}else status('Ready')}
-function localReply(m){let z=m.toLowerCase();if(z.includes('halo')||z.includes('hai'))return 'Halo. Saya ALE dan mode lokal Android sedang aktif.';if(z.includes('siapa kamu'))return 'Saya ALE Private AI Human, asisten yang sedang berjalan di perangkat Android ini.';if(z.includes('tes')||z.includes('test'))return 'Tes berhasil. Antarmuka, avatar, dan suara lokal sedang aktif.';return 'Pesan diterima. Mode lokal berfungsi, tetapi jawaban AI penuh memerlukan endpoint AI yang aktif.';}async function send(){let m=q('#msg').value.trim();if(!m)return;q('#log').textContent='You: '+m+'\nALE: thinking...';status('Thinking');speaking=true;replyPulse=1;let a='';try{let r=await fetch(q('#endpoint').value,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:m})});if(!r.ok)throw Error('HTTP '+r.status);let d=await r.json();a=String(d.reply??d.message??JSON.stringify(d));status('Online response')}catch(e){a=localReply(m);status('Local mode')}q('#log').textContent='You: '+m+'\nALE: '+a;if(window.ALEAndroid&&ALEAndroid.deviceStatus()==='android-bridge-ready')ALEAndroid.speak(a);setTimeout(()=>{speaking=false;replyPulse=0;status('Ready')},Math.max(1800,Math.min(6500,a.length*55)));q('#msg').value=''}
-q('#send').onclick=send;q('#msg').addEventListener('keydown',e=>{if(e.key==='Enter')send()})
-function draw(t){if(an){let d=new Uint8Array(an.frequencyBinCount);an.getByteFrequencyData(d);audio=d.reduce((a,b)=>a+b,0)/d.length/82}else audio=speaking?.72+.28*Math.sin(t*.022):.10+.05*Math.sin(t*.006);if(t>nextBlink){blink=1;setTimeout(()=>blink=0,120);nextBlink=t+1600+Math.random()*2600}let bob=Math.sin(t*.0022)*7,turn=Math.sin(t*.00135)*0.045,scale=1+Math.sin(t*.0028)*.012+replyPulse*.01;let lookX=Math.sin(t*.0017)*8,lookY=Math.cos(t*.0012)*4;x.clearRect(0,0,520,520);x.save();x.translate(260,260+bob);x.rotate(turn);x.scale(scale,scale);x.strokeStyle='#69ff9a';x.shadowColor='#69ff9a';x.shadowBlur=18+8*Math.sin(t*.003);x.lineWidth=3;x.beginPath();x.ellipse(0,0,150,205,0,0,Math.PI*2);x.stroke();for(let i=0;i<520;i++){let a=i*.61803398875*6.28318+t*.00018,r=15+(i%95)*1.8,px=Math.cos(a)*Math.min(145,r),py=Math.sin(a)*Math.min(198,r*1.28);if(px*px/(150*150)+py*py/(205*205)<1){x.fillStyle='rgba(105,255,154,'+(.10+((i%11)/20))+')';x.font='10px monospace';x.fillText((i+Math.floor(t/180))%2?'1':'0',px,py)}}let open=blink?1:14;x.fillStyle='#eaffef';[-58,58].forEach(ex=>{x.beginPath();x.ellipse(ex,-30,36,open,0,0,Math.PI*2);x.fill();if(open>3){x.fillStyle='#69ff9a';x.beginPath();x.arc(ex+lookX,-30+lookY,9,0,Math.PI*2);x.fill();x.fillStyle='#07110b';x.beginPath();x.arc(ex+lookX,-30+lookY,3,0,Math.PI*2);x.fill();x.fillStyle='#eaffef'}});x.strokeStyle='#69ff9a';x.lineWidth=3;x.beginPath();let mouth=7+audio*30+Math.max(0,Math.sin(t*.011))*3;x.ellipse(0,92,44,mouth,0,0,Math.PI*2);x.stroke();x.restore();c.style.transform='translateY('+Math.sin(t*.0017)*3+'px) scale('+(1+Math.sin(t*.0025)*.008)+')';requestAnimationFrame(draw)}
-requestAnimationFrame(draw);
-</script>
-</body>
-</html>
-""";
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private class AvatarView extends View {
+        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint particle = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private long start = System.currentTimeMillis();
+        private boolean speaking = false;
+        private boolean thinking = false;
+        private boolean privacyMode = false;
+
+        AvatarView() {
+            super(MainActivity.this);
+            setBackgroundColor(Color.rgb(5, 17, 10));
+            p.setStrokeWidth(dp(3));
+            particle.setTextSize(dp(9));
+            particle.setTypeface(android.graphics.Typeface.MONOSPACE);
+        }
+
+        void setSpeaking(boolean value) {
+            speaking = value;
+            invalidate();
+        }
+
+        void setThinking(boolean value) {
+            thinking = value;
+            invalidate();
+        }
+
+        void setPrivacy(boolean value) {
+            privacyMode = value;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            float w = getWidth();
+            float h = getHeight();
+            float cx = w / 2f;
+            float cy = h / 2f;
+            float t = (System.currentTimeMillis() - start) / 1000f;
+
+            float bob = (float) Math.sin(t * 1.8f) * dp(6);
+            float turn = (float) Math.sin(t * 1.05f) * 0.035f;
+            float pulse = 1f + (float) Math.sin(t * 2.2f) * 0.012f;
+
+            canvas.save();
+            canvas.translate(cx, cy + bob);
+            canvas.rotate((float) Math.toDegrees(turn));
+            canvas.scale(pulse, pulse);
+
+            float rx = Math.min(w * 0.31f, dp(145));
+            float ry = Math.min(h * 0.40f, dp(190));
+
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            p.setColor(privacyMode ? Color.DKGRAY : Color.rgb(105, 255, 154));
+            p.setShadowLayer(dp(14), 0, 0, p.getColor());
+            setLayerType(View.LAYER_TYPE_SOFTWARE, p);
+            canvas.drawOval(new RectF(-rx, -ry, rx, ry), p);
+            p.clearShadowLayer();
+
+            if (!privacyMode) {
+                particle.setColor(Color.argb(130, 105, 255, 154));
+                for (int i = 0; i < 150; i++) {
+                    double a = i * 2.399963 + t * 0.28;
+                    float r = 14 + (i % 47) * 3.0f;
+                    float px = (float) Math.cos(a) * Math.min(rx * .91f, r);
+                    float py = (float) Math.sin(a) * Math.min(ry * .91f, r * 1.28f);
+                    if ((px * px) / (rx * rx) + (py * py) / (ry * ry) < .92f) {
+                        canvas.drawText(((i + (int)(t * 5)) & 1) == 0 ? "1" : "0",
+                                px, py, particle);
+                    }
+                }
+            }
+
+            float blinkPhase = t % 3.1f;
+            float eyeH = blinkPhase > 2.92f ? dp(1.5f) : dp(13);
+            float eyeY = -dp(28);
+            float eyeDx = Math.min(rx * .39f, dp(58));
+
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(privacyMode ? Color.GRAY : Color.rgb(235, 255, 240));
+            canvas.drawOval(new RectF(-eyeDx-dp(34), eyeY-eyeH,
+                    -eyeDx+dp(34), eyeY+eyeH), p);
+            canvas.drawOval(new RectF(eyeDx-dp(34), eyeY-eyeH,
+                    eyeDx+dp(34), eyeY+eyeH), p);
+
+            if (eyeH > dp(3)) {
+                float lookX = (float) Math.sin(t * 1.3f) * dp(7);
+                float lookY = (float) Math.cos(t * .9f) * dp(3);
+                p.setColor(privacyMode ? Color.DKGRAY : Color.rgb(105, 255, 154));
+                canvas.drawCircle(-eyeDx + lookX, eyeY + lookY, dp(9), p);
+                canvas.drawCircle(eyeDx + lookX, eyeY + lookY, dp(9), p);
+                p.setColor(Color.rgb(3, 12, 7));
+                canvas.drawCircle(-eyeDx + lookX, eyeY + lookY, dp(3), p);
+                canvas.drawCircle(eyeDx + lookX, eyeY + lookY, dp(3), p);
+            }
+
+            float mouthBase = speaking
+                    ? dp(10) + (float)(Math.abs(Math.sin(t * 10.5f)) * dp(22))
+                    : thinking
+                    ? dp(8) + (float)(Math.abs(Math.sin(t * 5.5f)) * dp(8))
+                    : dp(5) + (float)(Math.abs(Math.sin(t * 1.6f)) * dp(2));
+
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(3));
+            p.setColor(privacyMode ? Color.DKGRAY : Color.rgb(105, 255, 154));
+            canvas.drawOval(new RectF(-dp(42), dp(78)-mouthBase,
+                    dp(42), dp(78)+mouthBase), p);
+
+            if (thinking && !privacyMode) {
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(dp(2));
+                p.setColor(Color.argb(170, 105, 255, 154));
+                float ring = rx + dp(16) + (float)Math.sin(t * 4) * dp(5);
+                canvas.drawCircle(0, 0, ring, p);
+            }
+
+            canvas.restore();
+
+            if (privacyMode) {
+                p.setStyle(Paint.Style.FILL);
+                p.setTextSize(dp(18));
+                p.setColor(Color.WHITE);
+                p.setTextAlign(Paint.Align.CENTER);
+                canvas.drawText("PRIVACY MODE", cx, cy, p);
+                p.setTextAlign(Paint.Align.LEFT);
+            }
+
+            postInvalidateOnAnimation();
+        }
+    }
 }
