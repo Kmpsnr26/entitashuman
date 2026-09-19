@@ -405,6 +405,10 @@ public class MainActivity extends Activity {
         return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
+    private float dpf(float value) {
+        return value * getResources().getDisplayMetrics().density;
+    }
+
     private class AvatarView extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint particle = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -480,7 +484,7 @@ public class MainActivity extends Activity {
             }
 
             float blinkPhase = t % 3.1f;
-            float eyeH = blinkPhase > 2.92f ? dp(1.5f) : dp(13);
+            float eyeH = blinkPhase > 2.92f ? dpf(1.5f) : dp(13);
             float eyeY = -dp(28);
             float eyeDx = Math.min(rx * .39f, dp(58));
 
