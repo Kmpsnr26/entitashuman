@@ -264,7 +264,7 @@ test('larger avatar default and slow-motion particle clock stay wired',async()=>
  assert.match(app,/DEFAULT_AVATAR_SIZE=500/);
  assert.match(app,/storedAvatarSize===380\|\|storedAvatarSize===420\?DEFAULT_AVATAR_SIZE/);
  assert.match(html,/avatarSizeValue">500 px/);
- assert.match(html,/id="avatarSize" type="range" min="180" max="680" step="10" value="420"/);
+ assert.match(html,/id="avatarSize" type="range" min="180" max="680" step="10" value="500"/);
  assert.match(css,/--avatar-size:500px/);
  assert.match(css,/#avatarArea\{[^}]*width:min\(var\(--avatar-size\),94vw\)/);
  assert.match(desktop,/resizeForAvatar\(value=500\)/);
