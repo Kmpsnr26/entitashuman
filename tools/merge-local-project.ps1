@@ -9,6 +9,16 @@ $Repo = 'https://github.com/Kmpsnr26/entitashuman.git'
 $Branch = 'integrate/local-20260920'
 
 $SourcePath = (Resolve-Path $SourcePath).Path
+
+$windowsRoot = [System.IO.Path]::GetFullPath($env:WINDIR).TrimEnd('\\')
+$sourceFull = [System.IO.Path]::GetFullPath($SourcePath).TrimEnd('\\')
+if ($sourceFull -ieq $windowsRoot -or $sourceFull.StartsWith($windowsRoot + '\\',[System.StringComparison]::OrdinalIgnoreCase)) {
+  throw "SourcePath tidak boleh berada di folder Windows: $SourcePath. Jalankan dengan -SourcePath menunjuk ke folder proyek entitashuman."
+}
+if (-not (Test-Path (Join-Path $SourcePath 'package.json')) -and -not (Test-Path (Join-Path $SourcePath '.git'))) {
+  Write-Warning "Folder sumber tidak terlihat seperti proyek Node/Git. Periksa kembali SourcePath: $SourcePath"
+}
+
 if (-not $WorkPath) {
   $WorkPath = Join-Path (Split-Path $SourcePath -Parent) 'entitashuman-github-merge'
 }
