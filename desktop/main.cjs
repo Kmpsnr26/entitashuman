@@ -91,8 +91,8 @@ function resizeForPanel(zoom=1,open=false){
  if(currentW===width&&currentH===height)return;
  win.setBounds({x,y,width,height},false);
 }
-function resizeForAvatar(value=420){
- const size=Math.max(180,Math.min(540,Number(value)||420));
+function resizeForAvatar(value=500){
+ const size=Math.max(180,Math.min(680,Number(value)||500));
  baseWindowSize={width:Math.max(360,size+40),height:Math.max(420,size+100)};
  resizeForPanel(panelZoomFactor,panelViewportOpen);
 }
