@@ -140,7 +140,7 @@ export class BinaryAvatar {
 
  drawBinarySampler(context,sampler,count,hue,alpha,lightEnvironment,size,seed=0){
   const steps=Math.max(2,Math.round(count));
-  const fontSize=Math.max(5.8,size*.016);
+  const fontSize=Math.max(7.2,size*.0205);
   context.save();
   for(let i=0;i<=steps;i++){
    const t=i/steps,point=sampler(t);
@@ -218,14 +218,14 @@ export class BinaryAvatar {
   for(let bit=0;bit<8;bit++){
    const t=bit/7,x=cx-fw*.34+t*fw*.68;
    const lift=Math.sin(t*Math.PI)*fh*.018;
-   context.font=`${Math.max(5,size*.014)}px monospace`;
+   context.font=`${Math.max(6.5,size*.018)}px monospace`;
    this.drawAdaptiveGlyph(context,(bit+Math.floor(elapsed/240))%2?'1':'0',x,scanY-lift,hue+150+bit*4,.16+.18*strength,lightEnvironment,undefined,false);
   }
   if(completing){
    const finish=clamp(1-(this.evolutionCompleteUntil-now)/2200,0,1),burst=Math.sin(Math.min(1,finish*1.35)*Math.PI);
    for(let bit=0;bit<12;bit++){
     const angle=bit/12*TAU+clock*.00018,radius=fw*(.34+burst*.18),x=cx+Math.cos(angle)*radius,y=cy+Math.sin(angle)*fh*(.34+burst*.08);
-    context.font=`${Math.max(5,size*.014)}px monospace`;
+    context.font=`${Math.max(6.5,size*.018)}px monospace`;
     this.drawAdaptiveGlyph(context,bit%2?'1':'0',x,y,hue+180+bit*5,.18*burst,lightEnvironment,undefined,false);
    }
   }
@@ -406,7 +406,7 @@ export class BinaryAvatar {
     {x:rootX+side*fw*.052,y:midY+fh*.008},
     {x:rootX+side*fw*.022,y:midY+fh*.052},
     6,hue+82,.18*visibility,lightEnvironment,size,side+34.1);
-   context.font=`${Math.max(6.2,size*.017)}px monospace`;
+   context.font=`${Math.max(7.8,size*.0215)}px monospace`;
    this.drawAdaptiveGlyph(context,side>0?'1':'0',outerX,midY,hue+76,.22*visibility,lightEnvironment,undefined,false);
    this.drawAdaptiveGlyph(context,side>0?'0':'1',rootX+side*fw*.03,bottomY-fh*.025,hue+58,.16*visibility,lightEnvironment,undefined,false);
    this.drawEarFrequencyWaves(context,size,rootX,midY,fw,fh,hue,lightEnvironment,side,visibility,clock);
@@ -480,7 +480,7 @@ export class BinaryAvatar {
   }
 
   const facePulse=.5+.5*Math.sin(clock*.0011);
-  context.font=`${Math.max(5,size*.014)}px monospace`;
+  context.font=`${Math.max(6.5,size*.018)}px monospace`;
   this.drawAdaptiveGlyph(context,facePulse>.5?'1':'0',centerX+yawShift*.28,cy-fh*.31,hue+88,.12+.12*facePulse,lightEnvironment,undefined,false);
   context.restore();
  }
@@ -590,7 +590,7 @@ export class BinaryAvatar {
   this.drawEvolutionField(context,size,cx,cy,faceWidth,faceHeight,hue,motionClock,lightEnvironment);
   this.drawTransitionRibbons(context,size,cx,cy,hue,motionClock,lightEnvironment,transition);
 
-  context.font=`${Math.max(6.6,faceWidth/110*3.15)}px monospace`;
+  context.font=`${Math.max(8.2,faceWidth/110*4.05)}px monospace`;
   const abstractStrength=this.allEffects? .62:this.mode==='abstract'?1:this.mode==='neural'? .58:this.mode==='mixed'? .28:0;
   for(let sampleIndex=0;sampleIndex<this.samples.length;sampleIndex++){
    if(lowCost&&sampleIndex%2===1)continue;
