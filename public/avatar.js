@@ -1,3 +1,4 @@
+import {CubeAvatarLayer} from './avatar-cubes.js';
 const TAU=Math.PI*2;
 const PARTICLE_TIME_SCALE=.58;
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
@@ -49,6 +50,8 @@ export class BinaryAvatar {
   this.blinkStart=-10000;
   this.nextBlink=performance.now()+3000;
   this.samples=[];
+  this.avatarVariant='binary';
+  this.cubeLayer=new CubeAvatarLayer();
   this.last=0;
   this.neuralNodes=Array.from({length:42},(_,i)=>({angle:i*2.39996,orbit:.08+Math.random()*.2,lift:(Math.random()-.5)*.42,phase:Math.random()*TAU,speed:.18+Math.random()*.3,glyph:Math.random()>.5?'1':'0'}));
   this.dataFlows=Array.from({length:6},(_,i)=>({phase:i/6*TAU,tilt:(i%3-1)*.1,speed:.32+Math.random()*.28,glyph:i%2?'1':'0'}));
@@ -89,6 +92,7 @@ export class BinaryAvatar {
  setListening(value=false){this.listening=Boolean(value);}
  setEarSpectrum(value={}){for(const band of ['low','mid','high'])this.earSpectrum[band]=clamp(Number(value[band])||0,0,1);}
  setEmotion(value='neutral'){this.emotion=['neutral','happy','angry','annoyed','sad'].includes(value)?value:'neutral';}
+ setAvatarVariant(value='binary'){this.avatarVariant=value==='cube'?'cube':'binary';this.cubeLayer.setEnabled(this.avatarVariant==='cube');}
  setPaused(value=false){this.paused=Boolean(value);}
  setEvolving(value=false){
   const next=Boolean(value);
@@ -640,6 +644,7 @@ export class BinaryAvatar {
    this.drawMouthSignal(context,size,cx,cy,faceWidth,faceHeight,hue,clock,lightEnvironment,rx,ry);
    this.drawEmotionOverlay(context,size,cx,cy,faceWidth,faceHeight,hue,lightEnvironment,rx);
   }
+  this.cubeLayer.draw(context,{size,cx,cy,fw:faceWidth,fh:faceHeight,time:motionClock,yaw:rx,speech:this.speechEnergy,thinking:this.thinking||this.evolving});
   this.drawMagneticField(context,size,hue,clock,lightEnvironment);
   context.restore();
   this.lastFrameCost=performance.now()-frameStarted;
