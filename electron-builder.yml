@@ -6,6 +6,8 @@ files:
   - public/**/*
   - desktop/**/*
   - package.json
+  - node_modules/node-pty/**/*
+  - node_modules/node-addon-api/**/*
 asar: false
 extraResources:
   - from: Setup-suara-Indonesia.ps1
