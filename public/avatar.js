@@ -548,6 +548,7 @@ export class BinaryAvatar {
   this.last=time;
   const context=this.ctx,width=this.w,height=this.h;if(!width||!height)return;
   const lowCost=this.evolving||performance.now()<this.performanceModeUntil;
+  const cubeVariant=this.avatarVariant==='cube';
   context.clearRect(0,0,width,height);
   const auto=this.animate,clock=auto?time:0,motionClock=auto?time*PARTICLE_TIME_SCALE:0,size=Math.min(width,height),spectral=this.color==='spectrum';
   const hue=spectral?(motionClock*.012)%360:this.color==='cyan'?175:this.color==='violet'?272:this.color==='gold'?43:132,lightEnvironment=this.isLightEnvironment();
@@ -583,6 +584,7 @@ export class BinaryAvatar {
    context.rotate((1-assembly)*Math.sin(time*.0028)*.04);
    context.translate(-cx,-cy);
   }
+  if(!cubeVariant){
   this.drawNeuralRoots(context,size,cx,cy,faceWidth,faceHeight,hue,motionClock,lightEnvironment,rx);
   this.drawNeck(context,size,cx,cy,faceWidth,faceHeight,hue,motionClock,lightEnvironment,rx);
   this.drawNeuralField(context,size,cx,cy,hue,motionClock,lightEnvironment);
@@ -644,8 +646,10 @@ export class BinaryAvatar {
    this.drawMouthSignal(context,size,cx,cy,faceWidth,faceHeight,hue,clock,lightEnvironment,rx,ry);
    this.drawEmotionOverlay(context,size,cx,cy,faceWidth,faceHeight,hue,lightEnvironment,rx);
   }
-  this.cubeLayer.draw(context,{size,cx,cy,fw:faceWidth,fh:faceHeight,time:motionClock,yaw:rx,speech:this.speechEnergy,thinking:this.thinking||this.evolving});
   this.drawMagneticField(context,size,hue,clock,lightEnvironment);
+  }else{
+   this.cubeLayer.draw(context,{size,cx,cy,fw:faceWidth,fh:faceHeight,time:motionClock,yaw:rx,speech:this.speechEnergy,thinking:this.thinking||this.evolving,lowCost,viseme:this.viseme,emotion:this.emotion,listening:this.listening,earSpectrum:this.earSpectrum});
+  }
   context.restore();
   this.lastFrameCost=performance.now()-frameStarted;
   if(this.lastFrameCost>85)this.performanceModeUntil=performance.now()+3000;
