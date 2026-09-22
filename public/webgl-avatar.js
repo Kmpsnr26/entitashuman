@@ -217,9 +217,20 @@ precision highp float;
 layout(location=0) in vec3 aPosition;
 layout(location=1) in vec4 aColor;
 uniform mat4 uVP;
+uniform vec2 uPointer;
 out vec4 vColor;
+mat3 rotY(float a){
+  float c=cos(a),s=sin(a);
+  return mat3(c,0.,-s,0.,1.,0.,s,0.,c);
+}
+mat3 rotX(float a){
+  float c=cos(a),s=sin(a);
+  return mat3(1.,0.,0.,0.,c,s,0.,-s,c);
+}
 void main(){
-  gl_Position=uVP*vec4(aPosition,1.);
+  mat3 R=rotY(uPointer.x*.14)*rotX(-uPointer.y*.08);
+  vec3 p=R*aPosition;
+  gl_Position=uVP*vec4(p,1.);
   vColor=aColor;
 }`;
 
@@ -488,7 +499,7 @@ export class WebGLAvatar{
       pointer:gl.getUniformLocation(this.cubeProgram,'uPointer'),
       theme:gl.getUniformLocation(this.cubeProgram,'uTheme')
     };
-    this.uFlat={vp:gl.getUniformLocation(this.flatProgram,'uVP')};
+    this.uFlat={vp:gl.getUniformLocation(this.flatProgram,'uVP'),pointer:gl.getUniformLocation(this.flatProgram,'uPointer')};
     this.uBg={
       theme:gl.getUniformLocation(this.bgProgram,'uTheme'),
       energy:gl.getUniformLocation(this.bgProgram,'uEnergy')
@@ -694,6 +705,7 @@ export class WebGLAvatar{
     gl.bindVertexArray(this.flatVAO);
     gl.bindBuffer(gl.ARRAY_BUFFER,this.flatBuffer);
     gl.uniformMatrix4fv(this.uFlat.vp,false,this.vpMatrix());
+    gl.uniform2f(this.uFlat.pointer,this.rotation.x,this.rotation.y);
     gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
 
     if(data.triangles.length){
