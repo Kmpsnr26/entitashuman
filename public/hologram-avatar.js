@@ -166,8 +166,10 @@ export class HologramAvatar{
     const next=VALID_STATES.has(value)?value:'idle';
     if(next===this.state)return;
     this.state=next;
-    this.listening=next==='listening'||this.listening&&next==='idle';
+    this.listening=next==='listening';
     this.thinking=next==='thinking'||next==='processing';
+    if(next==='speaking')this.speaking=true;
+    else if(this.audioTarget<.025)this.speaking=false;
     if(next==='error')this.triggerGlitch(900);
     if(next==='processing')this.pulse();
   }
