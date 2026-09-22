@@ -27,3 +27,17 @@ body.detached-panel #toast{max-width:calc(100% - 24px)}
 body[data-persona="copilot"] .persona-badge{border-color:#78dcff8c;color:#c4f2ff;background:#071d29d9;box-shadow:0 0 24px #38bbf651}
 body[data-persona="copilot"] #avatar{filter:drop-shadow(0 0 13px #32c4fd55)}
 body[data-persona="chatgpt"] .persona-badge{border-color:#7af3bc8c;color:#d2ffe7}
+
+
+/* Integrated terminal */
+.terminal-dialog{width:min(940px,95vw);max-width:none;height:min(690px,90vh);min-width:min(620px,95vw);padding:16px;overflow:hidden}
+.terminal-dialog[open]{display:grid;grid-template-rows:auto auto auto auto minmax(260px,1fr) auto auto;gap:10px}
+.terminal-summary{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:8px 10px;border:1px solid rgba(130,255,205,.16);border-radius:10px;background:rgba(0,12,9,.35)}
+.terminal-summary>div{display:grid;gap:3px;min-width:0}.terminal-summary small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:560px}.terminal-summary>span{font-size:11px;text-align:right;opacity:.75}
+.terminal-toolbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.terminal-toolbar select,.terminal-toolbar button{min-height:32px}.terminal-toolbar [data-state="NOT INSTALLED"]{opacity:.45}
+.terminal-tabs{display:flex;gap:5px;overflow-x:auto;min-height:34px;padding-bottom:2px}.terminal-tab{display:flex;align-items:center;gap:8px;white-space:nowrap;border-radius:8px 8px 2px 2px}.terminal-tab.active{outline:1px solid rgba(130,255,205,.45)}.terminal-tab.stopped{opacity:.65}.terminal-tab-close{font-size:16px;line-height:1}
+.terminal-views{position:relative;min-height:260px;height:100%;overflow:hidden;border:1px solid rgba(130,255,205,.18);border-radius:10px;background:#07100d;padding:8px}
+.terminal-view{position:absolute;inset:8px;overflow:hidden}.terminal-view .xterm{height:100%}.terminal-view .xterm-viewport{border-radius:6px}
+.terminal-bottom{font-size:11px;opacity:.9}.terminal-bottom span{margin-left:auto;opacity:.7}
+.detached-panel .terminal-dialog{width:min(940px,calc(100vw - 24px));height:min(680px,calc(100vh - 24px));max-height:none}
+@media(max-width:700px){.terminal-dialog{min-width:0;width:96vw}.terminal-summary{display:grid}.terminal-summary>span{text-align:left}.terminal-bottom span{width:100%;margin-left:0}}
