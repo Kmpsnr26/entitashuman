@@ -22,6 +22,11 @@ await mkdir(appDir,{recursive:true});
 await cp('public',path.join(appDir,'public'),{recursive:true});
 await cp('desktop',path.join(appDir,'desktop'),{recursive:true,filter:source=>!source.includes('__pycache__')});
 await cp('package.json',path.join(appDir,'package.json'));
+const modulesDir=path.join(appDir,'node_modules');
+await mkdir(modulesDir,{recursive:true});
+for(const moduleName of ['node-pty','node-addon-api']){
+ await cp(path.join('node_modules',moduleName),path.join(modulesDir,moduleName),{recursive:true});
+}
 await cp('Setup-suara-Indonesia.ps1',path.join(output,'Setup-suara-Indonesia.ps1'));
 
 await rename(path.join(output,'electron.exe'),path.join(output,'Dudidam.exe'));
