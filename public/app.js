@@ -4,6 +4,7 @@ import {AudioReactor} from './audio-reactor.js';
 import {containsAleWakeWord,HOLD_TO_SUMMON_MS} from './wake-utils.js';
 import {isExplicitProjectWorkRequest} from './work-intent.js';
 import {emotionFromText,emotions} from './avatar-emotion.js';
+import {initTerminalUI,handleTerminalDirective} from './terminal-ui.js';
 const $=s=>document.querySelector(s),desktop=window.dudidamDesktop,params=new URLSearchParams(location.search),popup=params.get('popup')==='1',panelOnly=Boolean(desktop&&params.has('panel')),avatar=new BinaryAvatar($('#avatar'));
 const panelChannel=desktop?new BroadcastChannel('dudidam-avatar-panel'):null;
 if(panelOnly)avatar.setPaused?.(true);
@@ -63,6 +64,7 @@ function applyPanelTransparency(value){
 applyPanelZoom(desktop?localStorage.getItem('dudidam-panel-zoom')||100:100);
 applyPanelTransparency(desktop?localStorage.getItem('dudidam-panel-transparency')||5:5);
 function toast(text){$('#toast').textContent=text;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,6000);}
+const terminalUI=initTerminalUI({desktop,panelOnly,notify:toast});
 function state(text=''){$('#state').textContent=text;$('#state').hidden=!text;avatar.thinking=busy;}
 function syncListeningVisual(){avatar.setListening?.(Boolean(listening||wakeListening||micChecking||audioMode));}
 function applyEmotion(value,forward=true){
@@ -180,7 +182,12 @@ async function startMicrophoneVisual(){if(audioMode==='microphone'){stopReactive
 async function startSystemAudio(){if(audioMode==='system'){stopReactiveAudio();return;}stopReactiveAudio();if(!desktop||!navigator.mediaDevices?.getDisplayMedia){toast('Audio perangkat tersedia pada Dudidam Desktop Windows.');return;}try{const stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});stream.getVideoTracks().forEach(track=>track.stop());if(!stream.getAudioTracks().length)throw new Error('no-audio');await audioReactor.useStream(stream);for(const track of stream.getAudioTracks())track.addEventListener('ended',()=>updateAudioUi(),{once:true});updateAudioUi('system','Audio perangkat bereaksi');}catch{stopReactiveAudio();toast('Audio perangkat tidak tersedia. Putar musik dari file atau gunakan mikrofon visual.');}}
 async function playMusic(file){if(!file)return;stopReactiveAudio();const player=$('#musicPlayer');try{musicUrl=URL.createObjectURL(file);player.src=musicUrl;player.hidden=false;await audioReactor.useElement(player);await player.play();updateAudioUi('music','Musik bereaksi');}catch{stopReactiveAudio();toast('File audio tidak dapat diputar. Pilih MP3, WAV, atau format yang didukung.');}}
 function message(text,role='assistant',say=true,broadcast=true){const a=document.createElement('article');a.className='message '+role;const b=document.createElement('b');b.textContent=role==='assistant'?'DUDIDAM':'KAMU';const p=document.createElement('p');p.textContent=text;a.append(b,p);$('#messages').append(a);$('#messages').scrollTop=$('#messages').scrollHeight;if(role==='assistant'){$('#bubble').textContent=text;$('#bubble').hidden=!panelOnly&&$('#chatDialog').open;clearTimeout(bubbleTimer);bubbleTimer=setTimeout(()=>$('#bubble').hidden=true,15000);if(emotionChoice==='auto')applyEmotion(emotionFromText(text),broadcast);if(say)speak(text);}if(broadcast)panelChannel?.postMessage({type:'message',text,role});}
-async function submit(text,image){text=text.trim();if(!text||busy)return;message(text,'user',false);const cmd=!image&&parseCommand(text);if(cmd){let answer='';if(['blink','nod','shake'].includes(cmd)){avatar.trigger(cmd);answer={blink:'Saya berkedip.',nod:'Baik, saya mengangguk.',shake:'Saya menggelengkan kepala.'}[cmd];}if(cmd==='stop'){stopSpeech();stopListening();answer='Baik. Suara dihentikan.';}if(cmd==='hello'){avatar.trigger('nod');answer='Halo, saya Dudidam. Saya mendengarkan.';}if(cmd==='help')answer='Klik kanan atau tekan H untuk kontrol, Enter untuk percakapan. B berkedip, N mengangguk, G menggeleng, M mikrofon, R tengahkan. Tombol 1 sampai 5 mengganti gaya biner dan neural. Ukuran avatar dapat diatur dari kontrol. Seret wajah untuk memindahkan.';if(cmd==='time')answer='Sekarang pukul '+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})+'.';if(cmd==='date')answer='Hari ini '+new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'.';if(cmd==='pet'){document.querySelectorAll('dialog[open]').forEach(d=>d.close());answer='Panel disembunyikan.';}message(answer,'assistant',cmd!=='stop');return;}
+async function submit(text,image){text=text.trim();if(!text||busy)return;message(text,'user',false);
+ if(!image&&desktop){
+  const terminalAction=await handleTerminalDirective(text,desktop);
+  if(terminalAction?.handled){message(terminalAction.text,'assistant',false);return;}
+ }
+ const cmd=!image&&parseCommand(text);if(cmd){let answer='';if(['blink','nod','shake'].includes(cmd)){avatar.trigger(cmd);answer={blink:'Saya berkedip.',nod:'Baik, saya mengangguk.',shake:'Saya menggelengkan kepala.'}[cmd];}if(cmd==='stop'){stopSpeech();stopListening();answer='Baik. Suara dihentikan.';}if(cmd==='hello'){avatar.trigger('nod');answer='Halo, saya Dudidam. Saya mendengarkan.';}if(cmd==='help')answer='Klik kanan atau tekan H untuk kontrol, Enter untuk percakapan. B berkedip, N mengangguk, G menggeleng, M mikrofon, R tengahkan. Tombol 1 sampai 5 mengganti gaya biner dan neural. Ukuran avatar dapat diatur dari kontrol. Seret wajah untuk memindahkan.';if(cmd==='time')answer='Sekarang pukul '+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})+'.';if(cmd==='date')answer='Hari ini '+new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'.';if(cmd==='pet'){document.querySelectorAll('dialog[open]').forEach(d=>d.close());answer='Panel disembunyikan.';}message(answer,'assistant',cmd!=='stop');return;}
  if(!desktop){message('Login Sites hanya mengenali akun. Untuk percakapan model gunakan Dudidam Desktop.','assistant',false);return;}
  if(aiProvider==='copilot'&&!image&&isExplicitProjectWorkRequest(text)){
   busy=true;stopSpeech();$('#send').disabled=true;$('#look').disabled=true;state('GitHub Copilot mengerjakan proyek…');$('#liveText').textContent='Copilot Work mode sedang mengedit checkout proyek…';
@@ -521,6 +528,7 @@ $('#chatForm').onsubmit=e=>{e.preventDefault();const text=$('#prompt').value.tri
 $('#chatDialog').addEventListener('close',()=>{stopCamera();setPassthrough(true);syncPanelViewportFromDialogs();});
 $('#controls').addEventListener('close',()=>{setPassthrough(true);syncPanelViewportFromDialogs();});
 $('#agentDialog').addEventListener('close',()=>{setPassthrough(true);syncPanelViewportFromDialogs();});
+$('#terminalDialog').addEventListener('close',()=>{setPassthrough(true);syncPanelViewportFromDialogs();});
 document.addEventListener('mousemove',syncPassthrough,{passive:true});
 document.addEventListener('mouseleave',()=>setPassthrough(true));
 document.addEventListener('keydown',e=>{
@@ -566,10 +574,10 @@ if(!panelOnly){
  desktop?.onGlobalPointer?.(point=>{if(!point||drag)return;avatar.gazePointer={x:Math.max(-1,Math.min(1,Number(point.x)||0)),y:Math.max(-1,Math.min(1,Number(point.y)||0))};avatar.gazeActive=true;});
 }
 if(panelOnly){
- desktop.onPanelView?.(async view=>{showDialog('#'+view);if(view==='agentDialog')await loadAgents();});
+ desktop.onPanelView?.(async view=>{showDialog('#'+view);if(view==='agentDialog')await loadAgents();if(view==='terminalDialog'){await terminalUI?.syncSessions?.();terminalUI?.fitActive?.();}});
  panelChannel?.postMessage({type:'panel-ready'});
  const initial=params.get('panel');
- if(['controls','chatDialog','agentDialog'].includes(initial))requestAnimationFrame(()=>showDialog('#'+initial));
+ if(['controls','chatDialog','agentDialog','terminalDialog'].includes(initial))requestAnimationFrame(async()=>{showDialog('#'+initial);if(initial==='terminalDialog'){await terminalUI?.syncSessions?.();terminalUI?.fitActive?.();}});
 }
 document.querySelectorAll('dialog').forEach(enableDialogDrag);window.addEventListener('resize',()=>document.querySelectorAll('dialog[open]').forEach(clampDialog));
 document.addEventListener('visibilitychange',()=>{if(document.hidden){setPassthrough(true);suspendWakeListening('ALE · wake mic dijeda');stopListening(false);stopSpeech(false);stopCamera();stopReactiveAudio();}else resumeWakeSoon(500);});
