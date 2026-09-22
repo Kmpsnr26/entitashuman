@@ -5,7 +5,7 @@ const {mkdtempSync}=require('node:fs');
 const path=require('node:path');
 const {tmpdir}=require('node:os');
 
-let win,panelWin,server,origin,bridges,agentHub,indonesianStt,indonesianTts,tray,saveTimer,pointerTimer;
+let win,panelWin,server,origin,bridges,agentHub,terminalManager,indonesianStt,indonesianTts,tray,saveTimer,pointerTimer;
 let baseWindowSize={width:420,height:480};
 let panelZoomFactor=1;
 let quitting=false;
@@ -99,13 +99,17 @@ function resizeForAvatar(value=420){
 }
 async function openPanel(view='controls'){
  if(!win||win.isDestroyed())return;
- const allowed=['controls','chatDialog','agentDialog'];
+ const allowed=['controls','chatDialog','agentDialog','terminalDialog'];
  const target=allowed.includes(view)?view:'controls';
  if(panelWin&&!panelWin.isDestroyed()){
+  if(target==='terminalDialog'){
+   const area=screen.getDisplayMatching(panelWin.getBounds()).workArea;
+   panelWin.setSize(Math.min(980,area.width),Math.min(720,area.height));
+  }
   panelWin.show();panelWin.focus();panelWin.webContents.send('dudidam:panel-view',target);return;
  }
  const bounds=win.getBounds(),display=screen.getDisplayNearestPoint({x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2}),area=display.workArea;
- const width=Math.min(460,area.width),height=Math.min(680,area.height);
+ const width=Math.min(target==='terminalDialog'?980:460,area.width),height=Math.min(target==='terminalDialog'?720:680,area.height);
  const rightSpace=area.x+area.width-(bounds.x+bounds.width),leftSpace=bounds.x-area.x;
  let x;
  if(rightSpace>=width+16)x=bounds.x+bounds.width+16;
@@ -143,10 +147,14 @@ if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
-  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
+  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{TerminalManager},{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./terminal-manager.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
   bridges={chatgpt:new ChatGPTBridge(),copilot:new CopilotBridge(),openai:new OpenAIBridge(),grok:new GrokBridge(),gemini:new GeminiBridge(),claude:new ClaudeBridge(),deepseek:new DeepSeekBridge(),askcodi:new AskCodiBridge()};
   agentHub=new DeveloperAgentHub();
   const savedProjectRoot=await readProjectRoot();if(savedProjectRoot)agentHub.setProjectRoot(savedProjectRoot);
+  terminalManager=new TerminalManager({workspaceRoot:savedProjectRoot||process.cwd()});
+  terminalManager.on('data',payload=>{for(const target of [win,panelWin])if(target&&!target.isDestroyed()&&!target.webContents.isLoading())target.webContents.send('dudidam:terminal-data',payload);});
+  terminalManager.on('exit',payload=>{for(const target of [win,panelWin])if(target&&!target.isDestroyed()&&!target.webContents.isLoading())target.webContents.send('dudidam:terminal-exit',payload);});
+  terminalManager.on('clear',payload=>{for(const target of [win,panelWin])if(target&&!target.isDestroyed()&&!target.webContents.isLoading())target.webContents.send('dudidam:terminal-clear-view',payload);});
   indonesianStt=new IndonesianStt();
   indonesianTts=new IndonesianTts();
   const agentLinks=Object.fromEntries(agentDefinitions().map(item=>[item.id,item.url]));
@@ -179,12 +187,42 @@ else{
    const result=await dialog.showOpenDialog(panelWin?.isVisible()?panelWin:win,{title:'Pilih folder checkout proyek Dudidam',properties:['openDirectory']});
    if(result.canceled||!result.filePaths?.[0])return {canceled:true};
    const selected=path.resolve(result.filePaths[0]);
-   agentHub.setProjectRoot(selected);
+   agentHub.setProjectRoot(selected);terminalManager.setWorkspaceRoot(selected);
    try{await writeFile(projectRootPath(),selected,'utf8');}catch(error){return {error:'Folder terpilih, tetapi pengaturan tidak dapat disimpan: '+error.message};}
    return {ok:true,...await agentHub.status()};
   });
   ipcMain.handle('dudidam:agent-run',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await agentHub.run(value);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:agent-open',async(e,id)=>{if(!trusted(e))return {error:'Akses ditolak.'};const url=agentLinks[String(id||'')];if(!url||!url.startsWith('https://'))return {error:'Tautan agent tidak valid.'};await shell.openExternal(url);return {ok:true};});
+  ipcMain.handle('dudidam:terminal-create',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.create(value||{});}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-write',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.write(value?.sessionId,value?.data);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-resize',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.resize(value?.sessionId,value?.cols,value?.rows);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-clear',async(e,id)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.clear(id);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-kill',async(e,id)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.kill(id);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-restart',async(e,id)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.restart(id);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-cwd',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.setCwd(value?.sessionId,value?.cwd);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-list',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};return {sessions:terminalManager.list()};});
+  ipcMain.handle('dudidam:terminal-detect',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.detect();}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-recent',async(e,id)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.getRecentTerminalOutput(id);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-run',async(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   try{
+    const preview=await terminalManager.runCommand(value?.command,{confirmed:false,cwd:value?.cwd||''});
+    if(!preview.needsConfirmation)return preview;
+    const result=await dialog.showMessageBox(panelWin?.isVisible()?panelWin:win,{type:'warning',title:'Konfirmasi command Dudidam',message:'Jalankan command ini?',detail:(preview.command||'')+'\n\n'+preview.policy.reason,buttons:['Jalankan','Batal'],defaultId:1,cancelId:1,noLink:true});
+    if(result.response!==0)return {ok:false,canceled:true,policy:preview.policy};
+    return await terminalManager.runCommand(value?.command,{confirmed:true,cwd:value?.cwd||''});
+   }catch(error){return {error:error.message};}
+  });
+  ipcMain.handle('dudidam:terminal-project-task',async(e,task)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   try{
+    const preview=await terminalManager.runProjectTask(task,{confirmed:false});
+    if(!preview.needsConfirmation)return preview;
+    const result=await dialog.showMessageBox(panelWin?.isVisible()?panelWin:win,{type:'warning',title:'Konfirmasi task Dudidam',message:'Jalankan task project?',detail:preview.command||String(task||''),buttons:['Jalankan','Batal'],defaultId:1,cancelId:1,noLink:true});
+    if(result.response!==0)return {ok:false,canceled:true,policy:preview.policy};
+    return await terminalManager.runProjectTask(task,{confirmed:true});
+   }catch(error){return {error:error.message};}
+  });
   ipcMain.on('dudidam:center',e=>{if(trusted(e)){win.center();savePositionSoon();}});
   ipcMain.on('dudidam:minimize',e=>{if(trusted(e))requestDismiss('hide');});
   ipcMain.on('dudidam:close',e=>{if(trusted(e))requestDismiss('hide');});
@@ -215,7 +253,7 @@ else{
   await win.loadURL(origin+'/');
   pointerTimer=setInterval(publishGlobalPointer,50);
   if(ciSmoke){
-   const rendererReady=await win.webContents.executeJavaScript("Boolean(document.querySelector('#avatar')) && typeof window.dudidamDesktop?.onGlobalPointer === 'function' && typeof window.dudidamDesktop?.avatarViewport === 'function' && document.title.includes('Dudidam')");
+   const rendererReady=await win.webContents.executeJavaScript("Boolean(document.querySelector('#avatar')) && typeof window.dudidamDesktop?.onGlobalPointer === 'function' && typeof window.dudidamDesktop?.avatarViewport === 'function' && typeof window.dudidamDesktop?.terminal?.create === 'function' && document.title.includes('Dudidam')");
    if(!rendererReady)throw new Error('Renderer Dudidam tidak siap.');
    const wakeIdle=await win.webContents.executeJavaScript("Boolean(document.querySelector('#wakeToggle')) && !document.querySelector('#wakeToggle').checked && document.querySelector('#wakeIndicator')?.textContent?.includes('nonaktif')");
    if(!wakeIdle)throw new Error('Wake mic harus nonaktif saat Dudidam mulai.');
@@ -246,11 +284,14 @@ else{
     const copilotReady=await panelWin.webContents.executeJavaScript("window.dudidamDesktop.ask({provider:'copilot',message:'Jawab satu kata: siap',history:[]}).then(result=>Boolean(result.text)&&!result.error)");
     if(!copilotReady)throw new Error('Percakapan GitHub Copilot dari panel gagal.');
    }
-   console.log('Dudidam CI smoke passed: packaged runtime, renderer, and detached panel loaded.');
+   const terminalSmoke=await terminalManager.smokeTest();
+   if(!terminalSmoke.primary||!terminalSmoke.cmd||!terminalSmoke.multiple)throw new Error('Smoke terminal Windows gagal: '+JSON.stringify(terminalSmoke));
+   console.log('Dudidam terminal smoke:',JSON.stringify(terminalSmoke));
+   console.log('Dudidam CI smoke passed: packaged runtime, renderer, PTY terminal, and detached panel loaded.');
    quitting=true;app.quit();return;
   }
   console.log('Dudidam desktop ready: transparent=true; frame=false; alwaysOnTop=true; tray=true; systemAudio=loopback');
  }).catch(error=>{console.error('Dudidam startup failed:',error);app.exit(1);});
  app.on('window-all-closed',()=>{});
-  app.on('before-quit',()=>{quitting=true;globalShortcut.unregisterAll();clearTimeout(saveTimer);clearInterval(pointerTimer);Object.values(bridges||{}).forEach(item=>item?.stop());agentHub?.stop();indonesianStt?.stop();indonesianTts?.stop();panelWin?.destroy();server?.close();tray?.destroy();});
+  app.on('before-quit',()=>{quitting=true;globalShortcut.unregisterAll();clearTimeout(saveTimer);clearInterval(pointerTimer);Object.values(bridges||{}).forEach(item=>item?.stop());agentHub?.stop();terminalManager?.shutdown();indonesianStt?.stop();indonesianTts?.stop();panelWin?.destroy();server?.close();tray?.destroy();});
 }
