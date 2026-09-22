@@ -12,6 +12,7 @@ import {parseClaudeResponse} from '../desktop/claude.mjs';
 import {parseDeepSeekResponse} from '../desktop/deepseek.mjs';
 import {agentDefinitions,isCodexLoggedIn,parseCodexJsonOutput,agentTimeoutMs} from '../desktop/agent-hub.mjs';
 import {normalizedAudioLevel} from '../public/audio-reactor.js';
+import {CubeAvatarLayer} from '../public/avatar-cubes.js';
 import {isExplicitProjectWorkRequest} from '../public/work-intent.js';
 import {IndonesianStt} from '../desktop/indonesian-stt.mjs';
 import {IndonesianTts} from '../desktop/indonesian-tts.mjs';
@@ -472,4 +473,32 @@ test('Indonesian TTS prefers Piper only when configured and falls back to Window
  assert.match(app,/dudidam-voice-uri/);
  assert.match(app,/voiceschanged/);
  assert.match(app,/current\.lang='id-ID'/);
+});
+
+
+test('cube avatar low-cost mode renders fewer glow primitives',()=>{
+ const layer=new CubeAvatarLayer(24);layer.setEnabled(true);
+ const makeContext=()=>({fills:0,strokes:0,save(){},restore(){},fillRect(){this.fills++;},strokeRect(){this.strokes++;}});
+ const base={size:500,cx:250,cy:250,fw:245,fh:310,time:1200,yaw:.1,speech:.35,viseme:.5,listening:true,earSpectrum:{low:.4,mid:.6,high:.3}};
+ const normal=makeContext(),low=makeContext();
+ layer.draw(normal,base);
+ layer.draw(low,{...base,lowCost:true});
+ assert.ok(low.strokes<normal.strokes);
+ assert.ok(low.fills<normal.fills);
+});
+
+test('avatar variants are standalone, synchronized and accessible',async()=>{
+ const [app,avatar,cubes]=await Promise.all([
+  readFile(new URL('../public/app.js',import.meta.url),'utf8'),
+  readFile(new URL('../public/avatar.js',import.meta.url),'utf8'),
+  readFile(new URL('../public/avatar-cubes.js',import.meta.url),'utf8')
+ ]);
+ assert.match(avatar,/const cubeVariant=this\.avatarVariant==='cube'/);
+ assert.match(avatar,/if\(!cubeVariant\)\{/);
+ assert.match(avatar,/\}else\{\s*this\.cubeLayer\.draw/);
+ assert.match(avatar,/lowCost,viseme:this\.viseme/);
+ assert.match(cubes,/if\(lowCost&&index%2===1\)continue/);
+ assert.match(app,/if\(desktop&&forward\)panelChannel\?\.postMessage/);
+ assert.match(app,/data\.type==='setting'&&data\.name==='avatarVariant'/);
+ assert.match(app,/Wajah manusia kubus bercahaya dengan partikel 3D/);
 });
