@@ -16,6 +16,7 @@ import {isExplicitProjectWorkRequest} from '../public/work-intent.js';
 import {IndonesianStt} from '../desktop/indonesian-stt.mjs';
 import {IndonesianTts} from '../desktop/indonesian-tts.mjs';
 import {DUDIDAM_CORE_PROMPT,reasoningGuidance,dudidamSystemPrompt} from '../desktop/dudidam-brain.mjs';
+import {classifyCommand,redactSecrets,containsSensitiveInput} from '../desktop/command-policy.mjs';
 test('commands do not mistake normal conversation for gestures',()=>{assert.equal(parseCommand('Tolong menggelengkan kepala'),'shake');assert.equal(parseCommand('Coba berkedip!'),'blink');assert.equal(parseCommand('Jelaskan mengapa manusia berkedip'),null);});
 
 test('Dudidam Brain Core uses bounded adaptive logical reasoning',()=>{
@@ -131,7 +132,57 @@ test('avatar structure uses binary and neural particles instead of continuous li
  assert.doesNotMatch(avatar,/context\.ellipse/);
 });
 test('build keeps private Sites identity optional in GitHub checkouts',async()=>{const build=await readFile(new URL('../build.mjs',import.meta.url),'utf8');assert.match(build,/error\.code!==['"]ENOENT['"]/);});
-test('windows packaging and CI verification stay wired',async()=>{const [pkgText,pack,workflow,builder,desktop]=await Promise.all([readFile(new URL('../package.json',import.meta.url),'utf8'),readFile(new URL('../package-desktop.mjs',import.meta.url),'utf8'),readFile(new URL('../.github/workflows/verify.yml',import.meta.url),'utf8'),readFile(new URL('../electron-builder.yml',import.meta.url),'utf8'),readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8')]);const pkg=JSON.parse(pkgText);assert.equal(pkg.version,'2.3.0');assert.equal(pkg.main,'desktop/main.cjs');assert.equal(pkg.scripts.verify,'npm test && npm run build');assert.equal(pkg.scripts['package:desktop'],'install-electron --no && node package-desktop.mjs');assert.match(pkg.scripts['package:installer'],/electron-builder@26\.16\.1/);assert.match(pkg.scripts['package:installer'],/--publish never/);assert.match(pack,/Dudidam\.exe/);assert.match(pack,/path\.resolve\('node_modules','electron','dist'\)/);assert.match(builder,/target: nsis/);assert.match(builder,/oneClick: false/);assert.match(builder,/allowToChangeInstallationDirectory: true/);assert.match(workflow,/npm run package:installer/);assert.match(workflow,/gh release upload/);assert.doesNotMatch(workflow,/actions\/upload-artifact/);assert.match(desktop,/app\.setAppUserModelId\('id\.my\.aleprinting\.dudidam'\)/);});
+test('windows packaging and CI verification stay wired',async()=>{const [pkgText,pack,workflow,builder,desktop]=await Promise.all([readFile(new URL('../package.json',import.meta.url),'utf8'),readFile(new URL('../package-desktop.mjs',import.meta.url),'utf8'),readFile(new URL('../.github/workflows/verify.yml',import.meta.url),'utf8'),readFile(new URL('../electron-builder.yml',import.meta.url),'utf8'),readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8')]);const pkg=JSON.parse(pkgText);assert.equal(pkg.version,'2.4.0');assert.equal(pkg.main,'desktop/main.cjs');assert.equal(pkg.scripts.verify,'npm test && npm run build');assert.match(pkg.scripts['package:desktop'],/prepare:terminal/);assert.match(pkg.scripts['package:desktop'],/rebuild:native/);assert.match(pkg.scripts['package:installer'],/electron-builder@26\.16\.1/);assert.match(pkg.scripts['package:installer'],/--publish never/);assert.equal(pkg.dependencies['node-pty'],'1.1.0');assert.equal(pkg.dependencies['@xterm/xterm'],'6.0.0');assert.equal(pkg.dependencies['@xterm/addon-fit'],'0.11.0');assert.match(pack,/Dudidam\.exe/);assert.match(pack,/node-pty/);assert.match(pack,/node-addon-api/);assert.match(builder,/target: nsis/);assert.match(builder,/node_modules\/node-pty/);assert.match(builder,/oneClick: false/);assert.match(builder,/allowToChangeInstallationDirectory: true/);assert.match(workflow,/npm run package:installer/);assert.match(workflow,/gh release upload/);assert.doesNotMatch(workflow,/actions\/upload-artifact/);assert.match(desktop,/app\.setAppUserModelId\('id\.my\.aleprinting\.dudidam'\)/);});
+
+test('integrated terminal keeps PTY behind bounded Electron IPC',async()=>{
+ const [manager,policy,preload,main,html,ui,assets]=await Promise.all([
+  readFile(new URL('../desktop/terminal-manager.mjs',import.meta.url),'utf8'),
+  readFile(new URL('../desktop/command-policy.mjs',import.meta.url),'utf8'),
+  readFile(new URL('../desktop/preload.cjs',import.meta.url),'utf8'),
+  readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8'),
+  readFile(new URL('../public/index.html',import.meta.url),'utf8'),
+  readFile(new URL('../public/terminal-ui.js',import.meta.url),'utf8'),
+  readFile(new URL('../prepare-terminal-assets.mjs',import.meta.url),'utf8')
+ ]);
+ assert.match(manager,/from 'node-pty'/);
+ assert.match(manager,/pwsh\.exe/);assert.match(manager,/powershell\.exe/);assert.match(manager,/cmd\.exe/);
+ assert.match(manager,/TERM:'xterm-256color'/);assert.match(manager,/proc\.onData/);assert.match(manager,/proc\.resize/);
+ assert.match(manager,/\.dudiddam','cli-hub\.json/);
+ assert.match(preload,/terminal:Object\.freeze/);assert.match(preload,/dudidam:terminal-create/);assert.match(preload,/dudidam:terminal-data/);
+ assert.doesNotMatch(preload,/require\(['"](?:node-pty|node:child_process|node:fs)/);
+ assert.match(main,/TerminalManager/);assert.match(main,/dudidam:terminal-run/);assert.match(main,/showMessageBox/);
+ assert.match(html,/id="terminalDialog"/);assert.match(html,/\/vendor\/xterm\.js/);assert.match(html,/\/vendor\/addon-fit\.js/);
+ assert.match(ui,/new Terminal/);assert.match(ui,/new FitAddon/);assert.match(ui,/ResizeObserver/);assert.match(ui,/Ctrl\+C interrupt/);
+ assert.match(assets,/@xterm\/xterm\/lib\/xterm\.js/);
+ assert.match(policy,/SAFE/);assert.match(policy,/CONFIRM/);assert.match(policy,/BLOCK/);
+});
+
+test('terminal command policy blocks dangerous automation and redacts secrets',()=>{
+ assert.equal(classifyCommand('git status').level,'SAFE');
+ assert.equal(classifyCommand('npm run build').level,'SAFE');
+ assert.equal(classifyCommand('git push origin main').level,'CONFIRM');
+ assert.equal(classifyCommand('Remove-Item temp.txt').level,'CONFIRM');
+ assert.equal(classifyCommand('Remove-Item C:\\\\ -Recurse -Force').level,'BLOCK');
+ assert.equal(containsSensitiveInput('OPENAI_API_KEY=sk-example123456'),true);
+ const redacted=redactSecrets('Authorization: Bearer abcdefghijklmnop OPENAI_API_KEY=sk-example123456');
+ assert.match(redacted,/\[REDACTED\]/);
+ assert.doesNotMatch(redacted,/abcdefghijklmnop|sk-example123456/);
+});
+
+test('terminal chat palette supports explicit terminal and project commands without inventing scripts',async()=>{
+ const [app,ui,manager]=await Promise.all([
+  readFile(new URL('../public/app.js',import.meta.url),'utf8'),
+  readFile(new URL('../public/terminal-ui.js',import.meta.url),'utf8'),
+  readFile(new URL('../desktop/terminal-manager.mjs',import.meta.url),'utf8')
+ ]);
+ assert.match(app,/handleTerminalDirective/);
+ assert.match(ui,/^\\\/terminal/);
+ assert.match(ui,/^\\\/run/);
+ assert.match(ui,/jalankan/);
+ assert.match(manager,/pkg\?\.scripts\?\.\[name\]/);
+ assert.match(manager,/Dudidam tidak akan mengarang command/);
+});
+
 test('safe launcher starts only the packaged Dudidam application',async()=>{const launcher=await readFile(new URL('../Jalankan-entitasale170925-SAFE.bat',import.meta.url),'utf8');assert.match(launcher,/Dudidam-Desktop\\Dudidam\.exe/);assert.match(launcher,/if not exist/);assert.doesNotMatch(launcher,/runas|powershell|reg add|taskkill/i);});
 test('desktop CI smoke mode verifies the packaged renderer',async()=>{const [desktop,workflow]=await Promise.all([readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8'),readFile(new URL('../.github/workflows/verify.yml',import.meta.url),'utf8')]);assert.match(desktop,/--ci-smoke/);assert.match(desktop,/Dudidam CI smoke passed/);assert.match(desktop,/executeJavaScript/);assert.match(desktop,/app\.exit\(1\)/);assert.match(workflow,/Dudidam\.exe --ci-smoke/);});
 test('avatar surface stays transparent and the detached panel is opaque',async()=>{const [css,surface,main,preload]=await Promise.all([readFile(new URL('../public/style.css',import.meta.url),'utf8'),readFile(new URL('../public/surface.js',import.meta.url),'utf8'),readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8'),readFile(new URL('../desktop/preload.cjs',import.meta.url),'utf8')]);assert.match(css,/body\.desktop,body\.popup-widget\{background:transparent!important\}/);assert.match(css,/html\.panel-surface,html\.panel-surface body\{background:#081610!important/);assert.match(surface,/\(isDesktop && !isPanel\) \|\| isPopup/);assert.match(main,/panelWin=new BrowserWindow/);assert.match(preload,/openPanel:view/);});
