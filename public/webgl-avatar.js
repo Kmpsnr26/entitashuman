@@ -575,14 +575,22 @@ export class WebGLAvatar{
   flatPush(out,x,y,z,r,g,b,a){out.push(x,y,z,r,g,b,a);}
 
   buildOverlay(time,blink,energy){
-    const out=[];
+    const lines=[],triangles=[];
     const cyan=[.28,.88,1],white=[.95,1,1],violet=[.58,.36,1];
+
+    const line=(out,a,b,color,alpha)=>{
+      this.flatPush(out,a[0],a[1],a[2],...color,alpha);
+      this.flatPush(out,b[0],b[1],b[2],...color,alpha);
+    };
 
     const circle=(cx,cy,cz,radius,segments,color,alpha,phase=0)=>{
       for(let i=0;i<segments;i++){
         const a=phase+i/segments*TAU,b=phase+(i+1)/segments*TAU;
-        this.flatPush(out,cx+Math.cos(a)*radius,cy+Math.sin(a)*radius,cz,...color,alpha);
-        this.flatPush(out,cx+Math.cos(b)*radius,cy+Math.sin(b)*radius,cz,...color,alpha);
+        line(lines,
+          [cx+Math.cos(a)*radius,cy+Math.sin(a)*radius,cz],
+          [cx+Math.cos(b)*radius,cy+Math.sin(b)*radius,cz],
+          color,alpha
+        );
       }
     };
 
@@ -594,57 +602,57 @@ export class WebGLAvatar{
     for(const side of [-1,1]){
       circle(side*1.07,.04,.02,.19,44,cyan,.28+.18*earEnergy);
       circle(side*1.07,.04,.02,.11,36,[.24,.55,1],.18+.12*earEnergy);
+      if(earEnergy>.02){
+        circle(side*1.07,.04,-.02,.27+earEnergy*.06,40,cyan,.10+.12*earEnergy,time*.00025*side);
+      }
     }
 
     const eye=(side,scale=1,alpha=.9)=>{
-      const cx=side*.29,cy=.29,cz=.50;
+      const cx=side*.29,cy=.29,cz=.52;
       const half=.235*scale,h=.045*scale*(1-blink*.94);
       const boundary=[];
-      const seg=18;
+      const seg=22;
       for(let i=0;i<=seg;i++){
         const t=i/seg;
-        const x=lerp(-half,half,t);
-        const y=Math.sin(t*Math.PI)*h;
-        boundary.push([cx+x,cy+y,cz]);
+        boundary.push([cx+lerp(-half,half,t),cy+Math.sin(t*Math.PI)*h,cz]);
       }
       for(let i=seg;i>=0;i--){
         const t=i/seg;
-        const x=lerp(-half,half,t);
-        const y=-Math.sin(t*Math.PI)*h*.42;
-        boundary.push([cx+x,cy+y,cz]);
+        boundary.push([cx+lerp(-half,half,t),cy-Math.sin(t*Math.PI)*h*.42,cz]);
       }
       for(let i=0;i<boundary.length;i++){
         const a=boundary[i],b=boundary[(i+1)%boundary.length];
-        this.flatPush(out,cx,cy,cz,...white,alpha);
-        this.flatPush(out,...a,...cyan,.22*alpha);
-        this.flatPush(out,...b,...cyan,.22*alpha);
+        this.flatPush(triangles,cx,cy,cz,...white,alpha);
+        this.flatPush(triangles,...a,...cyan,.18*alpha);
+        this.flatPush(triangles,...b,...cyan,.18*alpha);
       }
     };
-    eye(-1,1.45,.12);eye(1,1.45,.12);
-    eye(-1,1,.95);eye(1,1,.95);
+    eye(-1,1.55,.10);eye(1,1.55,.10);
+    eye(-1,1,.96);eye(1,1,.96);
 
     const quad=(x0,y0,x1,y1,z,color,a0,a1=a0)=>{
-      this.flatPush(out,x0,y0,z,...color,a0);
-      this.flatPush(out,x1,y0,z,...color,a0);
-      this.flatPush(out,x1,y1,z,...color,a1);
-      this.flatPush(out,x0,y0,z,...color,a0);
-      this.flatPush(out,x1,y1,z,...color,a1);
-      this.flatPush(out,x0,y1,z,...color,a1);
+      this.flatPush(triangles,x0,y0,z,...color,a0);
+      this.flatPush(triangles,x1,y0,z,...color,a0);
+      this.flatPush(triangles,x1,y1,z,...color,a1);
+      this.flatPush(triangles,x0,y0,z,...color,a0);
+      this.flatPush(triangles,x1,y1,z,...color,a1);
+      this.flatPush(triangles,x0,y1,z,...color,a1);
     };
-
-    quad(-.020,1.72,.020,-2.88,.48,cyan,.06,.22+.22*energy);
-    quad(-.008,1.72,.008,-2.88,.50,white,.18,.55+.24*energy);
+    quad(-.025,1.78,.025,-2.95,.50,cyan,.05,.20+.20*energy);
+    quad(-.009,1.78,.009,-2.95,.53,white,.16,.58+.22*energy);
 
     const level=this.speaking?this.audioLevel:0;
     const mouthY=-.57,open=.008+.055*level;
-    this.flatPush(out,-.19,mouthY,.49,...cyan,.28+.25*level);
-    this.flatPush(out,0,mouthY-open,.51,...white,.50+.30*level);
-    this.flatPush(out,.19,mouthY,.49,...cyan,.28+.25*level);
+    line(lines,[-.19,mouthY,.51],[0,mouthY-open,.53],cyan,.34+.25*level);
+    line(lines,[0,mouthY-open,.53],[.19,mouthY,.51],cyan,.34+.25*level);
 
     if(this.state==='processing'||this.evolving){
       circle(0,.12,-.25,1.42,72,[.38,.62,1],.18+.10*energy,time*.00045);
     }
-    return new Float32Array(out);
+    return {
+      lines:new Float32Array(lines),
+      triangles:new Float32Array(triangles)
+    };
   }
 
   drawBackground(energy,themeLight){
@@ -685,10 +693,18 @@ export class WebGLAvatar{
     gl.useProgram(this.flatProgram);
     gl.bindVertexArray(this.flatVAO);
     gl.bindBuffer(gl.ARRAY_BUFFER,this.flatBuffer);
-    gl.bufferSubData(gl.ARRAY_BUFFER,0,data);
     gl.uniformMatrix4fv(this.uFlat.vp,false,this.vpMatrix());
     gl.blendFunc(gl.SRC_ALPHA,gl.ONE);
-    gl.drawArrays(gl.LINES,0,data.length/7);
+
+    if(data.triangles.length){
+      gl.bufferSubData(gl.ARRAY_BUFFER,0,data.triangles);
+      gl.drawArrays(gl.TRIANGLES,0,data.triangles.length/7);
+    }
+    if(data.lines.length){
+      gl.bufferSubData(gl.ARRAY_BUFFER,0,data.lines);
+      gl.drawArrays(gl.LINES,0,data.lines.length/7);
+    }
+
     gl.bindVertexArray(null);
     gl.depthMask(true);
   }
