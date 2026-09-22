@@ -176,8 +176,8 @@ test('terminal chat palette supports explicit terminal and project commands with
   readFile(new URL('../desktop/terminal-manager.mjs',import.meta.url),'utf8')
  ]);
  assert.match(app,/handleTerminalDirective/);
- assert.match(ui,/\\/terminal/);
- assert.match(ui,/\\/run/);
+ assert.ok(ui.includes("value.match(/^\\/terminal"));
+ assert.ok(ui.includes("value.match(/^\\/run"));
  assert.match(ui,/jalankan/);
  assert.match(manager,/pkg\?\.scripts\?\.\[name\]/);
  assert.match(manager,/Dudidam tidak akan mengarang command/);
