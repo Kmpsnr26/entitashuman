@@ -38,7 +38,13 @@ function applyAvatarSize(value){
  requestAnimationFrame(()=>avatar.resize());
 }
 function applyAvatarVariant(value,forward=true){
- const variant=value==='cube'?'cube':'binary';avatar.setAvatarVariant?.(variant);const select=$('#avatarVariant');if(select)select.value=variant;if(desktop)localStorage.setItem('dudidam-avatar-variant',variant);if(panelOnly&&forward)panelChannel?.postMessage({type:'setting',name:'avatarVariant',value:variant});
+ const variant=value==='cube'?'cube':'binary';
+ avatar.setAvatarVariant?.(variant);
+ const select=$('#avatarVariant'),canvas=$('#avatar');
+ if(select)select.value=variant;
+ if(canvas)canvas.setAttribute('aria-label',variant==='cube'?'Wajah manusia kubus bercahaya dengan partikel 3D':'Wajah manusia biner mengambang dengan partikel Matrix dan medan magnet');
+ if(desktop)localStorage.setItem('dudidam-avatar-variant',variant);
+ if(desktop&&forward)panelChannel?.postMessage({type:'setting',name:'avatarVariant',value:variant});
 }
 applyAvatarVariant(desktop?localStorage.getItem('dudidam-avatar-variant')||'binary':'binary',false);
 const storedAvatarSize=desktop?Number(localStorage.getItem('dudidam-avatar-size')):0;
@@ -550,6 +556,7 @@ if(panelChannel)panelChannel.onmessage=event=>{
  if(data.type==='evolution'&&!panelOnly){setEvolutionVisual(data.mode==='complete'?'complete':data.mode==='start'?'start':'stop');return;}
  if(data.type==='wake-status'&&panelOnly){wakeEnabled=Boolean(data.enabled);setWakeStatus(String(data.text||''),Boolean(data.active));return;}
  if(data.type==='panel-ready'&&!panelOnly){setWakeStatus($('#wakeIndicator').textContent,$('#wakeIndicator').dataset.active==='true');setPersona(aiProvider);return;}
+ if(data.type==='setting'&&data.name==='avatarVariant'){applyAvatarVariant(data.value,false);return;}
  if(panelOnly)return;
  if(data.type==='avatar-size'){applyAvatarSize(data.size);return;}
  if(data.type==='mode'){setMode(data.mode);return;}
@@ -557,7 +564,6 @@ if(panelChannel)panelChannel.onmessage=event=>{
  if(data.type==='summon'){summonAle(data.source);return;}
  if(data.type==='wake-toggle'){changeWakeEnabled(data.enabled);return;}
  if(data.type==='setting'){
-  if(data.name==='avatarVariant')applyAvatarVariant(data.value,false);
   if(data.name==='track')avatar.track=Boolean(data.value);
   if(data.name==='animate')avatar.animate=Boolean(data.value);
   if(data.name==='color'&&typeof data.value==='string')avatar.color=data.value;
