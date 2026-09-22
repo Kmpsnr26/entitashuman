@@ -153,7 +153,13 @@ export function initTerminalUI({desktop,panelOnly=false,notify=()=>{}}={}){
  api.onData(({sessionId,data})=>sessions.get(sessionId)?.term.write(safeText(data)));
  api.onExit(({sessionId,exitCode})=>{const item=sessions.get(sessionId);if(!item)return;item.meta={...item.meta,status:'stopped',exitCode};item.term.write('\r\n\x1b[90m[process exited'+(Number.isInteger(exitCode)?' · code '+exitCode:'')+']\x1b[0m\r\n');item.tab.classList.add('stopped');if(activeId===sessionId)updateMeta(item.meta);});
  api.onClear(({sessionId})=>sessions.get(sessionId)?.term.clear());
- currentUI={open,createTerminal,refreshDetection,syncSessions,fitActive};
+ function activeBufferText(){
+  const item=sessions.get(activeId);if(!item)return '';
+  const buffer=item.term.buffer.active,lines=[];
+  for(let row=0;row<buffer.length;row++)lines.push(buffer.getLine(row)?.translateToString(true)||'');
+  return lines.join('\n').slice(-65536);
+ }
+ currentUI={open,createTerminal,refreshDetection,syncSessions,fitActive,activeBufferText,get activeId(){return activeId;}};
  window.dudidamTerminalUI=currentUI;
  refreshDetection().then(syncSessions).catch(error=>setStatus(error?.message||'Terminal belum siap.'));
  return currentUI;
