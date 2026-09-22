@@ -143,6 +143,7 @@ export function initTerminalUI({desktop,panelOnly=false,notify=()=>{}}={}){
 
  document.querySelector('#terminalNew')?.addEventListener('click',()=>createTerminal({shell:document.querySelector('#terminalShell')?.value||'default'}));
  document.querySelector('#terminalRefresh')?.addEventListener('click',refreshDetection);
+ document.querySelector('#terminalFolder')?.addEventListener('click',async()=>{const result=await desktop.chooseProjectRoot?.();if(result?.error)return notify(result.error);if(!result?.canceled){await refreshDetection();notify(result?.projectRootReady?'Workspace terminal diperbarui.':'Folder dipilih untuk terminal.');}});
  document.querySelector('#terminalClear')?.addEventListener('click',async()=>{const item=sessions.get(activeId);if(!item)return;item.term.clear();await api.clear(activeId);});
  document.querySelector('#terminalRestart')?.addEventListener('click',async()=>{if(!activeId)return;const result=await api.restart(activeId);if(result?.error)return notify(result.error);const old=sessions.get(activeId);if(old){old.term.reset();old.meta=result;updateMeta(result);}fitActive();});
  document.querySelector('#terminalKill')?.addEventListener('click',()=>activeId&&api.kill(activeId));
