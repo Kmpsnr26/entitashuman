@@ -149,8 +149,8 @@ export class TerminalManager extends EventEmitter{
    this.emit('data',{sessionId:id,data:String(data)});
   });
   proc.onExit(({exitCode})=>{
+   if(session.closed)return;
    session.status='stopped';session.exitCode=Number.isInteger(exitCode)?exitCode:null;
-   this.sessions.delete(id);
    this.emit('exit',{sessionId:id,exitCode:session.exitCode});
   });
   if(startupCommand)setTimeout(()=>{if(this.sessions.has(id))proc.write(startupCommand+'\r');},100);
@@ -181,7 +181,7 @@ export class TerminalManager extends EventEmitter{
  kill(id){
   const key=cleanText(id,100),session=this.sessions.get(key);
   if(!session)return {ok:true};
-  session.status='stopped';
+  session.status='stopped';session.closed=true;
   this.sessions.delete(key);
   try{session.proc.kill();}catch{}
   this.emit('exit',{sessionId:key,exitCode:null});
