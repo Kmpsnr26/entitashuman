@@ -26,7 +26,7 @@ const blocked=[
  /(?:set-mppreference|add-mppreference).*(?:disable|exclusion)/i,
  /(?:windows defender|securityhealth|windefend).*(?:disable|stop)/i,
  /(?:format\s+[a-z]:|diskpart|clear-disk|remove-partition)/i,
- /(?:remove-item|del|erase|rd|rmdir|rm)\b.*(?:[a-z]:\\\s*$|[a-z]:\\\*|\\windows\\|\\users\\.*-recurse|\/\s*$)/i
+ /(?:remove-item|del|erase|rd|rmdir|rm)\b.*(?:[a-z]:\\+(?=\s|$|\*)|\\windows\\|\\users\\.*-recurse|\/\s*$)/i
 ];
 
 const confirm=[
