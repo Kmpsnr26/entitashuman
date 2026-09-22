@@ -131,7 +131,7 @@ export class DeveloperAgentHub{
   if(!prompt||prompt.length>4000)throw new Error('Prompt agent harus berisi 1–4000 karakter.');
   const agent=agents.find(item=>item.id===id&&item.canRun);
   if(!agent)throw new Error('Agent ini belum mendukung pemanggilan langsung dari Dudidam.');
-  if(mode==='work'&&!['github-copilot','codex'].includes(id))throw new Error('Mode Kerja hanya tersedia untuk GitHub Copilot atau OpenAI Codex.');
+  if(mode==='work'&&!['github-copilot','codex','cursor'].includes(id))throw new Error('Mode Kerja hanya tersedia untuk GitHub Copilot, OpenAI Codex, atau Cursor.');
   const executable=await locate(agent);
   if(!executable)throw new Error(agent.name+' belum ditemukan di PATH atau environment path khusus.');
   const cwd=this.getProjectRoot();
@@ -150,6 +150,8 @@ export class DeveloperAgentHub{
    :id==='github-copilot'?['-p',prompt,'-s','--available-tools=view,grep,glob','--disable-builtin-mcps','--no-ask-user','--no-auto-update','--disallow-temp-dir']
    :id==='codex'&&mode==='work'?['exec','--json','--sandbox','workspace-write','--ephemeral','--ignore-user-config',safeWorkPrompt]
    :id==='codex'?['exec','--json','--sandbox','read-only','--ephemeral','--ignore-user-config',prompt]
+   :id==='cursor'&&mode==='work'?['-p',safeWorkPrompt,'--sandbox','enabled','--output-format','text']
+   :id==='cursor'?['-p',prompt,'--mode=ask','--output-format','text']
    :['-p',prompt,'--mode=ask','--output-format','text'];
   const timeoutMs=agentTimeoutMs(mode);
   this.pending=true;
