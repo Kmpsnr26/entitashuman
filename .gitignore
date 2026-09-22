@@ -17,3 +17,6 @@ Dudidam-Desktop-Avatar-*/
 avatar-smoke*.png
 __pycache__/
 *.pyc
+
+# Generated local browser assets
+public/vendor/
