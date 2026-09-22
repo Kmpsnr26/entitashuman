@@ -245,14 +245,17 @@ export class TerminalManager extends EventEmitter{
    this.off('data',onData);this.kill(session.id);
    return ok;
   };
+  const detected=await this.detect(),shells={};
+  for(const id of ['pwsh','powershell','cmd']){
+   if(detected.shells?.[id]?.state!=='READY'){shells[id]='NOT FOUND';continue;}
+   shells[id]=await run(id,'DUDIDDAM '+id.toUpperCase()+' OK')?'PASS':'FAIL';
+  }
   const defaultShell=await this.resolveShell('default');
-  const primary=await run(defaultShell.id,'DUDIDDAM TERMINAL OK');
-  const cmd=await run('cmd','DUDIDDAM CMD OK');
   const a=await this.create({shell:defaultShell.id,title:'CI multi A'}),b=await this.create({shell:'cmd',title:'CI multi B'});
   this.resize(a.id,100,24);this.resize(b.id,90,20);
   const multiple=this.list().some(x=>x.id===a.id)&&this.list().some(x=>x.id===b.id);
   this.kill(a.id);this.kill(b.id);
-  return {primary,cmd,multiple,defaultShell:defaultShell.id};
+  return {shells,multiple,defaultShell:defaultShell.id};
  }
  shutdown(){
   for(const id of [...this.sessions.keys()])this.kill(id);
