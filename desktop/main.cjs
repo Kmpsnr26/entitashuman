@@ -285,9 +285,34 @@ else{
     if(!copilotReady)throw new Error('Percakapan GitHub Copilot dari panel gagal.');
    }
    const terminalSmoke=await terminalManager.smokeTest();
-   if(!terminalSmoke.primary||!terminalSmoke.cmd||!terminalSmoke.multiple)throw new Error('Smoke terminal Windows gagal: '+JSON.stringify(terminalSmoke));
+   if(terminalSmoke.shells?.cmd!=='PASS'||Object.values(terminalSmoke.shells||{}).includes('FAIL')||!terminalSmoke.multiple)throw new Error('Smoke terminal Windows gagal: '+JSON.stringify(terminalSmoke));
    console.log('Dudidam terminal smoke:',JSON.stringify(terminalSmoke));
-   console.log('Dudidam CI smoke passed: packaged runtime, renderer, PTY terminal, and detached panel loaded.');
+   await openPanel('terminalDialog');
+   const xtermReady=await panelWin.webContents.executeJavaScript(`new Promise(resolve=>{
+    const deadline=Date.now()+8000;
+    const check=async()=>{
+     const ui=window.dudidamTerminalUI;
+     if(window.Terminal&&window.FitAddon?.FitAddon&&ui&&document.querySelector('#terminalDialog')?.open){
+      try{
+       const session=await ui.createTerminal({shell:'cmd',title:'CI Xterm'});
+       if(!session?.id){resolve(false);return;}
+       await window.dudidamDesktop.terminal.write(session.id,'echo DUDIDDAM XTERM OK\\r');
+       const output=()=>{
+        if(ui.activeBufferText?.().includes('DUDIDDAM XTERM OK')){resolve(true);return;}
+        if(Date.now()>deadline){resolve(false);return;}
+        setTimeout(output,80);
+       };
+       output();return;
+      }catch{resolve(false);return;}
+     }
+     if(Date.now()>deadline){resolve(false);return;}
+     setTimeout(check,80);
+    };
+    check();
+   })`);
+   if(!xtermReady)throw new Error('xterm/FitAddon packaged UI gagal membuat terminal interaktif.');
+   console.log('Dudidam xterm smoke passed.');
+   console.log('Dudidam CI smoke passed: packaged runtime, renderer, PTY terminal, xterm UI, and detached panel loaded.');
    quitting=true;app.quit();return;
   }
   console.log('Dudidam desktop ready: transparent=true; frame=false; alwaysOnTop=true; tray=true; systemAudio=loopback');
