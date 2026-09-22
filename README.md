@@ -67,7 +67,7 @@ Proyek yang sama dipertahankan pada .openai/hosting.json dan tetap memakai kebij
 ## Verifikasi dan paket Windows
 Jalankan `npm run verify` untuk menjalankan test dan build web dalam satu perintah. Di Windows, `npm run package:desktop` membuat folder portable `Dudidam-Desktop` dari runtime Electron yang sudah terpasang dan mengganti executable menjadi `Dudidam.exe`. Paket ini tidak memasukkan kredensial atau data login ChatGPT.
 
-GitHub Actions menjalankan verifikasi pada pull request dan push ke `main`, membangun artefak Windows `Dudidam-Desktop-Windows`, lalu menjalankan smoke test startup pada paket `Dudidam.exe` untuk memastikan runtime dan renderer lokal dapat dimuat. Smoke test model nyata tetap dijalankan manual karena memerlukan akun ChatGPT yang sudah login.
+GitHub Actions menjalankan verifikasi pada pull request dan push ke `main`, membuat paket Windows, lalu menjalankan smoke test startup pada `Dudidam.exe` untuk memastikan runtime dan renderer lokal dapat dimuat. Untuk mengunduh paket `Dudidam-Desktop-Windows`, jalankan workflow `Verify and package` secara manual pada cabang `main`; artifact tersimpan selama 3 hari. Smoke test model nyata tetap dijalankan manual karena memerlukan akun ChatGPT yang sudah login.
 
 ## Develop / verify
 node server.mjs — http://127.0.0.1:4177
