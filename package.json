@@ -1,19 +1,26 @@
 {
   "name": "dudidam-binary-assistant",
   "private": true,
-  "version": "2.3.0",
+  "version": "2.4.0",
   "type": "module",
   "scripts": {
-    "dev": "node server.mjs",
-    "build": "node build.mjs",
+    "dev": "npm run prepare:terminal && node server.mjs",
+    "build": "npm run prepare:terminal && node build.mjs",
     "test": "node --test tests/*.test.mjs",
-    "desktop": "electron desktop/main.cjs",
+    "desktop": "npm run prepare:terminal && electron desktop/main.cjs",
     "verify": "npm test && npm run build",
-    "package:desktop": "install-electron --no && node package-desktop.mjs",
-    "package:installer": "npx --yes electron-builder@26.16.1 --win nsis --x64 --publish never"
+    "package:desktop": "npm run prepare:terminal && npm run rebuild:native && install-electron --no && node package-desktop.mjs",
+    "package:installer": "npm run prepare:terminal && npm run rebuild:native && npx --yes electron-builder@26.16.1 --win nsis --x64 --publish never",
+    "prepare:terminal": "node prepare-terminal-assets.mjs",
+    "rebuild:native": "npx --yes @electron/rebuild@4.2.0 -f -w node-pty"
   },
   "devDependencies": {
     "electron": "44.4.3"
   },
-  "main": "desktop/main.cjs"
+  "main": "desktop/main.cjs",
+  "dependencies": {
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
+    "node-pty": "1.1.0"
+  }
 }
