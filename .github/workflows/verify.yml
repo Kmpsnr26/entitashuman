@@ -32,9 +32,10 @@ jobs:
       - name: Smoke packaged desktop
         run: .\Dudidam-Desktop\Dudidam.exe --ci-smoke
       - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
         with:
           name: Dudidam-Desktop-Windows
           path: Dudidam-Desktop
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 3
