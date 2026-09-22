@@ -161,7 +161,25 @@ test('Dudidam project work requires a selected Git checkout and exposes a folder
  assert.match(app,/isExplicitProjectWorkRequest\(text\)/);
 });
 
-test('developer agent hub registers requested tools and exposes read-only CLI adapters only',async()=>{const defs=agentDefinitions();const ids=defs.map(x=>x.id);for(const id of ['continue','cody','pieces','askcodi','phind','amazonq','windsurf','tabnine','replit','cursor','github-copilot','agent-copilot','codex','openai-api','visual-copilot','qodo','blackbox','claude','microsoft-copilot','deepseek-coder','devin','codegeex','starcoder','tabbyml','grok','gemini'])assert.ok(ids.includes(id));const runnable=defs.filter(x=>x.canRun).map(x=>x.id).sort();assert.deepEqual(runnable,['codex','cody','continue','cursor','github-copilot']);const [hub,desktop,preload,html,app]=await Promise.all([readFile(new URL('../desktop/agent-hub.mjs',import.meta.url),'utf8'),readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8'),readFile(new URL('../desktop/preload.cjs',import.meta.url),'utf8'),readFile(new URL('../public/index.html',import.meta.url),'utf8'),readFile(new URL('../public/app.js',import.meta.url),'utf8')]);assert.match(hub,/--readonly/);assert.match(hub,/--mode=ask/);assert.match(hub,/--available-tools=view,grep,glob/);assert.match(hub,/read-only/);assert.match(hub,/--ignore-user-config/);assert.doesNotMatch(hub,/--force/);assert.match(desktop,/dudidam:agent-run/);assert.match(preload,/runAgent/);assert.match(html,/id="agentDialog"/);assert.match(app,/desktop\.agents\(\)/);assert.match(app,/desktop\.runAgent/);});
+test('developer agent hub registers requested tools and exposes read-only CLI adapters only',async()=>{const defs=agentDefinitions();const ids=defs.map(x=>x.id);for(const id of ['continue','cody','pieces','askcodi','phind','amazonq','windsurf','tabnine','replit','cursor','github-copilot','agent-copilot','codex','openai-api','visual-copilot','qodo','blackbox','claude','microsoft-copilot','deepseek-coder','devin','codegeex','starcoder','tabbyml','grok','gemini'])assert.ok(ids.includes(id));const runnable=defs.filter(x=>x.canRun).map(x=>x.id).sort();assert.deepEqual(runnable,['claude','codex','cody','continue','cursor','github-copilot']);const [hub,desktop,preload,html,app]=await Promise.all([readFile(new URL('../desktop/agent-hub.mjs',import.meta.url),'utf8'),readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8'),readFile(new URL('../desktop/preload.cjs',import.meta.url),'utf8'),readFile(new URL('../public/index.html',import.meta.url),'utf8'),readFile(new URL('../public/app.js',import.meta.url),'utf8')]);assert.match(hub,/--readonly/);assert.match(hub,/--mode=ask/);assert.match(hub,/--available-tools=view,grep,glob/);assert.match(hub,/read-only/);assert.match(hub,/--ignore-user-config/);assert.doesNotMatch(hub,/--force/);assert.match(desktop,/dudidam:agent-run/);assert.match(preload,/runAgent/);assert.match(html,/id="agentDialog"/);assert.match(app,/desktop\.agents\(\)/);assert.match(app,/desktop\.runAgent/);});
+
+
+test('Claude Code uses Fable 5.1 with bounded project permissions',async()=>{
+ const [hub,html]=await Promise.all([
+  readFile(new URL('../desktop/agent-hub.mjs',import.meta.url),'utf8'),
+  readFile(new URL('../public/index.html',import.meta.url),'utf8')
+ ]);
+ assert.match(hub,/Claude Code · Fable 5\.1/);
+ assert.match(hub,/claude-fable-5-1/);
+ assert.match(hub,/--permission-mode','dontAsk/);
+ assert.match(hub,/--tools','Read,Glob,Grep'/);
+ assert.match(hub,/Read,Glob,Grep,Edit,Write,Bash/);
+ assert.match(hub,/Bash\(npm test\)/);
+ assert.match(hub,/Bash\(npm run verify\)/);
+ assert.match(hub,/--no-session-persistence/);
+ assert.doesNotMatch(hub,/dangerously-skip-permissions/);
+ assert.match(html,/Claude Code Fable 5\.1/);
+});
 
 
 test('Codex agent requires login, parses JSON events and uses bounded work timeout',async()=>{
