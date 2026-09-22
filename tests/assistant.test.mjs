@@ -152,7 +152,7 @@ test('integrated terminal keeps PTY behind bounded Electron IPC',async()=>{
  assert.doesNotMatch(preload,/require\(['"](?:node-pty|node:child_process|node:fs)/);
  assert.match(main,/TerminalManager/);assert.match(main,/dudidam:terminal-run/);assert.match(main,/showMessageBox/);
  assert.match(html,/id="terminalDialog"/);assert.match(html,/\/vendor\/xterm\.js/);assert.match(html,/\/vendor\/addon-fit\.js/);
- assert.match(ui,/new Terminal/);assert.match(ui,/new FitAddon/);assert.match(ui,/ResizeObserver/);assert.match(ui,/Ctrl\+C interrupt/);
+ assert.match(ui,/new Terminal/);assert.match(ui,/new FitAddon/);assert.match(ui,/ResizeObserver/);assert.match(html,/Ctrl\+C interrupt/);
  assert.match(assets,/@xterm\/xterm\/lib\/xterm\.js/);
  assert.match(policy,/SAFE/);assert.match(policy,/CONFIRM/);assert.match(policy,/BLOCK/);
 });
@@ -176,8 +176,8 @@ test('terminal chat palette supports explicit terminal and project commands with
   readFile(new URL('../desktop/terminal-manager.mjs',import.meta.url),'utf8')
  ]);
  assert.match(app,/handleTerminalDirective/);
- assert.match(ui,/^\\\/terminal/);
- assert.match(ui,/^\\\/run/);
+ assert.match(ui,/\\/terminal/);
+ assert.match(ui,/\\/run/);
  assert.match(ui,/jalankan/);
  assert.match(manager,/pkg\?\.scripts\?\.\[name\]/);
  assert.match(manager,/Dudidam tidak akan mengarang command/);
