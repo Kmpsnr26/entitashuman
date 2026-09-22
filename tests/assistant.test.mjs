@@ -164,6 +164,16 @@ test('Dudidam project work requires a selected Git checkout and exposes a folder
 test('developer agent hub registers requested tools and exposes read-only CLI adapters only',async()=>{const defs=agentDefinitions();const ids=defs.map(x=>x.id);for(const id of ['continue','cody','pieces','askcodi','phind','amazonq','windsurf','tabnine','replit','cursor','github-copilot','agent-copilot','codex','openai-api','visual-copilot','qodo','blackbox','claude','microsoft-copilot','deepseek-coder','devin','codegeex','starcoder','tabbyml','grok','gemini'])assert.ok(ids.includes(id));const runnable=defs.filter(x=>x.canRun).map(x=>x.id).sort();assert.deepEqual(runnable,['codex','cody','continue','cursor','github-copilot']);const [hub,desktop,preload,html,app]=await Promise.all([readFile(new URL('../desktop/agent-hub.mjs',import.meta.url),'utf8'),readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8'),readFile(new URL('../desktop/preload.cjs',import.meta.url),'utf8'),readFile(new URL('../public/index.html',import.meta.url),'utf8'),readFile(new URL('../public/app.js',import.meta.url),'utf8')]);assert.match(hub,/--readonly/);assert.match(hub,/--mode=ask/);assert.match(hub,/--available-tools=view,grep,glob/);assert.match(hub,/read-only/);assert.match(hub,/--ignore-user-config/);assert.doesNotMatch(hub,/--force/);assert.match(desktop,/dudidam:agent-run/);assert.match(preload,/runAgent/);assert.match(html,/id="agentDialog"/);assert.match(app,/desktop\.agents\(\)/);assert.match(app,/desktop\.runAgent/);});
 
 
+test('Cursor is connected with read-only analysis and sandboxed work mode',async()=>{
+ const hub=await readFile(new URL('../desktop/agent-hub.mjs',import.meta.url),'utf8');
+ assert.match(hub,/\['github-copilot','codex','cursor'\]/);
+ assert.match(hub,/id==='cursor'&&mode==='work'/);
+ assert.match(hub,/--sandbox','enabled/);
+ assert.match(hub,/id==='cursor'\?\['-p',prompt,'--mode=ask','--output-format','text'\]/);
+ assert.doesNotMatch(hub,/dangerously|--force|--yolo/i);
+});
+
+
 test('Codex agent requires login, parses JSON events and uses bounded work timeout',async()=>{
  assert.equal(isCodexLoggedIn('Logged in using ChatGPT'),true);
  assert.equal(isCodexLoggedIn('Not logged in'),false);
