@@ -648,7 +648,7 @@ export class BinaryAvatar {
   }
   this.drawMagneticField(context,size,hue,clock,lightEnvironment);
   }else{
-   this.cubeLayer.draw(context,{size,cx,cy,fw:faceWidth,fh:faceHeight,time:motionClock,yaw:rx,speech:this.speechEnergy,thinking:this.thinking||this.evolving,lowCost,viseme:this.viseme,emotion:this.emotion,listening:this.listening,earSpectrum:this.earSpectrum});
+   this.cubeLayer.draw(context,{size,cx,cy,fw:faceWidth,fh:faceHeight,time:motionClock,yaw:rx,speech:this.speechEnergy,thinking:this.thinking||this.evolving,lowCost,viseme:this.viseme,emotion:this.emotion,listening:this.listening,earSpectrum:this.earSpectrum,blink:close});
   }
   context.restore();
   this.lastFrameCost=performance.now()-frameStarted;
