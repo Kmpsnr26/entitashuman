@@ -282,6 +282,18 @@ Automatic routing skips providers whose circuit is open. Explicit requests to an
 
 Only retryable operational provider failures increment breaker health. NARA auth, CSRF, request-validation and other user-facing request errors do not feed the provider circuit breaker.
 
+The health registry also maintains bounded operational telemetry:
+
+- normalized availability: `ready`, `degraded`, or `unavailable`
+- bounded success/failure counters
+- success rate
+- latest provider latency
+- exponential moving-average latency
+- last success/failure timestamps
+- next circuit probe time
+
+No prompt, response text or provider credential is used to compute these metrics.
+
 The existing `GET /api/ai/providers` endpoint returns safe provider status:
 
 - provider id
