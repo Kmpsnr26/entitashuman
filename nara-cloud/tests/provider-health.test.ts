@@ -1222,6 +1222,71 @@ test(
 );
 
 test(
+  "gateway health telemetry never stores arbitrary upstream error codes",
+  async () => {
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          2
+      });
+
+    const provider =
+      new FakeProvider(
+        "custom",
+        async () => {
+          throw new AiProviderError(
+            "upstream rejected request",
+            {
+              code:
+                "secret-looking-upstream-code-12345",
+              retryable:
+                true
+            }
+          );
+        }
+      );
+
+    const gateway =
+      new AiGateway(
+        [provider],
+        "custom",
+        health
+      );
+
+    await assert.rejects(
+      () =>
+        gateway.generate(
+          request,
+          {
+            provider:
+              "custom"
+          }
+        )
+    );
+
+    const status =
+      gateway.status()[0];
+
+    assert.equal(
+      status?.health.lastErrorCode,
+      "AI_PROVIDER_RETRYABLE_ERROR"
+    );
+
+    const serialized =
+      JSON.stringify(
+        status
+      );
+
+    assert.equal(
+      serialized.includes(
+        "secret-looking-upstream-code-12345"
+      ),
+      false
+    );
+  }
+);
+
+test(
   "gateway status exposes safe public health and telemetry only",
   async () => {
     const health =
