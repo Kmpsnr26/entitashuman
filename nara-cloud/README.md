@@ -249,9 +249,17 @@ Once a provider emits the first text delta, NARA will not switch to another prov
 
 ## Phase 11B3 — Provider health and circuit breaker
 
-NARA tracks provider health in process memory without storing prompts, responses or credentials.
+NARA tracks provider health in process memory without storing prompts, responses, cookies, sessions or credentials.
 
-Health states:
+Public provider state returned by `GET /api/ai/providers` is intentionally simple:
+
+```text
+ready
+degraded
+unavailable
+```
+
+Internally, the circuit breaker uses:
 
 ```text
 healthy
@@ -266,10 +274,18 @@ open
 half-open
    │
    ├── success ──> healthy
-   └── retryable failure ──> open
+   └── failure / abandoned probe ──> open
 ```
 
-An unconfigured provider is reported as `unavailable`.
+Public mapping:
+
+```text
+healthy    -> ready
+degraded   -> degraded
+half-open  -> degraded
+open       -> unavailable
+not configured -> unavailable
+```
 
 Environment controls:
 
@@ -280,30 +296,34 @@ AI_BREAKER_COOLDOWN_MS=60000
 
 Automatic routing skips providers whose circuit is open. Explicit requests to an open provider return a safe availability error and do not call the upstream provider until a half-open probe is permitted.
 
-Only retryable operational provider failures increment breaker health. NARA auth, CSRF, request-validation and other user-facing request errors do not feed the provider circuit breaker.
+Only retryable provider failures increment the consecutive-failure breaker count. A non-retryable upstream failure is visible in telemetry but does not increase that retryable counter. User/client aborts are not counted as provider failures.
 
-The health registry also maintains bounded operational telemetry:
+The health telemetry is bounded and process-local. It includes only operational metadata:
 
-- normalized availability: `ready`, `degraded`, or `unavailable`
-- bounded success/failure counters
+- public state
+- internal circuit state
+- consecutive retryable failures
+- bounded success/failure sample counts
 - success rate
-- latest provider latency
-- exponential moving-average latency
-- last success/failure timestamps
-- next circuit probe time
-
-No prompt, response text or provider credential is used to compute these metrics.
-
-The existing `GET /api/ai/providers` endpoint returns safe provider status:
-
-- provider id
-- model
-- configured flag
-- health state
-- consecutive failure count
-- safe timestamps
+- exponential moving average latency
+- last latency
+- sanitized last error code
+- safe success/failure/open/probe timestamps
 - half-open probe state
 
-It does not expose API keys, authorization headers, prompts, responses, cookies, session IDs, or provider base credentials.
+Counters are compacted when the configured in-memory sample bound is reached, so the process does not keep an unbounded request history.
 
-Streaming keeps the B2 no-mix invariant: after any text delta is emitted, the gateway will not switch to another provider.
+It does **not** contain:
+
+- API keys
+- Authorization headers
+- prompts
+- response text
+- cookies
+- session IDs
+- passwords
+- provider base credentials
+
+Streaming keeps the B2 no-mix invariant: after any text delta is emitted, NARA will not switch to another provider for that response.
+
+If a half-open probe is cancelled or abandoned, the circuit returns to open with a fresh cooldown window, preventing immediate repeated probes.
