@@ -1,0 +1,704 @@
+name: Cloud Auto Repair
+
+on:
+  workflow_dispatch:
+  issues:
+    types: [opened, reopened, edited, labeled]
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, labeled]
+  workflow_run:
+    workflows: ["Verify and package", "Build Android APK"]
+    types: [completed]
+  schedule:
+    - cron: "17 */3 * * *"
+
+permissions: {}
+
+concurrency:
+  group: cloud-auto-repair-\${{ github.repository }}-\${{ github.event_name }}-\${{ github.event.issue.number || github.event.pull_request.number || github.event.workflow_run.id || 'scheduled' }}
+  cancel-in-progress: false
+
+jobs:
+  triage:
+    name: Triage and delegate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: read
+    outputs:
+      candidates: \${{ steps.triage.outputs.candidates }}
+      fallback_issues: \${{ steps.delegate.outputs.fallback_issues }}
+      delegated_issues: \${{ steps.delegate.outputs.delegated_issues }}
+    steps:
+      - name: Create or update deduplicated issues
+        id: triage
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          github-token: \${{ github.token }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const failureConclusions = new Set([
+              'failure',
+              'timed_out',
+              'startup_failure',
+              'action_required'
+            ]);
+            const labelDefinitions = {
+              'ai-fix-needed': {
+                color: 'b60205',
+                description: 'Needs an AI or human-authored fix'
+              },
+              'automation:managed': {
+                color: '1d76db',
+                description: 'Managed by the cloud auto-repair workflow'
+              },
+              'automation:queued': {
+                color: 'fbca04',
+                description: 'Queued for cloud repair'
+              },
+              'automation:delegated': {
+                color: '0e8a16',
+                description: 'Delegated to a cloud coding agent'
+              },
+              'automation:fallback': {
+                color: 'd93f0b',
+                description: 'Using the deterministic branch and Draft PR fallback'
+              },
+              'automation:resolved': {
+                color: '5319e7',
+                description: 'The tracked failure has recovered'
+              },
+              'ci-failure': {
+                color: 'b60205',
+                description: 'Created from a failed GitHub Actions run'
+              }
+            };
+
+            async function ensureLabels() {
+              for (const [name, definition] of Object.entries(labelDefinitions)) {
+                try {
+                  await github.rest.issues.getLabel({ owner, repo, name });
+                } catch (error) {
+                  if (error.status !== 404) throw error;
+                  await github.rest.issues.createLabel({
+                    owner,
+                    repo,
+                    name,
+                    color: definition.color,
+                    description: definition.description
+                  });
+                }
+              }
+            }
+
+            function markerFor(key) {
+              return '<!-- cloud-automation-key: ' + key + ' -->';
+            }
+
+            async function findManagedIssue(key) {
+              const marker = markerFor(key);
+              const issues = await github.paginate(github.rest.issues.listForRepo, {
+                owner,
+                repo,
+                state: 'all',
+                labels: 'automation:managed',
+                per_page: 100
+              });
+              return issues.find((issue) =>
+                !issue.pull_request && (issue.body || '').includes(marker)
+              );
+            }
+
+            async function addLabels(issueNumber, labels) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                labels
+              });
+            }
+
+            async function removeLabel(issueNumber, label) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  name: label
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+            }
+
+            async function resolveRecoveredRun(run) {
+              const branch = run.head_branch || context.payload.repository.default_branch;
+              const key = 'workflow:' + run.workflow_id + ':' + branch;
+              const issue = await findManagedIssue(key);
+              if (!issue || issue.state === 'closed') return;
+
+              const recovery = [
+                '',
+                '## Recovery',
+                '',
+                'A later run completed successfully:',
+                '- Workflow: ' + run.name,
+                '- Branch: ' + branch,
+                '- Run: ' + run.html_url,
+                '- Completed: ' + run.updated_at
+              ].join('\n');
+
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issue.number,
+                state: 'closed',
+                state_reason: 'completed',
+                body: (issue.body || '') + recovery
+              });
+              await addLabels(issue.number, ['automation:resolved']);
+              await removeLabel(issue.number, 'automation:queued');
+            }
+
+            const candidates = [];
+
+            async function upsertFailure(run) {
+              const branch = run.head_branch || context.payload.repository.default_branch;
+              if (!branch || branch.startsWith('automation/')) return;
+              if (run.name === 'Cloud Auto Repair') return;
+
+              const key = 'workflow:' + run.workflow_id + ':' + branch;
+              const marker = markerFor(key);
+              const existing = await findManagedIssue(key);
+              const title = '[CI] ' + run.name + ' gagal di ' + branch;
+              const body = [
+                marker,
+                '## Deteksi otomatis',
+                '',
+                'GitHub Actions mendeteksi kegagalan yang dapat ditindaklanjuti.',
+                '',
+                '- Workflow: **' + run.name + '**',
+                '- Branch: \`' + branch + '\`',
+                '- Event: \`' + run.event + '\`',
+                '- Kesimpulan: \`' + run.conclusion + '\`',
+                '- Commit: \`' + (run.head_sha || 'unknown') + '\`',
+                '- Run: ' + run.html_url,
+                '- Terakhir terlihat: ' + run.updated_at,
+                '',
+                '## Instruksi perbaikan',
+                '',
+                '1. Baca log job yang gagal dan temukan penyebab akar.',
+                '2. Buat perubahan sekecil mungkin pada branch berbasis \`' + branch + '\`.',
+                '3. Jalankan \`npm ci\`, \`npm run verify\`, dan pemeriksaan yang relevan.',
+                '4. Jangan ubah workflow keamanan atau secret kecuali kegagalan memang berasal dari sana.',
+                '5. Buka atau perbarui satu Draft PR saja; jangan merge otomatis.',
+                '',
+                'Issue ini dikelola otomatis. Kejadian dengan fingerprint yang sama memperbarui issue ini.'
+              ].join('\n');
+
+              let issue;
+              if (existing) {
+                const response = await github.rest.issues.update({
+                  owner,
+                  repo,
+                  issue_number: existing.number,
+                  title,
+                  body,
+                  state: 'open',
+                  state_reason: 'reopened'
+                });
+                issue = response.data;
+              } else {
+                const response = await github.rest.issues.create({
+                  owner,
+                  repo,
+                  title,
+                  body
+                });
+                issue = response.data;
+              }
+
+              await addLabels(issue.number, [
+                'ci-failure',
+                'ai-fix-needed',
+                'automation:managed',
+                'automation:queued'
+              ]);
+              await removeLabel(issue.number, 'automation:resolved');
+              candidates.push({
+                issue_number: issue.number,
+                branch,
+                key,
+                title: issue.title
+              });
+            }
+
+            async function queueExistingIssue(issue) {
+              const labels = (issue.labels || []).map((label) =>
+                typeof label === 'string' ? label : label.name
+              );
+              const body = issue.body || '';
+              if (labels.includes('automation:control')) return;
+              if (body.includes('<!-- cloud-automation-control -->')) return;
+
+              const actionableLabel = labels.some((label) =>
+                ['bug', 'type:bug', 'ci-failure', 'ai-fix-needed'].includes(label)
+              );
+              const actionableTitle = /(^|\W)(bug|error|fail|failure|gagal)(\W|$)/i.test(issue.title);
+              if (!actionableLabel && !actionableTitle) return;
+
+              await addLabels(issue.number, [
+                'ai-fix-needed',
+                'automation:managed',
+                'automation:queued'
+              ]);
+              candidates.push({
+                issue_number: issue.number,
+                branch: context.payload.repository.default_branch,
+                key: 'issue:' + issue.number,
+                title: issue.title
+              });
+            }
+
+            async function queuePullRequest(pr) {
+              const labels = (pr.labels || []).map((label) =>
+                typeof label === 'string' ? label : label.name
+              );
+              const head = pr.head && pr.head.ref ? pr.head.ref : '';
+              const actor = pr.user && pr.user.login ? pr.user.login : '';
+              if (head.startsWith('automation/')) return;
+              if (actor.startsWith('copilot-swe-agent')) return;
+
+              const actionableLabel = labels.some((label) =>
+                ['bug', 'type:bug', 'ci-failure', 'ai-fix-needed'].includes(label)
+              );
+              const actionableTitle = /^\s*\[(bug|error|failure|gagal)\]/i.test(pr.title);
+              if (!actionableLabel && !actionableTitle) return;
+
+              const key = 'pull-request:' + pr.number;
+              const marker = markerFor(key);
+              const existing = await findManagedIssue(key);
+              const title = '[PR #' + pr.number + '] Tindak lanjuti bug/error yang ditandai';
+              const body = [
+                marker,
+                '## Pull request yang perlu diperbaiki',
+                '',
+                '- PR: ' + pr.html_url,
+                '- Judul: ' + pr.title,
+                '- Head: \`' + head + '\`',
+                '- Base: \`' + pr.base.ref + '\`',
+                '',
+                'Investigasi masalah yang ditandai pada PR tersebut, tambahkan tes regresi, dan jangan merge otomatis.'
+              ].join('\n');
+
+              let issue;
+              if (existing) {
+                const response = await github.rest.issues.update({
+                  owner,
+                  repo,
+                  issue_number: existing.number,
+                  title,
+                  body,
+                  state: 'open',
+                  state_reason: 'reopened'
+                });
+                issue = response.data;
+              } else {
+                const response = await github.rest.issues.create({
+                  owner,
+                  repo,
+                  title,
+                  body
+                });
+                issue = response.data;
+              }
+
+              await addLabels(issue.number, [
+                'ai-fix-needed',
+                'automation:managed',
+                'automation:queued'
+              ]);
+              candidates.push({
+                issue_number: issue.number,
+                branch: pr.base.ref,
+                key,
+                title: issue.title
+              });
+            }
+
+            async function scanRecentFailures(hours) {
+              const cutoff = Date.now() - hours * 60 * 60 * 1000;
+              const runs = await github.paginate(
+                github.rest.actions.listWorkflowRunsForRepo,
+                {
+                  owner,
+                  repo,
+                  status: 'completed',
+                  per_page: 100
+                }
+              );
+
+              const unique = new Map();
+              for (const run of runs) {
+                if (!failureConclusions.has(run.conclusion)) continue;
+                if (Date.parse(run.updated_at) < cutoff) continue;
+                if (run.name === 'Cloud Auto Repair') continue;
+                if ((run.head_branch || '').startsWith('automation/')) continue;
+                const key = run.workflow_id + ':' + (run.head_branch || '');
+                if (!unique.has(key)) unique.set(key, run);
+                if (unique.size >= 3) break;
+              }
+
+              for (const run of unique.values()) {
+                await upsertFailure(run);
+              }
+            }
+
+            await ensureLabels();
+
+            if (context.eventName === 'workflow_run') {
+              const run = context.payload.workflow_run;
+              if (failureConclusions.has(run.conclusion)) {
+                await upsertFailure(run);
+              } else if (run.conclusion === 'success') {
+                await resolveRecoveredRun(run);
+              }
+            } else if (context.eventName === 'issues') {
+              if (!context.payload.issue.pull_request) {
+                await queueExistingIssue(context.payload.issue);
+              }
+            } else if (context.eventName === 'pull_request') {
+              await queuePullRequest(context.payload.pull_request);
+            } else if (context.eventName === 'schedule') {
+              await scanRecentFailures(24);
+            } else if (context.eventName === 'workflow_dispatch') {
+              await scanRecentFailures(168);
+            }
+
+            core.setOutput('candidates', JSON.stringify(candidates));
+
+      - name: Delegate to Copilot cloud agent when configured
+        id: delegate
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          CANDIDATES: \${{ steps.triage.outputs.candidates }}
+          COPILOT_TOKEN_CONFIGURED: \${{ secrets.COPILOT_ASSIGN_TOKEN != '' }}
+        with:
+          github-token: \${{ secrets.COPILOT_ASSIGN_TOKEN || github.token }}
+          script: |
+            const candidates = JSON.parse(process.env.CANDIDATES || '[]');
+            const fallback = [];
+            const delegated = [];
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            if (process.env.COPILOT_TOKEN_CONFIGURED !== 'true') {
+              core.info('COPILOT_ASSIGN_TOKEN is not configured; using safe fallback.');
+              core.setOutput('fallback_issues', JSON.stringify(candidates));
+              core.setOutput('delegated_issues', '[]');
+              return;
+            }
+
+            for (const candidate of candidates) {
+              try {
+                const issue = await github.rest.issues.get({
+                  owner,
+                  repo,
+                  issue_number: candidate.issue_number
+                });
+                const alreadyAssigned = (issue.data.assignees || []).some((assignee) =>
+                  assignee.login.startsWith('copilot-swe-agent')
+                );
+                if (alreadyAssigned) {
+                  delegated.push(candidate);
+                  continue;
+                }
+
+                const existingFallback = await github.rest.pulls.list({
+                  owner,
+                  repo,
+                  state: 'open',
+                  head: owner + ':automation/issue-' + candidate.issue_number,
+                  per_page: 1
+                });
+                if (existingFallback.data.length > 0) {
+                  fallback.push(candidate);
+                  continue;
+                }
+
+                const response = await github.request(
+                  'POST /repos/{owner}/{repo}/issues/{issue_number}/assignees',
+                  {
+                    owner,
+                    repo,
+                    issue_number: candidate.issue_number,
+                    assignees: ['copilot-swe-agent[bot]'],
+                    agent_assignment: {
+                      target_repo: owner + '/' + repo,
+                      base_branch: candidate.branch,
+                      custom_instructions:
+                        'Follow .github/copilot-instructions.md. Investigate issue #' +
+                        candidate.issue_number +
+                        ', add regression coverage, run npm run verify, open a Draft PR, and never merge automatically.',
+                      custom_agent: '',
+                      model: ''
+                    },
+                    headers: {
+                      accept: 'application/vnd.github+json',
+                      'x-github-api-version': '2022-11-28'
+                    }
+                  }
+                );
+
+                const assigned = (response.data.assignees || []).some((assignee) =>
+                  assignee.login.startsWith('copilot-swe-agent')
+                );
+                if (!assigned) throw new Error('Copilot was not returned as an assignee.');
+                delegated.push(candidate);
+              } catch (error) {
+                core.warning(
+                  'Copilot assignment unavailable for issue #' +
+                  candidate.issue_number +
+                  ': ' +
+                  error.message
+                );
+                fallback.push(candidate);
+              }
+            }
+
+            core.setOutput('fallback_issues', JSON.stringify(fallback));
+            core.setOutput('delegated_issues', JSON.stringify(delegated));
+
+      - name: Record delegation state
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          FALLBACK_ISSUES: \${{ steps.delegate.outputs.fallback_issues }}
+          DELEGATED_ISSUES: \${{ steps.delegate.outputs.delegated_issues }}
+        with:
+          github-token: \${{ github.token }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const fallback = JSON.parse(process.env.FALLBACK_ISSUES || '[]');
+            const delegated = JSON.parse(process.env.DELEGATED_ISSUES || '[]');
+
+            async function add(issueNumber, labels) {
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                labels
+              });
+            }
+
+            async function remove(issueNumber, name) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: issueNumber,
+                  name
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+            }
+
+            for (const candidate of delegated) {
+              await add(candidate.issue_number, ['automation:delegated']);
+              await remove(candidate.issue_number, 'automation:fallback');
+              await remove(candidate.issue_number, 'automation:queued');
+            }
+
+            for (const candidate of fallback) {
+              await add(candidate.issue_number, ['automation:fallback', 'ai-fix-needed']);
+              await remove(candidate.issue_number, 'automation:delegated');
+            }
+
+  fallback:
+    name: Safe branch and Draft PR fallback
+    needs: triage
+    if: needs.triage.outputs.fallback_issues != '[]' && needs.triage.outputs.fallback_issues != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Create or update one deterministic Draft PR per issue
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          FALLBACK_ISSUES: \${{ needs.triage.outputs.fallback_issues }}
+        with:
+          github-token: \${{ github.token }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const candidates = JSON.parse(process.env.FALLBACK_ISSUES || '[]');
+            const repository = await github.rest.repos.get({ owner, repo });
+
+            for (const candidate of candidates) {
+              const issueResponse = await github.rest.issues.get({
+                owner,
+                repo,
+                issue_number: candidate.issue_number
+              });
+              const issue = issueResponse.data;
+              const branch = 'automation/issue-' + issue.number;
+              let baseBranch = candidate.branch || repository.data.default_branch;
+              let base;
+
+              try {
+                base = await github.rest.repos.getBranch({
+                  owner,
+                  repo,
+                  branch: baseBranch
+                });
+              } catch (error) {
+                core.warning(
+                  'Base branch ' + baseBranch + ' is unavailable; using the default branch.'
+                );
+                baseBranch = repository.data.default_branch;
+                base = await github.rest.repos.getBranch({
+                  owner,
+                  repo,
+                  branch: baseBranch
+                });
+              }
+
+              try {
+                await github.rest.git.getRef({
+                  owner,
+                  repo,
+                  ref: 'heads/' + branch
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                await github.rest.git.createRef({
+                  owner,
+                  repo,
+                  ref: 'refs/heads/' + branch,
+                  sha: base.data.commit.sha
+                });
+              }
+
+              const path = '.github/ai-fix-requests/issue-' + issue.number + '.md';
+              const requestBody = [
+                '# Automated fix request for issue #' + issue.number,
+                '',
+                'Source issue: ' + issue.html_url,
+                '',
+                '## Task',
+                '',
+                issue.title,
+                '',
+                'Read the source issue for the latest evidence and acceptance criteria.',
+                '',
+                '## Guardrails',
+                '',
+                '- Start from \`' + baseBranch + '\`.',
+                '- Make the smallest safe fix and add regression coverage.',
+                '- Run \`npm ci\`, \`npm run verify\`, and relevant focused checks.',
+                '- Never commit secrets or weaken Electron/browser security boundaries.',
+                '- Do not create another issue, branch, or pull request.',
+                '- Keep this pull request in Draft until a human reviews the fix.',
+                '- Never merge automatically.',
+                '',
+                '<!-- cloud-fallback-request: issue-' + issue.number + ' -->'
+              ].join('\n');
+
+              let existingFile;
+              try {
+                existingFile = await github.rest.repos.getContent({
+                  owner,
+                  repo,
+                  path,
+                  ref: branch
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+
+              await github.rest.repos.createOrUpdateFileContents({
+                owner,
+                repo,
+                path,
+                branch,
+                message: 'chore: queue automated fix request for issue #' + issue.number,
+                content: Buffer.from(requestBody, 'utf8').toString('base64'),
+                sha: existingFile && !Array.isArray(existingFile.data)
+                  ? existingFile.data.sha
+                  : undefined
+              });
+
+              let pulls = await github.rest.pulls.list({
+                owner,
+                repo,
+                state: 'open',
+                head: owner + ':' + branch,
+                per_page: 1
+              });
+              let pull = pulls.data[0];
+
+              if (!pull) {
+                const created = await github.rest.pulls.create({
+                  owner,
+                  repo,
+                  head: branch,
+                  base: baseBranch,
+                  draft: true,
+                  title: '[AI fallback] ' + issue.title.slice(0, 180),
+                  body: [
+                    '## Cloud fallback',
+                    '',
+                    'Tracks #' + issue.number + '.',
+                    '',
+                    'Copilot cloud-agent assignment was unavailable, so this Draft PR and its deterministic branch preserve the work queue entirely in GitHub.',
+                    '',
+                    '### Before review',
+                    '',
+                    '- [ ] Replace the request stub with an actual fix.',
+                    '- [ ] Add or update regression tests.',
+                    '- [ ] Run \`npm run verify\`.',
+                    '- [ ] Review security-sensitive changes manually.',
+                    '',
+                    'This PR must not be merged automatically.'
+                  ].join('\n')
+                });
+                pull = created.data;
+              }
+
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: issue.number,
+                labels: ['ai-fix-needed', 'automation:fallback']
+              });
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pull.number,
+                labels: ['ai-fix-needed', 'automation:fallback']
+              });
+
+              const currentBody = issue.body || '';
+              const linkMarker = '<!-- cloud-fallback-pr -->';
+              if (!currentBody.includes(linkMarker)) {
+                await github.rest.issues.update({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  body:
+                    currentBody +
+                    '\n\n' +
+                    linkMarker +
+                    '\nFallback Draft PR: ' +
+                    pull.html_url
+                });
+              }
+            }
