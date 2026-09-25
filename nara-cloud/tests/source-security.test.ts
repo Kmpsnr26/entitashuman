@@ -252,3 +252,82 @@ test(
     );
   }
 );
+
+test(
+  "multi-provider gateway registers only server-side configured adapters",
+  async () => {
+    const [
+      routes,
+      gemini,
+      anthropic,
+      compatible,
+      env
+    ] = await Promise.all([
+      read(
+        "src/routes/ai.routes.ts"
+      ),
+      read(
+        "src/ai/providers/gemini.provider.ts"
+      ),
+      read(
+        "src/ai/providers/anthropic.provider.ts"
+      ),
+      read(
+        "src/ai/providers/openai-compatible.provider.ts"
+      ),
+      read(
+        "src/config/env.ts"
+      )
+    ]);
+
+    assert.match(
+      routes,
+      /new OpenAiProvider\(\)/
+    );
+
+    assert.match(
+      routes,
+      /new GeminiProvider\(\)/
+    );
+
+    assert.match(
+      routes,
+      /new AnthropicProvider\(\)/
+    );
+
+    assert.match(
+      routes,
+      /new OpenAiCompatibleProvider\(\)/
+    );
+
+    assert.match(
+      gemini,
+      /env\.GEMINI_API_KEY/
+    );
+
+    assert.match(
+      anthropic,
+      /env\.ANTHROPIC_API_KEY/
+    );
+
+    assert.match(
+      compatible,
+      /env\.COMPAT_API_KEY/
+    );
+
+    assert.doesNotMatch(
+      routes,
+      /GEMINI_API_KEY|ANTHROPIC_API_KEY|COMPAT_API_KEY/
+    );
+
+    assert.match(
+      env,
+      /COMPAT_PROVIDER_ID memakai ID provider yang dicadangkan/
+    );
+
+    assert.match(
+      env,
+      /COMPAT_API_BASE_URL wajib HTTPS di production/
+    );
+  }
+);
