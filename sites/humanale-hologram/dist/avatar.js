@@ -76,6 +76,8 @@
       this.zoom = 1; this.zoomTarget = 1;
       this.backdrop = null;
       this.neuralCore = global.NeuralCore.create();
+      this.brainState = { selectedRegion:'NARA_CORE', regions:{} };
+      this.brainRegionScreen = [];
       this.facePoints = this.buildFallback();
       this.referencePromise = options.referenceSrc ? this.loadReference(options.referenceSrc) : Promise.resolve(false);
       if (!options.referenceSrc) this.setVisible(true, { initial: true });
@@ -288,6 +290,58 @@
       this.zoomTarget = clamp(n, 1, 3.8);
       this.onZoom?.(this.zoomTarget);
     }
+    setBrainState(snapshot = {}) {
+      const next = {};
+      for (const region of this.neuralCore.regions || []) {
+        const source = snapshot?.regions?.[region.id] || {};
+        next[region.id] = {
+          id: region.id,
+          status: String(source.status || 'idle').slice(0, 40),
+          activity: clamp(source.activity),
+          message: String(source.message || '').slice(0, 160),
+          lastEvent: String(source.lastEvent || '').slice(0, 100),
+          updatedAt: Number(source.updatedAt) || 0
+        };
+      }
+      const selected = this.neuralCore.regionIndex?.[snapshot?.selectedRegion] !== undefined
+        ? snapshot.selectedRegion
+        : this.brainState?.selectedRegion || 'NARA_CORE';
+      this.brainState = { selectedRegion:selected, regions:next };
+      this.onBrainState?.(this.brainState);
+    }
+    selectBrainRegion(id = '') {
+      if (this.neuralCore.regionIndex?.[id] === undefined) return false;
+      this.brainState = { ...(this.brainState || {}), selectedRegion:id };
+      this.onBrainRegionSelect?.(id);
+      return true;
+    }
+    brainRegionState(id = '') {
+      return this.brainState?.regions?.[id] || { id, status:'idle', activity:0, message:'', lastEvent:'' };
+    }
+    brainStatusColor(status, point, alpha = 1, time = 0) {
+      const base = this.palette(time);
+      const hues = {
+        active:188, processing:196, thinking:204, connected:150, complete:136,
+        syncing:278, login_required:42, error:8, bug:334, disconnected:220,
+        offline:220, listening:174, seeing:202, speaking:266, ready:188, paused:38
+      };
+      const hue = hues[status] ?? base.hue;
+      const saturation = ['offline','disconnected','idle'].includes(status) ? 18 : Math.max(48, base.sat);
+      const lightness = this.lightAt(point.x,point.y) ? 24 : (status==='error'||status==='bug' ? 67 : 74);
+      return 'hsla('+hue+' '+saturation+'% '+lightness+'% / '+clamp(alpha,0,1)+')';
+    }
+    pickBrainRegion(clientX, clientY) {
+      if (Math.max(this.zoom,this.zoomTarget) < 2.25 || !this.brainRegionScreen?.length) return null;
+      const rect = this.canvas.getBoundingClientRect();
+      const x = Number(clientX) - rect.left, y = Number(clientY) - rect.top;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      let best = null, distance = Infinity;
+      for (const region of this.brainRegionScreen) {
+        const d = Math.hypot(x-region.x,y-region.y);
+        if (d < distance && d <= region.hitRadius) { best = region; distance = d; }
+      }
+      return best?.id || null;
+    }
     setBackdrop(grid) {
       if (!grid || !Number.isInteger(grid.columns) || !Number.isInteger(grid.rows) ||
           grid.columns < 1 || grid.rows < 1 || grid.columns > 64 || grid.rows > 64 ||
@@ -403,8 +457,9 @@
     }
     drawCore(c, time) {
       const visibility = smooth(1.18, 2.35, this.zoom) * this.presence;
-      if (visibility < 0.002) return;
-      const graph = this.neuralCore;
+      if (visibility < 0.002) { this.brainRegionScreen = []; return; }
+      const graph = this.neuralCore, runtime = this.brainState?.regions || {};
+      const selectedId = this.brainState?.selectedRegion || 'NARA_CORE';
       const chaos = 1 - this.presence;
       const projected = graph.nodes.map((p, i) => {
         const phase = i * 2.39996 + time * 0.0004;
@@ -413,40 +468,49 @@
           p.z - spread * 0.3, time, true);
       });
       const color = (p, shade = 12) => this.glyphCache[this.lightAt(p.x, p.y) ? 'light' : 'dark'].colors[shade];
+      const stateForNode = node => runtime[node?.region === 'stem' ? node.targetRegion : node?.region] || {status:'idle',activity:0};
       c.lineWidth = Math.max(0.6, this.scale * 0.0013);
       for (const link of graph.links) {
         const a = projected[link.a], b = projected[link.b];
         const midpoint = { x: (a.x+b.x)/2, y: (a.y+b.y)/2 };
-        c.globalAlpha = visibility * (0.13 + (a.depth + 0.05) * 0.35);
-        c.strokeStyle = color(midpoint, 10);
+        const activity = Math.max(stateForNode(graph.nodes[link.a]).activity||0,stateForNode(graph.nodes[link.b]).activity||0);
+        c.globalAlpha = visibility * (0.10 + (a.depth + 0.05) * 0.28 + activity * 0.14);
+        c.strokeStyle = color(midpoint, activity > .45 ? 13 : 10);
         c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
       }
       for (let i = 0; i < projected.length; i++) {
         const p = projected[i], node = graph.nodes[i];
         if (node.region === 'stem') continue;
-        const size = Math.max(1.3, this.scale * 0.0041 * p.scale);
-        c.globalAlpha = visibility * (0.42 + clamp(p.depth, 0, 0.4));
-        c.fillStyle = color(p, 14);
+        const state = stateForNode(node), activity = clamp(state.activity);
+        const selected = node.region === selectedId;
+        const size = Math.max(1.3, this.scale * 0.0041 * p.scale) * (1 + activity*.22 + (selected?.12:0));
+        c.globalAlpha = visibility * clamp(0.28 + clamp(p.depth,0,.4) + activity*.32 + (selected?.12:0),.16,.95);
+        c.fillStyle = state.status && state.status !== 'idle'
+          ? this.brainStatusColor(state.status,p,1,time)
+          : color(p, 14);
         c.fillRect(p.x-size/2, p.y-size/2, size, size);
         if (i % 7 === 0) {
           const glyph = this.glyphCache[this.lightAt(p.x, p.y) ? 'light' : 'dark'];
           const h = Math.min(13, this.scale * 0.014 * p.scale);
-          c.globalAlpha = visibility * 0.52;
+          c.globalAlpha = visibility * (0.40 + activity*.28);
           c.drawImage(glyph.atlas, 12*24, node.digit*32, 24, 32, p.x+size, p.y-h/2, h*.75, h);
         }
       }
-      // Packets travel continuously from the base of the neck into both lobes.
+
+      // Packets travel continuously from the base of the neck into meaningful regions.
       for (let lane = 0; lane < graph.paths.length; lane++) for (let packet = 0; packet < 5; packet++) {
         const ids = graph.paths[lane];
         const phase = ((this.reducedMotion ? 0 : time * 0.000075) + packet / 5 + lane * 0.037) % 1;
         const index = phase * (ids.length - 1), i = Math.floor(index);
-        const a = graph.nodes[ids[i]], b = graph.nodes[ids[Math.min(i+1, ids.length-1)]];
-        const p = this.project(lerp(a.x,b.x,index-i), lerp(a.y,b.y,index-i), lerp(a.z,b.z,index-i), time, true);
+        const aNode=graph.nodes[ids[i]], bNode=graph.nodes[ids[Math.min(i+1, ids.length-1)]];
+        const p = this.project(lerp(aNode.x,bNode.x,index-i), lerp(aNode.y,bNode.y,index-i), lerp(aNode.z,bNode.z,index-i), time, true);
         const glyph = this.glyphCache[this.lightAt(p.x,p.y) ? 'light' : 'dark'];
-        const h = Math.min(16, Math.max(5, this.scale*0.017*p.scale));
-        c.globalAlpha = visibility * 0.88;
+        const targetState=runtime[aNode.targetRegion||bNode.targetRegion]||{activity:0};
+        const h = Math.min(16, Math.max(5, this.scale*0.017*p.scale))*(1+clamp(targetState.activity)*.18);
+        c.globalAlpha = visibility * (0.68+clamp(targetState.activity)*.28);
         c.drawImage(glyph.atlas, 15*24, ((lane+packet)%2)*32, 24, 32, p.x-h*.375,p.y-h/2,h*.75,h);
       }
+
       // Along cortical connections, smaller signals carry the data onward.
       for (let i = 0; i < graph.links.length; i += 13) {
         const edge = graph.links[i];
@@ -457,6 +521,78 @@
         c.globalAlpha = visibility * 0.7; c.fillStyle = color(p,15);
         c.fillRect(p.x-1,p.y-1,2,2);
       }
+
+      // Deep zoom exposes the semantic NARA map. These anchors correspond to
+      // real BrainState regions, while the surrounding cortex remains artistic.
+      const deep = smooth(2.15,2.85,this.zoom) * this.presence;
+      if (deep > .002 && graph.regions?.length) {
+        const regionProjected = graph.regions.map(region => ({
+          region,
+          point:this.project(region.x,region.y,region.z,time,true)
+        }));
+        this.brainRegionScreen = regionProjected.map(({region,point})=>({
+          id:region.id,x:point.x,y:point.y,depth:point.depth,
+          hitRadius:Math.max(11,this.scale*.032*point.scale)
+        }));
+
+        c.save();
+        c.globalCompositeOperation = this.isLightEnvironment() ? 'source-over' : 'lighter';
+        c.lineWidth=Math.max(.8,this.scale*.00155);
+        for (const edge of graph.semanticLinks || []) {
+          const a=regionProjected[edge.a],b=regionProjected[edge.b];
+          if(!a||!b)continue;
+          const sa=runtime[a.region.id]||{activity:0,status:'idle'},sb=runtime[b.region.id]||{activity:0,status:'idle'};
+          const active=Math.max(clamp(sa.activity),clamp(sb.activity));
+          const selected=a.region.id===selectedId||b.region.id===selectedId;
+          c.globalAlpha=deep*(.16+active*.34+(selected?.20:0));
+          c.strokeStyle=this.brainStatusColor(active>=clamp(sb.activity)?sa.status:sb.status,{x:(a.point.x+b.point.x)/2,y:(a.point.y+b.point.y)/2},1,time);
+          c.beginPath();c.moveTo(a.point.x,a.point.y);c.lineTo(b.point.x,b.point.y);c.stroke();
+
+          if(active>.08||selected){
+            const phase=((this.reducedMotion?0:time*.00012)+edge.a*.071+edge.b*.037)%1;
+            const x=lerp(a.point.x,b.point.x,phase),y=lerp(a.point.y,b.point.y,phase);
+            const packet=Math.max(1.4,this.scale*.0035);
+            c.globalAlpha=deep*(.52+active*.42);
+            c.fillStyle=this.brainStatusColor(active>=clamp(sb.activity)?sa.status:sb.status,{x,y},1,time);
+            c.fillRect(x-packet/2,y-packet/2,packet,packet);
+          }
+        }
+
+        for (const {region,point} of regionProjected) {
+          const state=runtime[region.id]||{status:'idle',activity:0,message:''};
+          const activity=clamp(state.activity),selected=region.id===selectedId;
+          const pulse=this.reducedMotion?1:.82+.18*Math.sin(time*.004+graph.regionIndex[region.id]);
+          const size=Math.max(4.5,this.scale*.0105*point.scale)*(1+activity*.55+(selected?.45:0))*pulse;
+          c.save();
+          c.translate(point.x,point.y);c.rotate(Math.PI/4);
+          c.globalAlpha=deep*(.48+activity*.42+(selected?.10:0));
+          c.fillStyle=this.brainStatusColor(state.status,point,1,time);
+          c.fillRect(-size/2,-size/2,size,size);
+          if(selected){
+            c.globalAlpha=deep*.92;c.lineWidth=Math.max(1,this.scale*.0022);
+            c.strokeStyle=this.brainStatusColor(state.status,point,1,time);
+            c.strokeRect(-size*.86,-size*.86,size*1.72,size*1.72);
+          }
+          c.restore();
+
+          if (this.zoom > 2.68 || selected) {
+            c.globalCompositeOperation='source-over';
+            c.textAlign='center';c.textBaseline='top';
+            const fontSize=Math.max(7,Math.min(12,this.scale*.016*point.scale));
+            c.font='600 '+fontSize+'px "Cascadia Mono", Consolas, monospace';
+            c.globalAlpha=deep*(selected?.95:.72);
+            c.fillStyle=this.brainStatusColor(state.status,point,1,time);
+            c.fillText(region.label,point.x,point.y+size*.82,Math.max(54,this.scale*.22));
+            if(selected&&this.zoom>2.82){
+              c.font=Math.max(6,fontSize*.72)+'px "Cascadia Mono", Consolas, monospace';
+              c.globalAlpha=deep*.68;
+              c.fillText(String(state.status||'idle').toUpperCase(),point.x,point.y+size*.82+fontSize+2,Math.max(54,this.scale*.22));
+            }
+            c.globalCompositeOperation=this.isLightEnvironment()?'source-over':'lighter';
+          }
+        }
+        c.restore();
+      } else this.brainRegionScreen = [];
       c.globalAlpha = 1;
     }
     render(time) {
