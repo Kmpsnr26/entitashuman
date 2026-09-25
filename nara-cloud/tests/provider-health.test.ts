@@ -792,6 +792,107 @@ test(
 );
 
 test(
+  "stale released probe cannot close a newer half-open probe",
+  () => {
+    let now = 50_000;
+
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          1,
+        cooldownMs:
+          1_000,
+        now:
+          () => now
+      });
+
+    health.retryableFailure(
+      "openai",
+      20,
+      "AI_PROVIDER_RETRYABLE_ERROR"
+    );
+
+    now += 1_001;
+
+    const oldProbe =
+      health.acquire(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      oldProbe.probe,
+      true
+    );
+
+    health.release(
+      "openai",
+      oldProbe.probeId
+    );
+
+    const newProbe =
+      health.acquire(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      newProbe.probe,
+      true
+    );
+
+    assert.notEqual(
+      oldProbe.probeId,
+      newProbe.probeId
+    );
+
+    health.success(
+      "openai",
+      15,
+      oldProbe.probeId
+    );
+
+    let snapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      snapshot.circuitState,
+      "half-open"
+    );
+
+    assert.equal(
+      snapshot.probeInFlight,
+      true
+    );
+
+    health.success(
+      "openai",
+      10,
+      newProbe.probeId
+    );
+
+    snapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      snapshot.circuitState,
+      "healthy"
+    );
+
+    assert.equal(
+      snapshot.probeInFlight,
+      false
+    );
+  }
+);
+
+test(
   "abandoned half-open probe releases its lease without poisoning provider health",
   () => {
     let now = 30_000;
@@ -947,6 +1048,100 @@ test(
     assert.ok(
       snapshot.averageLatencyMs !==
       null
+    );
+  }
+);
+
+test(
+  "gateway successful half-open probe closes the circuit",
+  async () => {
+    let now = 60_000;
+    let shouldFail =
+      true;
+
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          1,
+        cooldownMs:
+          1_000,
+        now:
+          () => now
+      });
+
+    const provider =
+      new FakeProvider(
+        "openai",
+        async () => {
+          if (shouldFail) {
+            throw retryable(
+              "TEMP"
+            );
+          }
+
+          return {
+            text:
+              "recovered",
+            provider:
+              "openai",
+            model:
+              "openai-model",
+            usage:
+              {}
+          };
+        }
+      );
+
+    const gateway =
+      new AiGateway(
+        [provider],
+        "openai",
+        health
+      );
+
+    await assert.rejects(
+      () =>
+        gateway.generate(
+          request,
+          {
+            provider:
+              "openai"
+          }
+        )
+    );
+
+    assert.equal(
+      health.snapshot(
+        "openai",
+        true
+      ).circuitState,
+      "open"
+    );
+
+    now += 1_001;
+    shouldFail =
+      false;
+
+    const result =
+      await gateway.generate(
+        request,
+        {
+          provider:
+            "openai"
+        }
+      );
+
+    assert.equal(
+      result.text,
+      "recovered"
+    );
+
+    assert.equal(
+      health.snapshot(
+        "openai",
+        true
+      ).circuitState,
+      "healthy"
     );
   }
 );
