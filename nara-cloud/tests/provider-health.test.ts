@@ -1381,6 +1381,147 @@ test(
 );
 
 test(
+  "stream timeout records provider failure and falls back before any delta",
+  async () => {
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          1,
+        cooldownMs:
+          60_000
+      });
+
+    const first =
+      new FakeProvider(
+        "first",
+        async (
+          _input,
+          signal
+        ) =>
+          new Promise<AiResult>(
+            (
+              _resolve,
+              reject
+            ) => {
+              const fail =
+                (): void => {
+                  reject(
+                    new AiProviderError(
+                      "provider observed abort",
+                      {
+                        code:
+                          "FIRST_ABORTED",
+                        retryable:
+                          false
+                      }
+                    )
+                  );
+                };
+
+              if (
+                signal.aborted
+              ) {
+                fail();
+                return;
+              }
+
+              signal.addEventListener(
+                "abort",
+                fail,
+                {
+                  once:
+                    true
+                }
+              );
+            }
+          )
+      );
+
+    const second =
+      new FakeProvider(
+        "second",
+        async () => ({
+          text:
+            "stream-fallback",
+          provider:
+            "second",
+          model:
+            "second-model",
+          usage:
+            {}
+        })
+      );
+
+    const gateway =
+      new AiGateway(
+        [
+          first,
+          second
+        ],
+        "first,second",
+        health,
+        5
+      );
+
+    const deltas:
+      string[] = [];
+
+    const result =
+      await gateway.stream(
+        request,
+        {
+          provider:
+            "auto",
+
+          onProvider:
+            () => {},
+
+          onDelta:
+            delta => {
+              deltas.push(
+                delta
+              );
+            }
+        }
+      );
+
+    assert.equal(
+      result.completed.provider,
+      "second"
+    );
+
+    assert.deepEqual(
+      deltas,
+      [
+        "stream-fallback"
+      ]
+    );
+
+    assert.equal(
+      result.attempts[0]
+        ?.errorCode,
+      "AI_PROVIDER_TIMEOUT"
+    );
+
+    const firstHealth =
+      health.snapshot(
+        "first",
+        true
+      );
+
+    assert.equal(
+      firstHealth.circuitState,
+      "open"
+    );
+
+    assert.equal(
+      firstHealth.lastErrorCode,
+      "AI_PROVIDER_TIMEOUT"
+    );
+  }
+);
+
+test(
   "client abort remains aborted and does not poison provider health",
   async () => {
     const health =
