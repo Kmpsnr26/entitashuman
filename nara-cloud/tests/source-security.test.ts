@@ -427,3 +427,65 @@ test(
     );
   }
 );
+
+test(
+  "provider adapters do not reflect upstream error identifiers into internal codes",
+  async () => {
+    const [
+      openai,
+      gemini,
+      anthropic,
+      compatible
+    ] = await Promise.all([
+      read(
+        "src/ai/providers/openai.provider.ts"
+      ),
+      read(
+        "src/ai/providers/gemini.provider.ts"
+      ),
+      read(
+        "src/ai/providers/anthropic.provider.ts"
+      ),
+      read(
+        "src/ai/providers/openai-compatible.provider.ts"
+      )
+    ]);
+
+    const source =
+      openai +
+      gemini +
+      anthropic +
+      compatible;
+
+    assert.match(
+      openai,
+      /OPENAI_UPSTREAM_ERROR/
+    );
+
+    assert.match(
+      gemini,
+      /GEMINI_UPSTREAM_ERROR/
+    );
+
+    assert.match(
+      anthropic,
+      /ANTHROPIC_UPSTREAM_ERROR/
+    );
+
+    assert.match(
+      compatible,
+      /COMPAT_UPSTREAM_ERROR/
+    );
+
+    assert.doesNotMatch(
+      source,
+      /code:\s*String\s*\(/
+    );
+
+    assert.doesNotMatch(
+      source,
+      /code\s*=\s*String\s*\(/
+    );
+  }
+);
+
