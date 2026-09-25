@@ -31,12 +31,73 @@ const runtime=window.HumanALENaraRuntime.create({
   regions:avatar.neuralCore.regions,
   onVoice:cue=>{showState(cue.text.toUpperCase(),2200);speakNaraCue(cue);}
 });
-runtime.state.subscribe(snapshot=>avatar.setBrainState?.(snapshot));
+window.humanALENara=runtime;
+
+const regionMeta=Object.fromEntries((avatar.neuralCore.regions||[]).map(region=>[region.id,region]));
+const inspectName=document.querySelector('#inspectName');
+const inspectStatus=document.querySelector('#inspectStatus');
+const inspectActivity=document.querySelector('#inspectActivity');
+const inspectEvent=document.querySelector('#inspectEvent');
+const inspectUpdated=document.querySelector('#inspectUpdated');
+const inspectMessage=document.querySelector('#inspectMessage');
+const connectionSummary=document.querySelector('#connectionSummary');
+const connectionButtons=[...document.querySelectorAll('#connectionGrid [data-region]')];
+let latestBrainState=runtime.snapshot();
+
+const updateInspector=(snapshot=latestBrainState)=>{
+  latestBrainState=snapshot||latestBrainState;
+  const id=latestBrainState?.selectedRegion||'NARA_CORE';
+  const region=latestBrainState?.regions?.[id]||{};
+  const meta=regionMeta[id]||{label:id.replaceAll('_',' ')};
+  if(inspectName)inspectName.textContent=meta.label||id;
+  if(inspectStatus)inspectStatus.textContent=String(region.status||'idle').toUpperCase();
+  if(inspectActivity)inspectActivity.textContent=Math.round((Number(region.activity)||0)*100)+'%';
+  if(inspectEvent)inspectEvent.textContent=String(region.lastEvent||'—');
+  if(inspectUpdated)inspectUpdated.textContent=region.updatedAt?new Date(region.updatedAt).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';
+  if(inspectMessage)inspectMessage.textContent=String(region.message||'Region siap menerima aktivitas NARA.');
+  for(const button of connectionButtons){
+    const item=latestBrainState?.regions?.[button.dataset.region]||{};
+    const status=String(item.status||'idle');
+    button.dataset.status=status;
+    const statusNode=button.querySelector('span');
+    if(statusNode)statusNode.textContent=status;
+  }
+};
+
+runtime.state.subscribe(snapshot=>{
+  avatar.setBrainState?.(snapshot);
+  updateInspector(snapshot);
+});
+
 avatar.onBrainRegionSelect=region=>{
   runtime.dispatch('brain.region.select',{region});
   showState('NARA · '+region.replaceAll('_',' '),0);
 };
-window.humanALENara=runtime;
+for(const button of connectionButtons)button.addEventListener('click',()=>{
+  const region=button.dataset.region;
+  avatar.setZoom?.(3.05);
+  avatar.selectBrainRegion?.(region);
+});
+
+const dataSpine=window.HumanALEDataSpine.create({
+  runtime,
+  onState:spine=>avatar.setDataSpineState?.(spine)
+});
+window.humanALEDataSpine=dataSpine;
+
+const connections=window.HumanALEConnections.create({
+  runtime,
+  onStatus:event=>{
+    if(event?.type==='state'&&connectionSummary){
+      const state=event.state;
+      connectionSummary.textContent=state.online
+        ? (state.authStatus==='connected'?'Web aktif · login aktif':'Web aktif · login diperlukan')
+        : 'Web offline';
+    }
+  }
+});
+window.humanALEConnections=connections;
+updateInspector(latestBrainState);
 
 const sensorStatus=document.querySelector('#sensorStatus');
 const sensorMicButton=document.querySelector('#sensorMic');
@@ -72,7 +133,9 @@ window.addEventListener('keydown',unlockNaraVoice,{once:true});
 
 avatar.referencePromise.then(loaded => {
   showState(loaded ? 'WAJAH NARA SIAP' : 'PETA WAJAH GAGAL DIMUAT');
+  dataSpine.start();
   runtime.start();
+  connections.start();
 });
 
 document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
@@ -147,11 +210,21 @@ document.querySelector('#speech').addEventListener('submit', event => {
   window.speechSynthesis.speak(utterance);
 });
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) return;
-  speechGeneration++;naraVoiceGeneration++;
-  window.speechSynthesis?.cancel();
-  avatar.setSpeaking(false);
-  runtime.dispatch('speech.stop',{source:'site-hidden'});
-  sensors.stopAll().catch(()=>{});
+  if(document.hidden){
+    speechGeneration++;naraVoiceGeneration++;
+    window.speechSynthesis?.cancel();
+    avatar.setSpeaking(false);
+    runtime.dispatch('speech.stop',{source:'site-hidden'});
+    sensors.stopAll().catch(()=>{});
+    connections.stop();
+  }else{
+    connections.start();
+  }
 });
-window.addEventListener('pagehide',()=>{naraVoiceUnlocked=false;sensors.stopAll().catch(()=>{});runtime.stop();},{once:true});
+window.addEventListener('pagehide',()=>{
+  naraVoiceUnlocked=false;
+  sensors.stopAll().catch(()=>{});
+  connections.stop();
+  runtime.stop();
+  dataSpine.stop();
+},{once:true});
