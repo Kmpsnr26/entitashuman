@@ -387,3 +387,39 @@ test(
     );
   }
 );
+
+
+test(
+  "provider health telemetry contains no prompt or credential fields",
+  async () => {
+    const source =
+      await read(
+        "src/ai/provider-health.ts"
+      );
+
+    assert.match(
+      source,
+      /ProviderAvailability/
+    );
+
+    assert.match(
+      source,
+      /latencyEmaMs/
+    );
+
+    assert.match(
+      source,
+      /successRate/
+    );
+
+    assert.doesNotMatch(
+      source,
+      /OPENAI_API_KEY|GEMINI_API_KEY|ANTHROPIC_API_KEY|COMPAT_API_KEY|Authorization|cookie|sessionId/i
+    );
+
+    assert.doesNotMatch(
+      source,
+      /prompt|responseText|messageContent/i
+    );
+  }
+);
