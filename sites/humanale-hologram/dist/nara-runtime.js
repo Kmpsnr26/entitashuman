@@ -7,11 +7,11 @@
   };
   const connectionEvents=Object.freeze({
     'github.connected':'GITHUB','copilot.connected':'COPILOT','drive.connected':'DRIVE',
-    'email.connected':'OWNER_EMAIL','web.connected':'WEB','team.connected':'TEAM'
+    'email.connected':'OWNER_EMAIL','web.connected':'WEB','team.connected':'TEAM','online.connected':'ONLINE'
   });
   const disconnectionEvents=Object.freeze({
     'github.disconnected':'GITHUB','copilot.disconnected':'COPILOT','drive.disconnected':'DRIVE',
-    'email.disconnected':'OWNER_EMAIL','web.disconnected':'WEB','team.disconnected':'TEAM'
+    'email.disconnected':'OWNER_EMAIL','web.disconnected':'WEB','team.disconnected':'TEAM','online.disconnected':'ONLINE'
   });
 
   class EventBus{
@@ -98,7 +98,9 @@
     selectRegion(id,source='brain.region.select'){
       if(!this.isRegionId(id))return null;
       this.state.selectedRegion=id;
-      this.setRegion(id,{status:'active',activity:1,lastEvent:source},source);
+      const current=this.state.regions[id]||{status:'idle',activity:0};
+      const status=['idle','ready'].includes(current.status)?'active':current.status;
+      this.setRegion(id,{status,activity:Math.max(.92,clamp01(current.activity)),lastEvent:source},source);
       return id;
     }
     applyEvent(envelope){
