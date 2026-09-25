@@ -221,6 +221,26 @@ const EnvSchema =
         });
       }
 
+      if (
+        [
+          "openai",
+          "gemini",
+          "anthropic",
+          "auto"
+        ].includes(
+          value.COMPAT_PROVIDER_ID
+        )
+      ) {
+        context.addIssue({
+          code:
+            z.ZodIssueCode.custom,
+          message:
+            "COMPAT_PROVIDER_ID memakai ID provider yang dicadangkan.",
+          path:
+            ["COMPAT_PROVIDER_ID"]
+        });
+      }
+
       const compatValues = [
         value.COMPAT_API_BASE_URL,
         value.COMPAT_API_KEY,
