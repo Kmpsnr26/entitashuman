@@ -23,6 +23,18 @@ import {
 } from "../ai/providers/openai.provider.js";
 
 import {
+  GeminiProvider
+} from "../ai/providers/gemini.provider.js";
+
+import {
+  AnthropicProvider
+} from "../ai/providers/anthropic.provider.js";
+
+import {
+  OpenAiCompatibleProvider
+} from "../ai/providers/openai-compatible.provider.js";
+
+import {
   requireApiAuth
 } from "../middleware/requireAuth.js";
 
@@ -39,7 +51,10 @@ const router =
 
 const gateway =
   new AiGateway([
-    new OpenAiProvider()
+    new OpenAiProvider(),
+    new GeminiProvider(),
+    new AnthropicProvider(),
+    new OpenAiCompatibleProvider()
   ]);
 
 const aiLimiter =
