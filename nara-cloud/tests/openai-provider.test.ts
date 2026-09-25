@@ -356,7 +356,14 @@ test(
 
         assert.equal(
           error.code,
-          "rate_limit_exceeded"
+          "OPENAI_UPSTREAM_ERROR"
+        );
+
+        assert.equal(
+          error.code.includes(
+            "rate_limit_exceeded"
+          ),
+          false
         );
 
         assert.equal(
