@@ -65,6 +65,18 @@
           <ol id="cognitionTimeline" class="cognition-timeline" aria-live="polite"></ol>
           <small>Yang ditampilkan hanya fase kerja operasional dan status region. Isi prompt, jawaban internal, token, password, dan chain-of-thought tidak dicatat di panel ini.</small>
         </section>
+        <section class="memory-panel" aria-labelledby="memoryTitle">
+          <div class="memory-heading"><div><span class="eyebrow" id="memoryTitle">NARA PROJECT MEMORY</span><strong id="memorySummary">0 memori lokal</strong></div><span id="memoryPersistence" class="memory-local">LOKAL</span></div>
+          <form id="memoryForm" class="memory-form">
+            <label for="memoryNote">Simpan catatan proyek</label>
+            <input id="memoryTitleInput" type="text" maxlength="120" autocomplete="off" placeholder="Judul singkat, mis. Keputusan UI">
+            <textarea id="memoryNote" maxlength="600" rows="3" placeholder="Ringkasan aman yang perlu diingat NARA. Jangan masukkan password atau API key."></textarea>
+            <div class="memory-form-row"><input id="memoryTags" type="text" maxlength="120" autocomplete="off" placeholder="tag: ui, github, release"><button type="submit">Simpan</button></div>
+          </form>
+          <div class="memory-search-row"><input id="memorySearch" type="search" maxlength="160" autocomplete="off" placeholder="Cari memori NARA"><button id="memorySearchButton" type="button">Recall</button></div>
+          <div id="memoryList" class="memory-list" aria-live="polite"></div>
+          <div class="memory-footer"><small>Disimpan hanya di browser/perangkat ini. Secret yang dikenali akan disensor otomatis.</small><button id="memoryClear" type="button">Hapus semua</button></div>
+        </section>
         <form id="speech"><label for="words">Buat avatar berbicara</label><div class="speech-row"><input id="words" maxlength="160" placeholder="Tulis kalimat pendek…" autocomplete="off"><button type="submit">Ucapkan</button></div><small>Suara memakai fitur bawaan browser dan mungkin tidak tersedia di semua perangkat.</small></form>
       </aside>
     </main>
@@ -75,6 +87,7 @@
   <script src="./nara-runtime.js"></script>
   <script src="./nara-data-spine.js"></script>
   <script src="./nara-cognition.js"></script>
+  <script src="./nara-memory.js"></script>
   <script src="./nara-connections.js"></script>
   <script src="./nara-sensors.js"></script>
   <script src="./avatar.js"></script>
