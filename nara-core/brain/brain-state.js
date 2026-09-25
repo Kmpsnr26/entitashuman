@@ -9,6 +9,14 @@ const connectionEvents=Object.freeze({
   'web.connected':'WEB',
   'team.connected':'TEAM'
 });
+const disconnectionEvents=Object.freeze({
+  'github.disconnected':'GITHUB',
+  'copilot.disconnected':'COPILOT',
+  'drive.disconnected':'DRIVE',
+  'email.disconnected':'OWNER_EMAIL',
+  'web.disconnected':'WEB',
+  'team.disconnected':'TEAM'
+});
 
 function initialRegions(){
   return Object.fromEntries(Object.values(NARA_REGIONS).map(region=>[
@@ -102,15 +110,19 @@ export class NaraBrainState{
     }else if(event==='bug.detected'){
       this.setRegion('BUG_HUNTER',{status:'bug',activity:1,message:String(payload.message||'Bug terdeteksi')},event);
     }else if(event==='bug.fixed'){
-      this.setRegion('BUG_HUNTER',{status:'complete',activity:.25,message:'Perbaikan menunggu/verifikasi selesai'},event);
+      this.setRegion('BUG_HUNTER',{status:'complete',activity:.25,message:'Perbaikan selesai dan siap diverifikasi'},event);
     }else if(event==='terminal.open'){
       this.setRegion('TERMINAL',{status:'active',activity:1,message:'Terminal aktif'},event);
     }else if(connectionEvents[event]){
       this.setRegion(connectionEvents[event],{status:'connected',activity:.55,message:'Terhubung'},event);
+    }else if(disconnectionEvents[event]){
+      this.setRegion(disconnectionEvents[event],{status:'disconnected',activity:0,message:'Terputus'},event);
     }else if(event==='login.required'&&isRegionId(payload.region)){
       this.setRegion(payload.region,{status:'login_required',activity:.8,message:'Login diperlukan'},event);
     }else if(event==='login.success'&&isRegionId(payload.region)){
       this.setRegion(payload.region,{status:'connected',activity:.45,message:'Login berhasil'},event);
+    }else if(event==='login.failed'&&isRegionId(payload.region)){
+      this.setRegion(payload.region,{status:'error',activity:.8,message:'Login gagal'},event);
     }else if(event==='sync.start'){
       this.setRegion('SYNC',{status:'syncing',activity:1,message:'Sinkronisasi berjalan'},event);
     }else if(event==='sync.complete'){
