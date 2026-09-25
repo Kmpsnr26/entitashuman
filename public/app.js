@@ -702,7 +702,7 @@ if(!panelOnly){
  desktop?.onDismiss?.(reason=>dismissAle(reason));
  desktop?.onNaraVoice?.(cue=>enqueueNaraVoice(cue));
  desktop?.onNaraState?.(snapshot=>syncNaraBrainState(snapshot));
- desktop?.naraSnapshot?.().then(result=>{if(result?.state)syncNaraBrainState(result.state);}).catch(()=>{});
+ if(desktop?.naraSnapshot)desktop.naraSnapshot().then(result=>{if(result?.state)syncNaraBrainState(result.state);}).catch(()=>{});
  desktop?.onGlobalPointer?.(point=>{if(!point||drag)return;avatar.gazePointer={x:Math.max(-1,Math.min(1,Number(point.x)||0)),y:Math.max(-1,Math.min(1,Number(point.y)||0))};avatar.gazeActive=true;});
 }
 if(panelOnly){
