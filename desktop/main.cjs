@@ -6,7 +6,8 @@ const path=require('node:path');
 const {tmpdir}=require('node:os');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,server,origin,bridges,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,tray,saveTimer,pointerTimer;
+let win,panelWin,server,origin,bridges,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer;
+let announceNaraEvent=()=>{};
 let baseWindowSize={width:420,height:480};
 let panelZoomFactor=1;
 let quitting=false;
@@ -53,6 +54,7 @@ function finishDismiss(){
 }
 function requestDismiss(reason='hide'){
  if(!win||win.isDestroyed()){if(reason==='quit'){quitting=true;app.quit();}return;}
+ if(reason==='quit')announceNaraEvent('nara.shutdown');
  pendingDismiss=reason==='quit'?'quit':'hide';
  if(!win.isVisible()||win.webContents.isLoading()){finishDismiss();return;}
  win.webContents.send('dudidam:dismiss',pendingDismiss);
@@ -151,7 +153,8 @@ else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
   const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
-  const {createOrchestrator}=await import('../nara-core/brain/index.js');
+  const [{createOrchestrator},{createVoiceFeedback}]=await Promise.all([import('../nara-core/brain/index.js'),import('../nara-core/voice/index.js')]);
+  naraVoice=createVoiceFeedback();
   nara=createOrchestrator();
   nara.start();
   bridges={chatgpt:new ChatGPTBridge(),copilot:new CopilotBridge(),openai:new OpenAIBridge(),grok:new GrokBridge(),gemini:new GeminiBridge(),claude:new ClaudeBridge(),deepseek:new DeepSeekBridge(),askcodi:new AskCodiBridge()};
@@ -196,7 +199,11 @@ else{
   const trusted=e=>(e.sender===win?.webContents||e.sender===panelWin?.webContents)&&e.senderFrame?.url?.startsWith(origin+'/');
   const NARA_RENDERER_EVENTS=new Set(['audio.energy','vision.frame','vision.stop','speech.start','speech.energy','speech.stop','brain.region.select']);
   const publishNaraState=snapshot=>{for(const target of [win,panelWin]){if(target&&!target.isDestroyed()&&!target.webContents.isLoading())target.webContents.send('dudidam:nara-state',snapshot);}};
+  const publishNaraVoice=cue=>{if(cue&&win&&!win.isDestroyed()&&!win.webContents.isLoading())win.webContents.send('dudidam:nara-voice',cue);};
+  const consumeNaraVoice=envelope=>{const cue=naraVoice?.consume(envelope);if(cue)publishNaraVoice(cue);return cue;};
   nara.state.subscribe(snapshot=>publishNaraState(snapshot));
+  nara.bus.onAny(envelope=>consumeNaraVoice(envelope));
+  announceNaraEvent=(event,payload={})=>consumeNaraVoice({event,payload,timestamp:Date.now()});
   ipcMain.handle('dudidam:nara-snapshot',e=>trusted(e)?{ok:true,state:nara.snapshot()}:{error:'Akses ditolak.'});
   ipcMain.handle('dudidam:nara-dispatch',(e,value)=>{
    if(!trusted(e))return {error:'Akses ditolak.'};
@@ -295,6 +302,7 @@ else{
   win.on('close',event=>{if(!quitting){event.preventDefault();requestDismiss('hide');}});
   win.once('ready-to-show',()=>win.show());
   await win.loadURL(origin+'/');
+  announceNaraEvent('nara.start');
   pointerTimer=setInterval(publishGlobalPointer,50);
   if(ciSmoke){
    const rendererReady=await win.webContents.executeJavaScript("Boolean(document.querySelector('#avatar')) && Boolean(document.querySelector('#assistantPopup')) && typeof window.dudidamAvatar?.setAvatarState === 'function' && typeof window.dudidamDesktop?.onGlobalPointer === 'function' && typeof window.dudidamDesktop?.avatarViewport === 'function' && typeof window.dudidamDesktop?.openTerminal === 'function' && document.title.includes('HumanALE god egine')");
