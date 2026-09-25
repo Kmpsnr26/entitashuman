@@ -150,6 +150,74 @@ test(
 );
 
 test(
+  "Gemini empty successful response is non-retryable",
+  async () => {
+    const fakeFetch =
+      (async () =>
+        new Response(
+          JSON.stringify(
+            {
+            candidates:
+              []
+          }
+          ),
+          {
+            status:
+              200,
+            headers: {
+              "content-type":
+                "application/json"
+            }
+          }
+        )) as typeof fetch;
+
+    const provider =
+      new GeminiProvider({
+        apiKey:
+          "test-gemini-key-not-real-123456",
+
+        fetchImpl:
+          fakeFetch
+      });
+
+    await assert.rejects(
+      () =>
+        provider.generate(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "GEMINI_EMPTY_RESPONSE"
+        );
+
+        assert.equal(
+          error.retryable,
+          false
+        );
+
+        return true;
+      }
+    );
+  }
+);
+
+test(
   "Gemini SSE stream emits chunks and requires finishReason",
   async () => {
     const sse = [
