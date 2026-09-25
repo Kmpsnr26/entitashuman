@@ -383,3 +383,112 @@ test(
     );
   }
 );
+
+test(
+  "OpenAI stream retryability only trusts known transient codes",
+  async () => {
+    const providerFor =
+      (
+        code: string
+      ): OpenAiProvider =>
+        new OpenAiProvider({
+          apiKey:
+            "test-openai-key-not-real-123456",
+
+          fetchImpl:
+            (async () =>
+              new Response(
+                [
+                  "event: error",
+                  `data: {"type":"error","error":{"code":"${code}"}}`,
+                  "",
+                  ""
+                ].join("\n"),
+                {
+                  status:
+                    200,
+                  headers: {
+                    "content-type":
+                      "text/event-stream"
+                  }
+                }
+              )) as typeof fetch
+        });
+
+    await assert.rejects(
+      () =>
+        providerFor(
+          "server_is_overloaded"
+        ).stream(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal,
+          () => {}
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "OPENAI_STREAM_ERROR"
+        );
+
+        assert.equal(
+          error.retryable,
+          true
+        );
+
+        return true;
+      }
+    );
+
+    await assert.rejects(
+      () =>
+        providerFor(
+          "AI_PROVIDER_CIRCUIT_OPEN"
+        ).stream(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal,
+          () => {}
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "OPENAI_STREAM_ERROR"
+        );
+
+        assert.equal(
+          error.retryable,
+          false
+        );
+
+        return true;
+      }
+    );
+  }
+);
