@@ -330,7 +330,7 @@ export class OpenAiProvider
           code:
             "OPENAI_EMPTY_RESPONSE",
           retryable:
-            true
+            false
         }
       );
     }
