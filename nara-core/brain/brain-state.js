@@ -100,6 +100,20 @@ export class NaraBrainState{
       this.setRegion('NARA_CORE',{status:'offline',activity:0,message:'NARA dihentikan'},event);
     }else if(event==='brain.region.select'&&isRegionId(payload.region)){
       this.selectRegion(payload.region,event);
+    }else if(event==='context.prepare'){
+      const targetRegion=payload.target==='planner'?'PLANNER':payload.target==='agent'?'AGENT_MANAGER':'REASONER';
+      this.setRegion('MEMORY',{status:'processing',activity:.9,message:'Menyiapkan context memori'},event);
+      this.setRegion(targetRegion,{status:'active',activity:.55,message:'Menunggu context memori'},event);
+    }else if(event==='context.approved'){
+      const targetRegion=payload.target==='planner'?'PLANNER':payload.target==='agent'?'AGENT_MANAGER':'REASONER';
+      this.setRegion('MEMORY',{status:'complete',activity:.35,message:'Context memori disetujui'},event);
+      this.setRegion(targetRegion,{status:'ready',activity:.55,message:'Context memori siap digunakan'},event);
+    }else if(event==='context.used'){
+      const targetRegion=payload.target==='planner'?'PLANNER':payload.target==='agent'?'AGENT_MANAGER':'REASONER';
+      this.setRegion('MEMORY',{status:'active',activity:.7,message:'Context memori digunakan'},event);
+      this.setRegion(targetRegion,{status:'processing',activity:.9,message:'Menggunakan context memori'},event);
+    }else if(event==='context.blocked'){
+      this.setRegion('MEMORY',{status:'paused',activity:.12,message:'Context memori tidak digunakan'},event);
     }else if(event==='observe.start'){
       this.setRegion('NARA_CORE',{status:'processing',activity:1,message:'Mengamati konteks kerja'},event);
     }else if(event==='observe.complete'){
