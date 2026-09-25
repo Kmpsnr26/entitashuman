@@ -104,10 +104,7 @@ function requestBody(
     generationConfig: {
       maxOutputTokens:
         env.AI_MAX_OUTPUT_TOKENS
-    },
-
-    store:
-      false
+    } 
   };
 }
 
