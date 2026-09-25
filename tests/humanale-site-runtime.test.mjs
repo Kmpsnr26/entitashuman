@@ -72,7 +72,8 @@ test('canonical site wires real NARA state into the existing avatar instead of r
     read('sites/humanale-hologram/dist/index.html')
   ]);
   assert.match(site,/HumanALENaraRuntime\.create/);
-  assert.match(site,/runtime\.state\.subscribe\(snapshot=>avatar\.setBrainState/);
+  assert.match(site,/runtime\.state\.subscribe\(snapshot=>\{/);
+  assert.match(site,/avatar\.setBrainState\?\.\(snapshot\)/);
   assert.match(site,/avatar\.onBrainRegionSelect=region=>/);
   assert.match(site,/runtime\.dispatch\('brain\.region\.select'/);
   assert.match(site,/window\.humanALENara=runtime/);
