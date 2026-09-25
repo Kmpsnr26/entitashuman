@@ -25,6 +25,15 @@ import {
 const OPENAI_RESPONSES_URL =
   "https://api.openai.com/v1/responses";
 
+type FetchLike =
+  typeof fetch;
+
+interface OpenAiProviderOptions {
+  apiKey?: string;
+  model?: string;
+  fetchImpl?: FetchLike;
+}
+
 function requestInput(
   request: AiRequest
 ): Array<{
@@ -34,7 +43,7 @@ function requestInput(
   return [
     ...request.history,
     {
-      role: "user" as const,
+      role: "user",
       content: request.message
     }
   ];
@@ -42,11 +51,11 @@ function requestInput(
 
 function requestBody(
   request: AiRequest,
-  stream: boolean
+  stream: boolean,
+  model: string
 ): Record<string, unknown> {
   return {
-    model:
-      env.OPENAI_MODEL,
+    model,
 
     instructions:
       NARA_SYSTEM_PROMPT,
@@ -112,18 +121,46 @@ export class OpenAiProvider
 
   readonly id = "openai";
 
+  private readonly apiKey:
+    string |
+    undefined;
+
+  private readonly modelName:
+    string;
+
+  private readonly fetchImpl:
+    FetchLike;
+
+  constructor(
+    options:
+      OpenAiProviderOptions = {}
+  ) {
+    this.apiKey =
+      options.apiKey ??
+      env.OPENAI_API_KEY;
+
+    this.modelName =
+      options.model ??
+      env.OPENAI_MODEL;
+
+    this.fetchImpl =
+      options.fetchImpl ??
+      fetch;
+  }
+
   get model(): string {
-    return env.OPENAI_MODEL;
+    return this.modelName;
   }
 
   configured(): boolean {
     return Boolean(
-      env.OPENAI_API_KEY
+      this.apiKey
     );
   }
 
-  private headers(): Record<string, string> {
-    if (!env.OPENAI_API_KEY) {
+  private headers():
+    Record<string, string> {
+    if (!this.apiKey) {
       throw new AiProviderError(
         "OpenAI provider is not configured.",
         {
@@ -137,12 +174,9 @@ export class OpenAiProvider
 
     return {
       "Authorization":
-        `Bearer ${env.OPENAI_API_KEY}`,
+        `Bearer ${this.apiKey}`,
 
       "Content-Type":
-        "application/json",
-
-      "Accept":
         "application/json"
     };
   }
@@ -155,27 +189,31 @@ export class OpenAiProvider
 
     try {
       response =
-        await fetch(
+        await this.fetchImpl(
           OPENAI_RESPONSES_URL,
           {
             method:
               "POST",
 
-            headers:
-              this.headers(),
+            headers: {
+              ...this.headers(),
+              "Accept":
+                "application/json"
+            },
 
             body:
               JSON.stringify(
                 requestBody(
                   request,
-                  false
+                  false,
+                  this.model
                 )
               ),
 
             signal
           }
         );
-    } catch (error) {
+    } catch {
       if (
         signal.aborted
       ) {
@@ -254,7 +292,7 @@ export class OpenAiProvider
 
     try {
       response =
-        await fetch(
+        await this.fetchImpl(
           OPENAI_RESPONSES_URL,
           {
             method:
@@ -270,7 +308,8 @@ export class OpenAiProvider
               JSON.stringify(
                 requestBody(
                   request,
-                  true
+                  true,
+                  this.model
                 )
               ),
 
@@ -323,6 +362,8 @@ export class OpenAiProvider
       OpenAiResponse |
       undefined;
 
+    let outputChars = 0;
+
     for await (
       const event
       of parseSse(
@@ -361,6 +402,9 @@ export class OpenAiProvider
           "string" &&
         parsed.delta
       ) {
+        outputChars +=
+          parsed.delta.length;
+
         await onDelta(
           parsed.delta
         );
@@ -397,6 +441,21 @@ export class OpenAiProvider
           }
         );
       }
+    }
+
+    if (
+      !completed ||
+      outputChars === 0
+    ) {
+      throw new AiProviderError(
+        "OpenAI stream ended before completion.",
+        {
+          code:
+            "OPENAI_STREAM_INCOMPLETE",
+          retryable:
+            true
+        }
+      );
     }
 
     return {
