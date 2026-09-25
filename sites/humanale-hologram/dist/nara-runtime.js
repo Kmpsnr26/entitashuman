@@ -115,14 +115,44 @@
         this.setRegion('NARA_CORE',{status:'offline',activity:0,message:'NARA dihentikan'},event);
       }else if(event==='brain.region.select'&&this.isRegionId(payload.region)){
         this.selectRegion(payload.region,event);
-      }else if(event==='work.start'){
+        }else if(event==='work.start'){
         this.state.currentTask={id:String(payload.id||'task-'+envelope.id),label:String(payload.label||'Pekerjaan NARA'),startedAt:envelope.timestamp};
+        this.setRegion('PLANNER',{status:'thinking',activity:.92,message:'Menyusun langkah kerja'},event);
+        this.setRegion('REASONER',{status:'thinking',activity:.72,message:'Menganalisis kebutuhan tugas'},event);
         this.setRegion('PROGRAM',{status:'processing',activity:1,message:this.state.currentTask.label},event);
         this.setRegion('FOLLOW_UP',{status:'active',activity:.7,message:'Memantau tindak lanjut'},event);
       }else if(event==='work.complete'){
         this.state.currentTask=null;
+        this.setRegion('PLANNER',{status:'complete',activity:.18,message:'Rencana kerja selesai'},event);
+        this.setRegion('REASONER',{status:'complete',activity:.16,message:'Analisis tahap ini selesai'},event);
         this.setRegion('PROGRAM',{status:'complete',activity:.15,message:'Pekerjaan selesai'},event);
         this.setRegion('REPORTING',{status:'active',activity:.8,message:'Menyiapkan laporan'},event);
+      }else if(event==='planning.start'){
+        this.setRegion('PLANNER',{status:'thinking',activity:1,message:'Menyusun langkah kerja'},event);
+      }else if(event==='planning.complete'){
+        this.setRegion('PLANNER',{status:'complete',activity:.2,message:'Rencana kerja siap'},event);
+      }else if(event==='reasoner.start'){
+        this.setRegion('REASONER',{status:'thinking',activity:1,message:'Menganalisis tugas'},event);
+      }else if(event==='reasoner.complete'){
+        this.setRegion('REASONER',{status:'complete',activity:.2,message:'Analisis tahap ini selesai'},event);
+      }else if(event==='agent.start'){
+        const mode=String(payload.mode||'analyze');
+        this.setRegion('AGENT_MANAGER',{status:'processing',activity:1,message:'Agent '+String(payload.agentId||'agent')+' aktif'},event);
+        this.setRegion('PROGRAM',{status:'processing',activity:.9,message:'Agent sedang bekerja'},event);
+        if(mode==='work')this.setRegion('PLANNER',{status:'thinking',activity:.82,message:'Mengawasi langkah kerja agent'},event);
+        else this.setRegion('REASONER',{status:'thinking',activity:.82,message:'Agent sedang menganalisis'},event);
+      }else if(event==='agent.progress'){
+        this.setRegion('AGENT_MANAGER',{status:'processing',activity:.85,message:'Agent masih bekerja'},event);
+      }else if(event==='agent.complete'){
+        this.setRegion('AGENT_MANAGER',{status:'complete',activity:.22,message:'Agent selesai'},event);
+        this.setRegion('PROGRAM',{status:'complete',activity:.2,message:'Hasil agent siap ditinjau'},event);
+      }else if(event==='agent.error'){
+        this.setRegion('AGENT_MANAGER',{status:'error',activity:1,message:'Agent mengalami kesalahan'},event);
+        this.setRegion('ERROR_MONITOR',{status:'error',activity:1,message:'Kesalahan agent terdeteksi'},event);
+      }else if(event==='memory.record'){
+        this.setRegion('MEMORY',{status:'complete',activity:.45,message:'Catatan aktivitas disimpan'},event);
+      }else if(event==='memory.recall'){
+        this.setRegion('MEMORY',{status:'processing',activity:.78,message:'Memory sedang diperiksa'},event);
       }else if(event==='error.detected'){
         this.setRegion('ERROR_MONITOR',{status:'error',activity:1,message:String(payload.message||'Error terdeteksi')},event);
         this.setRegion('BUG_HUNTER',{status:'processing',activity:.9,message:'Menganalisis error'},event);
