@@ -34,6 +34,10 @@ import {
   audit
 } from "../services/audit.service.js";
 
+import {
+  aiRouter
+} from "../routes/ai.routes.js";
+
 const app = express();
 
 if (isProduction) {
@@ -58,6 +62,11 @@ app.use(
 );
 
 app.use(naraSession());
+
+app.use(
+  "/api/ai",
+  aiRouter
+);
 
 function callbackUrl(): string {
   return `${env.PUBLIC_NARA_ORIGIN}/auth/callback`;
