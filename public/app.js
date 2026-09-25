@@ -8,6 +8,45 @@ import {emotionFromText,emotions} from './avatar-emotion.js';
 const $=s=>document.querySelector(s),desktop=window.dudidamDesktop,params=new URLSearchParams(location.search),popup=params.get('popup')==='1',panelOnly=Boolean(desktop&&params.has('panel')),avatar=new HumanALEAvatar($('#avatar'),{referenceSrc:'/humanale/assets/reference-face.png',popup,panelOnly});
 const panelChannel=desktop?new BroadcastChannel('dudidam-avatar-panel'):null;
 const naraDispatch=(event,payload={})=>{if(!desktop?.naraDispatch||panelOnly)return Promise.resolve(null);return desktop.naraDispatch(event,payload).catch(()=>null);};
+const desktopMemoryRuntime=Object.freeze({
+ dispatch:(event,payload={})=>{naraDispatch(event,payload);return{event,payload};},
+ bus:Object.freeze({onAny:()=>()=>{}})
+});
+const desktopMemory=desktop&&window.HumanALEMemory?.create
+ ?window.HumanALEMemory.create({runtime:desktopMemoryRuntime,storage:localStorage,maxEntries:80})
+ :null;
+const desktopContextBridge=desktop&&desktopMemory&&window.HumanALEContextBridge?.create
+ ?window.HumanALEContextBridge.create({runtime:desktopMemoryRuntime,memory:desktopMemory,storage:localStorage,maxEntries:6,maxChars:1600})
+ :null;
+window.humanALEDesktopMemory=desktopMemory;
+window.humanALEDesktopContextBridge=desktopContextBridge;
+
+function updateDesktopMemoryContextUi(){
+ const row=$('#memoryContextRow'),select=$('#memoryContextMode'),status=$('#memoryContextStatus');
+ if(!desktop||!desktopContextBridge||!desktopMemory){if(row)row.hidden=true;if(status)status.hidden=true;return;}
+ row.hidden=false;status.hidden=false;
+ const snapshot=desktopContextBridge.snapshot(),memoryState=desktopMemory.snapshot();
+ if(select&&select.value!==snapshot.mode)select.value=snapshot.mode;
+ const modeLabel=snapshot.mode==='off'?'OFF':snapshot.mode==='auto-safe'?'AUTO-SAFE':'TANYA DULU';
+ status.textContent='Memory context · '+modeLabel+' · '+memoryState.count+' memori lokal tersedia.';
+}
+async function prepareDesktopMemoryContext(task,target='reasoner'){
+ if(!desktopContextBridge||!desktopMemory)return null;
+ const preview=desktopContextBridge.prepare(String(task||''),{target});
+ if(!preview||preview.blocked||!preview.count){updateDesktopMemoryContextUi();return null;}
+ if(preview.requiresApproval){
+  const excerpt=preview.text.length>900?preview.text.slice(0,899)+'…':preview.text;
+  const approved=window.confirm(
+   'NARA menemukan '+preview.count+' memori relevan ('+preview.chars+' karakter).\n\n'+
+   excerpt+'\n\nGunakan context ini untuk '+target+'?'
+  );
+  if(!approved){desktopContextBridge.reject(preview.id);updateDesktopMemoryContextUi();toast('Memory context tidak digunakan.');return null;}
+  desktopContextBridge.approve(preview.id);
+ }
+ const packet=desktopContextBridge.transport(preview.id);
+ updateDesktopMemoryContextUi();
+ return packet;
+}
 if(!document.documentElement.classList.contains('stage-surface'))document.querySelector('#chatDialog')?.removeAttribute('open');
 const assistantPopup=new DudidamPopup($('#assistantPopup'),{
  onAction:async action=>{
@@ -73,7 +112,7 @@ const audioReactor=new AudioReactor(level=>{audioEnergy=level;syncFaceAudio();sy
  avatar.setEarSpectrum(bands);syncNaraHearing();
  if(panelOnly&&(Math.max(bands.low,bands.mid,bands.high)===0||performance.now()-lastBandsSent>80)){panelChannel?.postMessage({type:'ear-spectrum',bands});lastBandsSent=performance.now();}
 });
-if(desktop){document.body.classList.add('desktop');$('.desktop-actions').hidden=false;$('#providerRow').hidden=false;$('#provider').value=aiProvider;$('#popup').hidden=true;if(panelOnly)document.body.classList.add('detached-panel');}else $('#systemAudio').hidden=true;
+if(desktop){document.body.classList.add('desktop');$('.desktop-actions').hidden=false;$('#providerRow').hidden=false;$('#provider').value=aiProvider;$('#popup').hidden=true;if(panelOnly)document.body.classList.add('detached-panel');updateDesktopMemoryContextUi();}else $('#systemAudio').hidden=true;
 if(popup){document.body.classList.add('popup-widget');$('#popup').hidden=true;}
 function applyAvatarSize(value){
  const size=Math.max(180,Math.min(540,Number(value)||DEFAULT_AVATAR_SIZE));
@@ -333,7 +372,7 @@ async function submit(text,image){text=text.trim();if(!text||busy)return;message
  }
  if(!aiReady){const missing={copilot:'GitHub Copilot CLI belum tersedia. Pasang dan login Copilot, lalu tekan Periksa lagi.',openai:'OpenAI API belum aktif. Atur OPENAI_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',grok:'Grok belum aktif. Atur XAI_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',gemini:'Gemini belum aktif. Atur GEMINI_API_KEY atau GOOGLE_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',claude:'Claude belum aktif. Atur ANTHROPIC_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',deepseek:'DeepSeek belum aktif. Atur DEEPSEEK_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',askcodi:'AskCodi belum aktif. Atur ASKCODI_API_KEY dan ASKCODI_MODEL, buka ulang HumanALE god egine, lalu tekan Periksa lagi.'}[aiProvider]||'Silakan pilih Login ChatGPT pada kontrol avatar, selesaikan login di browser, lalu Periksa lagi.';message(missing,'assistant',false);return;}
  busy=true;stopSpeech();$('#send').disabled=true;$('#look').disabled=true;state('Berpikir…');const providerName={copilot:'GitHub Copilot',openai:'OpenAI API',grok:'Grok',gemini:'Gemini',claude:'Claude',deepseek:'DeepSeek',askcodi:'AskCodi'}[aiProvider]||'ChatGPT';$('#liveText').textContent=providerName+' sedang merespons…';
- try{const result=await desktop.ask({provider:aiProvider,message:text,history:history.slice(-10),image});if(result.error)throw new Error(result.error);history.push({role:'user',content:text},{role:'assistant',content:result.text});history=history.slice(-10);panelChannel?.postMessage({type:'history',history});message(result.text);}
+ try{const memoryContext=await prepareDesktopMemoryContext(text,'reasoner');const result=await desktop.ask({provider:aiProvider,message:text,history:history.slice(-10),image,memoryContext});if(result.error)throw new Error(result.error);history.push({role:'user',content:text},{role:'assistant',content:result.text});history=history.slice(-10);panelChannel?.postMessage({type:'history',history});message(result.text);}
  catch(e){message(e.message||('Koneksi '+providerName+' gagal. Coba lagi.'),'assistant',false);}finally{busy=false;avatar.thinking=false;$('#send').disabled=false;$('#look').disabled=false;$('#liveText').textContent='';if(!avatar.speaking&&!listening)state();}
 }
 async function checkAI(){
@@ -388,7 +427,8 @@ async function runDeveloperAgent(event){
  let workSucceeded=false;
  if(mode==='work')setEvolutionVisual('start');
  try{
-  const result=await desktop.runAgent({id,prompt,mode});
+  const memoryContext=await prepareDesktopMemoryContext(prompt,mode==='work'?'agent':'planner');
+  const result=await desktop.runAgent({id,prompt,mode,memoryContext});
   if(result?.error)throw new Error(result.error);
   $('#agentOutput').textContent=result?.text||'Agent selesai tanpa output.';
   workSucceeded=mode==='work';
@@ -425,7 +465,9 @@ async function runCopilotProjectWork(text){
  }
  const copilot=(status.agents||[]).find(item=>item.id==='github-copilot');
  if(!copilot?.canRun)throw new Error('GitHub Copilot Work mode belum siap. Pastikan Copilot CLI terpasang dan login, lalu Periksa koneksi di Developer agents.');
- return await desktop.runAgent({id:'github-copilot',mode:'work',prompt:buildProjectWorkPrompt(text)});
+ const prompt=buildProjectWorkPrompt(text);
+ const memoryContext=await prepareDesktopMemoryContext(text,'agent');
+ return await desktop.runAgent({id:'github-copilot',mode:'work',prompt,memoryContext});
 }
 function setMicStatus(text){$('#micStatus').textContent=text;}
 async function checkMicrophoneHealth(){
@@ -652,6 +694,7 @@ $('#audioMic').onclick=startMicrophoneVisual;$('#systemAudio').onclick=startSyst
 $('#popup').onclick=()=>{const pop=window.open(location.origin+'/?popup=1','dudidam-presence','popup=yes,width=420,height=480,left='+Math.round((screen.width-420)/2)+',top='+Math.round((screen.height-480)/2));if(!pop)toast('Browser memblokir pop-up. Izinkan pop-up untuk situs ini.');else toast('Widget pop-up dibuka dengan permukaan transparan. Transparansi hingga menembus desktop tersedia di HumanALE god egine Desktop.');};
 $('#login').onclick=async()=>{if(!desktop){location.href='/signin-with-chatgpt?return_to=%2F';return;}$('#login').disabled=true;try{const r=await (aiProvider==='copilot'?desktop.loginCopilot():desktop.login());if(r.error)toast(r.error);else toast('Login selesai.');await checkAI();}catch{toast('Login belum selesai. Coba lagi.');}finally{$('#login').disabled=false;}};
 $('#clickThrough').onclick=()=>{document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());desktop?.passthroughLock(true);toast('Tembus klik penuh aktif. Matikan dari ikon HumanALE god egine di tray Windows.');};$('#minimize').onclick=()=>panelOnly?desktop.closePanel():dismissAle('hide');$('#closeApp').onclick=()=>panelOnly?desktop.closePanel():dismissAle('hide');
+$('#memoryContextMode')?.addEventListener('change',()=>{desktopContextBridge?.setMode($('#memoryContextMode').value);updateDesktopMemoryContextUi();toast('Memory context: '+$('#memoryContextMode').selectedOptions[0].textContent+'.');});
 $('#chatForm').onsubmit=e=>{e.preventDefault();const text=$('#prompt').value.trim();if(text&&!busy){$('#prompt').value='';submit(text);}};let composing=false;$('#prompt').oncompositionstart=()=>{composing=true;};$('#prompt').oncompositionend=()=>{composing=false;};$('#prompt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!composing){e.preventDefault();$('#chatForm').requestSubmit();}};$('#clear').onclick=()=>{if(busy)return;history=[];$('#messages').replaceChildren();$('#bubble').hidden=true;stopSpeech();};$('#conversationSettings').onclick=()=>showDialog('#controls');
 $('#chatDialog').addEventListener('close',()=>{stopCamera();setPassthrough(true);syncPanelViewportFromDialogs();if(document.documentElement.classList.contains('stage-surface')&&!document.hidden&&!transitioning())requestAnimationFrame(()=>{if(!$('#chatDialog').open&&!transitioning())$('#chatDialog').show();});});
 $('#controls').addEventListener('close',()=>{setPassthrough(true);syncPanelViewportFromDialogs();});
