@@ -245,3 +245,53 @@ Fallback is allowed only when:
 4. no streamed text has been emitted yet.
 
 Once a provider emits the first text delta, NARA will not switch to another provider for that response.
+
+
+## Phase 11B3 — Provider health and circuit breaker
+
+NARA tracks provider health in process memory without storing prompts, responses or credentials.
+
+Health states:
+
+```text
+healthy
+   │ retryable failure
+   ▼
+degraded
+   │ threshold reached
+   ▼
+open
+   │ cooldown elapsed
+   ▼
+half-open
+   │
+   ├── success ──> healthy
+   └── retryable failure ──> open
+```
+
+An unconfigured provider is reported as `unavailable`.
+
+Environment controls:
+
+```env
+AI_BREAKER_FAILURE_THRESHOLD=3
+AI_BREAKER_COOLDOWN_MS=60000
+```
+
+Automatic routing skips providers whose circuit is open. Explicit requests to an open provider return a safe availability error and do not call the upstream provider until a half-open probe is permitted.
+
+Only retryable operational provider failures increment breaker health. NARA auth, CSRF, request-validation and other user-facing request errors do not feed the provider circuit breaker.
+
+The existing `GET /api/ai/providers` endpoint returns safe provider status:
+
+- provider id
+- model
+- configured flag
+- health state
+- consecutive failure count
+- safe timestamps
+- half-open probe state
+
+It does not expose API keys, authorization headers, prompts, responses, cookies, session IDs, or provider base credentials.
+
+Streaming keeps the B2 no-mix invariant: after any text delta is emitted, the gateway will not switch to another provider.
