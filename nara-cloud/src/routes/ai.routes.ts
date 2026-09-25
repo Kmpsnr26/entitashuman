@@ -91,7 +91,11 @@ function publicError(
       error.code ===
         "AI_NO_PROVIDER" ||
       error.code ===
-        "AI_PROVIDER_UNAVAILABLE"
+        "AI_PROVIDER_UNAVAILABLE" ||
+      error.code ===
+        "AI_PROVIDER_CIRCUIT_OPEN" ||
+      error.code ===
+        "AI_NO_HEALTHY_PROVIDER"
     ) {
       return {
         code:
