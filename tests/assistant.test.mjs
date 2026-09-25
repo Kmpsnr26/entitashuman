@@ -389,7 +389,7 @@ test('failed Piper synthesis falls back to native Indonesian voice',async()=>{
  const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
  assert.match(app,/localTtsConfigured=false/);
  assert.match(app,/Mencoba voice Windows Indonesia/);
- assert.match(app,/if\(speakNativeIndonesian\(text\)\)return/);
+ assert.match(app,/if\(speakNativeIndonesian\(text,style\)\)return/);
  assert.match(app,/Voice Windows Indonesia juga tidak tersedia/);
 });
 
