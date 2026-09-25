@@ -9,39 +9,41 @@ import {
   type AiStreamCompleted
 } from "./types.js";
 
+import {
+  ProviderHealthRegistry,
+  type ProviderHealthSnapshot
+} from "./provider-health.js";
+
 interface GatewayOptions {
   provider?: string;
 
-  signal?:
-    AbortSignal;
+  signal?: AbortSignal;
 
-  onAttempt?:
-    (
-      attempt:
-        AiAttempt
-    ) =>
-      void |
-      Promise<void>;
+  onAttempt?: (
+    attempt: AiAttempt
+  ) => void | Promise<void>;
 }
 
 interface StreamOptions
   extends GatewayOptions {
-  onProvider:
-    (
-      provider: {
-        id: string;
-        model: string;
-      }
-    ) =>
-      void |
-      Promise<void>;
 
-  onDelta:
-    (
-      delta: string
-    ) =>
-      void |
-      Promise<void>;
+  onProvider: (
+    provider: {
+      id: string;
+      model: string;
+    }
+  ) => void | Promise<void>;
+
+  onDelta: (
+    delta: string
+  ) => void | Promise<void>;
+}
+
+export interface ProviderStatus {
+  id: string;
+  model: string;
+  configured: boolean;
+  health: ProviderHealthSnapshot;
 }
 
 function inputChars(
@@ -84,7 +86,7 @@ function errorCode(
 ): string {
   if (
     error instanceof
-    AiProviderError
+      AiProviderError
   ) {
     return error.code;
   }
@@ -168,6 +170,21 @@ function childSignal(
   };
 }
 
+function circuitOpenError(
+  providerId: string
+): AiProviderError {
+  return new AiProviderError(
+    `AI provider ${providerId} circuit is open.`,
+    {
+      code:
+        "AI_PROVIDER_CIRCUIT_OPEN",
+
+      retryable:
+        false
+    }
+  );
+}
+
 export class AiGateway {
   private readonly providers:
     Map<string, AiProvider>;
@@ -175,11 +192,23 @@ export class AiGateway {
   private readonly automaticOrder:
     string[];
 
+  private readonly health:
+    ProviderHealthRegistry;
+
   constructor(
     providers: AiProvider[],
     order:
       string =
-        env.AI_PROVIDER_ORDER
+        env.AI_PROVIDER_ORDER,
+    health:
+      ProviderHealthRegistry =
+        new ProviderHealthRegistry({
+          failureThreshold:
+            env.AI_BREAKER_FAILURE_THRESHOLD,
+
+          cooldownMs:
+            env.AI_BREAKER_COOLDOWN_MS
+        })
   ) {
     this.providers =
       new Map(
@@ -195,33 +224,46 @@ export class AiGateway {
       providerOrder(
         order
       );
+
+    this.health =
+      health;
   }
 
-  status(): Array<{
-    id: string;
-    model: string;
-    configured: boolean;
-  }> {
+  status():
+    ProviderStatus[] {
     return [
       ...this.providers.values()
     ].map(
-      provider => ({
-        id:
-          provider.id,
+      provider => {
+        const configured =
+          provider.configured();
 
-        model:
-          provider.model,
+        return {
+          id:
+            provider.id,
 
-        configured:
-          provider.configured()
-      })
+          model:
+            provider.model,
+
+          configured,
+
+          health:
+            this.health.snapshot(
+              provider.id,
+              configured
+            )
+        };
+      }
     );
   }
 
   private candidates(
     requested =
       "auto"
-  ): AiProvider[] {
+  ): {
+    providers: AiProvider[];
+    explicit: boolean;
+  } {
     const normalized =
       requested
         .trim()
@@ -245,13 +287,20 @@ export class AiGateway {
           {
             code:
               "AI_PROVIDER_UNAVAILABLE",
+
             retryable:
               false
           }
         );
       }
 
-      return [provider];
+      return {
+        providers:
+          [provider],
+
+        explicit:
+          true
+      };
     }
 
     const providers =
@@ -277,13 +326,18 @@ export class AiGateway {
         {
           code:
             "AI_NO_PROVIDER",
+
           retryable:
             false
         }
       );
     }
 
-    return providers;
+    return {
+      providers,
+      explicit:
+        false
+    };
   }
 
   async generate(
@@ -291,7 +345,7 @@ export class AiGateway {
     options:
       GatewayOptions = {}
   ): Promise<AiGatewayResult> {
-    const candidates =
+    const selection =
       this.candidates(
         options.provider
       );
@@ -303,14 +357,34 @@ export class AiGateway {
       string |
       undefined;
 
+    let lastError:
+      unknown;
+
+    let attempted = 0;
+
     for (
-      let index = 0;
-      index <
-      candidates.length;
-      index += 1
+      const provider
+      of selection.providers
     ) {
-      const provider =
-        candidates[index]!;
+      const lease =
+        this.health.acquire(
+          provider.id,
+          provider.configured()
+        );
+
+      if (!lease.allowed) {
+        if (
+          selection.explicit
+        ) {
+          throw circuitOpenError(
+            provider.id
+          );
+        }
+
+        continue;
+      }
+
+      attempted += 1;
 
       const started =
         Date.now();
@@ -326,6 +400,10 @@ export class AiGateway {
             request,
             child.signal
           );
+
+        this.health.success(
+          provider.id
+        );
 
         const attempt:
           AiAttempt = {
@@ -371,9 +449,27 @@ export class AiGateway {
           attempts
         };
       } catch (error) {
+        lastError =
+          error;
+
         const aborted =
           child.signal.aborted ||
           options.signal?.aborted;
+
+        const isRetryable =
+          !aborted &&
+          retryable(error);
+
+        if (isRetryable) {
+          this.health
+            .retryableFailure(
+              provider.id
+            );
+        } else {
+          this.health.release(
+            provider.id
+          );
+        }
 
         const attempt:
           AiAttempt = {
@@ -419,28 +515,39 @@ export class AiGateway {
             attempt
           );
 
-        child.cleanup();
-
         if (
           aborted ||
-          options.provider !==
-            undefined &&
-          options.provider !==
-            "auto" ||
-          !retryable(error) ||
-          index ===
-            candidates.length - 1
+          selection.explicit ||
+          !isRetryable
         ) {
           throw error;
         }
 
         previous =
           provider.id;
-
-        continue;
       } finally {
         child.cleanup();
       }
+    }
+
+    if (
+      attempted ===
+      0
+    ) {
+      throw new AiProviderError(
+        "No healthy AI provider is currently available.",
+        {
+          code:
+            "AI_NO_HEALTHY_PROVIDER",
+
+          retryable:
+            false
+        }
+      );
+    }
+
+    if (lastError) {
+      throw lastError;
     }
 
     throw new AiProviderError(
@@ -448,6 +555,7 @@ export class AiGateway {
       {
         code:
           "AI_GATEWAY_FAILED",
+
         retryable:
           false
       }
@@ -461,10 +569,11 @@ export class AiGateway {
   ): Promise<{
     completed:
       AiStreamCompleted;
+
     attempts:
       AiAttempt[];
   }> {
-    const candidates =
+    const selection =
       this.candidates(
         options.provider
       );
@@ -476,14 +585,34 @@ export class AiGateway {
       string |
       undefined;
 
+    let lastError:
+      unknown;
+
+    let attempted = 0;
+
     for (
-      let index = 0;
-      index <
-      candidates.length;
-      index += 1
+      const provider
+      of selection.providers
     ) {
-      const provider =
-        candidates[index]!;
+      const lease =
+        this.health.acquire(
+          provider.id,
+          provider.configured()
+        );
+
+      if (!lease.allowed) {
+        if (
+          selection.explicit
+        ) {
+          throw circuitOpenError(
+            provider.id
+          );
+        }
+
+        continue;
+      }
+
+      attempted += 1;
 
       const started =
         Date.now();
@@ -526,6 +655,10 @@ export class AiGateway {
                 );
             }
           );
+
+        this.health.success(
+          provider.id
+        );
 
         if (!emitted) {
           await options
@@ -581,9 +714,27 @@ export class AiGateway {
           attempts
         };
       } catch (error) {
+        lastError =
+          error;
+
         const aborted =
           child.signal.aborted ||
           options.signal?.aborted;
+
+        const isRetryable =
+          !aborted &&
+          retryable(error);
+
+        if (isRetryable) {
+          this.health
+            .retryableFailure(
+              provider.id
+            );
+        } else {
+          this.health.release(
+            provider.id
+          );
+        }
 
         const attempt:
           AiAttempt = {
@@ -631,13 +782,8 @@ export class AiGateway {
         if (
           emitted ||
           aborted ||
-          options.provider !==
-            undefined &&
-          options.provider !==
-            "auto" ||
-          !retryable(error) ||
-          index ===
-            candidates.length - 1
+          selection.explicit ||
+          !isRetryable
         ) {
           throw error;
         }
@@ -649,11 +795,32 @@ export class AiGateway {
       }
     }
 
+    if (
+      attempted ===
+      0
+    ) {
+      throw new AiProviderError(
+        "No healthy AI provider is currently available.",
+        {
+          code:
+            "AI_NO_HEALTHY_PROVIDER",
+
+          retryable:
+            false
+        }
+      );
+    }
+
+    if (lastError) {
+      throw lastError;
+    }
+
     throw new AiProviderError(
       "No AI provider completed the stream.",
       {
         code:
           "AI_GATEWAY_FAILED",
+
         retryable:
           false
       }
