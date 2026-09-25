@@ -118,11 +118,22 @@
     };
     for (const region of regions) region.anchorNode = nearestBrainNode(region);
 
-    // Nine visible data-spine lanes now terminate at meaningful NARA regions
-    // instead of arbitrary cortical points.
-    const stemTargets = ['NARA_CORE','REASONER','PLANNER','MEMORY','BUG_HUNTER','AGENT_MANAGER','TOOLS','SYNC','ONLINE'];
-    for (let lane = 0; lane < stemTargets.length; lane++) {
-      const ids = [], region = regions[regionIndex[stemTargets[lane]]];
+    // Nine visible data-spine lanes mirror the real Phase 7 routing engine.
+    // The lane identity is stable so runtime packets can target the matching path.
+    const spineLanes = [
+      {id:'CORE',region:'NARA_CORE',label:'NARA CORE'},
+      {id:'MEMORY',region:'MEMORY',label:'MEMORY'},
+      {id:'TERMINAL',region:'TERMINAL',label:'TERMINAL'},
+      {id:'GITHUB',region:'GITHUB',label:'GITHUB'},
+      {id:'COPILOT',region:'COPILOT',label:'COPILOT'},
+      {id:'WEB',region:'WEB',label:'WEB'},
+      {id:'DRIVE',region:'DRIVE',label:'DRIVE'},
+      {id:'SYNC',region:'SYNC',label:'SYNC'},
+      {id:'ERROR',region:'ERROR_MONITOR',label:'ERROR'}
+    ];
+    for (let lane = 0; lane < spineLanes.length; lane++) {
+      const meta=spineLanes[lane];
+      const ids = [], region = regions[regionIndex[meta.region]];
       const targetIndex = region.anchorNode, target = nodes[targetIndex];
       for (let i = 0; i <= 18; i++) {
         const t = i / 18, spread = (lane - 4) * 0.028;
@@ -132,6 +143,7 @@
           y: 0.75 * (1 - t) + target.y * t,
           z: 0.07 * (1 - t) + target.z * t,
           region:'stem',
+          laneId:meta.id,
           targetRegion:region.id,
           digit:(i + lane) % 2
         }) - 1;
@@ -143,7 +155,7 @@
     }
 
     return {
-      nodes,links,paths,brainCount,regions,semanticLinks,regionIndex,
+      nodes,links,paths,spineLanes,brainCount,regions,semanticLinks,regionIndex,
       regionIds:regions.map(region=>region.id)
     };
   }
