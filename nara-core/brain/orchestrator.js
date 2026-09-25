@@ -2,6 +2,15 @@ import {createEventBus} from './event-bus.js';
 import {createBrainState} from './brain-state.js';
 import {isRegionId} from './regions.js';
 
+const connectionEvents=Object.freeze({
+  GITHUB:['github.connected','github.disconnected'],
+  COPILOT:['copilot.connected','copilot.disconnected'],
+  DRIVE:['drive.connected','drive.disconnected'],
+  OWNER_EMAIL:['email.connected','email.disconnected'],
+  WEB:['web.connected','web.disconnected'],
+  TEAM:['team.connected','team.disconnected']
+});
+
 export class NaraOrchestrator{
   constructor({bus=createEventBus(),state=createBrainState()}={}){
     this.bus=bus;
@@ -26,7 +35,7 @@ export class NaraOrchestrator{
   }
 
   dispatch(event,payload={},meta={}){
-    if(!this.running&&event!=='nara.start')throw new Error('NARA Orchestrator belum dijalankan.');
+    if(!this.running)throw new Error('NARA Orchestrator belum dijalankan.');
     const envelope=this.bus.emit(event,payload,meta);
     return {event:envelope,state:this.snapshot()};
   }
@@ -46,11 +55,9 @@ export class NaraOrchestrator{
 
   connection(name,connected=true){
     const region=String(name||'').toUpperCase();
-    const events={GITHUB:'github.connected',COPILOT:'copilot.connected',DRIVE:'drive.connected',OWNER_EMAIL:'email.connected',WEB:'web.connected',TEAM:'team.connected'};
-    if(!events[region])throw new Error('Koneksi NARA tidak dikenal: '+region);
-    if(connected)return this.dispatch(events[region],{region});
-    this.state.setRegion(region,{status:'disconnected',activity:0,message:'Terputus'},'connection.disconnected');
-    return {event:null,state:this.snapshot()};
+    const events=connectionEvents[region];
+    if(!events)throw new Error('Koneksi NARA tidak dikenal: '+region);
+    return this.dispatch(connected?events[0]:events[1],{region});
   }
 
   snapshot(){return this.state.snapshot();}
