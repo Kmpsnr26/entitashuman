@@ -368,6 +368,21 @@ test(
 
     assert.match(
       health,
+      /"ready"/
+    );
+
+    assert.match(
+      health,
+      /"degraded"/
+    );
+
+    assert.match(
+      health,
+      /"unavailable"/
+    );
+
+    assert.match(
+      health,
       /half-open/
     );
 
@@ -377,13 +392,28 @@ test(
     );
 
     assert.match(
+      health,
+      /successRate/
+    );
+
+    assert.match(
+      health,
+      /averageLatencyMs/
+    );
+
+    assert.match(
+      health,
+      /lastErrorCode/
+    );
+
+    assert.match(
       routes,
       /AI_PROVIDER_CIRCUIT_OPEN/
     );
 
     assert.doesNotMatch(
       health,
-      /API_KEY|Authorization|prompt|message|content/
+      /API_KEY|Authorization|prompt|message|content|cookie|session/
     );
   }
 );
