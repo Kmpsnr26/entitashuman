@@ -1522,6 +1522,351 @@ test(
 );
 
 test(
+  "stream timeout after first delta never mixes a fallback provider",
+  async () => {
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          1,
+        cooldownMs:
+          60_000
+      });
+
+    let firstCalls =
+      0;
+    let secondCalls =
+      0;
+
+    const first:
+      AiProvider = {
+        id:
+          "first",
+
+        model:
+          "first-model",
+
+        configured:
+          () => true,
+
+        async generate() {
+          throw new Error(
+            "generate not used"
+          );
+        },
+
+        async stream(
+          _input,
+          signal,
+          onDelta
+        ) {
+          firstCalls +=
+            1;
+
+          await onDelta(
+            "partial"
+          );
+
+          await new Promise<void>(
+            (
+              _resolve,
+              reject
+            ) => {
+              const fail =
+                (): void => {
+                  reject(
+                    new AiProviderError(
+                      "provider observed abort",
+                      {
+                        code:
+                          "FIRST_ABORTED",
+                        retryable:
+                          false
+                      }
+                    )
+                  );
+                };
+
+              if (
+                signal.aborted
+              ) {
+                fail();
+                return;
+              }
+
+              signal.addEventListener(
+                "abort",
+                fail,
+                {
+                  once:
+                    true
+                }
+              );
+            }
+          );
+
+          return {
+            provider:
+              "first",
+            model:
+              "first-model",
+            usage:
+              {}
+          };
+        }
+      };
+
+    const second:
+      AiProvider = {
+        id:
+          "second",
+
+        model:
+          "second-model",
+
+        configured:
+          () => true,
+
+        async generate() {
+          secondCalls +=
+            1;
+
+          return {
+            text:
+              "second",
+            provider:
+              "second",
+            model:
+              "second-model",
+            usage:
+              {}
+          };
+        },
+
+        async stream(
+          _input,
+          _signal,
+          onDelta
+        ) {
+          secondCalls +=
+            1;
+
+          await onDelta(
+            "second"
+          );
+
+          return {
+            provider:
+              "second",
+            model:
+              "second-model",
+            usage:
+              {}
+          };
+        }
+      };
+
+    const gateway =
+      new AiGateway(
+        [
+          first,
+          second
+        ],
+        "first,second",
+        health,
+        5
+      );
+
+    const deltas:
+      string[] = [];
+
+    await assert.rejects(
+      () =>
+        gateway.stream(
+          request,
+          {
+            provider:
+              "auto",
+
+            onProvider:
+              () => {},
+
+            onDelta:
+              delta => {
+                deltas.push(
+                  delta
+                );
+              }
+          }
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "AI_PROVIDER_TIMEOUT"
+        );
+
+        return true;
+      }
+    );
+
+    assert.deepEqual(
+      deltas,
+      [
+        "partial"
+      ]
+    );
+
+    assert.equal(
+      firstCalls,
+      1
+    );
+
+    assert.equal(
+      secondCalls,
+      0
+    );
+
+    const firstHealth =
+      health.snapshot(
+        "first",
+        true
+      );
+
+    assert.equal(
+      firstHealth.circuitState,
+      "open"
+    );
+
+    assert.equal(
+      firstHealth.lastErrorCode,
+      "AI_PROVIDER_TIMEOUT"
+    );
+  }
+);
+
+test(
+  "automatic routing skips a provider with an active half-open probe",
+  async () => {
+    let now =
+      70_000;
+
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          1,
+        cooldownMs:
+          1_000,
+        now:
+          () => now
+      });
+
+    health.retryableFailure(
+      "first",
+      10,
+      "AI_PROVIDER_RETRYABLE_ERROR"
+    );
+
+    now +=
+      1_001;
+
+    const activeProbe =
+      health.acquire(
+        "first",
+        true
+      );
+
+    assert.equal(
+      activeProbe.probe,
+      true
+    );
+
+    const first =
+      new FakeProvider(
+        "first",
+        async () => ({
+          text:
+            "first",
+          provider:
+            "first",
+          model:
+            "first-model",
+          usage:
+            {}
+        })
+      );
+
+    const second =
+      new FakeProvider(
+        "second",
+        async () => ({
+          text:
+            "second",
+          provider:
+            "second",
+          model:
+            "second-model",
+          usage:
+            {}
+        })
+      );
+
+    const gateway =
+      new AiGateway(
+        [
+          first,
+          second
+        ],
+        "first,second",
+        health
+      );
+
+    const result =
+      await gateway.generate(
+        request,
+        {
+          provider:
+            "auto"
+        }
+      );
+
+    assert.equal(
+      result.provider,
+      "second"
+    );
+
+    assert.equal(
+      first.calls,
+      0
+    );
+
+    assert.equal(
+      second.calls,
+      1
+    );
+
+    assert.equal(
+      health.snapshot(
+        "first",
+        true
+      ).probeInFlight,
+      true
+    );
+
+    health.release(
+      "first",
+      activeProbe.probeId
+    );
+  }
+);
+
+test(
   "client abort remains aborted and does not poison provider health",
   async () => {
     const health =
