@@ -15,14 +15,16 @@
     return text.slice(0,max);
   };
   const safeTag=value=>safeText(value,32).toLowerCase().replace(/[^a-z0-9._-]+/gi,'-').replace(/^-+|-+$/g,'');
-  const clone=value=>JSON.parse(JSON.stringify(value));
   const nowMs=()=>Date.now();
+  const defaultStorage=()=>{
+    try{return global.localStorage||null;}catch{return null;}
+  };
 
   class HumanALEMemory{
     constructor({runtime,storage=null,key=STORAGE_KEY,maxEntries=80,onState=null,onError=null,now=null}={}){
       if(!runtime?.dispatch||!runtime?.bus?.onAny)throw new Error('Runtime NARA diperlukan untuk Memory.');
       this.runtime=runtime;
-      this.storage=storage||global.localStorage||null;
+      this.storage=storage||defaultStorage();
       this.key=String(key||STORAGE_KEY);
       this.maxEntries=Math.max(10,Math.min(200,Number(maxEntries)||80));
       this.onState=typeof onState==='function'?onState:()=>{};
@@ -74,7 +76,8 @@
         this.storage.setItem(this.key,JSON.stringify({version:VERSION,entries:this.entries,updatedAt:this.now()}));
         return true;
       }catch(error){
-        this.onError({type:'persist',message:String(error?.message||'Memori lokal gagal disimpan.')});
+        this.persistent=false;
+        this.onError({type:'persist',message:String(error?.message||'Memori lokal gagal disimpan. Beralih ke memori sesi.')});
         return false;
       }
     }
@@ -116,7 +119,7 @@
       const q=safeText(query,160).toLowerCase();
       const terms=[...new Set(q.split(/[^a-z0-9._-]+/i).filter(term=>term.length>1))].slice(0,12);
       const limit=Math.max(1,Math.min(20,Number(options.limit)||8));
-      this.runtime.dispatch('memory.read',{label:q?'Mencari memori proyek':'Membaca memori proyek',source:'site-memory'});
+      if(options.emit!==false)this.runtime.dispatch('memory.read',{label:q?'Mencari memori proyek':'Membaca memori proyek',source:'site-memory'});
       const scored=this.entries.map((entry,index)=>{
         const haystack=(entry.title+' '+entry.summary+' '+entry.tags.join(' ')).toLowerCase();
         let score=terms.length?0:1;
@@ -130,8 +133,19 @@
         .sort((a,b)=>b.score-a.score||b.entry.updatedAt-a.entry.updatedAt||b.index-a.index)
         .slice(0,limit)
         .map(item=>Object.freeze({...item.entry,tags:[...item.entry.tags]}));
-      this.runtime.dispatch('memory.complete',{source:'site-memory'});
+      if(options.emit!==false)this.runtime.dispatch('memory.complete',{source:'site-memory'});
       return Object.freeze(scored);
+    }
+
+    context(query='',options={}){
+      const limit=Math.max(1,Math.min(12,Number(options.limit)||6));
+      const maxChars=Math.max(300,Math.min(4000,Number(options.maxChars)||1600));
+      this.runtime.dispatch('memory.read',{label:'Menyiapkan konteks memori proyek',source:'site-memory'});
+      const entries=this.recall(query,{limit,emit:false});
+      let text=entries.map(entry=>'['+entry.type.toUpperCase()+'] '+entry.title+(entry.summary?': '+entry.summary:'')).join('\n');
+      if(text.length>maxChars)text=text.slice(0,maxChars-1)+'…';
+      this.runtime.dispatch('memory.complete',{source:'site-memory'});
+      return Object.freeze({query:safeText(query,160),count:entries.length,text,entries});
     }
 
     forget(id=''){
@@ -150,7 +164,7 @@
       if(!this.entries.length)return this.snapshot();
       this.runtime.dispatch('memory.write',{label:'Menghapus seluruh memori lokal',source:'site-memory'});
       this.entries=[];
-      try{this.storage?.removeItem?.(this.key);}catch(error){this.onError({type:'clear',message:String(error?.message||'Memori lokal gagal dihapus.')});}
+      try{this.storage?.removeItem?.(this.key);}catch(error){this.persistent=false;this.onError({type:'clear',message:String(error?.message||'Memori lokal gagal dihapus. Beralih ke memori sesi.')});}
       this.runtime.dispatch('memory.complete',{source:'site-memory'});
       return this.publish();
     }
