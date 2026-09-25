@@ -79,7 +79,7 @@
       const event=String(envelope.event||''),payload=envelope.payload||{},timestamp=Number(envelope.timestamp)||Date.now();
       if(event==='work.start'){
         const id=safeId(payload.id||'task-'+String(envelope.id||this.sequence+1));
-        const task=this.upsertTask(id,{label:redact(payload.label||'Pekerjaan NARA'),status:'planning',startedAt:timestamp,completedAt:0,outcome:''});
+        const task=this.upsertTask(id,{label:'Task '+id,status:'planning',startedAt:timestamp,completedAt:0,outcome:''});
         this.currentTask=task.id;
         this.addTimeline('task','planning','Pekerjaan dimulai.',{taskId:task.id,source:payload.source});
       }else if(event==='work.complete'){
