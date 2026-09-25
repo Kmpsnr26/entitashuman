@@ -92,7 +92,7 @@ const BaseEnvSchema = z.object({
   AI_PROVIDER_ORDER: z
     .string()
     .min(1)
-    .default("openai"),
+    .default("openai,gemini,anthropic,compatible"),
 
   AI_REQUEST_TIMEOUT_MS:
     z.coerce
