@@ -198,6 +198,8 @@ test('desktop IPC validates context before provider or agent use and records con
   assert.match(main,/nara\.dispatch\('context\.used'/);
   assert.match(main,/nara\.dispatch\('context\.blocked'/);
   assert.match(main,/agentHub\.run\(\{\.\.\.value,memoryContext\}\)/);
+  const allowlist=(main.match(/const NARA_RENDERER_EVENTS=new Set\(\[([\s\S]*?)\]\);/)||[])[1]||'';
+  assert.doesNotMatch(allowlist,/context\.used|context\.approved|memory\.write/);
 });
 
 test('desktop UI loads shared memory modules and requests permission before chat or agent use',async()=>{
@@ -214,6 +216,10 @@ test('desktop UI loads shared memory modules and requests permission before chat
   assert.match(app,/desktopMemoryRuntime/);
   assert.match(app,/HumanALEMemory\.create/);
   assert.match(app,/HumanALEContextBridge\.create/);
+  assert.match(app,/desktopMemory\.load\?\.\(\)/);
+  assert.match(app,/localStorage\.getItem\(window\.HumanALEContextBridge\?\.key/);
+  assert.match(app,/desktopMemory\?\.remember\(/);
+  assert.match(app,/Detail prompt dan output tidak disimpan otomatis/);
 });
 
 test('canonical site exposes context inspector and permission controls',async()=>{
