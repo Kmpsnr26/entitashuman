@@ -62,6 +62,13 @@ const updateInspector=(snapshot=latestBrainState)=>{
     const statusNode=button.querySelector('span');
     if(statusNode)statusNode.textContent=status;
   }
+  for(const button of document.querySelectorAll('#cognitiveGrid [data-cognitive-region]')){
+    const item=latestBrainState?.regions?.[button.dataset.cognitiveRegion]||{};
+    const status=String(item.status||'idle');
+    button.dataset.status=status;
+    const statusNode=button.querySelector('span');
+    if(statusNode)statusNode.textContent=status;
+  }
 };
 
 runtime.state.subscribe(snapshot=>{
@@ -99,6 +106,51 @@ const connections=window.HumanALEConnections.create({
 window.humanALEConnections=connections;
 updateInspector(latestBrainState);
 
+const cognitiveSummary=document.querySelector('#cognitiveSummary');
+const activityTask=document.querySelector('#activityTask');
+const activityAgent=document.querySelector('#activityAgent');
+const activityMemory=document.querySelector('#activityMemory');
+const activityTimeline=document.querySelector('#activityTimeline');
+const cognitiveButtons=[...document.querySelectorAll('#cognitiveGrid [data-cognitive-region]')];
+
+const renderActivity=activityState=>{
+  const task=activityState?.tasks?.find(item=>item.id===activityState.currentTask)||activityState?.tasks?.at?.(-1)||null;
+  const agent=activityState?.agents?.find(item=>item.id===activityState.activeAgent)||activityState?.agents?.at?.(-1)||null;
+  if(activityTask)activityTask.textContent=task?task.id:'—';
+  if(activityAgent)activityAgent.textContent=agent?agent.id:'—';
+  if(activityMemory)activityMemory.textContent=String(activityState?.memory?.length||0);
+  if(cognitiveSummary)cognitiveSummary.textContent=activityState?.currentTask
+    ? 'Task aktif · '+String(task?.status||'running')
+    : agent?.status==='error'?'Agent terakhir error':'Belum ada task aktif';
+  for(const button of cognitiveButtons){
+    const region=latestBrainState?.regions?.[button.dataset.cognitiveRegion]||{};
+    const status=String(region.status||'idle');
+    button.dataset.status=status;
+    const node=button.querySelector('span');if(node)node.textContent=status;
+  }
+  if(activityTimeline){
+    const items=(activityState?.timeline||[]).slice(-8).reverse();
+    activityTimeline.replaceChildren(...(items.length?items.map(item=>{
+      const li=document.createElement('li');
+      const tag=document.createElement('span');tag.textContent=String(item.status||item.type||'event');
+      const text=document.createElement('p');text.textContent=String(item.label||'Aktivitas NARA');
+      li.append(tag,text);return li;
+    }):[(()=>{
+      const li=document.createElement('li'),tag=document.createElement('span'),text=document.createElement('p');
+      tag.textContent='SIAP';text.textContent='Menunggu aktivitas NARA.';li.append(tag,text);return li;
+    })()]));
+  }
+};
+
+const activity=window.HumanALEActivity.create({runtime,onState:renderActivity});
+window.humanALEActivity=activity;
+for(const button of cognitiveButtons)button.addEventListener('click',()=>{
+  const region=button.dataset.cognitiveRegion;
+  avatar.setZoom?.(3.05);
+  avatar.selectBrainRegion?.(region);
+});
+renderActivity(activity.snapshot());
+
 const sensorStatus=document.querySelector('#sensorStatus');
 const sensorMicButton=document.querySelector('#sensorMic');
 const sensorCameraButton=document.querySelector('#sensorCamera');
@@ -134,6 +186,7 @@ window.addEventListener('keydown',unlockNaraVoice,{once:true});
 avatar.referencePromise.then(loaded => {
   showState(loaded ? 'WAJAH NARA SIAP' : 'PETA WAJAH GAGAL DIMUAT');
   dataSpine.start();
+  activity.start();
   runtime.start();
   connections.start();
 });
@@ -226,5 +279,6 @@ window.addEventListener('pagehide',()=>{
   sensors.stopAll().catch(()=>{});
   connections.stop();
   runtime.stop();
+  activity.stop();
   dataSpine.stop();
 },{once:true});
