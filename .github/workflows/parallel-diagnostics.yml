@@ -1,0 +1,76 @@
+name: Parallel diagnostics
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: parallel-diagnostics-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests-and-build:
+    name: Tests + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  dependency-audit:
+    name: Dependency security audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
+
+  windows-runtime:
+    name: Windows verification + terminal smoke
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+      - run: npm run smoke:terminal
+
+  diagnostics-summary:
+    name: Diagnostics gate
+    if: always()
+    needs: [tests-and-build, dependency-audit, windows-runtime]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every parallel gate to pass
+        env:
+          TESTS_BUILD: ${{ needs.tests-and-build.result }}
+          AUDIT: ${{ needs.dependency-audit.result }}
+          WINDOWS: ${{ needs.windows-runtime.result }}
+        run: |
+          echo "tests-and-build=$TESTS_BUILD"
+          echo "dependency-audit=$AUDIT"
+          echo "windows-runtime=$WINDOWS"
+          test "$TESTS_BUILD" = "success"
+          test "$AUDIT" = "success"
+          test "$WINDOWS" = "success"
