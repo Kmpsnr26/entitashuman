@@ -86,3 +86,23 @@ export class AiProviderError
       options.httpStatus;
   }
 }
+
+export interface AiAttempt {
+  provider: string;
+  model: string;
+  status:
+    | "success"
+    | "error"
+    | "aborted";
+  latencyMs: number;
+  inputChars: number;
+  outputChars: number;
+  usage: AiUsage;
+  errorCode?: string;
+  fallbackFrom?: string;
+}
+
+export interface AiGatewayResult
+  extends AiResult {
+  attempts: AiAttempt[];
+}
