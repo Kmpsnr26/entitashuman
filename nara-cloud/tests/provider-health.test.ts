@@ -302,6 +302,145 @@ test(
 );
 
 test(
+  "non-retryable failures are telemetry-only and do not change breaker health",
+  () => {
+    let now = 15_000;
+
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          1,
+        cooldownMs:
+          1_000,
+        now:
+          () => now
+      });
+
+    health.failure(
+      "openai",
+      {
+        retryable:
+          false,
+        latencyMs:
+          25,
+        errorCode:
+          "BAD_REQUEST"
+      }
+    );
+
+    let snapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      snapshot.state,
+      "ready"
+    );
+
+    assert.equal(
+      snapshot.circuitState,
+      "healthy"
+    );
+
+    assert.equal(
+      snapshot.consecutiveFailures,
+      0
+    );
+
+    assert.equal(
+      snapshot.failures,
+      1
+    );
+
+    health.retryableFailure(
+      "openai",
+      50,
+      "TEMP"
+    );
+
+    const openedAt =
+      health.snapshot(
+        "openai",
+        true
+      ).openedAt;
+
+    now += 1_001;
+
+    const probe =
+      health.acquire(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      probe.allowed,
+      true
+    );
+
+    assert.equal(
+      probe.circuitState,
+      "half-open"
+    );
+
+    health.failure(
+      "openai",
+      {
+        retryable:
+          false,
+        latencyMs:
+          30,
+        errorCode:
+          "REQUEST_SPECIFIC"
+      }
+    );
+
+    snapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      snapshot.circuitState,
+      "half-open"
+    );
+
+    assert.equal(
+      snapshot.consecutiveFailures,
+      1
+    );
+
+    assert.equal(
+      snapshot.openedAt,
+      openedAt
+    );
+
+    assert.equal(
+      snapshot.probeInFlight,
+      false
+    );
+
+    const nextProbe =
+      health.acquire(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      nextProbe.allowed,
+      true
+    );
+
+    assert.equal(
+      nextProbe.probe,
+      true
+    );
+  }
+);
+
+test(
   "half-open probe recovers provider to ready on success",
   () => {
     let now = 20_000;
