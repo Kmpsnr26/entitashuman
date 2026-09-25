@@ -152,6 +152,74 @@ test(
 );
 
 test(
+  "Anthropic empty successful response is non-retryable",
+  async () => {
+    const fakeFetch =
+      (async () =>
+        new Response(
+          JSON.stringify(
+            {
+            content:
+              []
+          }
+          ),
+          {
+            status:
+              200,
+            headers: {
+              "content-type":
+                "application/json"
+            }
+          }
+        )) as typeof fetch;
+
+    const provider =
+      new AnthropicProvider({
+        apiKey:
+          "test-anthropic-key-not-real-123456",
+
+        fetchImpl:
+          fakeFetch
+      });
+
+    await assert.rejects(
+      () =>
+        provider.generate(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "ANTHROPIC_EMPTY_RESPONSE"
+        );
+
+        assert.equal(
+          error.retryable,
+          false
+        );
+
+        return true;
+      }
+    );
+  }
+);
+
+test(
   "Anthropic SSE stream follows message and content block lifecycle",
   async () => {
     const sse = [
