@@ -156,10 +156,19 @@ function isRetryableStreamError(
 async function failureFrom(
   response: Response
 ): Promise<AiProviderError> {
+  const retryable429 =
+    response.status ===
+      429 &&
+    Boolean(
+      response.headers.get(
+        "retry-after"
+      )
+    );
+
   const retryable =
     response.status === 408 ||
     response.status === 409 ||
-    response.status === 429 ||
+    retryable429 ||
     response.status >= 500;
 
   return new AiProviderError(
