@@ -85,25 +85,6 @@ function usageFrom(
 async function failureFrom(
   response: Response
 ): Promise<AiProviderError> {
-  let code =
-    "COMPAT_UPSTREAM_ERROR";
-
-  try {
-    const data =
-      await response.json()
-        as CompatibleResponse;
-
-    code =
-      String(
-        data.error?.code ??
-        data.error?.type ??
-        code
-      )
-        .slice(0, 100);
-  } catch {
-    // Upstream body may not be JSON.
-  }
-
   const retryable =
     response.status === 408 ||
     response.status === 409 ||
@@ -113,7 +94,8 @@ async function failureFrom(
   return new AiProviderError(
     "Compatible provider request failed.",
     {
-      code,
+      code:
+        "COMPAT_UPSTREAM_ERROR",
       retryable,
       httpStatus:
         response.status
@@ -483,12 +465,7 @@ export class OpenAiCompatibleProvider
           "Compatible provider stream failed.",
           {
             code:
-              String(
-                parsed.error.code ??
-                parsed.error.type ??
-                "COMPAT_STREAM_ERROR"
-              )
-                .slice(0, 100),
+              "COMPAT_STREAM_ERROR",
 
             retryable:
               true
