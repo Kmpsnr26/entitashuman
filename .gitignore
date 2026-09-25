@@ -1,5 +1,6 @@
 node_modules/
 dist/
+!sites/humanale-hologram/dist/
 release/
 out/
 .env

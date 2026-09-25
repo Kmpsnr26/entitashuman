@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#06110d">
+  <meta name="description" content="HumanALE, avatar holografik biner yang bergerak dan merespons interaksi Anda.">
+  <title>HumanALE · Avatar Holografik</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2306110d'/%3E%3Cpath d='M17 20v24m30-24v24M17 32h30' stroke='%236df5a6' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./zoom.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="top"><a class="brand" href="#utama"><span class="brand-mark">H</span><span>HumanALE<small>HOLOGRAPHIC PRESENCE</small></span></a><span class="top-note">Avatar interaktif di browser</span></header>
+    <main id="utama" class="workspace">
+      <section class="stage" aria-label="Avatar holografik">
+        <div class="stage-top"><span class="eyebrow">ENTITAS DIGITAL · 01</span><span id="state" class="status">SIAP</span></div>
+        <canvas id="avatar" role="img" aria-label="Wajah holografik dari karakter biner yang bergerak"></canvas>
+        <p class="stage-hint">Gerakkan penunjuk untuk menoleh. Gulir untuk menjelajah inti neural; ketuk untuk berkedip.</p>
+      </section>
+      <aside class="panel" aria-label="Kontrol avatar">
+        <div><span class="eyebrow">KONTROL / HUMAN ALE</span><h1>Hidupkan<br><em>karakternya.</em></h1><p>Ubah aliran biner, warna, dan ekspresi. Avatar bergerak langsung dari kode.</p></div>
+        <fieldset><legend>Gaya visual</legend><div class="choice-grid" id="modes"><button class="selected" type="button" data-mode="hybrid" aria-pressed="true">Hibrida</button><button type="button" data-mode="binary" aria-pressed="false">Biner</button><button type="button" data-mode="cubes" aria-pressed="false">Kubus</button><button type="button" data-mode="neural" aria-pressed="false">Neural</button></div></fieldset>
+        <div class="row"><label for="color">Warna</label><select id="color"><option value="cyan" selected>Es biru</option><option value="black">Hitam grafit</option><option value="violet">Violet</option><option value="emerald">Hijau Matrix</option><option value="amber">Emas</option><option value="adaptive">Spektrum</option></select></div>
+        <div class="row"><label for="emotion">Ekspresi</label><select id="emotion"><option value="neutral">Netral</option><option value="happy">Bahagia</option><option value="sad">Sedih</option><option value="surprised">Terkejut</option><option value="thinking">Berpikir</option></select></div>
+        <div class="zoom-row"><label for="zoom">Jelajah rongga kepala</label><output id="zoom-value" for="zoom">1.0× · wajah</output><input id="zoom" type="range" min="1" max="3.8" step="0.05" value="1" aria-label="Zoom wajah hingga inti neural"></div>
+        <div class="actions"><button type="button" data-action="blink">Berkedip</button><button type="button" data-action="nod">Mengangguk</button><button type="button" data-action="shake">Menggeleng</button></div>
+        <form id="speech"><label for="words">Buat avatar berbicara</label><div class="speech-row"><input id="words" maxlength="160" placeholder="Tulis kalimat pendek…" autocomplete="off"><button type="submit">Ucapkan</button></div><small>Suara memakai fitur bawaan browser dan mungkin tidak tersedia di semua perangkat.</small></form>
+      </aside>
+    </main>
+    <footer>HumanALE · Karakter NARA dari aplikasi lokal Anda</footer>
+  </div>
+  <script src="./face-rig.js"></script>
+  <script src="./neural-core.js"></script>
+  <script src="./avatar.js"></script>
+  <script type="module" src="./site.js"></script>
+</body>
+</html>
