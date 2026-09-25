@@ -1,24 +1,26 @@
-export type ProviderCircuitState =
-  | "healthy"
-  | "degraded"
-  | "open"
-  | "half-open"
-  | "unavailable";
-
-export type ProviderAvailability =
+export type ProviderHealthState =
   | "ready"
   | "degraded"
   | "unavailable";
 
+export type ProviderCircuitState =
+  | "healthy"
+  | "degraded"
+  | "open"
+  | "half-open";
+
 export interface ProviderHealthSnapshot {
-  state: ProviderCircuitState;
-  availability: ProviderAvailability;
+  state: ProviderHealthState;
+  circuitState:
+    | ProviderCircuitState
+    | "unavailable";
   consecutiveFailures: number;
-  successCount: number;
-  failureCount: number;
-  successRate?: number;
-  latencyEmaMs?: number;
+  successes: number;
+  failures: number;
+  successRate: number | null;
+  averageLatencyMs: number | null;
   lastLatencyMs?: number;
+  lastErrorCode?: string;
   lastFailureAt?: number;
   lastSuccessAt?: number;
   openedAt?: number;
@@ -27,16 +29,14 @@ export interface ProviderHealthSnapshot {
 }
 
 interface ProviderHealthRecord {
-  state:
-    Exclude<
-      ProviderCircuitState,
-      "unavailable"
-    >;
+  circuitState:
+    ProviderCircuitState;
   consecutiveFailures: number;
-  successCount: number;
-  failureCount: number;
-  latencyEmaMs?: number;
+  successes: number;
+  failures: number;
+  averageLatencyMs?: number;
   lastLatencyMs?: number;
+  lastErrorCode?: string;
   lastFailureAt?: number;
   lastSuccessAt?: number;
   openedAt?: number;
@@ -46,72 +46,85 @@ interface ProviderHealthRecord {
 interface ProviderHealthOptions {
   failureThreshold?: number;
   cooldownMs?: number;
+  maxSamples?: number;
   now?: () => number;
 }
 
 export interface ProviderLease {
   allowed: boolean;
-  state: ProviderCircuitState;
+  state: ProviderHealthState;
+  circuitState:
+    | ProviderCircuitState
+    | "unavailable";
   probe: boolean;
 }
 
-const MAX_METRIC_COUNT =
-  1_000_000;
-
-const LATENCY_ALPHA =
-  0.25;
-
-function boundedCount(
-  value: number
-): number {
-  return Math.max(
-    0,
-    Math.min(
-      MAX_METRIC_COUNT,
-      Math.trunc(value)
-    )
-  );
+interface FailureOptions {
+  retryable: boolean;
+  latencyMs: number;
+  errorCode?: string;
 }
 
-function safeLatency(
-  value:
-    number |
-    undefined
-): number | undefined {
-  if (
-    typeof value !==
-      "number" ||
-    !Number.isFinite(value)
-  ) {
-    return undefined;
+const MAX_LATENCY_MS =
+  10 * 60 * 1000;
+
+function boundedLatency(
+  value: number
+): number {
+  if (!Number.isFinite(value)) {
+    return 0;
   }
 
   return Math.max(
     0,
     Math.min(
-      10 * 60 * 1000,
+      MAX_LATENCY_MS,
       Math.round(value)
     )
   );
 }
 
-function availabilityFrom(
-  state:
+function safeErrorCode(
+  value: string | undefined
+): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized =
+    value
+      .trim()
+      .replace(
+        /[^A-Za-z0-9._:-]/g,
+        "_"
+      )
+      .slice(0, 100);
+
+  return normalized ||
+    undefined;
+}
+
+function publicState(
+  circuitState:
     ProviderCircuitState
-): ProviderAvailability {
+): ProviderHealthState {
   if (
-    state === "healthy"
+    circuitState ===
+      "open"
   ) {
-    return "ready";
+    return "unavailable";
   }
 
   if (
-    state === "degraded"
+    circuitState ===
+      "degraded" ||
+    circuitState ===
+      "half-open"
   ) {
     return "degraded";
   }
 
-  return "unavailable";
+  return "ready";
 }
 
 export class ProviderHealthRegistry {
@@ -119,6 +132,9 @@ export class ProviderHealthRegistry {
     number;
 
   private readonly cooldownMs:
+    number;
+
+  private readonly maxSamples:
     number;
 
   private readonly now:
@@ -158,6 +174,18 @@ export class ProviderHealthRegistry {
         )
       );
 
+    this.maxSamples =
+      Math.max(
+        10,
+        Math.min(
+          1_000_000,
+          Math.trunc(
+            options.maxSamples ??
+            1_000_000
+          )
+        )
+      );
+
     this.now =
       options.now ??
       (() => Date.now());
@@ -173,13 +201,13 @@ export class ProviderHealthRegistry {
 
     if (!record) {
       record = {
-        state:
+        circuitState:
           "healthy",
         consecutiveFailures:
           0,
-        successCount:
+        successes:
           0,
-        failureCount:
+        failures:
           0,
         probeInFlight:
           false
@@ -194,38 +222,69 @@ export class ProviderHealthRegistry {
     return record;
   }
 
-  private recordLatency(
+  private compactCounters(
     record:
-      ProviderHealthRecord,
-    latencyMs:
-      number |
-      undefined
+      ProviderHealthRecord
   ): void {
-    const latency =
-      safeLatency(
-        latencyMs
-      );
+    const total =
+      record.successes +
+      record.failures;
 
     if (
-      latency ===
-      undefined
+      total <
+      this.maxSamples
     ) {
       return;
     }
 
+    record.successes =
+      Math.floor(
+        record.successes /
+        2
+      );
+
+    record.failures =
+      Math.floor(
+        record.failures /
+        2
+      );
+  }
+
+  private recordLatency(
+    record:
+      ProviderHealthRecord,
+    latencyMs: number
+  ): void {
+    const latency =
+      boundedLatency(
+        latencyMs
+      );
+
     record.lastLatencyMs =
       latency;
 
-    record.latencyEmaMs =
-      record.latencyEmaMs ===
-        undefined
-        ? latency
-        : Math.round(
-            record.latencyEmaMs *
-              (1 - LATENCY_ALPHA) +
-            latency *
-              LATENCY_ALPHA
-          );
+    if (
+      record.averageLatencyMs ===
+      undefined
+    ) {
+      record.averageLatencyMs =
+        latency;
+
+      return;
+    }
+
+    /*
+     * Bounded exponential moving average.
+     * Recent latency matters without keeping
+     * an unbounded sample history.
+     */
+    record.averageLatencyMs =
+      Math.round(
+        record.averageLatencyMs *
+          0.8 +
+        latency *
+          0.2
+      );
   }
 
   acquire(
@@ -238,6 +297,8 @@ export class ProviderHealthRegistry {
           false,
         state:
           "unavailable",
+        circuitState:
+          "unavailable",
         probe:
           false
       };
@@ -249,7 +310,7 @@ export class ProviderHealthRegistry {
       );
 
     if (
-      record.state ===
+      record.circuitState ===
       "open"
     ) {
       const openedAt =
@@ -265,6 +326,8 @@ export class ProviderHealthRegistry {
           allowed:
             false,
           state:
+            "unavailable",
+          circuitState:
             "open",
           probe:
             false
@@ -278,13 +341,15 @@ export class ProviderHealthRegistry {
           allowed:
             false,
           state:
+            "degraded",
+          circuitState:
             "half-open",
           probe:
             false
         };
       }
 
-      record.state =
+      record.circuitState =
         "half-open";
 
       record.probeInFlight =
@@ -294,6 +359,8 @@ export class ProviderHealthRegistry {
         allowed:
           true,
         state:
+          "degraded",
+        circuitState:
           "half-open",
         probe:
           true
@@ -301,7 +368,7 @@ export class ProviderHealthRegistry {
     }
 
     if (
-      record.state ===
+      record.circuitState ===
       "half-open"
     ) {
       if (
@@ -311,6 +378,8 @@ export class ProviderHealthRegistry {
           allowed:
             false,
           state:
+            "degraded",
+          circuitState:
             "half-open",
           probe:
             false
@@ -324,6 +393,8 @@ export class ProviderHealthRegistry {
         allowed:
           true,
         state:
+          "degraded",
+        circuitState:
           "half-open",
         probe:
           true
@@ -334,7 +405,11 @@ export class ProviderHealthRegistry {
       allowed:
         true,
       state:
-        record.state,
+        publicState(
+          record.circuitState
+        ),
+      circuitState:
+        record.circuitState,
       probe:
         false
     };
@@ -342,24 +417,30 @@ export class ProviderHealthRegistry {
 
   success(
     providerId: string,
-    latencyMs?: number
+    latencyMs = 0
   ): void {
     const record =
       this.record(
         providerId
       );
 
-    record.state =
+    this.compactCounters(
+      record
+    );
+
+    record.successes +=
+      1;
+
+    this.recordLatency(
+      record,
+      latencyMs
+    );
+
+    record.circuitState =
       "healthy";
 
     record.consecutiveFailures =
       0;
-
-    record.successCount =
-      boundedCount(
-        record.successCount +
-        1
-      );
 
     record.lastSuccessAt =
       this.now();
@@ -370,15 +451,14 @@ export class ProviderHealthRegistry {
     record.probeInFlight =
       false;
 
-    this.recordLatency(
-      record,
-      latencyMs
-    );
+    record.lastErrorCode =
+      undefined;
   }
 
-  retryableFailure(
+  failure(
     providerId: string,
-    latencyMs?: number
+    options:
+      FailureOptions
   ): void {
     const record =
       this.record(
@@ -388,14 +468,62 @@ export class ProviderHealthRegistry {
     const now =
       this.now();
 
+    this.compactCounters(
+      record
+    );
+
+    record.failures +=
+      1;
+
+    this.recordLatency(
+      record,
+      options.latencyMs
+    );
+
     record.lastFailureAt =
       now;
 
-    record.failureCount =
-      boundedCount(
-        record.failureCount +
-        1
+    record.lastErrorCode =
+      safeErrorCode(
+        options.errorCode
       );
+
+    record.probeInFlight =
+      false;
+
+    if (
+      !options.retryable
+    ) {
+      /*
+       * A non-retryable upstream failure is
+       * visible as degraded, but does not
+       * increment the retryable breaker count.
+       * If it happened during a half-open probe,
+       * reopen the circuit for a fresh cooldown.
+       */
+      if (
+        record.circuitState ===
+        "half-open"
+      ) {
+        record.circuitState =
+          "open";
+
+        record.openedAt =
+          now;
+
+        return;
+      }
+
+      if (
+        record.circuitState ===
+        "healthy"
+      ) {
+        record.circuitState =
+          "degraded";
+      }
+
+      return;
+    }
 
     record.consecutiveFailures =
       Math.min(
@@ -404,21 +532,13 @@ export class ProviderHealthRegistry {
         1
       );
 
-    record.probeInFlight =
-      false;
-
-    this.recordLatency(
-      record,
-      latencyMs
-    );
-
     if (
-      record.state ===
+      record.circuitState ===
         "half-open" ||
       record.consecutiveFailures >=
         this.failureThreshold
     ) {
-      record.state =
+      record.circuitState =
         "open";
 
       record.openedAt =
@@ -427,8 +547,24 @@ export class ProviderHealthRegistry {
       return;
     }
 
-    record.state =
+    record.circuitState =
       "degraded";
+  }
+
+  retryableFailure(
+    providerId: string,
+    latencyMs = 0,
+    errorCode?: string
+  ): void {
+    this.failure(
+      providerId,
+      {
+        retryable:
+          true,
+        latencyMs,
+        errorCode
+      }
+    );
   }
 
   release(
@@ -444,11 +580,19 @@ export class ProviderHealthRegistry {
     }
 
     if (
-      record.state ===
+      record.circuitState ===
       "half-open"
     ) {
-      record.state =
+      record.circuitState =
         "open";
+
+      /*
+       * A cancelled/abandoned probe gets a new
+       * cooldown window to avoid immediate
+       * repeated half-open probes.
+       */
+      record.openedAt =
+        this.now();
     }
 
     record.probeInFlight =
@@ -463,14 +607,18 @@ export class ProviderHealthRegistry {
       return {
         state:
           "unavailable",
-        availability:
+        circuitState:
           "unavailable",
         consecutiveFailures:
           0,
-        successCount:
+        successes:
           0,
-        failureCount:
+        failures:
           0,
+        successRate:
+          null,
+        averageLatencyMs:
+          null,
         probeInFlight:
           false
       };
@@ -482,59 +630,54 @@ export class ProviderHealthRegistry {
       );
 
     const total =
-      record.successCount +
-      record.failureCount;
+      record.successes +
+      record.failures;
+
+    const successRate =
+      total > 0
+        ? Math.round(
+            (
+              record.successes /
+              total
+            ) *
+            10_000
+          ) /
+          10_000
+        : null;
 
     return {
       state:
-        record.state,
-
-      availability:
-        availabilityFrom(
-          record.state
+        publicState(
+          record.circuitState
         ),
-
+      circuitState:
+        record.circuitState,
       consecutiveFailures:
-        record.consecutiveFailures,
-
-      successCount:
-        record.successCount,
-
-      failureCount:
-        record.failureCount,
-
-      successRate:
-        total > 0
-          ? Number(
-              (
-                record.successCount /
-                total
-              )
-                .toFixed(4)
-            )
-          : undefined,
-
-      latencyEmaMs:
-        record.latencyEmaMs,
-
+        record
+          .consecutiveFailures,
+      successes:
+        record.successes,
+      failures:
+        record.failures,
+      successRate,
+      averageLatencyMs:
+        record.averageLatencyMs ??
+        null,
       lastLatencyMs:
         record.lastLatencyMs,
-
+      lastErrorCode:
+        record.lastErrorCode,
       lastFailureAt:
         record.lastFailureAt,
-
       lastSuccessAt:
         record.lastSuccessAt,
-
       openedAt:
         record.openedAt,
-
       nextProbeAt:
         record.openedAt
           ? record.openedAt +
             this.cooldownMs
           : undefined,
-
       probeInFlight:
         record.probeInFlight
     };
