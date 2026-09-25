@@ -115,8 +115,42 @@
         this.setRegion('NARA_CORE',{status:'offline',activity:0,message:'NARA dihentikan'},event);
       }else if(event==='brain.region.select'&&this.isRegionId(payload.region)){
         this.selectRegion(payload.region,event);
+      }else if(event==='observe.start'){
+        this.setRegion('NARA_CORE',{status:'processing',activity:1,message:'Mengamati konteks kerja'},event);
+      }else if(event==='observe.complete'){
+        this.setRegion('NARA_CORE',{status:'ready',activity:.35,message:'Observasi selesai'},event);
+      }else if(event==='reason.start'){
+        this.setRegion('REASONER',{status:'thinking',activity:1,message:String(payload.label||'Menganalisis permintaan').slice(0,160)},event);
+      }else if(event==='reason.complete'){
+        this.setRegion('REASONER',{status:'complete',activity:.25,message:'Analisis selesai'},event);
+      }else if(event==='plan.start'){
+        this.setRegion('PLANNER',{status:'processing',activity:1,message:String(payload.label||'Menyusun rencana kerja').slice(0,160)},event);
+      }else if(event==='plan.complete'){
+        this.setRegion('PLANNER',{status:'complete',activity:.25,message:'Rencana siap'},event);
+      }else if(event==='agent.start'){
+        this.setRegion('AGENT_MANAGER',{status:'processing',activity:1,message:String(payload.label||'Agent bekerja').slice(0,160)},event);
+      }else if(event==='agent.complete'){
+        this.setRegion('AGENT_MANAGER',{status:'complete',activity:.25,message:'Agent selesai'},event);
+      }else if(event==='agent.failed'){
+        this.setRegion('AGENT_MANAGER',{status:'error',activity:1,message:'Agent gagal'},event);
+      }else if(event==='memory.read'){
+        this.setRegion('MEMORY',{status:'active',activity:.75,message:String(payload.label||'Membaca memori kerja').slice(0,160)},event);
+      }else if(event==='memory.write'){
+        this.setRegion('MEMORY',{status:'processing',activity:.9,message:String(payload.label||'Memperbarui memori kerja').slice(0,160)},event);
+      }else if(event==='memory.complete'){
+        this.setRegion('MEMORY',{status:'complete',activity:.2,message:'Memori kerja diperbarui'},event);
+      }else if(event==='program.start'){
+        this.setRegion('PROGRAM',{status:'processing',activity:1,message:String(payload.label||'Menjalankan pekerjaan program').slice(0,160)},event);
+      }else if(event==='program.complete'){
+        this.setRegion('PROGRAM',{status:'complete',activity:.2,message:'Pekerjaan program selesai'},event);
+      }else if(event==='verify.start'){
+        this.setRegion('FOLLOW_UP',{status:'processing',activity:1,message:'Memverifikasi hasil'},event);
+        this.setRegion('REPORTING',{status:'active',activity:.6,message:'Mengumpulkan hasil verifikasi'},event);
+      }else if(event==='verify.complete'){
+        this.setRegion('FOLLOW_UP',{status:'complete',activity:.2,message:'Verifikasi selesai'},event);
+        this.setRegion('REPORTING',{status:'complete',activity:.25,message:'Hasil siap dilaporkan'},event);
       }else if(event==='work.start'){
-        this.state.currentTask={id:String(payload.id||'task-'+envelope.id),label:String(payload.label||'Pekerjaan NARA'),startedAt:envelope.timestamp};
+        this.state.currentTask={id:String(payload.id||'task-'+envelope.id),label:String(payload.label||'Pekerjaan NARA').slice(0,160),startedAt:envelope.timestamp};
         this.setRegion('PROGRAM',{status:'processing',activity:1,message:this.state.currentTask.label},event);
         this.setRegion('FOLLOW_UP',{status:'active',activity:.7,message:'Memantau tindak lanjut'},event);
       }else if(event==='work.complete'){
