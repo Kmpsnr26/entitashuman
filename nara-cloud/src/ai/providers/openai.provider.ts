@@ -96,13 +96,61 @@ function isRetryableStreamError(
   );
 }
 
+const OPENAI_NON_RETRYABLE_429_CODES =
+  new Set([
+    "credit_balance_exhausted",
+    "organization_spend_limit_exceeded",
+    "project_spend_limit_exceeded",
+    "organization_usage_limit_exceeded"
+  ]);
+
 async function providerFailure(
   response: Response
 ): Promise<AiProviderError> {
+  let upstreamCode:
+    string |
+    undefined;
+
+  if (
+    response.status ===
+    429
+  ) {
+    try {
+      const data =
+        await response.json()
+          as {
+            error?: {
+              code?: string;
+            };
+          };
+
+      upstreamCode =
+        typeof data.error?.code ===
+          "string"
+          ? data.error.code
+              .trim()
+              .toLowerCase()
+          : undefined;
+    } catch {
+      // Classification only; never expose raw upstream body.
+    }
+  }
+
+  const retryable429 =
+    response.status ===
+      429 &&
+    (
+      !upstreamCode ||
+      !OPENAI_NON_RETRYABLE_429_CODES
+        .has(
+          upstreamCode
+        )
+    );
+
   const retryable =
     response.status === 408 ||
     response.status === 409 ||
-    response.status === 429 ||
+    retryable429 ||
     response.status >= 500;
 
   return new AiProviderError(
