@@ -38,7 +38,7 @@ test('adult robot style is available in UI, local Piper and native Indonesian fa
   assert.match(html,/value="adult-robot">Dewasa robot · Indonesia/);
   assert.match(app,/\['baby-robot','adult-robot','natural'\]/);
   assert.match(app,/style==='adult-robot'/);
-  assert.match(app,/source==='nara'&&desktop\?\.synthesize/);
+  assert.match(app,/source==='nara'&&!localTtsRejected&&desktop\?\.synthesize/);
   assert.match(app,/if\(speakNativeIndonesian\(text,style\)\)return;/);
   assert.match(tts,/\['natural','baby-robot','adult-robot'\]/);
   assert.match(python,/def adult_robot_effect/);
