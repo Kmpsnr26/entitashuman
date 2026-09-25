@@ -792,6 +792,76 @@ test(
 );
 
 test(
+  "half-open status does not advertise an already elapsed next probe time",
+  () => {
+    let now =
+      80_000;
+
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          1,
+        cooldownMs:
+          1_000,
+        now:
+          () => now
+      });
+
+    health.retryableFailure(
+      "openai",
+      10,
+      "AI_PROVIDER_RETRYABLE_ERROR"
+    );
+
+    assert.equal(
+      health.snapshot(
+        "openai",
+        true
+      ).nextProbeAt,
+      now + 1_000
+    );
+
+    now +=
+      1_001;
+
+    const probe =
+      health.acquire(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      probe.circuitState,
+      "half-open"
+    );
+
+    const snapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      snapshot.nextProbeAt,
+      undefined
+    );
+
+    health.release(
+      "openai",
+      probe.probeId
+    );
+
+    assert.equal(
+      health.snapshot(
+        "openai",
+        true
+      ).nextProbeAt,
+      undefined
+    );
+  }
+);
+
+test(
   "stale released probe cannot close a newer half-open probe",
   () => {
     let now = 50_000;
