@@ -88,14 +88,59 @@ function errorCode(
     error instanceof
       AiProviderError
   ) {
-    return error.code;
+    if (
+      error.code ===
+      "AI_PROVIDER_TIMEOUT"
+    ) {
+      return error.code;
+    }
+
+    if (
+      typeof error.httpStatus ===
+      "number"
+    ) {
+      if (
+        error.httpStatus ===
+        408
+      ) {
+        return "AI_UPSTREAM_TIMEOUT";
+      }
+
+      if (
+        error.httpStatus ===
+        429
+      ) {
+        return "AI_UPSTREAM_RATE_LIMITED";
+      }
+
+      if (
+        error.httpStatus ===
+          401 ||
+        error.httpStatus ===
+          403
+      ) {
+        return "AI_UPSTREAM_AUTH_ERROR";
+      }
+
+      if (
+        error.httpStatus >=
+        500
+      ) {
+        return "AI_UPSTREAM_SERVER_ERROR";
+      }
+
+      return "AI_UPSTREAM_REQUEST_ERROR";
+    }
+
+    return error.retryable
+      ? "AI_PROVIDER_RETRYABLE_ERROR"
+      : "AI_PROVIDER_ERROR";
   }
 
   if (
     error instanceof Error
   ) {
-    return error.name
-      .slice(0, 100);
+    return "AI_PROVIDER_EXCEPTION";
   }
 
   return "AI_UNKNOWN_ERROR";
@@ -533,9 +578,11 @@ export class AiGateway {
           started;
 
         const safeErrorCode =
-          errorCode(
-            effectiveError
-          );
+          aborted
+            ? "AI_CLIENT_ABORTED"
+            : errorCode(
+                effectiveError
+              );
 
         if (aborted) {
           this.health.release(
@@ -834,9 +881,11 @@ export class AiGateway {
           started;
 
         const safeErrorCode =
-          errorCode(
-            effectiveError
-          );
+          aborted
+            ? "AI_CLIENT_ABORTED"
+            : errorCode(
+                effectiveError
+              );
 
         if (aborted) {
           this.health.release(
