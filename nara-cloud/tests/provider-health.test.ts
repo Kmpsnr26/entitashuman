@@ -666,7 +666,7 @@ test(
 );
 
 test(
-  "abandoned half-open probe reopens with a fresh cooldown",
+  "abandoned half-open probe releases its lease without poisoning provider health",
   () => {
     let now = 30_000;
 
@@ -685,6 +685,12 @@ test(
       90,
       "TEMP"
     );
+
+    const openedAt =
+      health.snapshot(
+        "gemini",
+        true
+      ).openedAt;
 
     now += 1_001;
 
@@ -708,25 +714,38 @@ test(
 
     assert.equal(
       snapshot.circuitState,
-      "open"
+      "half-open"
     );
 
     assert.equal(
       snapshot.openedAt,
-      now
+      openedAt
     );
 
     assert.equal(
-      snapshot.nextProbeAt,
-      now + 1_000
+      snapshot.probeInFlight,
+      false
     );
 
-    assert.equal(
+    const nextProbe =
       health.acquire(
         "gemini",
         true
-      ).allowed,
-      false
+      );
+
+    assert.equal(
+      nextProbe.allowed,
+      true
+    );
+
+    assert.equal(
+      nextProbe.probe,
+      true
+    );
+
+    assert.equal(
+      nextProbe.circuitState,
+      "half-open"
     );
   }
 );
