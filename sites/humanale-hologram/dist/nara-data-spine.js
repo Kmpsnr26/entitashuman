@@ -21,7 +21,7 @@
     'program.start':'CORE','program.complete':'CORE',
     'memory.read':'MEMORY','memory.write':'MEMORY','memory.complete':'MEMORY',
     'verify.start':'CORE','verify.complete':'CORE',
-    'work.start':'CORE','work.complete':'CORE','report.created':'CORE',
+    'work.start':'CORE','work.complete':'CORE','work.failed':'ERROR','report.created':'CORE',
     'terminal.open':'TERMINAL',
     'github.connected':'GITHUB','github.disconnected':'GITHUB',
     'copilot.connected':'COPILOT','copilot.disconnected':'COPILOT',
