@@ -35,5 +35,8 @@
     "@types/pg": "latest",
     "tsx": "latest",
     "typescript": "latest"
+  },
+  "engines": {
+    "node": ">=22 <23"
   }
 }
