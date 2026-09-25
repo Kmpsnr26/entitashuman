@@ -303,6 +303,8 @@ The gateway-level `AI_REQUEST_TIMEOUT_MS` deadline is different from a client ab
 
 Provider-facing telemetry and browser error responses use NARA-owned normalized error codes. Arbitrary error-code strings supplied by an upstream provider are not copied into provider-health status or reflected directly to the browser.
 
+Retryability is conservative. HTTP transport status and a small provider-specific transient allowlist are used only to decide whether fallback/circuit health may change. Unknown or request-specific stream error identifiers are treated as non-retryable. For OpenAI HTTP 429 responses, known account/spend/usage-limit codes are treated as non-retryable while ordinary rate-limit responses remain retryable; the upstream identifier is used only for that classification and is not retained in telemetry or returned to the browser.
+
 The health telemetry is bounded and process-local. It includes only operational metadata:
 
 - public state
