@@ -467,15 +467,23 @@ export class AiGateway {
           Date.now() -
           started;
 
-        if (isRetryable) {
-          this.health
-            .retryableFailure(
-              provider.id,
-              latencyMs
-            );
-        } else {
+        const safeErrorCode =
+          errorCode(error);
+
+        if (aborted) {
           this.health.release(
             provider.id
+          );
+        } else {
+          this.health.failure(
+            provider.id,
+            {
+              retryable:
+                isRetryable,
+              latencyMs,
+              errorCode:
+                safeErrorCode
+            }
           );
         }
 
@@ -506,7 +514,7 @@ export class AiGateway {
               {},
 
             errorCode:
-              errorCode(error),
+              safeErrorCode,
 
             fallbackFrom:
               previous
@@ -738,15 +746,23 @@ export class AiGateway {
           Date.now() -
           started;
 
-        if (isRetryable) {
-          this.health
-            .retryableFailure(
-              provider.id,
-              latencyMs
-            );
-        } else {
+        const safeErrorCode =
+          errorCode(error);
+
+        if (aborted) {
           this.health.release(
             provider.id
+          );
+        } else {
+          this.health.failure(
+            provider.id,
+            {
+              retryable:
+                isRetryable,
+              latencyMs,
+              errorCode:
+                safeErrorCode
+            }
           );
         }
 
@@ -776,7 +792,7 @@ export class AiGateway {
               {},
 
             errorCode:
-              errorCode(error),
+              safeErrorCode,
 
             fallbackFrom:
               previous
