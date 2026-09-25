@@ -32,6 +32,25 @@
           <video id="cameraPreview" class="camera-preview" playsinline muted hidden aria-label="Preview kamera lokal NARA"></video>
           <small>Sensor hanya aktif setelah Anda menekan tombol. Audio dipakai untuk energi/frekuensi visual; kamera menghitung perubahan gerak secara lokal. Tidak ada frame atau rekaman yang dikirim oleh modul ini.</small>
         </section>
+        <section class="connection-panel" aria-labelledby="connectionTitle">
+          <div class="connection-heading"><div><span class="eyebrow" id="connectionTitle">DATA SPINE / LIVE CONNECTIONS</span><strong id="connectionSummary">Menunggu runtime</strong></div><span class="connection-safe">STATUS SAJA</span></div>
+          <div class="connection-grid" id="connectionGrid">
+            <button type="button" data-region="GITHUB"><b>GitHub</b><span>idle</span></button>
+            <button type="button" data-region="COPILOT"><b>Copilot</b><span>idle</span></button>
+            <button type="button" data-region="WEB"><b>Web</b><span>idle</span></button>
+            <button type="button" data-region="DRIVE"><b>Drive</b><span>idle</span></button>
+            <button type="button" data-region="SYNC"><b>Sync</b><span>idle</span></button>
+            <button type="button" data-region="TERMINAL"><b>Terminal</b><span>idle</span></button>
+            <button type="button" data-region="MEMORY"><b>Memory</b><span>idle</span></button>
+            <button type="button" data-region="ONLINE"><b>Online</b><span>idle</span></button>
+          </div>
+          <div class="region-inspector" id="regionInspector">
+            <div class="region-inspector-top"><strong id="inspectName">NARA Core</strong><span id="inspectStatus">READY</span></div>
+            <dl><div><dt>Activity</dt><dd id="inspectActivity">0%</dd></div><div><dt>Event</dt><dd id="inspectEvent">—</dd></div><div><dt>Updated</dt><dd id="inspectUpdated">—</dd></div></dl>
+            <p id="inspectMessage">Pilih node di otak 3D atau tombol koneksi untuk melihat status.</p>
+          </div>
+          <small>Panel ini hanya menampilkan status yang sudah disanitasi. Kunci API, token, password, isi file, dan payload mentah tidak disimpan di Data Spine visual.</small>
+        </section>
         <form id="speech"><label for="words">Buat avatar berbicara</label><div class="speech-row"><input id="words" maxlength="160" placeholder="Tulis kalimat pendek…" autocomplete="off"><button type="submit">Ucapkan</button></div><small>Suara memakai fitur bawaan browser dan mungkin tidak tersedia di semua perangkat.</small></form>
       </aside>
     </main>
@@ -40,6 +59,8 @@
   <script src="./face-rig.js"></script>
   <script src="./neural-core.js"></script>
   <script src="./nara-runtime.js"></script>
+  <script src="./nara-data-spine.js"></script>
+  <script src="./nara-connections.js"></script>
   <script src="./nara-sensors.js"></script>
   <script src="./avatar.js"></script>
   <script type="module" src="./site.js"></script>
