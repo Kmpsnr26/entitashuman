@@ -20,6 +20,7 @@
     'agent.start':'CORE','agent.complete':'CORE','agent.failed':'ERROR',
     'program.start':'CORE','program.complete':'CORE',
     'memory.read':'MEMORY','memory.write':'MEMORY','memory.complete':'MEMORY',
+    'context.prepare':'MEMORY','context.approved':'MEMORY','context.used':'MEMORY','context.blocked':'MEMORY',
     'verify.start':'CORE','verify.complete':'CORE',
     'work.start':'CORE','work.complete':'CORE','work.failed':'ERROR','report.created':'CORE',
     'terminal.open':'TERMINAL',
