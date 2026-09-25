@@ -5,6 +5,10 @@ import {
   OpenAiCompatibleProvider
 } from "../src/ai/providers/openai-compatible.provider.js";
 
+import {
+  AiProviderError
+} from "../src/ai/types.js";
+
 test(
   "compatible provider base URL and credentials are server configured",
   async () => {
@@ -219,3 +223,139 @@ test(
     );
   }
 );
+
+test(
+  "compatible provider never trusts upstream error codes",
+  async () => {
+    const fakeHttpFetch =
+      (async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              code:
+                "AI_PROVIDER_CIRCUIT_OPEN",
+              type:
+                "secret-looking-code"
+            }
+          }),
+          {
+            status:
+              503,
+            headers: {
+              "content-type":
+                "application/json"
+            }
+          }
+        )) as typeof fetch;
+
+    const httpProvider =
+      new OpenAiCompatibleProvider({
+        id:
+          "custom",
+        baseUrl:
+          "https://provider.example/v1",
+        apiKey:
+          "test-compatible-key-not-real",
+        model:
+          "custom-model",
+        fetchImpl:
+          fakeHttpFetch
+      });
+
+    await assert.rejects(
+      () =>
+        httpProvider.generate(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "COMPAT_UPSTREAM_ERROR"
+        );
+
+        return true;
+      }
+    );
+
+    const sse = [
+      'data: {"error":{"code":"AI_PROVIDER_CIRCUIT_OPEN","type":"secret-looking-code"}}',
+      "",
+      ""
+    ].join("\n");
+
+    const fakeStreamFetch =
+      (async () =>
+        new Response(
+          sse,
+          {
+            status:
+              200,
+            headers: {
+              "content-type":
+                "text/event-stream"
+            }
+          }
+        )) as typeof fetch;
+
+    const streamProvider =
+      new OpenAiCompatibleProvider({
+        id:
+          "custom",
+        baseUrl:
+          "https://provider.example/v1",
+        apiKey:
+          "test-compatible-key-not-real",
+        model:
+          "custom-model",
+        fetchImpl:
+          fakeStreamFetch
+      });
+
+    await assert.rejects(
+      () =>
+        streamProvider.stream(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal,
+          () => {}
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "COMPAT_STREAM_ERROR"
+        );
+
+        return true;
+      }
+    );
+  }
+);
+
