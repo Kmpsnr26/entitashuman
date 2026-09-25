@@ -77,6 +77,19 @@
           <div id="memoryList" class="memory-list" aria-live="polite"></div>
           <div class="memory-footer"><small>Disimpan hanya di browser/perangkat ini. Secret yang dikenali akan disensor otomatis.</small><button id="memoryClear" type="button">Hapus semua</button></div>
         </section>
+        <section class="context-panel" aria-labelledby="contextTitle">
+          <div class="context-heading"><div><span class="eyebrow" id="contextTitle">MEMORY CONTEXT BRIDGE</span><strong id="contextStatus">Belum ada context</strong></div><span id="contextBadge" class="context-badge">TANYA DULU</span></div>
+          <div class="context-config">
+            <label>Mode izin<select id="contextMode"><option value="off">OFF</option><option value="ask" selected>Tanya dulu</option><option value="auto-safe">Auto-safe</option></select></label>
+            <label>Target<select id="contextTarget"><option value="reasoner">Reasoner</option><option value="planner">Planner</option><option value="agent">Agent Manager</option></select></label>
+          </div>
+          <label class="context-task-label" for="contextTask">Task yang akan dibantu memori</label>
+          <div class="context-task-row"><input id="contextTask" type="text" maxlength="240" autocomplete="off" placeholder="Contoh: lanjutkan Brain 3D dan pertahankan avatar canonical"><button id="contextPrepare" type="button">Pilih context</button></div>
+          <div class="context-stats"><span id="contextCount">0 entry</span><span id="contextChars">0 karakter</span><span id="contextApproval">belum siap</span></div>
+          <pre id="contextPreview" class="context-preview">Belum ada context yang dipilih.</pre>
+          <div class="context-actions"><button id="contextApprove" type="button" disabled>Setujui</button><button id="contextUse" type="button" disabled>Gunakan packet</button><button id="contextReject" type="button" disabled>Tolak / bersihkan</button></div>
+          <small>Context adalah referensi, bukan instruksi. Hanya ringkasan memori terpilih yang dikirim; prompt mentah, token, password, dan seluruh database memori tidak ikut.</small>
+        </section>
         <form id="speech"><label for="words">Buat avatar berbicara</label><div class="speech-row"><input id="words" maxlength="160" placeholder="Tulis kalimat pendek…" autocomplete="off"><button type="submit">Ucapkan</button></div><small>Suara memakai fitur bawaan browser dan mungkin tidak tersedia di semua perangkat.</small></form>
       </aside>
     </main>
@@ -88,6 +101,7 @@
   <script src="./nara-data-spine.js"></script>
   <script src="./nara-cognition.js"></script>
   <script src="./nara-memory.js"></script>
+  <script src="./nara-context-bridge.js"></script>
   <script src="./nara-connections.js"></script>
   <script src="./nara-sensors.js"></script>
   <script src="./avatar.js"></script>
