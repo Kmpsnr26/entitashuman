@@ -73,6 +73,29 @@ function requestBody(
   };
 }
 
+const OPENAI_RETRYABLE_STREAM_CODES =
+  new Set([
+    "slow_down",
+    "server_is_overloaded",
+    "rate_limit_exceeded",
+    "server_error"
+  ]);
+
+function isRetryableStreamError(
+  value: unknown
+): boolean {
+  return (
+    typeof value ===
+      "string" &&
+    OPENAI_RETRYABLE_STREAM_CODES
+      .has(
+        value
+          .trim()
+          .toLowerCase()
+      )
+  );
+}
+
 async function providerFailure(
   response: Response
 ): Promise<AiProviderError> {
@@ -398,9 +421,23 @@ export class OpenAiProvider
 
       if (
         parsed.type ===
-          "response.failed" ||
+          "response.incomplete"
+      ) {
+        throw new AiProviderError(
+          "OpenAI stream incomplete.",
+          {
+            code:
+              "OPENAI_STREAM_INCOMPLETE",
+
+            retryable:
+              true
+          }
+        );
+      }
+
+      if (
         parsed.type ===
-          "response.incomplete" ||
+          "response.failed" ||
         parsed.type ===
           "error"
       ) {
@@ -411,7 +448,9 @@ export class OpenAiProvider
               "OPENAI_STREAM_ERROR",
 
             retryable:
-              true
+              isRetryableStreamError(
+                parsed.error?.code
+              )
           }
         );
       }
