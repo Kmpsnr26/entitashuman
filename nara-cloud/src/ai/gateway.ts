@@ -176,7 +176,10 @@ export class AiGateway {
     string[];
 
   constructor(
-    providers: AiProvider[]
+    providers: AiProvider[],
+    order:
+      string =
+        env.AI_PROVIDER_ORDER
   ) {
     this.providers =
       new Map(
@@ -190,7 +193,7 @@ export class AiGateway {
 
     this.automaticOrder =
       providerOrder(
-        env.AI_PROVIDER_ORDER
+        order
       );
   }
 
