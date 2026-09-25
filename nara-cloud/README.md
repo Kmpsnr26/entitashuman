@@ -303,7 +303,7 @@ The gateway-level `AI_REQUEST_TIMEOUT_MS` deadline is different from a client ab
 
 Provider-facing telemetry and browser error responses use NARA-owned normalized error codes. Arbitrary error-code strings supplied by an upstream provider are not copied into provider-health status or reflected directly to the browser.
 
-Retryability is conservative. HTTP transport status and a small provider-specific transient allowlist are used only to decide whether fallback/circuit health may change. Unknown or request-specific stream error identifiers are treated as non-retryable. For OpenAI HTTP 429 responses, known account/spend/usage-limit codes are treated as non-retryable while ordinary rate-limit responses remain retryable; the upstream identifier is used only for that classification and is not retained in telemetry or returned to the browser.
+Retryability is conservative. HTTP transport status and a small provider-specific transient allowlist are used only to decide whether fallback/circuit health may change. Unknown or request-specific stream error identifiers are treated as non-retryable. For OpenAI HTTP 429 responses, known account/spend/usage-limit identifiers (including quota-style error types) are treated as non-retryable while ordinary rate-limit responses remain retryable; the upstream identifier is used only for that classification and is not retained in telemetry or returned to the browser. Anthropic HTTP 429 is treated as transient only when the response carries a Retry-After hint, preventing long-lived spend-cap conditions from poisoning provider health. A successful HTTP response that contains no usable text is also non-retryable because it can represent request/model semantics rather than an operational provider outage.
 
 The health telemetry is bounded and process-local. It includes only operational metadata:
 
@@ -331,7 +331,7 @@ It does **not** contain:
 - passwords
 - provider base credentials
 
-Streaming keeps the B2 no-mix invariant: after any text delta is emitted, NARA will not switch to another provider for that response.
+Streaming keeps the B2 no-mix invariant: after any text delta is emitted, NARA will not switch to another provider for that response. Downstream/output callback failures are isolated from upstream provider health: they release any active half-open probe lease, do not increment provider failure counters, and never trigger fallback to another provider. Attempt-observer/logging callback failures are treated as non-authoritative telemetry failures and cannot change routing or breaker state.
 
 If a half-open probe is cancelled or abandoned by the client, NARA only releases the single-probe lease. The circuit remains half-open so a later request can perform a real provider-health probe without extending the cooldown because of client behavior.
 
