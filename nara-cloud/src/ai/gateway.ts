@@ -110,7 +110,9 @@ function errorCode(
         error.httpStatus ===
         429
       ) {
-        return "AI_UPSTREAM_RATE_LIMITED";
+        return error.retryable
+          ? "AI_UPSTREAM_RATE_LIMITED"
+          : "AI_UPSTREAM_LIMIT_REACHED";
       }
 
       if (
