@@ -147,6 +147,86 @@ test(
 );
 
 test(
+  "compatible empty successful response is non-retryable",
+  async () => {
+    const fakeFetch =
+      (async () =>
+        new Response(
+          JSON.stringify(
+            {
+            choices: [
+              {
+                message: {
+                  content:
+                    ""
+                }
+              }
+            ]
+          }
+          ),
+          {
+            status:
+              200,
+            headers: {
+              "content-type":
+                "application/json"
+            }
+          }
+        )) as typeof fetch;
+
+    const provider =
+      new OpenAiCompatibleProvider({
+        id:
+          "custom",
+        baseUrl:
+          "https://provider.example/v1",
+        model:
+          "custom-model",
+        apiKey:
+          "test-compatible-key-not-real",
+
+        fetchImpl:
+          fakeFetch
+      });
+
+    await assert.rejects(
+      () =>
+        provider.generate(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "COMPAT_EMPTY_RESPONSE"
+        );
+
+        assert.equal(
+          error.retryable,
+          false
+        );
+
+        return true;
+      }
+    );
+  }
+);
+
+test(
   "compatible provider SSE completes only after DONE marker",
   async () => {
     const sse = [
