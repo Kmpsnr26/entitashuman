@@ -641,6 +641,254 @@ test(
 );
 
 test(
+  "gateway timeout counts as retryable provider failure and falls back",
+  async () => {
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          1,
+        cooldownMs:
+          60_000
+      });
+
+    const first =
+      new FakeProvider(
+        "first",
+        async (
+          _input,
+          signal
+        ) =>
+          new Promise<AiResult>(
+            (
+              _resolve,
+              reject
+            ) => {
+              const fail =
+                (): void => {
+                  reject(
+                    new AiProviderError(
+                      "provider observed abort",
+                      {
+                        code:
+                          "FIRST_ABORTED",
+                        retryable:
+                          false
+                      }
+                    )
+                  );
+                };
+
+              if (
+                signal.aborted
+              ) {
+                fail();
+                return;
+              }
+
+              signal.addEventListener(
+                "abort",
+                fail,
+                {
+                  once:
+                    true
+                }
+              );
+            }
+          )
+      );
+
+    const second =
+      new FakeProvider(
+        "second",
+        async () => ({
+          text:
+            "fallback-ok",
+          provider:
+            "second",
+          model:
+            "second-model",
+          usage:
+            {}
+        })
+      );
+
+    const gateway =
+      new AiGateway(
+        [
+          first,
+          second
+        ],
+        "first,second",
+        health,
+        5
+      );
+
+    const result =
+      await gateway.generate(
+        request,
+        {
+          provider:
+            "auto"
+        }
+      );
+
+    assert.equal(
+      result.provider,
+      "second"
+    );
+
+    assert.equal(
+      first.calls,
+      1
+    );
+
+    assert.equal(
+      result.attempts[0]
+        ?.status,
+      "error"
+    );
+
+    assert.equal(
+      result.attempts[0]
+        ?.errorCode,
+      "AI_PROVIDER_TIMEOUT"
+    );
+
+    const firstHealth =
+      health.snapshot(
+        "first",
+        true
+      );
+
+    assert.equal(
+      firstHealth.circuitState,
+      "open"
+    );
+
+    assert.equal(
+      firstHealth.consecutiveFailures,
+      1
+    );
+
+    assert.equal(
+      firstHealth.lastErrorCode,
+      "AI_PROVIDER_TIMEOUT"
+    );
+  }
+);
+
+test(
+  "client abort remains aborted and does not poison provider health",
+  async () => {
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          1
+      });
+
+    const provider =
+      new FakeProvider(
+        "openai",
+        async (
+          _input,
+          signal
+        ) =>
+          new Promise<AiResult>(
+            (
+              _resolve,
+              reject
+            ) => {
+              const fail =
+                (): void => {
+                  reject(
+                    new AiProviderError(
+                      "client aborted",
+                      {
+                        code:
+                          "CLIENT_ABORTED",
+                        retryable:
+                          false
+                      }
+                    )
+                  );
+                };
+
+              if (
+                signal.aborted
+              ) {
+                fail();
+                return;
+              }
+
+              signal.addEventListener(
+                "abort",
+                fail,
+                {
+                  once:
+                    true
+                }
+              );
+            }
+          )
+      );
+
+    const gateway =
+      new AiGateway(
+        [provider],
+        "openai",
+        health,
+        1_000
+      );
+
+    const controller =
+      new AbortController();
+
+    const pending =
+      gateway.generate(
+        request,
+        {
+          provider:
+            "openai",
+          signal:
+            controller.signal
+        }
+      );
+
+    controller.abort(
+      new Error(
+        "test client abort"
+      )
+    );
+
+    await assert.rejects(
+      () =>
+        pending
+    );
+
+    const snapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      snapshot.circuitState,
+      "healthy"
+    );
+
+    assert.equal(
+      snapshot.consecutiveFailures,
+      0
+    );
+
+    assert.equal(
+      snapshot.failures,
+      0
+    );
+  }
+);
+
+test(
   "explicit request to open provider fails without another upstream call",
   async () => {
     const health =
