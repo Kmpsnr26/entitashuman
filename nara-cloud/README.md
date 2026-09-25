@@ -298,6 +298,8 @@ Automatic routing skips providers whose circuit is open. Explicit requests to an
 
 Only retryable provider failures increment the consecutive-failure breaker count. A non-retryable upstream failure is visible in telemetry but does not increase that retryable counter. User/client aborts are not counted as provider failures.
 
+The gateway-level `AI_REQUEST_TIMEOUT_MS` deadline is different from a client abort: when that deadline expires, the provider attempt is recorded as the retryable `AI_PROVIDER_TIMEOUT` failure. Automatic routing may then fall back to the next healthy provider, and repeated timeouts can open the provider circuit. A client disconnect/abort still releases the attempt without poisoning provider health.
+
 The health telemetry is bounded and process-local. It includes only operational metadata:
 
 - public state
