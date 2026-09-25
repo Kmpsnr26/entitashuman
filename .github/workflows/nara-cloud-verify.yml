@@ -22,21 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: nara
-          POSTGRES_PASSWORD: nara_test_password
-          POSTGRES_DB: nara
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U nara -d nara"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
-
     env:
       NODE_ENV: test
       DATABASE_URL: postgresql://nara:nara_test_password@127.0.0.1:5432/nara
@@ -61,6 +46,23 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
+
+      - name: Prepare PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo systemctl start postgresql
+
+          if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='nara'" | grep -q 1; then
+            sudo -u postgres psql -c "CREATE ROLE nara LOGIN PASSWORD 'nara_test_password';"
+          fi
+
+          if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='nara'" | grep -q 1; then
+            sudo -u postgres createdb -O nara nara
+          fi
+
+          pg_isready -h 127.0.0.1 -p 5432 -U nara -d nara
 
       - name: Install NARA Cloud dependencies
         run: npm install
