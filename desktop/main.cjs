@@ -234,7 +234,40 @@ else{
    try{await writeFile(projectRootPath(),selected,'utf8');}catch(error){return {error:'Folder terpilih, tetapi pengaturan tidak dapat disimpan: '+error.message};}
    return {ok:true,...await agentHub.status()};
   });
-  ipcMain.handle('dudidam:agent-run',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};const label=String(value?.task||value?.prompt||value?.id||'Pekerjaan agent').slice(0,160);nara.startWork({id:String(value?.id||'agent'),label});try{const result=await agentHub.run(value);if(result?.error)nara.dispatch('error.detected',{message:String(result.error).slice(0,300),source:'agent'});else nara.completeWork({source:'agent'});return result;}catch(error){nara.dispatch('error.detected',{message:error.message,source:'agent'});return {error:error.message};}});
+  ipcMain.handle('dudidam:agent-run',async(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   const agentId=String(value?.id||'agent').replace(/[^a-z0-9_.:-]/gi,'-').slice(0,64)||'agent';
+   const mode=value?.mode==='work'?'work':'analyze';
+   const taskId='agent:'+agentId+':'+Date.now();
+   const label='Agent '+agentId+' · '+mode;
+   const startedAt=Date.now();
+   nara.startWork({id:taskId,label});
+   nara.dispatch('planning.start',{taskId,source:'agent'});
+   nara.dispatch('planning.complete',{taskId,source:'agent'});
+   nara.dispatch('agent.start',{agentId,mode,taskId,source:'agent'});
+   if(mode==='analyze')nara.dispatch('reasoner.start',{taskId,agentId,source:'agent'});
+   try{
+    const result=await agentHub.run(value);
+    const durationMs=Math.max(0,Date.now()-startedAt);
+    if(result?.error){
+     if(mode==='analyze')nara.dispatch('reasoner.complete',{taskId,agentId,source:'agent'});
+     nara.dispatch('agent.error',{agentId,mode,taskId,durationMs,source:'agent'});
+     nara.dispatch('error.detected',{message:'Agent '+agentId+' mengalami kesalahan. Periksa panel agent.',source:'agent'});
+    }else{
+     if(mode==='analyze')nara.dispatch('reasoner.complete',{taskId,agentId,source:'agent'});
+     nara.dispatch('agent.complete',{agentId,mode,taskId,durationMs,source:'agent'});
+     nara.completeWork({source:'agent',taskId});
+     nara.dispatch('memory.record',{kind:'episode',summary:'Agent '+agentId+' menyelesaikan mode '+mode+'.',outcome:'complete',source:'agent'});
+    }
+    return result;
+   }catch(error){
+    const durationMs=Math.max(0,Date.now()-startedAt);
+    if(mode==='analyze')nara.dispatch('reasoner.complete',{taskId,agentId,source:'agent'});
+    nara.dispatch('agent.error',{agentId,mode,taskId,durationMs,source:'agent'});
+    nara.dispatch('error.detected',{message:'Agent '+agentId+' gagal dijalankan. Periksa panel agent.',source:'agent'});
+    return {error:error.message};
+   }
+  });
   ipcMain.handle('dudidam:agent-open',async(e,id)=>{if(!trusted(e))return {error:'Akses ditolak.'};const url=agentLinks[String(id||'')];if(!url||!url.startsWith('https://'))return {error:'Tautan agent tidak valid.'};await shell.openExternal(url);return {ok:true};});
   ipcMain.handle('dudidam:terminal-create',async(e,value)=>{
    if(!trusted(e))return {error:'Akses ditolak.'};
