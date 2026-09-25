@@ -411,6 +411,16 @@ test(
       /AI_PROVIDER_CIRCUIT_OPEN/
     );
 
+    assert.match(
+      routes,
+      /AI_UPSTREAM_REJECTED/
+    );
+
+    assert.doesNotMatch(
+      routes,
+      /code:\s*error\.code/
+    );
+
     assert.doesNotMatch(
       health,
       /API_KEY|Authorization|prompt|message|content|cookie|session/
