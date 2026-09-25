@@ -205,6 +205,75 @@ memoryClear?.addEventListener('click',()=>{
   memory.clear();currentMemoryResults=null;renderMemory(memory.snapshot());showState('MEMORY · DIKOSONGKAN');
 });
 
+const contextStatus=document.querySelector('#contextStatus');
+const contextBadge=document.querySelector('#contextBadge');
+const contextMode=document.querySelector('#contextMode');
+const contextTarget=document.querySelector('#contextTarget');
+const contextTask=document.querySelector('#contextTask');
+const contextPrepare=document.querySelector('#contextPrepare');
+const contextCount=document.querySelector('#contextCount');
+const contextChars=document.querySelector('#contextChars');
+const contextApproval=document.querySelector('#contextApproval');
+const contextPreview=document.querySelector('#contextPreview');
+const contextApprove=document.querySelector('#contextApprove');
+const contextUse=document.querySelector('#contextUse');
+const contextReject=document.querySelector('#contextReject');
+let approvedContextPacket=null;
+
+const renderContext=state=>{
+  const pending=state?.pending;
+  if(contextMode&&contextMode.value!==state.mode)contextMode.value=state.mode;
+  if(contextBadge)contextBadge.textContent=state.mode==='off'?'OFF':state.mode==='auto-safe'?'AUTO-SAFE':'TANYA DULU';
+  if(contextStatus)contextStatus.textContent=!pending?'Belum ada context':pending.blocked?'Context diblokir':pending.approved?'Context disetujui':'Menunggu persetujuan';
+  if(contextCount)contextCount.textContent=(pending?.count||0)+' entry';
+  if(contextChars)contextChars.textContent=(pending?.chars||0)+' karakter';
+  if(contextApproval)contextApproval.textContent=!pending?'belum siap':pending.blocked?'blocked':pending.approved?'approved':'pending';
+  if(contextApprove)contextApprove.disabled=!pending||pending.blocked||pending.approved||!pending.requiresApproval;
+  if(contextUse)contextUse.disabled=!pending||pending.blocked||!pending.approved;
+  if(contextReject)contextReject.disabled=!pending;
+};
+const contextBridge=window.HumanALEContextBridge.create({runtime,memory,onState:renderContext});
+window.humanALEContextBridge=contextBridge;
+renderContext(contextBridge.snapshot());
+
+contextMode?.addEventListener('change',()=>{
+  approvedContextPacket=null;
+  contextBridge.setMode(contextMode.value);
+  if(contextPreview)contextPreview.textContent='Mode diubah. Pilih context kembali.';
+});
+contextPrepare?.addEventListener('click',()=>{
+  approvedContextPacket=null;
+  const preview=contextBridge.prepare(contextTask?.value||'',{target:contextTarget?.value||'reasoner'});
+  if(contextPreview)contextPreview.textContent=preview?.text||'Tidak ada memori relevan untuk task ini.';
+  renderContext(contextBridge.snapshot());
+  if(preview?.count){avatar.setZoom?.(3.05);avatar.selectBrainRegion?.('MEMORY');}
+});
+contextApprove?.addEventListener('click',()=>{
+  const pending=contextBridge.snapshot().pending;
+  if(!pending||!contextBridge.approve(pending.id))return;
+  renderContext(contextBridge.snapshot());
+  showState('CONTEXT · DISETUJUI');
+});
+contextUse?.addEventListener('click',()=>{
+  const pending=contextBridge.snapshot().pending;
+  if(!pending)return;
+  try{
+    approvedContextPacket=contextBridge.transport(pending.id);
+    window.humanALEApprovedContext=approvedContextPacket;
+    renderContext(contextBridge.snapshot());
+    const targetRegion=approvedContextPacket.target==='planner'?'PLANNER':approvedContextPacket.target==='agent'?'AGENT_MANAGER':'REASONER';
+    avatar.setZoom?.(3.05);avatar.selectBrainRegion?.(targetRegion);
+    showState('CONTEXT · PACKET SIAP');
+  }catch(error){showState('CONTEXT · '+String(error?.message||'DITOLAK').toUpperCase(),2600);}
+});
+contextReject?.addEventListener('click',()=>{
+  const pending=contextBridge.snapshot().pending;
+  if(pending)contextBridge.reject(pending.id);else contextBridge.clearPending();
+  approvedContextPacket=null;window.humanALEApprovedContext=null;
+  if(contextPreview)contextPreview.textContent='Context dibersihkan.';
+  renderContext(contextBridge.snapshot());
+});
+
 const connections=window.HumanALEConnections.create({
   runtime,
   onStatus:event=>{
