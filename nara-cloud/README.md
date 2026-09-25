@@ -296,9 +296,11 @@ AI_BREAKER_COOLDOWN_MS=60000
 
 Automatic routing skips providers whose circuit is open. Explicit requests to an open provider return a safe availability error and do not call the upstream provider until a half-open probe is permitted.
 
-Only retryable provider failures increment the consecutive-failure breaker count. A non-retryable upstream failure is visible in telemetry but does not increase that retryable counter. User/client aborts are not counted as provider failures.
+Only retryable operational provider failures can change circuit state or increment the consecutive-failure breaker count. A non-retryable upstream/request-specific failure remains visible in bounded telemetry but does not degrade, open or re-open the circuit. User/client aborts are not counted as provider failures.
 
-The gateway-level `AI_REQUEST_TIMEOUT_MS` deadline is different from a client abort: when that deadline expires, the provider attempt is recorded as the retryable `AI_PROVIDER_TIMEOUT` failure. Automatic routing may then fall back to the next healthy provider, and repeated timeouts can open the provider circuit. A client disconnect/abort still releases the attempt without poisoning provider health.
+The gateway-level `AI_REQUEST_TIMEOUT_MS` deadline is different from a client abort: when that deadline expires, the provider attempt is recorded as the retryable `AI_PROVIDER_TIMEOUT` failure. Automatic routing may then fall back to the next healthy provider, and repeated timeouts can open the provider circuit. A client disconnect/abort still releases the attempt without poisoning provider health. The first abort cause is retained so a later client disconnect cannot retroactively turn an already-fired provider timeout into a client abort.
+
+Provider-facing telemetry and browser error responses use NARA-owned normalized error codes. Arbitrary error-code strings supplied by an upstream provider are not copied into provider-health status or reflected directly to the browser.
 
 The health telemetry is bounded and process-local. It includes only operational metadata:
 
