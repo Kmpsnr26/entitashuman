@@ -26,6 +26,12 @@
         <div class="row"><label for="emotion">Ekspresi</label><select id="emotion"><option value="neutral">Netral</option><option value="happy">Bahagia</option><option value="sad">Sedih</option><option value="surprised">Terkejut</option><option value="thinking">Berpikir</option></select></div>
         <div class="zoom-row"><label for="zoom">Jelajah rongga kepala</label><output id="zoom-value" for="zoom">1.0× · wajah</output><input id="zoom" type="range" min="1" max="3.8" step="0.05" value="1" aria-label="Zoom wajah hingga inti neural"></div>
         <div class="actions"><button type="button" data-action="blink">Berkedip</button><button type="button" data-action="nod">Mengangguk</button><button type="button" data-action="shake">Menggeleng</button></div>
+        <section class="sensor-panel" aria-labelledby="sensorTitle">
+          <div class="sensor-heading"><div><span class="eyebrow" id="sensorTitle">SENSOR NARA</span><strong id="sensorStatus">Tidak aktif</strong></div><span class="sensor-local">LOKAL · OPT-IN</span></div>
+          <div class="sensor-actions"><button id="sensorMic" type="button" aria-pressed="false">Mikrofon NARA</button><button id="sensorCamera" type="button" aria-pressed="false">Kamera NARA</button><button id="sensorStop" type="button" disabled>Hentikan sensor</button></div>
+          <video id="cameraPreview" class="camera-preview" playsinline muted hidden aria-label="Preview kamera lokal NARA"></video>
+          <small>Sensor hanya aktif setelah Anda menekan tombol. Audio dipakai untuk energi/frekuensi visual; kamera menghitung perubahan gerak secara lokal. Tidak ada frame atau rekaman yang dikirim oleh modul ini.</small>
+        </section>
         <form id="speech"><label for="words">Buat avatar berbicara</label><div class="speech-row"><input id="words" maxlength="160" placeholder="Tulis kalimat pendek…" autocomplete="off"><button type="submit">Ucapkan</button></div><small>Suara memakai fitur bawaan browser dan mungkin tidak tersedia di semua perangkat.</small></form>
       </aside>
     </main>
@@ -34,6 +40,7 @@
   <script src="./face-rig.js"></script>
   <script src="./neural-core.js"></script>
   <script src="./nara-runtime.js"></script>
+  <script src="./nara-sensors.js"></script>
   <script src="./avatar.js"></script>
   <script type="module" src="./site.js"></script>
 </body>
