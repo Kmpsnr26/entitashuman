@@ -1,0 +1,4 @@
+.zoom-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 14px;align-items:center}
+.zoom-row label{font-size:14px;color:#dfefe4;font-weight:700}
+.zoom-row output{font-size:13px;color:#a3d9b4}
+.zoom-row input{grid-column:1/-1;width:100%;min-height:32px;padding:0;accent-color:#78efa1;background:transparent;border:0}

@@ -63,6 +63,8 @@ Tombol **Dikte suara** memeriksa mikrofon dan izin, lalu memakai pengenal lokal 
 https://binary-human-assistant.sitihasnah109.chatgpt.site
 Proyek yang sama dipertahankan pada .openai/hosting.json dan tetap memakai kebijakan akses publik yang sudah ada. Sites menampilkan wajah biner saja dan login identitas resmi. Browser tidak dapat membuat latar tembus sampai desktop. Tombol pop-up membuka jendela browser kecil; transparansi OS, mode tembus klik, dan model via login tersedia pada desktop lokal. Tidak ada API key yang diminta di versi 2.
 
+Situs **HumanALE Hologram** yang memakai wajah NARA terbaru merupakan proyek Sites terpisah. Sumber statis dan panduan timnya berada di [`sites/humanale-hologram/`](sites/humanale-hologram/README.md). Perubahan di GitHub tidak otomatis menerbitkan situs tersebut.
+
 
 ## Verifikasi dan paket Windows
 Jalankan `npm run verify` untuk menjalankan test dan build web dalam satu perintah. Di Windows, `npm run package:desktop` membuat folder portable `HumanALE-God-Engine-Desktop` dari runtime Electron yang sudah terpasang dan mengganti executable menjadi `HumanALE-God-Engine.exe`. Paket ini tidak memasukkan kredensial atau data login ChatGPT.
