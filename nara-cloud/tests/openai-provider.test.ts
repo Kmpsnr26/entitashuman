@@ -239,6 +239,74 @@ test(
 );
 
 test(
+  "OpenAI empty successful response is non-retryable",
+  async () => {
+    const fakeFetch =
+      (async () =>
+        new Response(
+          JSON.stringify(
+            {
+            output_text:
+              ""
+          }
+          ),
+          {
+            status:
+              200,
+            headers: {
+              "content-type":
+                "application/json"
+            }
+          }
+        )) as typeof fetch;
+
+    const provider =
+      new OpenAiProvider({
+        apiKey:
+          "test-openai-key-not-real-123456",
+
+        fetchImpl:
+          fakeFetch
+      });
+
+    await assert.rejects(
+      () =>
+        provider.generate(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "OPENAI_EMPTY_RESPONSE"
+        );
+
+        assert.equal(
+          error.retryable,
+          false
+        );
+
+        return true;
+      }
+    );
+  }
+);
+
+test(
   "OpenAI non-stream incomplete response is rejected as non-retryable",
   async () => {
     const fakeFetch =
