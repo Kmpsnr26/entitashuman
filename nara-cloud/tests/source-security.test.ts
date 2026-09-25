@@ -331,3 +331,59 @@ test(
     );
   }
 );
+
+test(
+  "provider health status exposes no credentials or request content",
+  async () => {
+    const [
+      gateway,
+      health,
+      routes
+    ] = await Promise.all([
+      read(
+        "src/ai/gateway.ts"
+      ),
+      read(
+        "src/ai/provider-health.ts"
+      ),
+      read(
+        "src/routes/ai.routes.ts"
+      )
+    ]);
+
+    assert.match(
+      gateway,
+      /AI_PROVIDER_CIRCUIT_OPEN/
+    );
+
+    assert.match(
+      gateway,
+      /AI_NO_HEALTHY_PROVIDER/
+    );
+
+    assert.match(
+      gateway,
+      /health\.snapshot/
+    );
+
+    assert.match(
+      health,
+      /half-open/
+    );
+
+    assert.match(
+      health,
+      /consecutiveFailures/
+    );
+
+    assert.match(
+      routes,
+      /AI_PROVIDER_CIRCUIT_OPEN/
+    );
+
+    assert.doesNotMatch(
+      health,
+      /API_KEY|Authorization|prompt|message|content/
+    );
+  }
+);
