@@ -253,7 +253,7 @@ function speakNativeIndonesian(text,style=voiceStyle){
  const chosen=selected&&/^id(?:-|$)/i.test(selected.lang||'')?selected:fallback;
  if(!chosen)return false;
  const u=new SpeechSynthesisUtterance(text);
- u.lang=chosen.lang;u.rate=style==='baby-robot'?1.12:style==='adult-robot'?.94:1;u.pitch=style==='baby-robot'?1.65:style==='adult-robot'?.76:1;u.voice=chosen;
+ u.lang=chosen.lang;u.rate=style==='baby-robot'?1.12:style==='adult-robot'?0.94:1;u.pitch=style==='baby-robot'?1.65:style==='adult-robot'?0.76:1;u.voice=chosen;
  u.onstart=()=>{ttsActive=true;ttsEnergy=.7;syncFaceAudio();naraDispatch('speech.start',{energy:ttsEnergy,source:activeSpeechSource||'tts'});avatar.trigger('nod');state('Berbicara · '+(chosen?.name||'Bahasa Indonesia'));};
  u.onboundary=e=>{const ch=text.charCodeAt(Math.min(text.length-1,e.charIndex||0))||80;ttsEnergy=.35+(ch%61)/100;syncFaceAudio();const now=performance.now();if(now-lastNaraSpeechSent>140){lastNaraSpeechSent=now;naraDispatch('speech.energy',{energy:ttsEnergy,source:activeSpeechSource||'tts'});}};
  u.onend=u.onerror=()=>{clearTimeout(speechTimer);ttsActive=false;ttsEnergy=0;syncFaceAudio();naraDispatch('speech.stop');finishSpeechSource();if(!busy&&!audioMode)state();resumeWakeSoon(700);};
