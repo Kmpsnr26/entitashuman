@@ -96,18 +96,20 @@ function isRetryableStreamError(
   );
 }
 
-const OPENAI_NON_RETRYABLE_429_CODES =
+const OPENAI_NON_RETRYABLE_429_IDENTIFIERS =
   new Set([
     "credit_balance_exhausted",
     "organization_spend_limit_exceeded",
     "project_spend_limit_exceeded",
-    "organization_usage_limit_exceeded"
+    "organization_usage_limit_exceeded",
+    "insufficient_quota",
+    "billing_hard_limit_reached"
   ]);
 
 async function providerFailure(
   response: Response
 ): Promise<AiProviderError> {
-  let upstreamCode:
+  let upstreamIdentifier:
     string |
     undefined;
 
@@ -121,13 +123,18 @@ async function providerFailure(
           as {
             error?: {
               code?: string;
+              type?: string;
             };
           };
 
-      upstreamCode =
-        typeof data.error?.code ===
+      const candidate =
+        data.error?.code ??
+        data.error?.type;
+
+      upstreamIdentifier =
+        typeof candidate ===
           "string"
-          ? data.error.code
+          ? candidate
               .trim()
               .toLowerCase()
           : undefined;
@@ -140,10 +147,10 @@ async function providerFailure(
     response.status ===
       429 &&
     (
-      !upstreamCode ||
-      !OPENAI_NON_RETRYABLE_429_CODES
+      !upstreamIdentifier ||
+      !OPENAI_NON_RETRYABLE_429_IDENTIFIERS
         .has(
-          upstreamCode
+          upstreamIdentifier
         )
     );
 
