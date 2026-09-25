@@ -21,7 +21,7 @@ concurrency:
 jobs:
   triage:
     name: Triage and delegate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
@@ -523,7 +523,7 @@ jobs:
     name: Safe branch and Draft PR fallback
     needs: triage
     if: needs.triage.outputs.fallback_issues != '[]' && needs.triage.outputs.fallback_issues != ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write
