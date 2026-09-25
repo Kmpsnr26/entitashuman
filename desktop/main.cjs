@@ -152,7 +152,7 @@ if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
-  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
+  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
   const [{createOrchestrator},{createVoiceFeedback}]=await Promise.all([import('../nara-core/brain/index.js'),import('../nara-core/voice/index.js')]);
   naraVoice=createVoiceFeedback();
   nara=createOrchestrator();
@@ -218,11 +218,15 @@ else{
   ipcMain.handle('dudidam:ask',async(e,value)=>{
    if(!trusted(e))return {error:'Akses ditolak.'};
    const provider=pickProvider(value?.provider);
+   let memoryContext=null;
+   try{memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['reasoner']});}
+   catch(error){nara.dispatch('context.blocked',{target:'reasoner',reason:'invalid-packet',source:'desktop'});return {error:error.message};}
+   if(memoryContext)nara.dispatch('context.used',{target:'reasoner',count:memoryContext.count,chars:memoryContext.chars,source:'desktop'});
    nara.dispatch('observe.start',{label:'Menerima permintaan pengguna',source:'chat'});
    nara.dispatch('observe.complete',{source:'chat'});
    nara.dispatch('reason.start',{label:'Memproses jawaban melalui '+provider,source:'chat'});
    try{
-    const payload={...value};delete payload.provider;
+    const payload={...value,memoryContext};delete payload.provider;
     const result=await bridges[provider].ask(payload);
     if(result?.error){
      nara.dispatch('reason.complete',{source:'chat'});
@@ -257,16 +261,20 @@ else{
   });
   ipcMain.handle('dudidam:agent-run',async(e,value)=>{
    if(!trusted(e))return {error:'Akses ditolak.'};
+   let memoryContext=null;
+   try{memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['planner','agent']});}
+   catch(error){nara.dispatch('context.blocked',{target:'agent',reason:'invalid-packet',source:'desktop'});return {error:error.message};}
    const id=String(value?.id||'agent').slice(0,80);
    const mode=value?.mode==='work'?'work':'analyze';
    const label='Agent '+id+' · '+(mode==='work'?'mode kerja':'analisis');
+   if(memoryContext)nara.dispatch('context.used',{target:memoryContext.target,count:memoryContext.count,chars:memoryContext.chars,source:'desktop'});
    nara.startWork({id,label});
    nara.dispatch('plan.start',{label:'Menyiapkan '+label,source:'agent'});
    nara.dispatch('plan.complete',{source:'agent'});
    nara.dispatch('agent.start',{label,source:'agent'});
    if(mode==='work')nara.dispatch('program.start',{label:'Menjalankan perubahan melalui '+id,source:'agent'});
    try{
-    const result=await agentHub.run(value);
+    const result=await agentHub.run({...value,memoryContext});
     if(result?.error){
      if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
      nara.dispatch('agent.failed',{label,source:'agent'});
