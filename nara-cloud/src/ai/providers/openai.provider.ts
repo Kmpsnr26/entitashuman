@@ -298,6 +298,21 @@ export class OpenAiProvider
       await response.json()
         as OpenAiResponse;
 
+    if (
+      data.status ===
+        "incomplete"
+    ) {
+      throw new AiProviderError(
+        "OpenAI response was incomplete.",
+        {
+          code:
+            "OPENAI_RESPONSE_INCOMPLETE",
+          retryable:
+            false
+        }
+      );
+    }
+
     const text =
       extractOpenAiText(data);
 
@@ -478,7 +493,7 @@ export class OpenAiProvider
               "OPENAI_STREAM_INCOMPLETE",
 
             retryable:
-              true
+              false
           }
         );
       }
