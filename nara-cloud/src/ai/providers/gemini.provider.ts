@@ -395,7 +395,7 @@ export class GeminiProvider
           code:
             "GEMINI_EMPTY_RESPONSE",
           retryable:
-            true
+            false
         }
       );
     }
