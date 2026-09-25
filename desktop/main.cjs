@@ -215,7 +215,28 @@ else{
 
   const pickProvider=value=>['copilot','openai','grok','gemini','claude','deepseek','askcodi'].includes(value)?value:'chatgpt';
   ipcMain.handle('dudidam:status',async(e,provider)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{const selected=pickProvider(provider),result=await bridges[selected].status();if(selected==='copilot')nara.connection('COPILOT',Boolean(result?.configured));return result;}catch(error){if(provider==='copilot')nara.connection('COPILOT',false);return {configured:false,error:error.message};}});
-  ipcMain.handle('dudidam:ask',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{const provider=pickProvider(value?.provider);const payload={...value};delete payload.provider;return await bridges[provider].ask(payload);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:ask',async(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   const provider=pickProvider(value?.provider);
+   nara.dispatch('observe.start',{label:'Menerima permintaan pengguna',source:'chat'});
+   nara.dispatch('observe.complete',{source:'chat'});
+   nara.dispatch('reason.start',{label:'Memproses jawaban melalui '+provider,source:'chat'});
+   try{
+    const payload={...value};delete payload.provider;
+    const result=await bridges[provider].ask(payload);
+    if(result?.error){
+     nara.dispatch('reason.complete',{source:'chat'});
+     nara.dispatch('error.detected',{message:String(result.error).slice(0,300),source:'chat'});
+    }else{
+     nara.dispatch('reason.complete',{source:'chat'});
+    }
+    return result;
+   }catch(error){
+    nara.dispatch('reason.complete',{source:'chat'});
+    nara.dispatch('error.detected',{message:error.message,source:'chat'});
+    return {error:error.message};
+   }
+  });
   ipcMain.handle('dudidam:login',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await bridges.chatgpt.login();}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:login-copilot',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await bridges.copilot.login();}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:stt-status',async e=>{if(!trusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianStt.status();});
@@ -234,7 +255,35 @@ else{
    try{await writeFile(projectRootPath(),selected,'utf8');}catch(error){return {error:'Folder terpilih, tetapi pengaturan tidak dapat disimpan: '+error.message};}
    return {ok:true,...await agentHub.status()};
   });
-  ipcMain.handle('dudidam:agent-run',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};const label=String(value?.task||value?.prompt||value?.id||'Pekerjaan agent').slice(0,160);nara.startWork({id:String(value?.id||'agent'),label});try{const result=await agentHub.run(value);if(result?.error)nara.dispatch('error.detected',{message:String(result.error).slice(0,300),source:'agent'});else nara.completeWork({source:'agent'});return result;}catch(error){nara.dispatch('error.detected',{message:error.message,source:'agent'});return {error:error.message};}});
+  ipcMain.handle('dudidam:agent-run',async(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   const id=String(value?.id||'agent').slice(0,80);
+   const mode=value?.mode==='work'?'work':'analyze';
+   const label='Agent '+id+' · '+(mode==='work'?'mode kerja':'analisis');
+   nara.startWork({id,label});
+   nara.dispatch('plan.start',{label:'Menyiapkan '+label,source:'agent'});
+   nara.dispatch('plan.complete',{source:'agent'});
+   nara.dispatch('agent.start',{label,source:'agent'});
+   if(mode==='work')nara.dispatch('program.start',{label:'Menjalankan perubahan melalui '+id,source:'agent'});
+   try{
+    const result=await agentHub.run(value);
+    if(result?.error){
+     if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
+     nara.dispatch('agent.failed',{label,source:'agent'});
+     nara.dispatch('error.detected',{message:String(result.error).slice(0,300),source:'agent'});
+    }else{
+     if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
+     nara.dispatch('agent.complete',{label,source:'agent'});
+     nara.completeWork({source:'agent'});
+    }
+    return result;
+   }catch(error){
+    if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
+    nara.dispatch('agent.failed',{label,source:'agent'});
+    nara.dispatch('error.detected',{message:error.message,source:'agent'});
+    return {error:error.message};
+   }
+  });
   ipcMain.handle('dudidam:agent-open',async(e,id)=>{if(!trusted(e))return {error:'Akses ditolak.'};const url=agentLinks[String(id||'')];if(!url||!url.startsWith('https://'))return {error:'Tautan agent tidak valid.'};await shell.openExternal(url);return {ok:true};});
   ipcMain.handle('dudidam:terminal-create',async(e,value)=>{
    if(!trusted(e))return {error:'Akses ditolak.'};
