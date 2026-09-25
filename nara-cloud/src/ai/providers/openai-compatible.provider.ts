@@ -366,7 +366,7 @@ export class OpenAiCompatibleProvider
           code:
             "COMPAT_EMPTY_RESPONSE",
           retryable:
-            true
+            false
         }
       );
     }
