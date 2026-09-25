@@ -14,6 +14,13 @@
   const BY_REGION=Object.freeze(Object.fromEntries(LANE_DEFINITIONS.map(item=>[item.region,item.id])));
   const EVENT_LANES=Object.freeze({
     'nara.start':'CORE','nara.shutdown':'CORE',
+    'observe.start':'CORE','observe.complete':'CORE',
+    'reason.start':'CORE','reason.complete':'CORE',
+    'plan.start':'CORE','plan.complete':'CORE',
+    'agent.start':'CORE','agent.complete':'CORE','agent.failed':'ERROR',
+    'program.start':'CORE','program.complete':'CORE',
+    'memory.read':'MEMORY','memory.write':'MEMORY','memory.complete':'MEMORY',
+    'verify.start':'CORE','verify.complete':'CORE',
     'work.start':'CORE','work.complete':'CORE','report.created':'CORE',
     'terminal.open':'TERMINAL',
     'github.connected':'GITHUB','github.disconnected':'GITHUB',
