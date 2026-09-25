@@ -273,8 +273,9 @@ open
    ▼
 half-open
    │
-   ├── success ──> healthy
-   └── failure / abandoned probe ──> open
+   ├── successful active probe ──> healthy
+   ├── retryable active-probe failure ──> open
+   └── client-abandoned probe ──> half-open (lease released)
 ```
 
 Public mapping:
@@ -331,3 +332,5 @@ It does **not** contain:
 Streaming keeps the B2 no-mix invariant: after any text delta is emitted, NARA will not switch to another provider for that response.
 
 If a half-open probe is cancelled or abandoned by the client, NARA only releases the single-probe lease. The circuit remains half-open so a later request can perform a real provider-health probe without extending the cooldown because of client behavior.
+
+Each half-open probe receives an internal lease ID. Only the currently active probe lease may close or re-open the half-open circuit. A normal request that started before the circuit opened, or an older released probe that completes late, is still counted in bounded telemetry but cannot override the newer breaker state.
