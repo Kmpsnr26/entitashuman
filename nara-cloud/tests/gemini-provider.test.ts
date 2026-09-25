@@ -361,3 +361,127 @@ test(
   }
 );
 
+test(
+  "Gemini stream retryability only trusts transient statuses",
+  async () => {
+    const providerFor =
+      (
+        status: string
+      ): GeminiProvider =>
+        new GeminiProvider({
+          apiKey:
+            "test-gemini-key-not-real-123456",
+
+          fetchImpl:
+            (async () =>
+              new Response(
+                [
+                  `data: {"error":{"code":503,"status":"${status}"}}`,
+                  "",
+                  ""
+                ].join("\n"),
+                {
+                  status:
+                    200,
+                  headers: {
+                    "content-type":
+                      "text/event-stream"
+                  }
+                }
+              )) as typeof fetch
+        });
+
+    await assert.rejects(
+      () =>
+        providerFor(
+          "UNAVAILABLE"
+        ).stream(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal,
+          () => {}
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "GEMINI_STREAM_ERROR"
+        );
+
+        assert.equal(
+          error.retryable,
+          true
+        );
+
+        return true;
+      }
+    );
+
+    const unknownProvider =
+      new GeminiProvider({
+        apiKey:
+          "test-gemini-key-not-real-123456",
+
+        fetchImpl:
+          (async () =>
+            new Response(
+              [
+                'data: {"error":{"code":400,"status":"AI_PROVIDER_CIRCUIT_OPEN"}}',
+                "",
+                ""
+              ].join("\n"),
+              {
+                status:
+                  200,
+                headers: {
+                  "content-type":
+                    "text/event-stream"
+                }
+              }
+            )) as typeof fetch
+      });
+
+    await assert.rejects(
+      () =>
+        unknownProvider.stream(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal,
+          () => {}
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.retryable,
+          false
+        );
+
+        return true;
+      }
+    );
+  }
+);
