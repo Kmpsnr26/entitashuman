@@ -314,3 +314,107 @@ test(
     );
   }
 );
+
+test(
+  "Anthropic stream retryability only trusts transient error types",
+  async () => {
+    const providerFor =
+      (
+        type: string
+      ): AnthropicProvider =>
+        new AnthropicProvider({
+          apiKey:
+            "test-anthropic-key-not-real-123456",
+
+          fetchImpl:
+            (async () =>
+              new Response(
+                [
+                  "event: error",
+                  `data: {"type":"error","error":{"type":"${type}"}}`,
+                  "",
+                  ""
+                ].join("\n"),
+                {
+                  status:
+                    200,
+                  headers: {
+                    "content-type":
+                      "text/event-stream"
+                  }
+                }
+              )) as typeof fetch
+        });
+
+    await assert.rejects(
+      () =>
+        providerFor(
+          "overloaded_error"
+        ).stream(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal,
+          () => {}
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "ANTHROPIC_STREAM_ERROR"
+        );
+
+        assert.equal(
+          error.retryable,
+          true
+        );
+
+        return true;
+      }
+    );
+
+    await assert.rejects(
+      () =>
+        providerFor(
+          "invalid_request_error"
+        ).stream(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal,
+          () => {}
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.retryable,
+          false
+        );
+
+        return true;
+      }
+    );
+  }
+);
