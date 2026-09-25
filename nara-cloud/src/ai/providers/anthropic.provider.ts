@@ -129,6 +129,30 @@ function usageFrom(
   };
 }
 
+const ANTHROPIC_RETRYABLE_STREAM_TYPES =
+  new Set([
+    "rate_limit_error",
+    "api_error",
+    "timeout_error",
+    "overloaded_error",
+    "conflict_error"
+  ]);
+
+function isRetryableStreamError(
+  value: unknown
+): boolean {
+  return (
+    typeof value ===
+      "string" &&
+    ANTHROPIC_RETRYABLE_STREAM_TYPES
+      .has(
+        value
+          .trim()
+          .toLowerCase()
+      )
+  );
+}
+
 async function failureFrom(
   response: Response
 ): Promise<AiProviderError> {
@@ -478,7 +502,9 @@ export class AnthropicProvider
               "ANTHROPIC_STREAM_ERROR",
 
             retryable:
-              true
+              isRetryableStreamError(
+                parsed.error?.type
+              )
           }
         );
       }
