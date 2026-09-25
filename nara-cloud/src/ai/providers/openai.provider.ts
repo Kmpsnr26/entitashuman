@@ -122,7 +122,7 @@ export class OpenAiProvider
     );
   }
 
-  private headers(): HeadersInit {
+  private headers(): Record<string, string> {
     if (!env.OPENAI_API_KEY) {
       throw new AiProviderError(
         "OpenAI provider is not configured.",
