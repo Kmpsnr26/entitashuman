@@ -1,6 +1,7 @@
 import {spawn} from 'node:child_process';
 import {access} from 'node:fs/promises';
 import {join} from 'node:path';
+import {validateMemoryContext,memoryContextBlock} from './memory-context.mjs';
 
 const agents=[
  {id:'continue',name:'Continue',method:'CLI + MCP',commands:['cn'],envPath:'CONTINUE_CLI_PATH',canRun:true,url:'https://docs.continue.dev/cli/quickstart'},
@@ -127,8 +128,12 @@ export class DeveloperAgentHub{
  }
  async run(value){
   if(this.pending)throw new Error('Tunggu agent sebelumnya selesai.');
-  const id=String(value?.id||''),prompt=String(value?.prompt||'').trim(),mode=value?.mode==='work'?'work':'analyze';
+  const id=String(value?.id||''),mode=value?.mode==='work'?'work':'analyze';
+  let prompt=String(value?.prompt||'').trim();
   if(!prompt||prompt.length>4000)throw new Error('Prompt agent harus berisi 1–4000 karakter.');
+  const memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['planner','agent']});
+  const contextBlock=memoryContextBlock(memoryContext);
+  if(contextBlock)prompt=contextBlock+'\n\nTugas pengguna:\n'+prompt;
   const agent=agents.find(item=>item.id===id&&item.canRun);
   if(!agent)throw new Error('Agent ini belum mendukung pemanggilan langsung dari HumanALE god egine.');
   if(mode==='work'&&!['github-copilot','codex','cursor','claude'].includes(id))throw new Error('Mode Kerja hanya tersedia untuk GitHub Copilot, OpenAI Codex, Cursor, atau Claude Code.');
