@@ -51,6 +51,24 @@
           </div>
           <small>Panel ini hanya menampilkan status yang sudah disanitasi. Kunci API, token, password, isi file, dan payload mentah tidak disimpan di Data Spine visual.</small>
         </section>
+        <section class="cognitive-panel" aria-labelledby="cognitiveTitle">
+          <div class="cognitive-heading"><div><span class="eyebrow" id="cognitiveTitle">NARA COGNITIVE ACTIVITY</span><strong id="cognitiveSummary">Belum ada task aktif</strong></div><span class="cognitive-safe">RINGKAS · AMAN</span></div>
+          <div class="cognitive-grid" id="cognitiveGrid">
+            <button type="button" data-cognitive-region="PLANNER"><b>Planner</b><span>idle</span></button>
+            <button type="button" data-cognitive-region="REASONER"><b>Reasoner</b><span>idle</span></button>
+            <button type="button" data-cognitive-region="AGENT_MANAGER"><b>Agent Manager</b><span>idle</span></button>
+            <button type="button" data-cognitive-region="PROGRAM"><b>Program</b><span>idle</span></button>
+            <button type="button" data-cognitive-region="MEMORY"><b>Memory</b><span>idle</span></button>
+            <button type="button" data-cognitive-region="BUG_HUNTER"><b>Bug Hunter</b><span>idle</span></button>
+          </div>
+          <div class="cognitive-stats">
+            <div><span>TASK</span><strong id="activityTask">—</strong></div>
+            <div><span>AGENT</span><strong id="activityAgent">—</strong></div>
+            <div><span>MEMORY</span><strong id="activityMemory">0</strong></div>
+          </div>
+          <ol class="activity-timeline" id="activityTimeline" aria-live="polite"><li><span>SIAP</span><p>Menunggu aktivitas NARA.</p></li></ol>
+          <small>Timeline menyimpan status, hasil ringkas, dan jejak event yang dibatasi. Prompt penuh, output penuh, isi file, token, password, serta chain-of-thought tidak ditampilkan atau disimpan oleh modul visual ini.</small>
+        </section>
         <form id="speech"><label for="words">Buat avatar berbicara</label><div class="speech-row"><input id="words" maxlength="160" placeholder="Tulis kalimat pendek…" autocomplete="off"><button type="submit">Ucapkan</button></div><small>Suara memakai fitur bawaan browser dan mungkin tidak tersedia di semua perangkat.</small></form>
       </aside>
     </main>
@@ -61,6 +79,7 @@
   <script src="./nara-runtime.js"></script>
   <script src="./nara-data-spine.js"></script>
   <script src="./nara-connections.js"></script>
+  <script src="./nara-activity.js"></script>
   <script src="./nara-sensors.js"></script>
   <script src="./avatar.js"></script>
   <script type="module" src="./site.js"></script>
