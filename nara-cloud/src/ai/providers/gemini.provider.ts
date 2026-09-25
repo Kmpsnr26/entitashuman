@@ -164,25 +164,6 @@ function usageFrom(
 async function failureFrom(
   response: Response
 ): Promise<AiProviderError> {
-  let code =
-    "GEMINI_UPSTREAM_ERROR";
-
-  try {
-    const data =
-      await response.json()
-        as GeminiResponse;
-
-    code =
-      String(
-        data.error?.status ??
-        data.error?.code ??
-        code
-      )
-        .slice(0, 100);
-  } catch {
-    // Upstream response may not be JSON.
-  }
-
   const retryable =
     response.status === 408 ||
     response.status === 429 ||
@@ -191,7 +172,8 @@ async function failureFrom(
   return new AiProviderError(
     "Gemini provider request failed.",
     {
-      code,
+      code:
+        "GEMINI_UPSTREAM_ERROR",
       retryable,
       httpStatus:
         response.status
@@ -491,12 +473,7 @@ export class GeminiProvider
           "Gemini stream failed.",
           {
             code:
-              String(
-                parsed.error.status ??
-                parsed.error.code ??
-                "GEMINI_STREAM_ERROR"
-              )
-                .slice(0, 100),
+              "GEMINI_STREAM_ERROR",
 
             retryable:
               true
