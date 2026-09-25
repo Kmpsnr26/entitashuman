@@ -144,6 +144,7 @@ uniform float uPresence;
 uniform float uGlitch;
 uniform vec2 uPointer;
 uniform float uTheme;
+uniform vec3 uStateTint;
 
 out vec3 vColor;
 out float vAlpha;
@@ -168,6 +169,7 @@ void main(){
 
   float react=.0;
   if(zone<1.5) react=(.05+.12*uEnergy)*wave;
+  else if(zone>10.5) react=(.035+.20*uAudio)*wave;
   else if(zone>2.5&&zone<5.6) react=(.015+.14*uAudio)*wave;
   else if(zone>7.5) react=(.06+.16*uEnergy)*wave;
 
@@ -191,9 +193,9 @@ void main(){
 
   float localScale=iScale*(1.+.045*sin(uTime*.8+phase));
   vec3 local=aPosition*localScale;
-  mat3 R=rotY(uPointer.x*.14)*rotX(-uPointer.y*.08);
+  mat3 R=rotY(uPointer.x*.50)*rotX(-uPointer.y*.18);
   vec3 world=R*(offset+local);
-  world.y+=sin(uTime*.72)*.012;
+  world.y+=sin(uTime*.72)*.028;
 
   vec3 normal=normalize(R*aNormal);
   vec3 lightDir=normalize(vec3(-.35,.55,1.));
@@ -201,6 +203,7 @@ void main(){
   float rim=pow(1.-max(dot(normal,normalize(vec3(0.,0.,1.))),0.),2.);
 
   vColor=iColor*(.62+.55*diffuse)+vec3(.16,.62,1.)*(rim*.24+uEnergy*.08);
+  vColor=mix(vColor,uStateTint,.10+.20*uEnergy);
   if(uTheme>.5)vColor=mix(vColor,vec3(.08,.34,.58),.18);
   vAlpha=alpha*uPresence;
   vLight=diffuse+rim*.6;
@@ -234,7 +237,7 @@ mat3 rotX(float a){
   return mat3(1.,0.,0.,0.,c,s,0.,-s,c);
 }
 void main(){
-  mat3 R=rotY(uPointer.x*.14)*rotX(-uPointer.y*.08);
+  mat3 R=rotY(uPointer.x*.50)*rotX(-uPointer.y*.18);
   vec3 p=R*aPosition;
   gl_Position=uVP*vec4(p,1.);
   vColor=aColor;
@@ -538,7 +541,8 @@ export class WebGLAvatar{
       presence:gl.getUniformLocation(this.cubeProgram,'uPresence'),
       glitch:gl.getUniformLocation(this.cubeProgram,'uGlitch'),
       pointer:gl.getUniformLocation(this.cubeProgram,'uPointer'),
-      theme:gl.getUniformLocation(this.cubeProgram,'uTheme')
+      theme:gl.getUniformLocation(this.cubeProgram,'uTheme'),
+      stateTint:gl.getUniformLocation(this.cubeProgram,'uStateTint')
     };
     this.uFlat={vp:gl.getUniformLocation(this.flatProgram,'uVP'),pointer:gl.getUniformLocation(this.flatProgram,'uPointer')};
     this.uBg={
@@ -550,6 +554,11 @@ export class WebGLAvatar{
   resolvedTheme(){
     if(this.theme==='dark'||this.theme==='light')return this.theme;
     return this.themeQuery.matches?'light':'dark';
+  }
+  isTransparentSurface(){
+    return document.documentElement.classList.contains('transparent-surface')||
+      document.body.classList.contains('desktop')||
+      document.body.classList.contains('popup-widget');
   }
   setTheme(value='auto'){this.theme=['auto','dark','light'].includes(value)?value:'auto';this.environment=this.theme;}
   setEnvironment(value='auto'){this.setTheme(value);}
@@ -605,6 +614,18 @@ export class WebGLAvatar{
     const pulse=performance.now()<this.pulseUntil?.32+.68*(.5+.5*Math.sin(time*.006)):0;
     const map={idle:.18,listening:.44,thinking:.58,speaking:.66,processing:.76,error:.84};
     return clamp((map[this.state]||.18)+pulse*.34+this.audioLevel*.34,0,1);
+  }
+
+  stateTint(){
+    const colors={
+      idle:[.20,.76,1.0],
+      listening:[.24,1.0,.70],
+      thinking:[.68,.42,1.0],
+      speaking:[1.0,.66,.25],
+      processing:[.38,.58,1.0],
+      error:[1.0,.24,.48]
+    };
+    return colors[this.state]||colors.idle;
   }
 
   resize(){
@@ -680,11 +701,14 @@ export class WebGLAvatar{
       arc(cx-side*.012,cy-.065,cz+.03,.055,.075,-Math.PI*.15,Math.PI*1.18,20,white,.08+.10*earEnergy);
       line(lines,[cx,cy-.205,cz+.02],[cx-side*.035,cy-.255,cz],cyan,.24+.12*earEnergy);
       if(earEnergy>.02){
-        const pulse=.018*Math.sin(time*.008)+earEnergy*.045;
+        const bands=[this.earSpectrum.low,this.earSpectrum.mid,this.earSpectrum.high];
         for(let band=0;band<3;band++){
+          const bandEnergy=Math.max(bands[band],this.listening?.12:0);
+          const pulse=.014*Math.sin(time*(.006+band*.0018)+band*1.7)+bandEnergy*.072;
           const spread=.20+band*.085+pulse;
           const x=cx+side*(.06+band*.025);
-          arc(x,cy,cz-.05,spread*.72,spread,-Math.PI*.42,Math.PI*.42,26,cyan,.13+.09*earEnergy-band*.018);
+          const bandColor=band===0?[.24,1,.70]:band===1?cyan:violet;
+          arc(x,cy,cz-.05,spread*.72,spread,-Math.PI*.42,Math.PI*.42,26,bandColor,.07+.32*bandEnergy-band*.012);
         }
       }
     };
@@ -713,8 +737,8 @@ export class WebGLAvatar{
         this.flatPush(triangles,...a,...cyan,.15*alpha);
         this.flatPush(triangles,...b,...cyan,.15*alpha);
       }
-      const gazeX=cx+this.rotation.x*.028;
-      const gazeY=cy-this.rotation.y*.018;
+      const gazeX=cx+this.rotation.x*.065;
+      const gazeY=cy-this.rotation.y*.038;
       circle(gazeX,gazeY,cz+.018,.040*scale,22,cyan,.42*alpha);
       circle(gazeX,gazeY,cz+.020,.014*scale,18,white,.62*alpha);
     };
@@ -760,11 +784,12 @@ export class WebGLAvatar{
 
     const level=this.speaking?this.audioLevel:0;
     const drawHumanMouth=()=>{
-      const mouthY=-.535,open=.006+.060*level;
+      const viseme=.52+.48*Math.sin(time*.0092+Math.sin(time*.0021)*.8);
+      const mouthY=-.535,open=.006+level*(.038+.072*viseme),width=.205*(1+level*(1-viseme)*.08);
       const upper=[],lower=[],inner=[];
       const seg=26;
       for(let i=0;i<=seg;i++){
-        const t=-1+i/seg*2,x=.205*t,arch=1-t*t;
+        const t=-1+i/seg*2,x=width*t,arch=1-t*t;
         const cupid=.012*Math.exp(-((t/.22)**2));
         upper.push([x,mouthY+.020*arch-cupid,.585+.018*arch]);
         lower.push([x,mouthY-.020*arch-open*arch,.590+.026*arch]);
@@ -792,6 +817,7 @@ export class WebGLAvatar{
   }
 
   drawBackground(energy,themeLight){
+    if(this.isTransparentSurface())return;
     const gl=this.gl;
     gl.disable(gl.DEPTH_TEST);
     gl.useProgram(this.bgProgram);
@@ -816,6 +842,7 @@ export class WebGLAvatar{
     gl.uniform1f(this.uCube.glitch,glitch);
     gl.uniform2f(this.uCube.pointer,this.rotation.x,this.rotation.y);
     gl.uniform1f(this.uCube.theme,themeLight);
+    gl.uniform3fv(this.uCube.stateTint,this.stateTint());
     gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
     gl.drawArraysInstanced(gl.TRIANGLES,0,36,this.instances.length/11);
     gl.bindVertexArray(null);
@@ -852,10 +879,12 @@ export class WebGLAvatar{
     ctx.clearRect(0,0,this.w,this.h);
     const cx=this.w/2,cy=this.h*.42,r=Math.min(this.w,this.h)*.22;
     const light=this.resolvedTheme()==='light';
-    const g=ctx.createRadialGradient(cx,cy,r*.2,cx,cy,r*2.1);
-    g.addColorStop(0,light?'rgba(80,180,230,.18)':'rgba(40,180,255,.24)');
-    g.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=g;ctx.fillRect(0,0,this.w,this.h);
+    if(!this.isTransparentSurface()){
+      const g=ctx.createRadialGradient(cx,cy,r*.2,cx,cy,r*2.1);
+      g.addColorStop(0,light?'rgba(80,180,230,.18)':'rgba(40,180,255,.24)');
+      g.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=g;ctx.fillRect(0,0,this.w,this.h);
+    }
     ctx.strokeStyle='rgba(90,220,255,.72)';ctx.lineWidth=1.2;
     ctx.beginPath();ctx.ellipse(cx,cy,r*.82,r*1.12,0,0,TAU);ctx.stroke();
     ctx.fillStyle='rgba(225,252,255,.92)';

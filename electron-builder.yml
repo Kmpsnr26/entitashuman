@@ -6,8 +6,15 @@ directories:
 files:
   - public/**/*
   - desktop/**/*
+  - sites/humanale-hologram/dist/face-rig.js
+  - sites/humanale-hologram/dist/neural-core.js
+  - sites/humanale-hologram/dist/avatar.js
+  - sites/humanale-hologram/dist/assets/reference-face.png
   - package.json
 asar: false
+# node-pty 1.1.0 already ships N-API binaries for Windows x64; rebuilding it
+# unnecessarily requires a local Visual Studio installation.
+npmRebuild: false
 extraResources:
   - from: Setup-suara-Indonesia.ps1
     to: Setup-suara-Indonesia.ps1

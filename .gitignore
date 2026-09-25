@@ -3,6 +3,7 @@ dist/
 !sites/humanale-hologram/dist/
 release/
 out/
+android/
 .env
 .env.*
 !.env.example
@@ -13,6 +14,7 @@ out/
 .DS_Store
 Thumbs.db
 Dudidam-Desktop/
+HumanALE-God-Engine-Desktop/
 Dudidam-Desktop-before-*/
 Dudidam-Desktop-Avatar-*/
 avatar-smoke*.png

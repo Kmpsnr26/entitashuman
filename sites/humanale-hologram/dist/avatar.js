@@ -346,7 +346,7 @@
       const idle = this.animate ? (this.reducedMotion ? 0.18 : 1) : 0;
       // A slow breath and uncorrelated micro-turn continue even while looking
       // at a stationary pointer. No sharp oscillation or random frame jitter.
-      const yawTarget = (this.pointer.active ? this.pointer.x*0.27 : 0) +
+      const yawTarget = (this.pointer.active ? this.pointer.x*(Math.PI/6) : 0) +
         (Math.sin(time*0.00031)*0.020 + Math.sin(time*0.000137)*0.010)*idle + (this.gestureYaw || 0);
       const pitchTarget = (this.pointer.active ? -this.pointer.y*0.14 : 0) +
         (Math.sin(time*0.00043)*0.012 + Math.sin(time*0.00019)*0.006)*idle + (this.gesturePitch || 0);

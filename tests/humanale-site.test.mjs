@@ -25,3 +25,23 @@ test('Site renderer presents complete frames without rapid whole-face flashing',
   assert.equal((source.match(/this\.frameRequest = requestAnimationFrame\(/g) ?? []).length, 4);
   assert.match(source, /blinkValue\(time\)/, 'natural eye blinking remains available');
 });
+
+test('main web, desktop and Android builds share the Site avatar source', async () => {
+  const [build,server,desktopPackage,desktopMain,installer,android,adapter] = await Promise.all([
+    readFile(new URL('../build.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../server.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../package-desktop.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../desktop/main.cjs', import.meta.url), 'utf8'),
+    readFile(new URL('../electron-builder.yml', import.meta.url), 'utf8'),
+    readFile(new URL('../.github/workflows/android-apk.yml', import.meta.url), 'utf8'),
+    readFile(new URL('../public/humanale-avatar.js', import.meta.url), 'utf8')
+  ]);
+
+  for (const source of [build, server, desktopPackage, desktopMain]) assert.match(source, /humanale-hologram|humanale/, 'avatar assets must be routed or copied');
+  for (const source of [build, desktopPackage]) assert.match(source, /reference-face\.png/, 'reference face must be packaged');
+  assert.match(installer, /sites\/humanale-hologram\/dist\/assets\/reference-face\.png/);
+  assert.match(android, /sites\/humanale-hologram\/dist\/\*\*/);
+  for (const feature of ['setState','setListening','setTalking','setAudioLevel','setEarSpectrum','drawAudioSensors']) {
+    assert.match(adapter, new RegExp(feature + '\\('), feature);
+  }
+});

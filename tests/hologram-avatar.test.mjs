@@ -4,19 +4,22 @@ import {readFile} from 'node:fs/promises';
 
 const read=path=>readFile(new URL('../'+path,import.meta.url),'utf8');
 
-test('main HumanALE renderer uses a fully procedural green binary face with no PNG dependency',async()=>{
-  const [app,avatar,index]=await Promise.all([
+test('main HumanALE renderer uses the exact NARA avatar engine and reference from the HumanALE Site',async()=>{
+  const [app,adapter,avatar,index]=await Promise.all([
     read('public/app.js'),
-    read('public/avatar.js'),
+    read('public/humanale-avatar.js'),
+    read('sites/humanale-hologram/dist/avatar.js'),
     read('public/index.html')
   ]);
-  assert.match(app,/import \{BinaryAvatar\} from '\.\/avatar\.js'/);
-  assert.match(app,/new BinaryAvatar\(\$\('#avatar'\)\)/);
-  assert.match(avatar,/buildProceduralFaceSamples/);
-  assert.match(avatar,/proceduralSeed/);
-  assert.match(avatar,/this\.color='green'/);
-  assert.doesNotMatch(avatar,/reference\.png|new Image\(|drawImage\(/);
-  assert.match(index,/Wajah manusia biner hijau procedural/);
+  assert.match(app,/import \{HumanALEAvatar\} from '\.\/humanale-avatar\.js'/);
+  assert.match(app,/new HumanALEAvatar\(\$\('#avatar'\),\{referenceSrc:'\/humanale\/assets\/reference-face\.png'/);
+  assert.match(adapter,/class HumanALEAvatar extends BaseAvatar/);
+  assert.match(adapter,/drawAudioSensors/);
+  assert.match(avatar,/class NeuralAvatar/);
+  assert.match(avatar,/loadReference\(src\)/);
+  assert.match(avatar,/Math\.PI\/6/);
+  assert.match(index,/Wajah holografik NARA dari karakter biner yang bergerak/);
+  for(const script of ['face-rig.js','neural-core.js','avatar.js'])assert.match(index,new RegExp('/humanale/'+script.replace('.', '\\.')));
 });
 
 test('hologram public control API supports state, audio, emotion, theme, pulse and glitch',async()=>{

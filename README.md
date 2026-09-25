@@ -63,7 +63,7 @@ Tombol **Dikte suara** memeriksa mikrofon dan izin, lalu memakai pengenal lokal 
 https://binary-human-assistant.sitihasnah109.chatgpt.site
 Proyek yang sama dipertahankan pada .openai/hosting.json dan tetap memakai kebijakan akses publik yang sudah ada. Sites menampilkan wajah biner saja dan login identitas resmi. Browser tidak dapat membuat latar tembus sampai desktop. Tombol pop-up membuka jendela browser kecil; transparansi OS, mode tembus klik, dan model via login tersedia pada desktop lokal. Tidak ada API key yang diminta di versi 2.
 
-Situs **HumanALE Hologram** yang memakai wajah NARA terbaru merupakan proyek Sites terpisah. Sumber statis dan panduan timnya berada di [`sites/humanale-hologram/`](sites/humanale-hologram/README.md). Perubahan di GitHub tidak otomatis menerbitkan situs tersebut.
+Situs **HumanALE Hologram** yang memakai wajah NARA terbaru merupakan sumber avatar resmi aplikasi utama. Mesin wajah, rig, neural core, dan aset referensinya berada di [`sites/humanale-hologram/`](sites/humanale-hologram/README.md), lalu disalin otomatis ke build web, paket Windows, dan Android wrapper. Integrasi ini orisinal untuk HumanALE dan tidak memakai source atau artwork proprietary APEX. Perubahan di GitHub tidak otomatis menerbitkan situs tersebut.
 
 
 ## Verifikasi dan paket Windows

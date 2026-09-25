@@ -1,11 +1,11 @@
-import {BinaryAvatar} from './avatar.js';
+import {HumanALEAvatar} from './humanale-avatar.js';
 import {DudidamPopup} from './dudidam-popup.js';
 import {parseCommand} from './commands.js';
 import {AudioReactor} from './audio-reactor.js';
 import {containsAleWakeWord,HOLD_TO_SUMMON_MS} from './wake-utils.js';
 import {isExplicitProjectWorkRequest} from './work-intent.js';
 import {emotionFromText,emotions} from './avatar-emotion.js';
-const $=s=>document.querySelector(s),desktop=window.dudidamDesktop,params=new URLSearchParams(location.search),popup=params.get('popup')==='1',panelOnly=Boolean(desktop&&params.has('panel')),avatar=new BinaryAvatar($('#avatar'));
+const $=s=>document.querySelector(s),desktop=window.dudidamDesktop,params=new URLSearchParams(location.search),popup=params.get('popup')==='1',panelOnly=Boolean(desktop&&params.has('panel')),avatar=new HumanALEAvatar($('#avatar'),{referenceSrc:'/humanale/assets/reference-face.png',popup,panelOnly});
 const panelChannel=desktop?new BroadcastChannel('dudidam-avatar-panel'):null;
 const assistantPopup=new DudidamPopup($('#assistantPopup'),{
  onAction:async action=>{
@@ -160,7 +160,7 @@ function syncFaceAudio(){const level=Math.max(ttsActive?ttsEnergy:0,audioEnergy,
 function setPersona(provider=aiProvider){
  const persona=provider==='copilot'?'copilot':provider==='chatgpt'?'chatgpt':'dudidam';
  document.body.dataset.persona=persona;avatar.persona=persona;
- if(persona==='copilot')avatar.color='cyan';else if(persona==='chatgpt')avatar.color='green';
+ if(persona==='copilot')avatar.setAccent?.('cyan');else if(persona==='chatgpt')avatar.setAccent?.('cyan');
  $('#personaBadge').textContent=persona==='copilot'?'HUMANALE GOD ENGINE · GITHUB COPILOT':persona==='chatgpt'?'HUMANALE GOD ENGINE · CHATGPT':'HUMANALE GOD ENGINE · '+provider.toUpperCase();
  if(panelOnly)panelChannel?.postMessage({type:'persona',provider});
 }
@@ -432,8 +432,8 @@ async function startWakeListening(){
 }
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function activateAllEffects(){
- avatar.activateAllEffects?.(true);avatar.animate=true;avatar.track=true;avatar.color='green';
- $('#animate').checked=true;$('#track').checked=true;$('#color').value='green';
+ avatar.activateAllEffects?.(true);avatar.animate=true;avatar.track=true;avatar.setAccent?.('cyan');
+ $('#animate').checked=true;$('#track').checked=true;$('#color').value='cyan';
  document.querySelectorAll('[data-mode]').forEach(button=>button.setAttribute('aria-pressed','true'));
 }
 function showAle(){
@@ -537,7 +537,7 @@ async function toggleMic(options={}){
 function stopCamera(){cameraStream?.getTracks().forEach(t=>t.stop());cameraStream=null;$('#cameraVideo').srcObject=null;$('#cameraPreview').hidden=true;$('#camera').setAttribute('aria-pressed','false');}
 async function toggleCamera(){if(cameraPending)return;if(cameraStream){stopCamera();return;}cameraPending=true;$('#camera').disabled=true;try{cameraStream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480}},audio:false});if(document.hidden){stopCamera();return;}$('#cameraVideo').srcObject=cameraStream;await $('#cameraVideo').play();$('#cameraPreview').hidden=false;$('#camera').setAttribute('aria-pressed','true');}catch{stopCamera();toast('Kamera tidak tersedia atau izin ditolak.');}finally{cameraPending=false;$('#camera').disabled=false;}}
 $('#look').onclick=()=>{if(['copilot','grok','claude','deepseek','askcodi'].includes(aiProvider)){toast('Foto belum diaktifkan untuk provider ini. Pilih ChatGPT, OpenAI API, atau Gemini untuk menjelaskan foto.');return;}if(!aiReady){toast('Provider AI yang dipilih belum terhubung.');return;}const v=$('#cameraVideo');if(!v.videoWidth)return;const c=document.createElement('canvas');c.width=640;c.height=Math.round(640*v.videoHeight/v.videoWidth);c.getContext('2d').drawImage(v,0,0,c.width,c.height);submit('Jelaskan foto kamera ini dalam bahasa Indonesia.',c.toDataURL('image/jpeg',.75));};
-function setMode(mode){avatar.activateAllEffects?.(false);avatar.mode=mode;document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===mode)));if(panelOnly)panelChannel?.postMessage({type:'mode',mode});}
+function setMode(mode){avatar.activateAllEffects?.(false);avatar.setMaterial?.(mode);document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===mode)));if(panelOnly)panelChannel?.postMessage({type:'mode',mode});}
 function center(){offset={x:0,y:0};$('#avatarArea').style.translate='0px 0px';desktop?.center();}
 const area=$('#avatarArea');
 area.onpointerdown=e=>{if(transitioning()||e.button!==0)return;area.setPointerCapture(e.pointerId);drag={x:e.screenX,y:e.screenY,ox:offset.x,oy:offset.y,moved:false,lastX:e.screenX,lastY:e.screenY};};
@@ -550,7 +550,7 @@ $('#panelOpacity').oninput=e=>applyPanelTransparency(e.target.value);
 $('#track').onchange=e=>{avatar.track=e.target.checked;if(panelOnly)panelChannel?.postMessage({type:'setting',name:'track',value:avatar.track});};
 $('#animate').checked=avatar.animate;
 $('#animate').onchange=e=>{avatar.animate=e.target.checked;if(panelOnly)panelChannel?.postMessage({type:'setting',name:'animate',value:avatar.animate});};
-$('#color').onchange=e=>{avatar.color=e.target.value;if(panelOnly)panelChannel?.postMessage({type:'setting',name:'color',value:avatar.color});};
+$('#color').onchange=e=>{avatar.setAccent?.(e.target.value);if(panelOnly)panelChannel?.postMessage({type:'setting',name:'color',value:e.target.value});};
 $('#environment').onchange=e=>{avatar.setEnvironment(e.target.value);if(panelOnly)panelChannel?.postMessage({type:'setting',name:'environment',value:e.target.value});};
 $('#speakSetting').onchange=e=>{voice=e.target.checked;if(!voice)stopSpeech();};
 $('#voiceSelect').onchange=e=>{selectedVoiceURI=e.target.value||'';if(desktop){if(selectedVoiceURI)localStorage.setItem('dudidam-voice-uri',selectedVoiceURI);else localStorage.removeItem('dudidam-voice-uri');}};
@@ -612,7 +612,7 @@ if(panelChannel)panelChannel.onmessage=event=>{
  if(data.type==='setting'){
   if(data.name==='track')avatar.track=Boolean(data.value);
   if(data.name==='animate')avatar.animate=Boolean(data.value);
-  if(data.name==='color'&&typeof data.value==='string')avatar.color=data.value;
+  if(data.name==='color'&&typeof data.value==='string')avatar.setAccent?.(data.value);
   if(data.name==='environment'&&typeof data.value==='string')avatar.setEnvironment(data.value);
   if(data.name==='emotion')applyEmotion(data.value,false);
  }

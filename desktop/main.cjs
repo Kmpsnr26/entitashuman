@@ -1,7 +1,7 @@
 const {app,BrowserWindow,ipcMain,shell,dialog,screen,desktopCapturer,Tray,Menu,nativeImage,globalShortcut}=require('electron');
 const http=require('node:http');
 const {readFile,writeFile}=require('node:fs/promises');
-const {mkdtempSync}=require('node:fs');
+const {mkdtempSync,existsSync}=require('node:fs');
 const path=require('node:path');
 const {tmpdir}=require('node:os');
 const {spawn}=require('node:child_process');
@@ -164,6 +164,8 @@ else{
   indonesianTts=new IndonesianTts();
   const agentLinks=Object.fromEntries(agentDefinitions().map(item=>[item.id,item.url]));
   const root=path.resolve(__dirname,'../public');
+  const avatarSourceRoot=path.resolve(__dirname,'../sites/humanale-hologram/dist');
+  const avatarRoot=existsSync(avatarSourceRoot)?avatarSourceRoot:path.resolve(root,'humanale');
   const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.png':'image/png','.svg':'image/svg+xml'};
   const vendorAssets={
    '/vendor/xterm.js':{path:path.resolve(__dirname,'../node_modules/@xterm/xterm/lib/xterm.js'),type:'text/javascript; charset=utf-8'},
@@ -174,8 +176,10 @@ else{
    const url=new URL(req.url,'http://localhost');
    const vendor=vendorAssets[url.pathname];
    if(vendor){const data=await readFile(vendor.path);res.writeHead(200,{'Content-Type':vendor.type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(data);return;}
-   const asset=path.resolve(root,'.'+decodeURIComponent(url.pathname==='/'?'/index.html':url.pathname));
-   if(!asset.startsWith(root+path.sep)||!types[path.extname(asset)]){res.writeHead(404);res.end();return;}
+   const humanale=url.pathname.startsWith('/humanale/'),assetPath=humanale?url.pathname.slice('/humanale'.length):url.pathname;
+   const base=humanale?avatarRoot:root;
+   const asset=path.resolve(base,'.'+decodeURIComponent(assetPath==='/'?'/index.html':assetPath));
+   if(!asset.startsWith(base+path.sep)||!types[path.extname(asset)]){res.writeHead(404);res.end();return;}
    const data=await readFile(asset);res.writeHead(200,{'Content-Type':types[path.extname(asset)],'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(data);
   }catch{res.writeHead(404);res.end();}});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));

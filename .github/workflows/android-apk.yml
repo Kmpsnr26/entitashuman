@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "public/**"
+      - "sites/humanale-hologram/dist/**"
       - "capacitor.config.json"
       - "scripts/prepare-android.mjs"
       - ".github/workflows/android-apk.yml"
