@@ -680,7 +680,7 @@ if(panelChannel)panelChannel.onmessage=event=>{
  if(data.type==='emotion-choice'&&!panelOnly){emotionChoice=data.value==='auto'||emotions.includes(data.value)?data.value:'auto';$('#emotion').value=emotionChoice;return;}
  if(data.type==='evolution'&&!panelOnly){setEvolutionVisual(data.mode==='complete'?'complete':data.mode==='start'?'start':'stop');return;}
  if(data.type==='wake-status'&&panelOnly){wakeEnabled=Boolean(data.enabled);setWakeStatus(String(data.text||''),Boolean(data.active));return;}
- if(data.type==='panel-ready'&&!panelOnly){setWakeStatus($('#wakeIndicator').textContent,$('#wakeIndicator').dataset.active==='true');setPersona(aiProvider);return;}
+ if(data.type==='panel-ready'&&!panelOnly){setWakeStatus($('#wakeIndicator').textContent,$('#wakeIndicator').dataset.active==='true');setPersona(aiProvider);panelChannel?.postMessage({type:'setting',name:'brainZoom',value:avatar.zoomTarget||1});return;}
  if(panelOnly)return;
  if(data.type==='avatar-size'){applyAvatarSize(data.size);return;}
  if(data.type==='mode'){setMode(data.mode);return;}
