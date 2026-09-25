@@ -385,6 +385,90 @@ test(
 );
 
 test(
+  "OpenAI account-limit 429 is non-retryable without exposing upstream code",
+  async () => {
+    const fakeFetch =
+      (async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              code:
+                "credit_balance_exhausted",
+              message:
+                "private billing detail"
+            }
+          }),
+          {
+            status:
+              429,
+            headers: {
+              "content-type":
+                "application/json"
+            }
+          }
+        )) as typeof fetch;
+
+    const provider =
+      new OpenAiProvider({
+        apiKey:
+          "test-openai-key-not-real-123456",
+
+        fetchImpl:
+          fakeFetch
+      });
+
+    await assert.rejects(
+      () =>
+        provider.generate(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "OPENAI_UPSTREAM_ERROR"
+        );
+
+        assert.equal(
+          error.retryable,
+          false
+        );
+
+        assert.equal(
+          error.message.includes(
+            "credit_balance_exhausted"
+          ),
+          false
+        );
+
+        assert.equal(
+          error.message.includes(
+            "private billing detail"
+          ),
+          false
+        );
+
+        return true;
+      }
+    );
+  }
+);
+
+test(
   "OpenAI stream retryability only trusts known transient codes",
   async () => {
     const providerFor =
