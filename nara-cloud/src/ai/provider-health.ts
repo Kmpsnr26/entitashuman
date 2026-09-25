@@ -26,8 +26,6 @@ export interface ProviderHealthSnapshot {
   openedAt?: number;
   nextProbeAt?: number;
   probeInFlight: boolean;
-  probeSequence: number;
-  activeProbeId?: number;
 }
 
 interface ProviderHealthRecord {
@@ -43,6 +41,8 @@ interface ProviderHealthRecord {
   lastSuccessAt?: number;
   openedAt?: number;
   probeInFlight: boolean;
+  probeSequence: number;
+  activeProbeId?: number;
 }
 
 interface ProviderHealthOptions {
