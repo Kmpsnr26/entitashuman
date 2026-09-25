@@ -15,6 +15,17 @@ interface OpenAiOutputItem {
 export interface OpenAiResponse {
   id?: string;
 
+  status?:
+    | "completed"
+    | "failed"
+    | "incomplete"
+    | "in_progress"
+    | "queued";
+
+  incomplete_details?: {
+    reason?: string;
+  };
+
   output?: OpenAiOutputItem[];
 
   output_text?: string;
