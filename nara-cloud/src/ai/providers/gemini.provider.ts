@@ -161,6 +161,54 @@ function usageFrom(
   };
 }
 
+const GEMINI_RETRYABLE_STREAM_CODES =
+  new Set([
+    "RESOURCE_EXHAUSTED",
+    "INTERNAL",
+    "UNAVAILABLE",
+    "DEADLINE_EXCEEDED",
+    "RATE_LIMIT_EXCEEDED",
+    "QUOTA_EXCEEDED",
+    "TOO_MANY_REQUESTS",
+    "API_ERROR",
+    "SERVICE_UNAVAILABLE"
+  ]);
+
+function isRetryableStreamError(
+  error:
+    GeminiResponse["error"]
+): boolean {
+  if (!error) {
+    return false;
+  }
+
+  if (
+    typeof error.code ===
+      "number" &&
+    (
+      error.code ===
+        408 ||
+      error.code ===
+        429 ||
+      error.code >=
+        500
+    )
+  ) {
+    return true;
+  }
+
+  return (
+    typeof error.status ===
+      "string" &&
+    GEMINI_RETRYABLE_STREAM_CODES
+      .has(
+        error.status
+          .trim()
+          .toUpperCase()
+      )
+  );
+}
+
 async function failureFrom(
   response: Response
 ): Promise<AiProviderError> {
@@ -476,7 +524,9 @@ export class GeminiProvider
               "GEMINI_STREAM_ERROR",
 
             retryable:
-              true
+              isRetryableStreamError(
+                parsed.error
+              )
           }
         );
       }
