@@ -45,11 +45,16 @@ test('brain state maps operational, connection and sensory events into live stat
   assert.equal(snapshot.sensory.speech.active,true);
 });
 
-test('orchestrator drives selection, work lifecycle and shutdown through the shared bus',()=>{
+test('orchestrator drives selection, work lifecycle and connection changes through the shared bus',()=>{
   const nara=createOrchestrator();
   nara.start();
   nara.selectRegion('MEMORY');
   assert.equal(nara.snapshot().selectedRegion,'MEMORY');
+  nara.connection('github',true);
+  assert.equal(nara.snapshot().regions.GITHUB.status,'connected');
+  nara.connection('github',false);
+  assert.equal(nara.snapshot().regions.GITHUB.status,'disconnected');
+  assert.equal(nara.bus.recent({event:'github.disconnected',limit:1}).length,1);
   nara.startWork({id:'phase-1',label:'Bangun NARA Core'});
   assert.equal(nara.snapshot().regions.PROGRAM.status,'processing');
   nara.completeWork();
