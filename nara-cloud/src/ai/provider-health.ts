@@ -674,7 +674,8 @@ export class ProviderHealthRegistry {
       openedAt:
         record.openedAt,
       nextProbeAt:
-        record.openedAt
+        record.openedAt !==
+        undefined
           ? record.openedAt +
             this.cooldownMs
           : undefined,
