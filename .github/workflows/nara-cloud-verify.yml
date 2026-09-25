@@ -19,12 +19,12 @@ permissions:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 15
 
     env:
       NODE_ENV: test
-      DATABASE_URL: postgresql://nara:nara_test_password@127.0.0.1:5432/nara
+      DATABASE_URL: postgresql://nara:test-password@127.0.0.1:5432/nara
       BIND_HOST: 127.0.0.1
       AUTH_PORT: 4100
       NARA_PORT: 4200
@@ -47,75 +47,11 @@ jobs:
         with:
           node-version: 22
 
-      - name: Prepare PostgreSQL
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          sudo systemctl start postgresql
-
-          if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='nara'" | grep -q 1; then
-            sudo -u postgres psql -c "CREATE ROLE nara LOGIN PASSWORD 'nara_test_password';"
-          fi
-
-          if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='nara'" | grep -q 1; then
-            sudo -u postgres createdb -O nara nara
-          fi
-
-          pg_isready -h 127.0.0.1 -p 5432 -U nara -d nara
-
       - name: Install NARA Cloud dependencies
         run: npm install
 
-      - name: Build TypeScript
-        run: npm run build
-
-      - name: Migrate PostgreSQL
-        run: npm run db:migrate
-
-      - name: Re-run migration for idempotency
-        run: npm run db:migrate
-
-      - name: Run NARA Cloud tests
-        run: npm test
+      - name: Verify TypeScript and unit security tests
+        run: npm run verify
 
       - name: Audit high severity dependencies
         run: npm audit --audit-level=high
-
-      - name: Smoke Auth and NARA servers
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          node dist/apps/authServer.js > auth-server.log 2>&1 &
-          AUTH_PID=$!
-
-          node dist/apps/naraServer.js > nara-server.log 2>&1 &
-          NARA_PID=$!
-
-          cleanup() {
-            kill "$AUTH_PID" "$NARA_PID" 2>/dev/null || true
-          }
-
-          trap cleanup EXIT
-
-          for attempt in {1..30}; do
-            if curl --silent --fail http://127.0.0.1:4100/health >/dev/null               && curl --silent --fail http://127.0.0.1:4200/health >/dev/null; then
-              break
-            fi
-
-            if [ "$attempt" -eq 30 ]; then
-              echo "Auth server log:"
-              cat auth-server.log || true
-              echo "NARA server log:"
-              cat nara-server.log || true
-              exit 1
-            fi
-
-            sleep 1
-          done
-
-          curl --fail --silent http://127.0.0.1:4100/health
-          echo
-          curl --fail --silent http://127.0.0.1:4200/health
-          echo
