@@ -124,4 +124,4 @@ document.addEventListener('visibilitychange', () => {
   avatar.setSpeaking(false);
   runtime.dispatch('speech.stop',{source:'site-hidden'});
 });
-window.addEventListener('pagehide',()=>runtime.stop(),{once:true});
+window.addEventListener('pagehide',()=>{naraVoiceUnlocked=false;runtime.stop();},{once:true});
