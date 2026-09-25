@@ -59,6 +59,7 @@ let micProbeGeneration=0,micChecking=false;
 let remoteSpeechEnergy=0;
 let localRecorder,localStream,localChunks=[],localTimer,localCaptureGeneration=0;
 let onlineSpeech,onlineSpeechUrl,speechGeneration=0,localTtsConfigured=false;
+let activeSpeechSource='',naraVoiceQueue=[],naraVoiceActive=false,naraVoiceDrainTimer,lastNaraSpeechSent=0;
 let voiceStyle=desktop?localStorage.getItem('dudidam-voice-style')||'baby-robot':'baby-robot',emotionChoice=desktop?localStorage.getItem('dudidam-emotion')||'auto':'auto',lastBandsSent=0;
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 let naraAudioBands={low:0,mid:0,high:0},lastNaraAudioSent=0;
@@ -195,20 +196,44 @@ function refreshIndonesianVoices(){
  if(status)status.textContent=voices.length?voices.length+' voice Bahasa Indonesia lokal tersedia.':'Mencari suara Indonesia lokal…';
  if(desktop?.ttsStatus)desktop.ttsStatus().then(result=>{localTtsConfigured=Boolean(result.configured);if(status)status.textContent=localTtsConfigured?'Suara lokal HumanALE god egine siap. Setiap balasan teks akan otomatis dibacakan.':voices.length?voices.length+' voice Bahasa Indonesia lokal tersedia.':'Voice Indonesia belum tersedia. Pasang paket suara Windows atau model Piper Indonesia.';}).catch(()=>{localTtsConfigured=false;});
 }
-function stopSpeech(resumeWake=true){speechGeneration++;clearTimeout(speechTimer);window.speechSynthesis?.cancel();onlineSpeech?.pause();onlineSpeech=null;if(onlineSpeechUrl){URL.revokeObjectURL(onlineSpeechUrl);onlineSpeechUrl=null;}ttsActive=false;ttsEnergy=0;syncFaceAudio();if(!busy&&!listening&&!audioMode)state();if(resumeWake)resumeWakeSoon();}
-async function speakLocal(text){
+function scheduleNaraVoiceDrain(delay=220){clearTimeout(naraVoiceDrainTimer);if(naraVoiceQueue.length)naraVoiceDrainTimer=setTimeout(drainNaraVoiceQueue,delay);}
+function finishSpeechSource(){const source=activeSpeechSource;activeSpeechSource='';if(source==='nara')naraVoiceActive=false;scheduleNaraVoiceDrain();}
+function stopSpeech(resumeWake=true){
+ const hadSpeech=Boolean(ttsActive||onlineSpeech||window.speechSynthesis?.speaking||activeSpeechSource);
+ speechGeneration++;clearTimeout(speechTimer);window.speechSynthesis?.cancel();onlineSpeech?.pause();onlineSpeech=null;
+ if(onlineSpeechUrl){URL.revokeObjectURL(onlineSpeechUrl);onlineSpeechUrl=null;}
+ ttsActive=false;ttsEnergy=0;syncFaceAudio();if(hadSpeech)naraDispatch('speech.stop');
+ finishSpeechSource();if(!busy&&!listening&&!audioMode)state();if(resumeWake)resumeWakeSoon();
+}
+function naraSpeechBusy(){return Boolean(ttsActive||onlineSpeech||window.speechSynthesis?.speaking||activeSpeechSource||busy||listening||micChecking);}
+function enqueueNaraVoice(cue){
+ if(panelOnly||!voice||!cue?.text)return;
+ const item={text:String(cue.text).slice(0,240),style:cue.style==='adult-robot'?'adult-robot':'adult-robot',key:String(cue.key||cue.event||cue.text),priority:cue.priority==='high'?'high':cue.priority==='low'?'low':'normal'};
+ if(naraVoiceQueue.some(entry=>entry.key===item.key))return;
+ if(item.priority==='high')naraVoiceQueue.unshift(item);else naraVoiceQueue.push(item);
+ if(naraVoiceQueue.length>6)naraVoiceQueue.pop();
+ scheduleNaraVoiceDrain(80);
+}
+function drainNaraVoiceQueue(){
+ clearTimeout(naraVoiceDrainTimer);
+ if(!naraVoiceQueue.length||panelOnly||!voice)return;
+ if(naraVoiceActive||naraSpeechBusy()){scheduleNaraVoiceDrain(350);return;}
+ const cue=naraVoiceQueue.shift();naraVoiceActive=true;
+ if(!speak(cue.text,{style:cue.style,source:'nara',interrupt:false})){naraVoiceActive=false;scheduleNaraVoiceDrain(120);}
+}
+async function speakLocal(text,style=voiceStyle){
  const generation=speechGeneration;
  if(!desktop?.synthesize){setMicStatus('Voice Bahasa Indonesia belum tersedia. Balasan tampil sebagai teks.');resumeWakeSoon();return;}
  state('Menyiapkan suara Indonesia…');
  try{
-  const result=await desktop.synthesize({text:text.slice(0,2000),style:voiceStyle});
+  const result=await desktop.synthesize({text:text.slice(0,2000),style});
   if(generation!==speechGeneration)return;
   if(result.error)throw new Error(result.error);
   const bytes=Uint8Array.from(atob(result.audio),character=>character.charCodeAt(0));
   onlineSpeechUrl=URL.createObjectURL(new Blob([bytes],{type:result.mime||'audio/wav'}));
   const player=new Audio(onlineSpeechUrl);onlineSpeech=player;
-  player.onplay=()=>{ttsActive=true;ttsEnergy=.55;syncFaceAudio();avatar.trigger('nod');state('Berbicara · Bahasa Indonesia lokal');};
-  player.ontimeupdate=()=>{ttsEnergy=.35+.25*Math.abs(Math.sin(player.currentTime*9));syncFaceAudio();};
+  player.onplay=()=>{ttsActive=true;ttsEnergy=.55;syncFaceAudio();naraDispatch('speech.start',{energy:ttsEnergy,source:activeSpeechSource||'tts'});avatar.trigger('nod');state('Berbicara · Bahasa Indonesia lokal');};
+  player.ontimeupdate=()=>{ttsEnergy=.35+.25*Math.abs(Math.sin(player.currentTime*9));syncFaceAudio();const now=performance.now();if(now-lastNaraSpeechSent>140){lastNaraSpeechSent=now;naraDispatch('speech.energy',{energy:ttsEnergy,source:activeSpeechSource||'tts'});}};
   player.onended=()=>stopSpeech();player.onerror=()=>{setMicStatus('Audio suara Indonesia gagal diputar.');stopSpeech();};
   await player.play();
  }catch(error){
@@ -221,30 +246,32 @@ async function speakLocal(text){
   stopSpeech();
  }
 }
-function speakNativeIndonesian(text){
+function speakNativeIndonesian(text,style=voiceStyle){
  const voices=window.speechSynthesis?.getVoices()||[];
  const selected=voices.find(item=>item.voiceURI===selectedVoiceURI);
  const fallback=getIndonesianVoices()[0];
  const chosen=selected&&/^id(?:-|$)/i.test(selected.lang||'')?selected:fallback;
  if(!chosen)return false;
  const u=new SpeechSynthesisUtterance(text);
- u.lang=chosen.lang;u.rate=voiceStyle==='baby-robot'?1.12:1;u.pitch=voiceStyle==='baby-robot'?1.65:1;u.voice=chosen;
- u.onstart=()=>{ttsActive=true;ttsEnergy=.7;syncFaceAudio();avatar.trigger('nod');state('Berbicara · '+(chosen?.name||'Bahasa Indonesia'));};
- u.onboundary=e=>{const ch=text.charCodeAt(Math.min(text.length-1,e.charIndex||0))||80;ttsEnergy=.35+(ch%61)/100;syncFaceAudio();};
- u.onend=u.onerror=()=>{ttsActive=false;ttsEnergy=0;syncFaceAudio();if(!busy&&!audioMode)state();resumeWakeSoon(700);};
+ u.lang=chosen.lang;u.rate=style==='baby-robot'?1.12:style==='adult-robot'?.94:1;u.pitch=style==='baby-robot'?1.65:style==='adult-robot'?.76:1;u.voice=chosen;
+ u.onstart=()=>{ttsActive=true;ttsEnergy=.7;syncFaceAudio();naraDispatch('speech.start',{energy:ttsEnergy,source:activeSpeechSource||'tts'});avatar.trigger('nod');state('Berbicara · '+(chosen?.name||'Bahasa Indonesia'));};
+ u.onboundary=e=>{const ch=text.charCodeAt(Math.min(text.length-1,e.charIndex||0))||80;ttsEnergy=.35+(ch%61)/100;syncFaceAudio();const now=performance.now();if(now-lastNaraSpeechSent>140){lastNaraSpeechSent=now;naraDispatch('speech.energy',{energy:ttsEnergy,source:activeSpeechSource||'tts'});}};
+ u.onend=u.onerror=()=>{clearTimeout(speechTimer);ttsActive=false;ttsEnergy=0;syncFaceAudio();naraDispatch('speech.stop');finishSpeechSource();if(!busy&&!audioMode)state();resumeWakeSoon(700);};
  speechSynthesis.speak(u);speechTimer=setTimeout(stopSpeech,90000);
  return true;
 }
-function speak(text){
- stopSpeech(false);
- if(!voice){resumeWakeSoon();return;}
- stopListening(false);suspendWakeListening('ALE · wake mic dijeda saat berbicara');
- if(selectedVoiceURI&&speakNativeIndonesian(text))return;
- if(localTtsConfigured&&desktop?.synthesize){speakLocal(text);return;}
- if(speakNativeIndonesian(text))return;
- if(desktop?.synthesize){speakLocal(text);return;}
+function speak(text,{style=voiceStyle,source='assistant',interrupt=true}={}){
+ if(interrupt)stopSpeech(false);
+ if(!voice){if(source==='nara')naraVoiceActive=false;resumeWakeSoon();scheduleNaraVoiceDrain();return false;}
+ stopListening(false);suspendWakeListening('ALE · wake mic dijeda saat berbicara');activeSpeechSource=source;
+ if(source==='nara'&&desktop?.synthesize){speakLocal(text,style);return true;}
+ if(selectedVoiceURI&&speakNativeIndonesian(text,style))return true;
+ if(localTtsConfigured&&desktop?.synthesize){speakLocal(text,style);return true;}
+ if(speakNativeIndonesian(text,style))return true;
+ if(desktop?.synthesize){speakLocal(text,style);return true;}
+ activeSpeechSource='';if(source==='nara')naraVoiceActive=false;
  setMicStatus('Voice Bahasa Indonesia belum tersedia. Balasan tampil sebagai teks.');
- resumeWakeSoon();
+ resumeWakeSoon();scheduleNaraVoiceDrain();return false;
 }
 function updateAudioUi(mode='',label='Tidak aktif'){audioMode=mode;syncListeningVisual();$('#audioStatus').textContent=label;$('#audioMic').setAttribute('aria-pressed',String(mode==='microphone'));$('#systemAudio').setAttribute('aria-pressed',String(mode==='system'));$('#stopAudio').disabled=!mode;if(!busy&&!ttsActive)state(mode?'Audio aktif':'');}
 function stopReactiveAudio(){audioReactor.stop();audioEnergy=0;syncFaceAudio();const player=$('#musicPlayer');player.pause();if(musicUrl){URL.revokeObjectURL(musicUrl);musicUrl='';player.removeAttribute('src');player.load();}player.hidden=true;$('#musicFile').value='';updateAudioUi();}
@@ -566,10 +593,10 @@ $('#animate').checked=avatar.animate;
 $('#animate').onchange=e=>{avatar.animate=e.target.checked;if(panelOnly)panelChannel?.postMessage({type:'setting',name:'animate',value:avatar.animate});};
 $('#color').onchange=e=>{avatar.setAccent?.(e.target.value);if(panelOnly)panelChannel?.postMessage({type:'setting',name:'color',value:e.target.value});};
 $('#environment').onchange=e=>{avatar.setEnvironment(e.target.value);if(panelOnly)panelChannel?.postMessage({type:'setting',name:'environment',value:e.target.value});};
-$('#speakSetting').onchange=e=>{voice=e.target.checked;if(!voice)stopSpeech();};
+$('#speakSetting').onchange=e=>{voice=e.target.checked;if(!voice){naraVoiceQueue=[];stopSpeech();}};
 $('#voiceSelect').onchange=e=>{selectedVoiceURI=e.target.value||'';if(desktop){if(selectedVoiceURI)localStorage.setItem('dudidam-voice-uri',selectedVoiceURI);else localStorage.removeItem('dudidam-voice-uri');}};
-$('#voiceStyle').value=['baby-robot','natural'].includes(voiceStyle)?voiceStyle:'baby-robot';
-$('#voiceStyle').onchange=e=>{voiceStyle=e.target.value==='natural'?'natural':'baby-robot';if(desktop)localStorage.setItem('dudidam-voice-style',voiceStyle);};
+$('#voiceStyle').value=['baby-robot','adult-robot','natural'].includes(voiceStyle)?voiceStyle:'baby-robot';
+$('#voiceStyle').onchange=e=>{voiceStyle=['baby-robot','adult-robot','natural'].includes(e.target.value)?e.target.value:'baby-robot';if(desktop)localStorage.setItem('dudidam-voice-style',voiceStyle);};
 $('#emotion').value=emotionChoice==='auto'||emotions.includes(emotionChoice)?emotionChoice:'auto';
 $('#emotion').onchange=e=>{emotionChoice=e.target.value;if(desktop)localStorage.setItem('dudidam-emotion',emotionChoice);applyEmotion(emotionChoice==='auto'?'neutral':emotionChoice);if(panelOnly)panelChannel?.postMessage({type:'emotion-choice',value:emotionChoice});};
 applyEmotion(emotionChoice==='auto'?'neutral':emotionChoice,false);
@@ -636,6 +663,7 @@ if(!panelOnly){
  desktop?.onShow?.(showAle);
  desktop?.onSummon?.(()=>summonAle('global-hotkey'));
  desktop?.onDismiss?.(reason=>dismissAle(reason));
+ desktop?.onNaraVoice?.(cue=>enqueueNaraVoice(cue));
  desktop?.onGlobalPointer?.(point=>{if(!point||drag)return;avatar.gazePointer={x:Math.max(-1,Math.min(1,Number(point.x)||0)),y:Math.max(-1,Math.min(1,Number(point.y)||0))};avatar.gazeActive=true;});
 }
 if(panelOnly){
