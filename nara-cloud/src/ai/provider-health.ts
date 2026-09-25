@@ -84,8 +84,23 @@ function boundedLatency(
   );
 }
 
+const SAFE_ERROR_CODES =
+  new Set([
+    "AI_PROVIDER_TIMEOUT",
+    "AI_UPSTREAM_TIMEOUT",
+    "AI_UPSTREAM_RATE_LIMITED",
+    "AI_UPSTREAM_AUTH_ERROR",
+    "AI_UPSTREAM_SERVER_ERROR",
+    "AI_UPSTREAM_REQUEST_ERROR",
+    "AI_PROVIDER_RETRYABLE_ERROR",
+    "AI_PROVIDER_ERROR",
+    "AI_PROVIDER_EXCEPTION",
+    "AI_UNKNOWN_ERROR"
+  ]);
+
 function safeErrorCode(
-  value: string | undefined
+  value: string | undefined,
+  retryable: boolean
 ): string | undefined {
   if (!value) {
     return undefined;
@@ -94,14 +109,24 @@ function safeErrorCode(
   const normalized =
     value
       .trim()
+      .toUpperCase()
       .replace(
-        /[^A-Za-z0-9._:-]/g,
+        /[^A-Z0-9_]/g,
         "_"
       )
       .slice(0, 100);
 
-  return normalized ||
-    undefined;
+  if (
+    SAFE_ERROR_CODES.has(
+      normalized
+    )
+  ) {
+    return normalized;
+  }
+
+  return retryable
+    ? "AI_PROVIDER_RETRYABLE_ERROR"
+    : "AI_PROVIDER_ERROR";
 }
 
 function publicState(
@@ -485,7 +510,8 @@ export class ProviderHealthRegistry {
 
     record.lastErrorCode =
       safeErrorCode(
-        options.errorCode
+        options.errorCode,
+        options.retryable
       );
 
     record.probeInFlight =
