@@ -77,6 +77,11 @@
       this.backdrop = null;
       this.neuralCore = global.NeuralCore.create();
       this.brainState = { selectedRegion:'NARA_CORE', regions:{} };
+      this.sensoryState = {
+        hearing:{active:false,energy:0,low:0,mid:0,high:0},
+        vision:{active:false,activity:0,frameId:null},
+        speech:{active:false,energy:0}
+      };
       this.brainRegionScreen = [];
       this.facePoints = this.buildFallback();
       this.referencePromise = options.referenceSrc ? this.loadReference(options.referenceSrc) : Promise.resolve(false);
@@ -306,6 +311,15 @@
       const selected = this.neuralCore.regionIndex?.[snapshot?.selectedRegion] !== undefined
         ? snapshot.selectedRegion
         : this.brainState?.selectedRegion || 'NARA_CORE';
+      const hearing=snapshot?.sensory?.hearing||{},vision=snapshot?.sensory?.vision||{},speech=snapshot?.sensory?.speech||{};
+      this.sensoryState={
+        hearing:{
+          active:Boolean(hearing.active),energy:clamp(hearing.energy),
+          low:clamp(hearing.low),mid:clamp(hearing.mid),high:clamp(hearing.high)
+        },
+        vision:{active:Boolean(vision.active),activity:clamp(vision.activity),frameId:vision.frameId??null},
+        speech:{active:Boolean(speech.active),energy:clamp(speech.energy)}
+      };
       this.brainState = { selectedRegion:selected, regions:next };
       this.onBrainState?.(this.brainState);
     }
@@ -613,6 +627,7 @@
       this.prepareGlyphs(time);
       this.drawCore(c, time);
       this.drawFace(c, time);
+      this.drawSensorSignals(c,time);
       this.drawConvergingCode(c, time);
       this.onRender?.(c,time);
       c.globalAlpha = 1;
@@ -638,6 +653,64 @@
       const y = lerp(startY,endY,phase);
       const z = depthAt(x,y) + 0.008 - smooth(0.74,1,phase)*0.26;
       return {x,y,z};
+    }
+    drawSensorSignals(c,time) {
+      const shell=1-smooth(1.35,2.78,this.zoom);
+      if(shell<.003)return;
+      const hearing=this.sensoryState?.hearing||{},vision=this.sensoryState?.vision||{},speech=this.sensoryState?.speech||{};
+      c.save();
+      c.globalCompositeOperation=this.isLightEnvironment()?'source-over':'lighter';
+      c.lineCap='round';
+
+      if(hearing.active&&hearing.energy>.006){
+        const bands=[clamp(hearing.low),clamp(hearing.mid),clamp(hearing.high)];
+        for(const side of [-1,1]){
+          const center=this.project(side*.355,-.105,.045,time,true);
+          for(let band=0;band<3;band++){
+            const energy=bands[band]||hearing.energy;
+            const phase=this.reducedMotion?0:Math.sin(time*(.0022+band*.0005)+side*band);
+            const radius=Math.max(8,this.scale*(.030+band*.017))*center.scale*(1+energy*.28+phase*.035);
+            c.globalAlpha=shell*(.12+energy*.58);
+            c.lineWidth=Math.max(.8,this.scale*(.0014+energy*.0016));
+            c.strokeStyle=this.brainStatusColor('listening',center,1,time);
+            c.beginPath();
+            const start=side<0?Math.PI*.62:-Math.PI*.38;
+            const end=side<0?Math.PI*1.38:Math.PI*.38;
+            c.arc(center.x,center.y,radius,start,end,side>0);
+            c.stroke();
+          }
+        }
+      }
+
+      if(vision.active){
+        const activity=clamp(vision.activity);
+        for(const side of [-1,1]){
+          const eye=this.project(side*EYE_X,EYE_Y,.19,time,true);
+          const radius=Math.max(5,this.scale*.016*eye.scale)*(1+activity*.28);
+          c.globalAlpha=shell*(.28+activity*.52);
+          c.lineWidth=Math.max(.7,this.scale*.0014);
+          c.strokeStyle=this.brainStatusColor('seeing',eye,1,time);
+          c.beginPath();c.arc(eye.x,eye.y,radius,0,TAU);c.stroke();
+          const sweep=this.reducedMotion?0:Math.sin(time*.004+side);
+          c.beginPath();c.moveTo(eye.x-radius,eye.y+sweep*radius*.45);c.lineTo(eye.x+radius,eye.y-sweep*radius*.45);c.stroke();
+        }
+      }
+
+      if(speech.active||this.speaking){
+        const energy=Math.max(clamp(speech.energy),this.speechEnergy);
+        if(energy>.01){
+          const mouth=this.project(0,MOUTH_Y+.035,.15,time,true);
+          for(let ring=0;ring<2;ring++){
+            const phase=this.reducedMotion?.5:((time*.00042+ring*.5)%1);
+            const radius=Math.max(7,this.scale*.018)*(1+phase*2.2)*(1+energy*.38);
+            c.globalAlpha=shell*(1-phase)*(.12+energy*.38);
+            c.lineWidth=Math.max(.7,this.scale*.00125);
+            c.strokeStyle=this.brainStatusColor('speaking',mouth,1,time);
+            c.beginPath();c.arc(mouth.x,mouth.y,radius,Math.PI*.16,Math.PI*.84);c.stroke();
+          }
+        }
+      }
+      c.restore();
     }
     drawConvergingCode(c,time) {
       if (!this.flow || !this.animate) return;
