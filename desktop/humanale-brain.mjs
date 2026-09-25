@@ -1,3 +1,5 @@
+import {memoryContextBlock} from './memory-context.mjs';
+
 export const HUMANALE_CORE_PROMPT=[
  'Kamu HumanALE god egine, asisten AI berbahasa Indonesia dalam avatar manusia biner.',
  'Berpikir secara logis sebelum menjawab: pahami tujuan pengguna, pisahkan fakta dari asumsi, cek hubungan sebab-akibat, cari kontradiksi, dan pilih kesimpulan yang paling didukung informasi yang tersedia.',
@@ -22,6 +24,11 @@ export function reasoningGuidance(message=''){
  return 'Mode penalaran: ringan. Jawab langsung, tetapi tetap periksa fakta dan jangan menebak tanpa dasar.';
 }
 
-export function humanaleSystemPrompt(message='',extra=''){
- return [HUMANALE_CORE_PROMPT,reasoningGuidance(message),String(extra||'').trim()].filter(Boolean).join('\n');
+export function humanaleSystemPrompt(message='',extra='',memoryContext=null){
+ return [
+  HUMANALE_CORE_PROMPT,
+  reasoningGuidance(message),
+  String(extra||'').trim(),
+  memoryContextBlock(memoryContext)
+ ].filter(Boolean).join('\n');
 }
