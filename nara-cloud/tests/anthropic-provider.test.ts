@@ -316,6 +316,112 @@ test(
 );
 
 test(
+  "Anthropic 429 requires Retry-After to be treated as transient",
+  async () => {
+    const providerFor =
+      (
+        retryAfter?:
+          string
+      ): AnthropicProvider =>
+        new AnthropicProvider({
+          apiKey:
+            "test-anthropic-key-not-real-123456",
+
+          fetchImpl:
+            (async () =>
+              new Response(
+                JSON.stringify({
+                  type:
+                    "error",
+                  error: {
+                    type:
+                      "rate_limit_error",
+                    message:
+                      "private limit detail"
+                  }
+                }),
+                {
+                  status:
+                    429,
+                  headers: {
+                    "content-type":
+                      "application/json",
+                    ...(retryAfter
+                      ? {
+                          "retry-after":
+                            retryAfter
+                        }
+                      : {})
+                  }
+                }
+              )) as typeof fetch
+        });
+
+    await assert.rejects(
+      () =>
+        providerFor().generate(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.retryable,
+          false
+        );
+
+        return true;
+      }
+    );
+
+    await assert.rejects(
+      () =>
+        providerFor(
+          "10"
+        ).generate(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.retryable,
+          true
+        );
+
+        return true;
+      }
+    );
+  }
+);
+
+test(
   "Anthropic stream retryability only trusts transient error types",
   async () => {
     const providerFor =
