@@ -330,4 +330,4 @@ It does **not** contain:
 
 Streaming keeps the B2 no-mix invariant: after any text delta is emitted, NARA will not switch to another provider for that response.
 
-If a half-open probe is cancelled or abandoned, the circuit returns to open with a fresh cooldown window, preventing immediate repeated probes.
+If a half-open probe is cancelled or abandoned by the client, NARA only releases the single-probe lease. The circuit remains half-open so a later request can perform a real provider-health probe without extending the cooldown because of client behavior.
