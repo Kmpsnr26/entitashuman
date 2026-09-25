@@ -21,7 +21,8 @@ test(
       "conversations",
       "messages",
       "owner_auth_sessions",
-      "nara_app_sessions"
+      "nara_app_sessions",
+      "ai_usage_logs"
     ]) {
       assert.match(
         migration,
@@ -89,6 +90,45 @@ test(
     assert.doesNotMatch(
       sessions,
       /createTableIfMissing:\s*true/
+    );
+  }
+);
+
+test(
+  "AI usage schema records metrics without prompt or response content columns",
+  () => {
+    const table =
+      (
+        migration.match(
+          /CREATE TABLE IF NOT EXISTS ai_usage_logs \(([\s\S]*?)\n\);/
+        ) ??
+        []
+      )[1] ??
+      "";
+
+    assert.match(
+      table,
+      /request_id UUID NOT NULL/
+    );
+
+    assert.match(
+      table,
+      /provider TEXT NOT NULL/
+    );
+
+    assert.match(
+      table,
+      /input_tokens INTEGER/
+    );
+
+    assert.match(
+      table,
+      /output_tokens INTEGER/
+    );
+
+    assert.doesNotMatch(
+      table,
+      /prompt|message|content|authorization|api.?key/i
     );
   }
 );
