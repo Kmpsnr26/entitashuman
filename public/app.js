@@ -241,7 +241,7 @@ async function speakLocal(text,style=voiceStyle){
   localTtsConfigured=false;
   const message=error.message||'Suara Indonesia lokal gagal.';
   setMicStatus(message+' Mencoba voice Windows Indonesia…');
-  if(speakNativeIndonesian(text))return;
+  if(speakNativeIndonesian(text,style))return;
   setMicStatus(message+' Voice Windows Indonesia juga tidak tersedia.');
   stopSpeech();
  }
