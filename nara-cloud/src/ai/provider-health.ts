@@ -560,22 +560,14 @@ export class ProviderHealthRegistry {
       return;
     }
 
-    if (
-      record.circuitState ===
-      "half-open"
-    ) {
-      record.circuitState =
-        "open";
-
-      /*
-       * A cancelled/abandoned probe gets a new
-       * cooldown window to avoid immediate
-       * repeated half-open probes.
-       */
-      record.openedAt =
-        this.now();
-    }
-
+    /*
+     * Releasing an abandoned/client-aborted probe
+     * must not change provider health. If the
+     * circuit is half-open, keep it half-open and
+     * only release the single-probe lease so a
+     * later request can perform a real health
+     * probe.
+     */
     record.probeInFlight =
       false;
   }
