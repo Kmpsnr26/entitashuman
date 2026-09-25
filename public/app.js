@@ -7,6 +7,7 @@ import {isExplicitProjectWorkRequest} from './work-intent.js';
 import {emotionFromText,emotions} from './avatar-emotion.js';
 const $=s=>document.querySelector(s),desktop=window.dudidamDesktop,params=new URLSearchParams(location.search),popup=params.get('popup')==='1',panelOnly=Boolean(desktop&&params.has('panel')),avatar=new HumanALEAvatar($('#avatar'),{referenceSrc:'/humanale/assets/reference-face.png',popup,panelOnly});
 const panelChannel=desktop?new BroadcastChannel('dudidam-avatar-panel'):null;
+if(!document.documentElement.classList.contains('stage-surface'))document.querySelector('#chatDialog')?.removeAttribute('open');
 const assistantPopup=new DudidamPopup($('#assistantPopup'),{
  onAction:async action=>{
   if(action==='terminal'){
@@ -22,6 +23,7 @@ const assistantPopup=new DudidamPopup($('#assistantPopup'),{
  }
 });
 function resolveAppTheme(requested='auto'){
+ if(document.documentElement.classList.contains('stage-surface'))return 'dark';
  if(requested==='dark'||requested==='light')return requested;
  const configured=document.documentElement.dataset.theme||document.body.dataset.theme||'';
  if(configured==='dark'||configured==='light')return configured;
@@ -119,10 +121,13 @@ function syncAvatarPresentation(text=''){
 function state(text=''){
  $('#state').textContent=text;
  $('#state').hidden=!text;
+ $('#conversationState').textContent=text||'Siap';
  avatar.thinking=busy;
  syncAvatarPresentation(text);
 }
-function syncListeningVisual(){avatar.setListening?.(Boolean(listening||wakeListening||micChecking||audioMode));syncAvatarPresentation($('#state')?.textContent||'');}
+const chatMicIcon='<svg class="mic-icon" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14.5a3.25 3.25 0 0 0 3.25-3.25V6.25a3.25 3.25 0 1 0-6.5 0v5A3.25 3.25 0 0 0 12 14.5Zm-5.5-3.25a5.5 5.5 0 0 0 11 0M12 16.75V21m-3 0h6"/></svg>';
+const setChatMicLabel=label=>{$('#chatMic').innerHTML=chatMicIcon+'<span>'+label+'</span>';};
+function syncListeningVisual(){const active=Boolean(listening||wakeListening||micChecking||audioMode);avatar.setListening?.(active);syncAvatarPresentation($('#state')?.textContent||'');$('#mic').setAttribute('aria-busy',String(micChecking));$('#chatMic').setAttribute('aria-busy',String(micChecking));if(micChecking)setChatMicLabel('Memeriksa mikrofon');else if(!listening&&$('#chatMic').textContent.includes('Memeriksa'))setChatMicLabel('Dikte suara');}
 function applyEmotion(value,forward=true){
  const emotion=emotions.includes(value)?value:'neutral';
  avatar.setEmotion(emotion);
@@ -136,8 +141,9 @@ function pointInAvatarFace(x,y){const canvas=$('#avatar');if(!canvas)return fals
 const transitioning=()=>summoning||dismissing;
 function syncPassthrough(event){if(!desktop||panelOnly)return;if(transitioning()){setPassthrough(true);return;}if(document.querySelector('dialog[open]')){setPassthrough(false);return;}const x=event?.clientX,y=event?.clientY;if(!Number.isFinite(x)||!Number.isFinite(y)){setPassthrough(true);return;}const interactive=pointInAvatarFace(x,y)||['#reveal','#bubble','#toast','#assistantPopup','#assistantPopupToggle'].some(selector=>pointInElement($(selector),x,y));setPassthrough(!interactive);}
 function syncPanelViewportFromDialogs(){if(!panelOnly)requestAnimationFrame(()=>desktop?.panelViewport?.({zoom:panelZoomFactor,open:Boolean(document.querySelector('dialog[open]'))}));}
-function showDialog(id){if(transitioning())return;if(desktop&&!panelOnly){desktop.openPanel(id.slice(1));return;}setPassthrough(false);document.querySelectorAll('dialog[open]').forEach(d=>d.close());$(id).showModal();if(!panelOnly)desktop?.panelViewport?.({zoom:panelZoomFactor,open:true});requestAnimationFrame(()=>clampDialog($(id)));if(id==='#chatDialog')$('#prompt').focus();}
+function showDialog(id){if(transitioning())return;if(desktop&&!panelOnly){desktop.openPanel(id.slice(1));return;}setPassthrough(false);document.querySelectorAll('dialog[open]').forEach(d=>{if(d.id!==id.slice(1)&&!(d.id==='chatDialog'&&document.documentElement.classList.contains('stage-surface')))d.close();});const dialog=$(id);if(id==='#chatDialog'&&document.documentElement.classList.contains('stage-surface')){if(!dialog.open)dialog.show();}else dialog.showModal();if(!panelOnly)desktop?.panelViewport?.({zoom:panelZoomFactor,open:true});requestAnimationFrame(()=>clampDialog(dialog));if(id==='#chatDialog')$('#prompt').focus();}
 function clampDialog(dialog){
+ if(dialog?.id==='chatDialog'&&document.documentElement.classList.contains('stage-surface'))return;
  const rect=dialog.getBoundingClientRect(),left=Math.max(0,Math.min(innerWidth-rect.width,rect.left)),top=Math.max(0,Math.min(innerHeight-rect.height,rect.top));
  dialog.style.left=left+'px';dialog.style.top=top+'px';
 }
@@ -476,7 +482,7 @@ async function dismissAle(reason='hide'){
  document.body.classList.remove('dismissing');dismissing=false;state('');
  desktop?.finishDismiss?.(reason);
 }
-function stopListening(resumeWake=true){micProbeGeneration++;localCaptureGeneration++;micChecking=false;listening=false;syncListeningVisual();const current=recognition;recognition=null;if(current){try{current.abort();}catch{}}if(localRecorder?.state==='recording'){try{localRecorder.stop();}catch{}}localRecorder=null;localStream?.getTracks().forEach(track=>track.stop());localStream=null;clearTimeout(localTimer);localChunks=[];$('#mic').setAttribute('aria-pressed','false');$('#chatMic').textContent='Dikte suara';$('#liveText').textContent='';if(!busy&&!avatar.speaking)state();if(resumeWake)resumeWakeSoon();}
+function stopListening(resumeWake=true){micProbeGeneration++;localCaptureGeneration++;micChecking=false;listening=false;syncListeningVisual();const current=recognition;recognition=null;if(current){try{current.abort();}catch{}}if(localRecorder?.state==='recording'){try{localRecorder.stop();}catch{}}localRecorder=null;localStream?.getTracks().forEach(track=>track.stop());localStream=null;clearTimeout(localTimer);localChunks=[];$('#mic').setAttribute('aria-pressed','false');$('#chatMic').setAttribute('aria-pressed','false');setChatMicLabel('Dikte suara');$('#liveText').textContent='';if(!busy&&!avatar.speaking)state();if(resumeWake)resumeWakeSoon();}
 async function startLocalDictation(){
  localStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:false});
  const mime=['audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus','audio/mp4'].find(type=>MediaRecorder.isTypeSupported(type));
@@ -484,11 +490,11 @@ async function startLocalDictation(){
  const current=new MediaRecorder(localStream,{mimeType:mime}),generation=++localCaptureGeneration;
  localRecorder=current;localChunks=[];
  current.ondataavailable=event=>{if(generation===localCaptureGeneration&&event.data?.size)localChunks.push(event.data);};
- current.onstart=()=>{if(generation!==localCaptureGeneration)return;listening=true;syncListeningVisual();$('#mic').setAttribute('aria-pressed','true');$('#chatMic').textContent='Hentikan & kirim';setMicStatus('Mendengarkan Bahasa Indonesia secara lokal. Bicara hingga 12 detik.');state('Mendengarkan…');};
+ current.onstart=()=>{if(generation!==localCaptureGeneration)return;listening=true;syncListeningVisual();$('#mic').setAttribute('aria-pressed','true');$('#chatMic').setAttribute('aria-pressed','true');setChatMicLabel('Hentikan & kirim');setMicStatus('Mendengarkan Bahasa Indonesia secara lokal. Bicara hingga 12 detik.');state('Mendengarkan…');};
  current.onstop=async()=>{
   clearTimeout(localTimer);localStream?.getTracks().forEach(track=>track.stop());localStream=null;
   if(generation!==localCaptureGeneration)return;
-  localRecorder=null;listening=false;syncListeningVisual();$('#mic').setAttribute('aria-pressed','false');$('#chatMic').textContent='Dikte suara';state('Mengenali ucapan Indonesia…');
+  localRecorder=null;listening=false;syncListeningVisual();$('#mic').setAttribute('aria-pressed','false');$('#chatMic').setAttribute('aria-pressed','false');setChatMicLabel('Dikte suara');state('Mengenali ucapan Indonesia…');
   try{
    const blob=new Blob(localChunks,{type:mime});localChunks=[];
    if(!blob.size||blob.size>2600000)throw new Error('Rekaman kosong atau terlalu besar.');
@@ -528,7 +534,7 @@ async function toggleMic(options={}){
  if(!SR){const message='Mikrofon tersedia, tetapi pengenal ucapan belum siap. Pasang runtime dikte lokal atau gunakan teks.';setMicStatus(message);state();toast(message);resumeWakeSoon();return;}
  setMicStatus('Mikrofon siap · pengenal ucapan Indonesia dimulai.');
  const current=new SR();recognition=current;current.lang='id-ID';current.interimResults=true;current.continuous=false;
- current.onstart=()=>{if(recognition!==current)return;listening=true;syncListeningVisual();$('#mic').setAttribute('aria-pressed','true');$('#chatMic').textContent='Hentikan dikte';state('Mendengarkan…');};
+ current.onstart=()=>{if(recognition!==current)return;listening=true;syncListeningVisual();$('#mic').setAttribute('aria-pressed','true');$('#chatMic').setAttribute('aria-pressed','true');setChatMicLabel('Hentikan dikte');state('Mendengarkan…');};
  current.onresult=e=>{if(recognition!==current)return;let interim='';for(let i=e.resultIndex;i<e.results.length;i++){if(e.results[i].isFinal){const text=e.results[i][0].transcript;setMicStatus('Ucapan dikenali.');stopListening();submit(text);return;}interim+=e.results[i][0].transcript;}$('#liveText').textContent=interim;};
  current.onerror=e=>{if(recognition!==current)return;const error=e.error;stopListening();if(error==='aborted')return;const message=error==='not-allowed'?'Izin pengenal ucapan ditolak.':error==='network'?'Mikrofon sehat, tetapi layanan pengenal ucapan tidak dapat dijangkau. Gunakan runtime dikte lokal atau teks.':error==='audio-capture'?'Pengenal ucapan tidak dapat mengambil audio dari mikrofon.':'Suara belum dapat dikenali. Coba lagi.';setMicStatus(message);toast(message);};
  current.onend=()=>{if(recognition===current)stopListening();};
@@ -575,8 +581,8 @@ $('#audioMic').onclick=startMicrophoneVisual;$('#systemAudio').onclick=startSyst
 $('#popup').onclick=()=>{const pop=window.open(location.origin+'/?popup=1','dudidam-presence','popup=yes,width=420,height=480,left='+Math.round((screen.width-420)/2)+',top='+Math.round((screen.height-480)/2));if(!pop)toast('Browser memblokir pop-up. Izinkan pop-up untuk situs ini.');else toast('Widget pop-up dibuka dengan permukaan transparan. Transparansi hingga menembus desktop tersedia di HumanALE god egine Desktop.');};
 $('#login').onclick=async()=>{if(!desktop){location.href='/signin-with-chatgpt?return_to=%2F';return;}$('#login').disabled=true;try{const r=await (aiProvider==='copilot'?desktop.loginCopilot():desktop.login());if(r.error)toast(r.error);else toast('Login selesai.');await checkAI();}catch{toast('Login belum selesai. Coba lagi.');}finally{$('#login').disabled=false;}};
 $('#clickThrough').onclick=()=>{document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());desktop?.passthroughLock(true);toast('Tembus klik penuh aktif. Matikan dari ikon HumanALE god egine di tray Windows.');};$('#minimize').onclick=()=>panelOnly?desktop.closePanel():dismissAle('hide');$('#closeApp').onclick=()=>panelOnly?desktop.closePanel():dismissAle('hide');
-$('#chatForm').onsubmit=e=>{e.preventDefault();const text=$('#prompt').value.trim();if(text&&!busy){$('#prompt').value='';submit(text);}};$('#prompt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#chatForm').requestSubmit();}};$('#clear').onclick=()=>{if(busy)return;history=[];$('#messages').replaceChildren();$('#bubble').hidden=true;stopSpeech();};
-$('#chatDialog').addEventListener('close',()=>{stopCamera();setPassthrough(true);syncPanelViewportFromDialogs();});
+$('#chatForm').onsubmit=e=>{e.preventDefault();const text=$('#prompt').value.trim();if(text&&!busy){$('#prompt').value='';submit(text);}};let composing=false;$('#prompt').oncompositionstart=()=>{composing=true;};$('#prompt').oncompositionend=()=>{composing=false;};$('#prompt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!composing){e.preventDefault();$('#chatForm').requestSubmit();}};$('#clear').onclick=()=>{if(busy)return;history=[];$('#messages').replaceChildren();$('#bubble').hidden=true;stopSpeech();};$('#conversationSettings').onclick=()=>showDialog('#controls');
+$('#chatDialog').addEventListener('close',()=>{stopCamera();setPassthrough(true);syncPanelViewportFromDialogs();if(document.documentElement.classList.contains('stage-surface')&&!document.hidden&&!transitioning())requestAnimationFrame(()=>{if(!$('#chatDialog').open&&!transitioning())$('#chatDialog').show();});});
 $('#controls').addEventListener('close',()=>{setPassthrough(true);syncPanelViewportFromDialogs();});
 $('#agentDialog').addEventListener('close',()=>{setPassthrough(true);syncPanelViewportFromDialogs();});
 document.addEventListener('mousemove',syncPassthrough,{passive:true});
@@ -586,7 +592,8 @@ document.addEventListener('keydown',e=>{
  if(e.target.matches('input,textarea,select')||e.ctrlKey||e.metaKey||e.altKey)return;
  const key=e.key.toLowerCase();
  if(key==='5'){e.preventDefault();if(e.repeat||hold5Timer||transitioning())return;hold5Fired=false;hold5Timer=setTimeout(()=>{hold5Timer=null;hold5Fired=true;summonAle('keyboard');},HOLD_TO_SUMMON_MS);return;}
- if(e.repeat||document.querySelector('dialog[open]')||transitioning())return;
+ const stageDockOpen=document.documentElement.classList.contains('stage-surface')&&$('#chatDialog')?.open;
+ if(e.repeat||(document.querySelector('dialog[open]:not(#chatDialog)')||(!stageDockOpen&&document.querySelector('dialog[open]')))||transitioning())return;
  const actions={b:'blink',n:'nod',g:'shake'};if(actions[key])avatar.trigger(actions[key]);else if(key==='h'){e.preventDefault();showDialog('#controls');}else if(key==='enter'){e.preventDefault();showDialog('#chatDialog');}else if(key==='m')toggleMic();else if(key==='r')center();else if(['1','2','3','4'].includes(key))setMode(['mixed','matrix','statistics','abstract'][Number(key)-1]);
 });
 document.addEventListener('keyup',e=>{if(e.key!=='5'||!hold5Timer&&!hold5Fired)return;clearTimeout(hold5Timer);hold5Timer=null;if(!hold5Fired&&!transitioning())setMode('neural');hold5Fired=false;});
@@ -629,7 +636,7 @@ if(panelOnly){
  const initial=params.get('panel');
  if(['controls','chatDialog','agentDialog','terminalDialog'].includes(initial))requestAnimationFrame(()=>showDialog('#'+initial));
 }
-document.querySelectorAll('dialog').forEach(enableDialogDrag);window.addEventListener('resize',()=>{document.querySelectorAll('dialog[open]').forEach(clampDialog);avatar.resize?.();});
+document.querySelectorAll('dialog').forEach(dialog=>{if(!(dialog.id==='chatDialog'&&document.documentElement.classList.contains('stage-surface')))enableDialogDrag(dialog);});window.addEventListener('resize',()=>{document.querySelectorAll('dialog[open]').forEach(dialog=>{if(!(dialog.id==='chatDialog'&&document.documentElement.classList.contains('stage-surface')))clampDialog(dialog);});avatar.resize?.();});
 window.dudidamAvatar=Object.freeze({
  setAvatarState:value=>{avatar.setState?.(value);assistantPopup.setStatus(value);},
  setAvatarAudioLevel:value=>avatar.setAudioLevel?.(value),

@@ -95,5 +95,15 @@ body.detached-panel .assistant-popup,body.detached-panel .assistant-popup-toggle
 .terminal-view .xterm-viewport{scrollbar-width:thin;scrollbar-color:#4c8b5f66 transparent}
 .terminal-cli-status{margin:0;color:#8fb89b;font:9px/1.5 "Cascadia Code","Cascadia Mono",Consolas,monospace;white-space:normal}
 .terminal-dialog code{font-family:"Cascadia Code","Cascadia Mono",Consolas,monospace;color:#b8ffca}
+.mic-icon{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+/* Shared composer structure: preserve popup and detached-panel themes. */
+#chatDialog #chatForm{display:block}
+#chatDialog .composer-label{display:block;font-size:11px;margin-bottom:4px}
+#chatDialog .composer-row{display:flex;gap:8px}
+#chatDialog #prompt{min-width:0;flex:1}
+#chatDialog #send{width:auto;min-width:62px;flex-shrink:0;font-size:12px}
+#chatDialog .conversation-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+#chatDialog .conversation-actions button{display:inline-flex;align-items:center;gap:6px;font-size:12px}
+#chatDialog .conversation-live{margin-left:auto;font-size:11px}
 body.detached-panel .terminal-dialog{width:calc(100% - 18px);height:calc(100dvh - 18px);max-height:none}
 body.detached-panel .terminal-dialog .terminal-views{min-height:300px}

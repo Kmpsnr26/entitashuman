@@ -5,6 +5,14 @@ Avatar wajah biner mengambang di tengah layar. Saat ALE dipanggil, biner/neural/
 
 Riwayat aplikasi aktif dan proyek standalone lama sudah disatukan tanpa force-push atau penggantian source secara massal. Aplikasi 2.2.0 tetap menjadi alur aktif, sedangkan snapshot standalone dipertahankan pada branch `legacy/binary-assistant-v2`. Lihat [HUMANALE-FLOWS.md](HUMANALE-FLOWS.md) untuk hubungan branch dan aturan integrasi agar kedua alur tidak saling menimpa.
 
+## HumanALE phase 1 — NARA dan panel percakapan
+
+Source pengembangan disimpan di GitHub pada branch [`codex/humanale-god-engine-phase1`](https://github.com/Kmpsnr26/entitashuman/tree/codex/humanale-god-engine-phase1). GitHub adalah sumber utama untuk melanjutkan pekerjaan; checkout lokal hanya diperlukan untuk menjalankan dan menguji aplikasi. Tidak ada API key, riwayat chat, atau data login yang disimpan bersama source.
+
+Browser penuh menampilkan NARA pada panggung gelap dengan kontur holografik orisinal, panel percakapan tetap terlihat, kolom pesan, dan tombol **Dikte suara**. Tampilan layar pendek beralih ke dua kolom. Jendela desktop dan `?popup=1` tetap transparan, dengan panel terpisah/perilaku widget sebelumnya. Pengembangan UI tahap ini dikerjakan dengan GitHub Copilot CLI lalu diaudit dan diuji oleh Codex. Rincian serah-terima: [docs/copilot-ui-handoff.md](docs/copilot-ui-handoff.md).
+
+Untuk mencoba dari GitHub: clone repo, checkout branch di atas, jalankan `npm ci`, kemudian `npm run dev` dan buka `http://127.0.0.1:4177/`. Gunakan `npm run desktop` untuk integrasi provider melalui desktop. Versi browser saat ini mendukung perintah dasar; menyimpan source ke GitHub tidak otomatis menyediakan backend AI, situs live baru, EXE, atau APK. Mikrofon hanya dimulai setelah tindakan pengguna dan izin browser; dukungan dikte tergantung runtime/pengenal ucapan yang tersedia.
+
 ## Versi desktop Windows
 Jalankan HumanALE-God-Engine.exe dalam folder output HumanALE-God-Engine-Desktop. Jendela avatar 420×480 transparan tanpa bingkai, selalu di atas, dapat diseret, dan menyimpan posisi terakhir. Kontrol, percakapan, dan Developer Agent Hub membuka **jendela panel terpisah** yang dapat diseret melalui bilah judul Windows, dipindah jauh dari avatar atau ke monitor lain, serta diubah ukurannya. Mengklik kanan wajah atau menekan H membuka kontrol; Enter membuka percakapan. Avatar tetap terlihat ketika panel dipindah. HumanALE god egine dapat dipulihkan dari ikon tray saat disembunyikan. Area kosong di sekitar wajah otomatis meneruskan klik ke aplikasi di bawahnya. Untuk source development: npm install, kemudian npm run desktop. Electron 44.4.3.
 
