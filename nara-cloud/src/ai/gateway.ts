@@ -39,6 +39,59 @@ interface StreamOptions
   ) => void | Promise<void>;
 }
 
+class DownstreamCallbackError
+  extends Error {
+  readonly cause:
+    unknown;
+
+  constructor(
+    cause: unknown
+  ) {
+    super(
+      "AI downstream callback failed."
+    );
+
+    this.name =
+      "DownstreamCallbackError";
+
+    this.cause =
+      cause;
+  }
+}
+
+async function notifyAttempt(
+  callback:
+    GatewayOptions["onAttempt"],
+  attempt: AiAttempt
+): Promise<void> {
+  try {
+    await callback?.(
+      attempt
+    );
+  } catch {
+    /*
+     * Usage/audit observers are not part of
+     * provider execution and must never change
+     * routing or provider health.
+     */
+  }
+}
+
+async function downstream(
+  callback:
+    () =>
+      void |
+      Promise<void>
+): Promise<void> {
+  try {
+    await callback();
+  } catch (error) {
+    throw new DownstreamCallbackError(
+      error
+    );
+  }
+}
+
 export interface ProviderStatus {
   id: string;
   model: string;
@@ -592,10 +645,10 @@ export class AiGateway {
           attempt
         );
 
-        await options
-          .onAttempt?.(
-            attempt
-          );
+        await notifyAttempt(
+          options.onAttempt,
+          attempt
+        );
 
         return {
           ...result,
@@ -694,10 +747,10 @@ export class AiGateway {
           attempt
         );
 
-        await options
-          .onAttempt?.(
-            attempt
-          );
+        await notifyAttempt(
+          options.onAttempt,
+          attempt
+        );
 
         if (
           aborted ||
@@ -836,23 +889,27 @@ export class AiGateway {
               if (!emitted) {
                 emitted = true;
 
-                await options
-                  .onProvider({
-                    id:
-                      provider.id,
+                await downstream(
+                  () =>
+                    options.onProvider({
+                      id:
+                        provider.id,
 
-                    model:
-                      provider.model
-                  });
+                      model:
+                        provider.model
+                    })
+                );
               }
 
               outputChars +=
                 delta.length;
 
-              await options
-                .onDelta(
-                  delta
-                );
+              await downstream(
+                () =>
+                  options.onDelta(
+                    delta
+                  )
+              );
             }
           );
 
@@ -882,14 +939,16 @@ export class AiGateway {
         );
 
         if (!emitted) {
-          await options
-            .onProvider({
-              id:
-                provider.id,
+          await downstream(
+            () =>
+              options.onProvider({
+                id:
+                  provider.id,
 
-              model:
-                provider.model
-            });
+                model:
+                  provider.model
+              })
+          );
         }
 
         const attempt:
@@ -923,16 +982,28 @@ export class AiGateway {
           attempt
         );
 
-        await options
-          .onAttempt?.(
-            attempt
-          );
+        await notifyAttempt(
+          options.onAttempt,
+          attempt
+        );
 
         return {
           completed,
           attempts
         };
       } catch (error) {
+        if (
+          error instanceof
+            DownstreamCallbackError
+        ) {
+          this.health.release(
+            provider.id,
+            lease.probeId
+          );
+
+          throw error.cause;
+        }
+
         const timedOut =
           child.timedOut();
 
@@ -1024,10 +1095,10 @@ export class AiGateway {
           attempt
         );
 
-        await options
-          .onAttempt?.(
-            attempt
-          );
+        await notifyAttempt(
+          options.onAttempt,
+          attempt
+        );
 
         if (
           emitted ||
