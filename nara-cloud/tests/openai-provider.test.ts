@@ -239,6 +239,147 @@ test(
 );
 
 test(
+  "OpenAI non-stream incomplete response is rejected as non-retryable",
+  async () => {
+    const fakeFetch =
+      (async () =>
+        new Response(
+          JSON.stringify({
+            status:
+              "incomplete",
+            incomplete_details: {
+              reason:
+                "max_output_tokens"
+            },
+            output_text:
+              "partial text"
+          }),
+          {
+            status:
+              200,
+            headers: {
+              "content-type":
+                "application/json"
+            }
+          }
+        )) as typeof fetch;
+
+    const provider =
+      new OpenAiProvider({
+        apiKey:
+          "test-openai-key-not-real-123456",
+
+        fetchImpl:
+          fakeFetch
+      });
+
+    await assert.rejects(
+      () =>
+        provider.generate(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "OPENAI_RESPONSE_INCOMPLETE"
+        );
+
+        assert.equal(
+          error.retryable,
+          false
+        );
+
+        return true;
+      }
+    );
+  }
+);
+
+test(
+  "OpenAI explicit response.incomplete stream event is non-retryable",
+  async () => {
+    const fakeFetch =
+      (async () =>
+        new Response(
+          [
+            'event: response.incomplete',
+            'data: {"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}',
+            "",
+            ""
+          ].join("\n"),
+          {
+            status:
+              200,
+            headers: {
+              "content-type":
+                "text/event-stream"
+            }
+          }
+        )) as typeof fetch;
+
+    const provider =
+      new OpenAiProvider({
+        apiKey:
+          "test-openai-key-not-real-123456",
+
+        fetchImpl:
+          fakeFetch
+      });
+
+    await assert.rejects(
+      () =>
+        provider.stream(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal,
+          () => {}
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "OPENAI_STREAM_INCOMPLETE"
+        );
+
+        assert.equal(
+          error.retryable,
+          false
+        );
+
+        return true;
+      }
+    );
+  }
+);
+
+test(
   "OpenAI incomplete stream is rejected as retryable",
   async () => {
     const fakeFetch =
