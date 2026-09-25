@@ -166,3 +166,89 @@ test(
     );
   }
 );
+
+test(
+  "AI Gateway keeps provider keys server-side and protects mutation routes",
+  async () => {
+    const [
+      provider,
+      routes,
+      usage,
+      server
+    ] =
+      await Promise.all([
+        read(
+          "src/ai/providers/openai.provider.ts"
+        ),
+        read(
+          "src/routes/ai.routes.ts"
+        ),
+        read(
+          "src/services/ai-usage.service.ts"
+        ),
+        read(
+          "src/apps/naraServer.ts"
+        )
+      ]);
+
+    assert.match(
+      provider,
+      /env\.OPENAI_API_KEY/
+    );
+
+    assert.match(
+      provider,
+      /store:\s*false/
+    );
+
+    assert.doesNotMatch(
+      routes,
+      /OPENAI_API_KEY/
+    );
+
+    assert.match(
+      routes,
+      /requireApiAuth/
+    );
+
+    assert.match(
+      routes,
+      /requireCsrf/
+    );
+
+    assert.match(
+      server,
+      /"\/api\/ai"/
+    );
+
+    assert.doesNotMatch(
+      usage,
+      /prompt|message|content/i
+    );
+  }
+);
+
+test(
+  "streaming fallback is implemented in gateway rather than exposing provider credentials",
+  async () => {
+    const gateway =
+      await read(
+        "src/ai/gateway.ts"
+      );
+
+    assert.match(
+      gateway,
+      /if \(\s*emitted/
+    );
+
+    assert.match(
+      gateway,
+      /fallbackFrom/
+    );
+
+    assert.doesNotMatch(
+      gateway,
+      /OPENAI_API_KEY|Authorization/
+    );
+  }
+);
