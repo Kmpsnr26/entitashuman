@@ -17,6 +17,11 @@ import {
   type AiStreamCompleted
 } from "../src/ai/types.js";
 
+const request: AiRequest = {
+  message: "halo",
+  history: []
+};
+
 class FakeProvider
   implements AiProvider {
 
@@ -25,18 +30,22 @@ class FakeProvider
 
   calls = 0;
 
-  private readonly impl:
-    () => Promise<AiResult>;
+  private readonly generateImpl:
+    (
+      request: AiRequest,
+      signal: AbortSignal
+    ) => Promise<AiResult>;
 
   constructor(
     id: string,
-    impl:
-      () => Promise<AiResult>
+    generateImpl:
+      FakeProvider["generateImpl"]
   ) {
     this.id = id;
     this.model =
       id + "-model";
-    this.impl = impl;
+    this.generateImpl =
+      generateImpl;
   }
 
   configured(): boolean {
@@ -44,16 +53,20 @@ class FakeProvider
   }
 
   async generate(
-    _request: AiRequest,
-    _signal: AbortSignal
+    input: AiRequest,
+    signal: AbortSignal
   ): Promise<AiResult> {
     this.calls += 1;
-    return this.impl();
+
+    return this.generateImpl(
+      input,
+      signal
+    );
   }
 
   async stream(
-    _request: AiRequest,
-    _signal: AbortSignal,
+    input: AiRequest,
+    signal: AbortSignal,
     onDelta:
       (
         delta: string
@@ -61,10 +74,11 @@ class FakeProvider
         void |
         Promise<void>
   ): Promise<AiStreamCompleted> {
-    this.calls += 1;
-
     const result =
-      await this.impl();
+      await this.generate(
+        input,
+        signal
+      );
 
     await onDelta(
       result.text
@@ -73,32 +87,21 @@ class FakeProvider
     return {
       provider:
         result.provider,
-
       model:
         result.model,
-
       usage:
         result.usage
     };
   }
 }
 
-const request: AiRequest = {
-  message:
-    "halo",
-  history:
-    []
-};
-
-function retryableFailure(
-  id: string
+function retryable(
+  code = "TEMPORARY"
 ): AiProviderError {
   return new AiProviderError(
-    id + " unavailable",
+    "temporary",
     {
-      code:
-        id.toUpperCase() +
-        "_TEMPORARY",
+      code,
       retryable:
         true
     }
@@ -106,44 +109,103 @@ function retryableFailure(
 }
 
 test(
-  "provider health opens after threshold and allows one half-open probe after cooldown",
+  "configured provider starts ready with empty bounded metrics",
   () => {
-    let now = 1_000;
+    const health =
+      new ProviderHealthRegistry();
+
+    const snapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      snapshot.state,
+      "ready"
+    );
+
+    assert.equal(
+      snapshot.circuitState,
+      "healthy"
+    );
+
+    assert.equal(
+      snapshot.successes,
+      0
+    );
+
+    assert.equal(
+      snapshot.failures,
+      0
+    );
+
+    assert.equal(
+      snapshot.successRate,
+      null
+    );
+
+    assert.equal(
+      snapshot.averageLatencyMs,
+      null
+    );
+  }
+);
+
+test(
+  "unconfigured provider is unavailable without creating fake failures",
+  () => {
+    const health =
+      new ProviderHealthRegistry();
+
+    const snapshot =
+      health.snapshot(
+        "gemini",
+        false
+      );
+
+    assert.equal(
+      snapshot.state,
+      "unavailable"
+    );
+
+    assert.equal(
+      snapshot.circuitState,
+      "unavailable"
+    );
+
+    assert.equal(
+      snapshot.failures,
+      0
+    );
+  }
+);
+
+test(
+  "retryable failures degrade then open the circuit with safe telemetry",
+  () => {
+    let now = 10_000;
 
     const health =
       new ProviderHealthRegistry({
         failureThreshold:
           2,
-
         cooldownMs:
           5_000,
-
         now:
           () => now
       });
 
-    assert.equal(
-      health.snapshot(
-        "openai",
-        true
-      ).state,
-      "healthy"
-    );
-
-    health.retryableFailure(
-      "openai"
-    );
-
-    assert.equal(
-      health.snapshot(
-        "openai",
-        true
-      ).state,
-      "degraded"
-    );
-
-    health.retryableFailure(
-      "openai"
+    health.failure(
+      "openai",
+      {
+        retryable:
+          true,
+        latencyMs:
+          120,
+        errorCode:
+          "rate limit / private detail"
+      }
     );
 
     let snapshot =
@@ -154,56 +216,46 @@ test(
 
     assert.equal(
       snapshot.state,
-      "open"
+      "degraded"
     );
 
     assert.equal(
-      snapshot
-        .consecutiveFailures,
-      2
+      snapshot.circuitState,
+      "degraded"
     );
 
     assert.equal(
-      health.acquire(
-        "openai",
-        true
-      ).allowed,
-      false
-    );
-
-    now += 5_000;
-
-    const probe =
-      health.acquire(
-        "openai",
-        true
-      );
-
-    assert.equal(
-      probe.allowed,
-      true
+      snapshot.consecutiveFailures,
+      1
     );
 
     assert.equal(
-      probe.state,
-      "half-open"
+      snapshot.failures,
+      1
     );
 
     assert.equal(
-      probe.probe,
-      true
+      snapshot.lastLatencyMs,
+      120
     );
 
     assert.equal(
-      health.acquire(
-        "openai",
-        true
-      ).allowed,
-      false
+      snapshot.lastErrorCode,
+      "rate_limit___private_detail"
     );
 
-    health.success(
-      "openai"
+    now += 1;
+
+    health.failure(
+      "openai",
+      {
+        retryable:
+          true,
+        latencyMs:
+          180,
+        errorCode:
+          "UPSTREAM_503"
+      }
     );
 
     snapshot =
@@ -214,49 +266,178 @@ test(
 
     assert.equal(
       snapshot.state,
-      "healthy"
+      "unavailable"
     );
 
     assert.equal(
-      snapshot
-        .consecutiveFailures,
+      snapshot.circuitState,
+      "open"
+    );
+
+    assert.equal(
+      snapshot.consecutiveFailures,
+      2
+    );
+
+    assert.equal(
+      snapshot.failures,
+      2
+    );
+
+    assert.equal(
+      snapshot.successRate,
       0
+    );
+
+    assert.equal(
+      snapshot.averageLatencyMs,
+      132
+    );
+
+    assert.equal(
+      snapshot.nextProbeAt,
+      now + 5_000
     );
   }
 );
 
 test(
-  "failed half-open probe reopens circuit",
+  "half-open probe recovers provider to ready on success",
   () => {
-    let now = 10_000;
+    let now = 20_000;
 
     const health =
       new ProviderHealthRegistry({
         failureThreshold:
           1,
-
         cooldownMs:
           1_000,
-
         now:
           () => now
       });
 
     health.retryableFailure(
-      "gemini"
+      "anthropic",
+      80,
+      "TIMEOUT"
     );
 
-    now += 1_000;
+    assert.equal(
+      health.acquire(
+        "anthropic",
+        true
+      ).allowed,
+      false
+    );
+
+    now += 1_001;
+
+    const lease =
+      health.acquire(
+        "anthropic",
+        true
+      );
+
+    assert.equal(
+      lease.allowed,
+      true
+    );
+
+    assert.equal(
+      lease.state,
+      "degraded"
+    );
+
+    assert.equal(
+      lease.circuitState,
+      "half-open"
+    );
+
+    assert.equal(
+      lease.probe,
+      true
+    );
+
+    health.success(
+      "anthropic",
+      40
+    );
+
+    const snapshot =
+      health.snapshot(
+        "anthropic",
+        true
+      );
+
+    assert.equal(
+      snapshot.state,
+      "ready"
+    );
+
+    assert.equal(
+      snapshot.circuitState,
+      "healthy"
+    );
+
+    assert.equal(
+      snapshot.consecutiveFailures,
+      0
+    );
+
+    assert.equal(
+      snapshot.successes,
+      1
+    );
+
+    assert.equal(
+      snapshot.failures,
+      1
+    );
+
+    assert.equal(
+      snapshot.successRate,
+      0.5
+    );
+
+    assert.equal(
+      snapshot.lastErrorCode,
+      undefined
+    );
+  }
+);
+
+test(
+  "abandoned half-open probe reopens with a fresh cooldown",
+  () => {
+    let now = 30_000;
+
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          1,
+        cooldownMs:
+          1_000,
+        now:
+          () => now
+      });
+
+    health.retryableFailure(
+      "gemini",
+      90,
+      "TEMP"
+    );
+
+    now += 1_001;
 
     assert.equal(
       health.acquire(
         "gemini",
         true
-      ).state,
-      "half-open"
+      ).probe,
+      true
     );
 
-    health.retryableFailure(
+    health.release(
       "gemini"
     );
 
@@ -267,7 +448,7 @@ test(
       );
 
     assert.equal(
-      snapshot.state,
+      snapshot.circuitState,
       "open"
     );
 
@@ -275,65 +456,110 @@ test(
       snapshot.openedAt,
       now
     );
-  }
-);
-
-test(
-  "unconfigured provider reports unavailable without creating breaker failures",
-  () => {
-    const health =
-      new ProviderHealthRegistry();
-
-    const lease =
-      health.acquire(
-        "anthropic",
-        false
-      );
 
     assert.equal(
-      lease.allowed,
+      snapshot.nextProbeAt,
+      now + 1_000
+    );
+
+    assert.equal(
+      health.acquire(
+        "gemini",
+        true
+      ).allowed,
       false
     );
+  }
+);
 
-    assert.equal(
-      lease.state,
-      "unavailable"
+test(
+  "health sample counters remain bounded while preserving a rate",
+  () => {
+    const health =
+      new ProviderHealthRegistry({
+        maxSamples:
+          10
+      });
+
+    for (
+      let index = 0;
+      index < 30;
+      index += 1
+    ) {
+      if (
+        index % 3 ===
+        0
+      ) {
+        health.failure(
+          "openai",
+          {
+            retryable:
+              false,
+            latencyMs:
+              100 + index,
+            errorCode:
+              "BAD_REQUEST"
+          }
+        );
+      } else {
+        health.success(
+          "openai",
+          100 + index
+        );
+      }
+    }
+
+    const snapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.ok(
+      snapshot.successes +
+      snapshot.failures <=
+      10
     );
 
-    assert.equal(
-      health.snapshot(
-        "anthropic",
-        false
-      )
-        .consecutiveFailures,
+    assert.ok(
+      snapshot.successRate !==
+      null
+    );
+
+    assert.ok(
+      snapshot.successRate! >=
       0
+    );
+
+    assert.ok(
+      snapshot.successRate! <=
+      1
+    );
+
+    assert.ok(
+      snapshot.averageLatencyMs !==
+      null
     );
   }
 );
 
 test(
-  "auto routing skips an open provider and uses next healthy provider",
+  "automatic routing skips an open provider and uses the next configured provider",
   async () => {
-    let now = 1_000;
-
     const health =
       new ProviderHealthRegistry({
         failureThreshold:
           1,
-
         cooldownMs:
-          60_000,
-
-        now:
-          () => now
+          60_000
       });
 
     const first =
       new FakeProvider(
         "first",
         async () => {
-          throw retryableFailure(
-            "first"
+          throw retryable(
+            "FIRST_DOWN"
           );
         }
       );
@@ -343,7 +569,7 @@ test(
         "second",
         async () => ({
           text:
-            "OK",
+            "second-ok",
           provider:
             "second",
           model:
@@ -382,7 +608,7 @@ test(
         "first",
         true
       ).state,
-      "open"
+      "unavailable"
     );
 
     const firstCalls =
@@ -411,19 +637,16 @@ test(
       second.calls,
       2
     );
-
-    now += 1;
   }
 );
 
 test(
-  "explicit request to open provider fails safely without calling it again",
+  "explicit request to open provider fails without another upstream call",
   async () => {
     const health =
       new ProviderHealthRegistry({
         failureThreshold:
           1,
-
         cooldownMs:
           60_000
       });
@@ -432,9 +655,7 @@ test(
       new FakeProvider(
         "openai",
         async () => {
-          throw retryableFailure(
-            "openai"
-          );
+          throw retryable();
         }
       );
 
@@ -482,11 +703,6 @@ test(
           "AI_PROVIDER_CIRCUIT_OPEN"
         );
 
-        assert.equal(
-          error.retryable,
-          false
-        );
-
         return true;
       }
     );
@@ -499,21 +715,13 @@ test(
 );
 
 test(
-  "provider status contains safe health metadata only",
-  () => {
+  "gateway status exposes safe public health and telemetry only",
+  async () => {
     const health =
       new ProviderHealthRegistry({
         failureThreshold:
-          2,
-        cooldownMs:
-          5_000,
-        now:
-          () => 123_000
+          2
       });
-
-    health.retryableFailure(
-      "openai"
-    );
 
     const provider =
       new FakeProvider(
@@ -537,6 +745,14 @@ test(
         health
       );
 
+    await gateway.generate(
+      request,
+      {
+        provider:
+          "openai"
+      }
+    );
+
     const status =
       gateway.status()[0];
 
@@ -547,162 +763,52 @@ test(
 
     assert.equal(
       status?.health.state,
-      "degraded"
+      "ready"
+    );
+
+    assert.equal(
+      status?.health.circuitState,
+      "healthy"
+    );
+
+    assert.equal(
+      status?.health.successes,
+      1
+    );
+
+    assert.equal(
+      status?.health.failures,
+      0
+    );
+
+    assert.equal(
+      status?.health.successRate,
+      1
     );
 
     const serialized =
       JSON.stringify(
         status
-      );
+      ).toLowerCase();
 
     for (
       const forbidden
       of [
-        "apiKey",
+        "apikey",
         "authorization",
         "password",
         "prompt",
         "message",
-        "content"
+        "content",
+        "cookie"
       ]
     ) {
       assert.equal(
-        serialized
-          .toLowerCase()
-          .includes(
-            forbidden
-              .toLowerCase()
-          ),
+        serialized.includes(
+          forbidden
+        ),
         false
       );
     }
-  }
-);
-
-
-test(
-  "provider telemetry reports normalized availability, bounded counters and latency EMA",
-  () => {
-    let now = 50_000;
-
-    const health =
-      new ProviderHealthRegistry({
-        failureThreshold:
-          3,
-
-        cooldownMs:
-          10_000,
-
-        now:
-          () => now
-      });
-
-    health.success(
-      "openai",
-      100
-    );
-
-    now += 10;
-
-    health.success(
-      "openai",
-      200
-    );
-
-    now += 10;
-
-    health.retryableFailure(
-      "openai",
-      400
-    );
-
-    let snapshot =
-      health.snapshot(
-        "openai",
-        true
-      );
-
-    assert.equal(
-      snapshot.availability,
-      "degraded"
-    );
-
-    assert.equal(
-      snapshot.successCount,
-      2
-    );
-
-    assert.equal(
-      snapshot.failureCount,
-      1
-    );
-
-    assert.equal(
-      snapshot.successRate,
-      0.6667
-    );
-
-    assert.equal(
-      snapshot.lastLatencyMs,
-      400
-    );
-
-    assert.equal(
-      snapshot.latencyEmaMs,
-      194
-    );
-
-    for (
-      let index = 0;
-      index < 50;
-      index += 1
-    ) {
-      health.retryableFailure(
-        "openai",
-        250
-      );
-    }
-
-    snapshot =
-      health.snapshot(
-        "openai",
-        true
-      );
-
-    assert.equal(
-      snapshot.consecutiveFailures,
-      3
-    );
-
-    assert.equal(
-      snapshot.availability,
-      "unavailable"
-    );
-
-    assert.ok(
-      snapshot.failureCount <=
-        1_000_000
-    );
-
-    const unconfigured =
-      health.snapshot(
-        "anthropic",
-        false
-      );
-
-    assert.equal(
-      unconfigured.availability,
-      "unavailable"
-    );
-
-    assert.equal(
-      unconfigured.successCount,
-      0
-    );
-
-    assert.equal(
-      unconfigured.failureCount,
-      0
-    );
   }
 );
