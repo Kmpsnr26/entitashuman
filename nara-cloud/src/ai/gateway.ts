@@ -165,18 +165,29 @@ function childSignal(
   signal: AbortSignal;
   cleanup: () => void;
   timedOut: () => boolean;
+  abortedByParent:
+    () => boolean;
 } {
   const controller =
     new AbortController();
 
-  let timeoutTriggered =
-    false;
+  let abortSource:
+    "timeout" |
+    "parent" |
+    undefined;
 
   const timer =
     setTimeout(
       () => {
-        timeoutTriggered =
-          true;
+        if (
+          controller.signal
+            .aborted
+        ) {
+          return;
+        }
+
+        abortSource =
+          "timeout";
 
         controller.abort(
           new Error(
@@ -189,6 +200,16 @@ function childSignal(
 
   const abort =
     (): void => {
+      if (
+        controller.signal
+          .aborted
+      ) {
+        return;
+      }
+
+      abortSource =
+        "parent";
+
       controller.abort(
         parent?.reason
       );
@@ -224,7 +245,13 @@ function childSignal(
 
     timedOut:
       () =>
-        timeoutTriggered
+        abortSource ===
+        "timeout",
+
+    abortedByParent:
+      () =>
+        abortSource ===
+        "parent"
   };
 }
 
@@ -547,15 +574,8 @@ export class AiGateway {
           child.timedOut();
 
         const aborted =
-          Boolean(
-            options.signal
-              ?.aborted
-          ) ||
-          (
-            child.signal
-              .aborted &&
-            !timedOut
-          );
+          child
+            .abortedByParent();
 
         const effectiveError =
           timedOut
@@ -850,15 +870,8 @@ export class AiGateway {
           child.timedOut();
 
         const aborted =
-          Boolean(
-            options.signal
-              ?.aborted
-          ) ||
-          (
-            child.signal
-              .aborted &&
-            !timedOut
-          );
+          child
+            .abortedByParent();
 
         const effectiveError =
           timedOut
