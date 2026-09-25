@@ -483,8 +483,8 @@
         if (node.region === 'stem') continue;
         const state = stateForNode(node), activity = clamp(state.activity);
         const selected = node.region === selectedId;
-        const size = Math.max(1.3, this.scale * 0.0041 * p.scale) * (1 + activity*.22 + (selected?.12:0));
-        c.globalAlpha = visibility * clamp(0.28 + clamp(p.depth,0,.4) + activity*.32 + (selected?.12:0),.16,.95);
+        const size = Math.max(1.3, this.scale * 0.0041 * p.scale) * (1 + activity*.22 + (selected ? .12 : 0));
+        c.globalAlpha = visibility * clamp(0.28 + clamp(p.depth,0,.4) + activity*.32 + (selected ? .12 : 0),.16,.95);
         c.fillStyle = state.status && state.status !== 'idle'
           ? this.brainStatusColor(state.status,p,1,time)
           : color(p, 14);
@@ -544,7 +544,7 @@
           const sa=runtime[a.region.id]||{activity:0,status:'idle'},sb=runtime[b.region.id]||{activity:0,status:'idle'};
           const active=Math.max(clamp(sa.activity),clamp(sb.activity));
           const selected=a.region.id===selectedId||b.region.id===selectedId;
-          c.globalAlpha=deep*(.16+active*.34+(selected?.20:0));
+          c.globalAlpha=deep*(.16+active*.34+(selected ? .20 : 0));
           c.strokeStyle=this.brainStatusColor(active>=clamp(sb.activity)?sa.status:sb.status,{x:(a.point.x+b.point.x)/2,y:(a.point.y+b.point.y)/2},1,time);
           c.beginPath();c.moveTo(a.point.x,a.point.y);c.lineTo(b.point.x,b.point.y);c.stroke();
 
@@ -562,10 +562,10 @@
           const state=runtime[region.id]||{status:'idle',activity:0,message:''};
           const activity=clamp(state.activity),selected=region.id===selectedId;
           const pulse=this.reducedMotion?1:.82+.18*Math.sin(time*.004+graph.regionIndex[region.id]);
-          const size=Math.max(4.5,this.scale*.0105*point.scale)*(1+activity*.55+(selected?.45:0))*pulse;
+          const size=Math.max(4.5,this.scale*.0105*point.scale)*(1+activity*.55+(selected ? .45 : 0))*pulse;
           c.save();
           c.translate(point.x,point.y);c.rotate(Math.PI/4);
-          c.globalAlpha=deep*(.48+activity*.42+(selected?.10:0));
+          c.globalAlpha=deep*(.48+activity*.42+(selected ? .10 : 0));
           c.fillStyle=this.brainStatusColor(state.status,point,1,time);
           c.fillRect(-size/2,-size/2,size,size);
           if(selected){
@@ -580,7 +580,7 @@
             c.textAlign='center';c.textBaseline='top';
             const fontSize=Math.max(7,Math.min(12,this.scale*.016*point.scale));
             c.font='600 '+fontSize+'px "Cascadia Mono", Consolas, monospace';
-            c.globalAlpha=deep*(selected?.95:.72);
+            c.globalAlpha=deep*(selected ? .95 : .72);
             c.fillStyle=this.brainStatusColor(state.status,point,1,time);
             c.fillText(region.label,point.x,point.y+size*.82,Math.max(54,this.scale*.22));
             if(selected&&this.zoom>2.82){
