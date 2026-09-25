@@ -124,7 +124,8 @@ test('canonical site loads cognition module and renders only stage/task/status m
   assert.match(site,/cognition\.stop\(\)/);
   assert.match(site,/data-cognition-region/);
   assert.doesNotMatch(cognition,/OPENAI_API_KEY|GITHUB_TOKEN|process\.env|password|chainOfThought|reasoning_text/i);
-  assert.doesNotMatch(cognition,/payload\s*:/);
+  assert.match(cognition,/const entry=Object\.freeze\(\{/);
+  assert.doesNotMatch(cognition,/entry\s*=\s*Object\.freeze\(\{[\s\S]{0,700}(?:prompt|token|secret|reasoning)/i);
 });
 
 test('Data Spine routes cognition events to bounded safe lanes',async()=>{
