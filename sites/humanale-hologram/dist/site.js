@@ -14,8 +14,36 @@ const showState = (label, delay = 1800) => {
   if (delay) showState.timer = setTimeout(() => { state.textContent = 'SIAP'; }, delay);
 };
 
+let naraVoiceUnlocked=false,naraVoiceGeneration=0;
+const speakNaraCue=cue=>{
+  if(!naraVoiceUnlocked||!cue?.text||!window.speechSynthesis)return;
+  const utterance=new SpeechSynthesisUtterance(cue.text);
+  utterance.lang='id-ID';
+  utterance.rate=.94;
+  utterance.pitch=.76;
+  utterance.voice=window.speechSynthesis.getVoices().find(voice=>voice.lang.toLowerCase().startsWith('id'))||null;
+  const generation=++naraVoiceGeneration;
+  utterance.onstart=()=>{if(generation===naraVoiceGeneration){avatar.setSpeaking(true);runtime.dispatch('speech.start',{energy:.55,source:'nara-site'});}};
+  utterance.onend=utterance.onerror=()=>{if(generation===naraVoiceGeneration){avatar.setSpeaking(false);runtime.dispatch('speech.stop',{source:'nara-site'});}};
+  window.speechSynthesis.speak(utterance);
+};
+const runtime=window.HumanALENaraRuntime.create({
+  regions:avatar.neuralCore.regions,
+  onVoice:cue=>{showState(cue.text.toUpperCase(),2200);speakNaraCue(cue);}
+});
+runtime.state.subscribe(snapshot=>avatar.setBrainState?.(snapshot));
+avatar.onBrainRegionSelect=region=>{
+  runtime.dispatch('brain.region.select',{region});
+  showState('NARA · '+region.replaceAll('_',' '),0);
+};
+window.humanALENara=runtime;
+const unlockNaraVoice=()=>{naraVoiceUnlocked=true;};
+window.addEventListener('pointerdown',unlockNaraVoice,{once:true});
+window.addEventListener('keydown',unlockNaraVoice,{once:true});
+
 avatar.referencePromise.then(loaded => {
   showState(loaded ? 'WAJAH NARA SIAP' : 'PETA WAJAH GAGAL DIMUAT');
+  runtime.start();
 });
 
 document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
@@ -57,7 +85,7 @@ document.querySelectorAll('[data-action]').forEach(button => button.addEventList
 }));
 canvas.addEventListener('click', event => {
   const region=avatar.pickBrainRegion?.(event.clientX,event.clientY);
-  if(region){avatar.selectBrainRegion?.(region);showState('NARA · '+region.replaceAll('_',' '),0);return;}
+  if(region){avatar.selectBrainRegion?.(region);return;}
   avatar.blinkStart = performance.now();
 });
 
@@ -82,15 +110,18 @@ document.querySelector('#speech').addEventListener('submit', event => {
   utterance.onstart = () => {
     if (generation !== speechGeneration) return;
     avatar.setSpeaking(true);
+    runtime.dispatch('speech.start',{energy:.55,source:'site-manual'});
     showState('BERBICARA', 0);
   };
-  utterance.onend = () => stopSpeaking(generation);
-  utterance.onerror = () => stopSpeaking(generation, 'SUARA GAGAL DIPUTAR');
+  utterance.onend = () => {runtime.dispatch('speech.stop',{source:'site-manual'});stopSpeaking(generation);};
+  utterance.onerror = () => {runtime.dispatch('speech.stop',{source:'site-manual'});stopSpeaking(generation, 'SUARA GAGAL DIPUTAR');};
   window.speechSynthesis.speak(utterance);
 });
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) return;
-  speechGeneration++;
+  speechGeneration++;naraVoiceGeneration++;
   window.speechSynthesis?.cancel();
   avatar.setSpeaking(false);
+  runtime.dispatch('speech.stop',{source:'site-hidden'});
 });
+window.addEventListener('pagehide',()=>runtime.stop(),{once:true});
