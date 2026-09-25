@@ -562,7 +562,7 @@
         c.globalCompositeOperation=this.isLightEnvironment()?'source-over':'lighter';
         c.lineWidth=Math.max(.65,this.scale*(.00105+activity*.0015));
         c.strokeStyle=this.brainStatusColor(status,{x:this.cx,y:this.cy},1,time);
-        c.globalAlpha=visibility*(.045+activity*.30+(status==='connected'||status==='syncing'?.10:0));
+        c.globalAlpha=visibility*(.045+activity*.30+((status==='connected'||status==='syncing') ? .10 : 0));
         c.beginPath();
         for(let j=0;j<ids.length;j++){
           const node=graph.nodes[ids[j]],p=this.project(node.x,node.y,node.z,time,true);
@@ -619,7 +619,7 @@
         const a = projected[edge.a], b = projected[edge.b];
         const t = ((this.reducedMotion ? 0 : time*0.00016) + i*0.071) % 1;
         const p = {x:lerp(a.x,b.x,t), y:lerp(a.y,b.y,t)};
-        c.globalAlpha = visibility * (.32+active*.50+(selected?.12:0));
+        c.globalAlpha = visibility * (.32+active*.50+(selected ? .12 : 0));
         c.fillStyle=this.brainStatusColor(active>=clamp(sb.activity)?sa.status:sb.status,p,1,time);
         c.fillRect(p.x-1,p.y-1,2,2);
       }
