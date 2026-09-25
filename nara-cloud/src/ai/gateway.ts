@@ -401,8 +401,13 @@ export class AiGateway {
             child.signal
           );
 
+        const latencyMs =
+          Date.now() -
+          started;
+
         this.health.success(
-          provider.id
+          provider.id,
+          latencyMs
         );
 
         const attempt:
@@ -416,9 +421,7 @@ export class AiGateway {
             status:
               "success",
 
-            latencyMs:
-              Date.now() -
-              started,
+            latencyMs,
 
             inputChars:
               inputChars(
@@ -460,10 +463,15 @@ export class AiGateway {
           !aborted &&
           retryable(error);
 
+        const latencyMs =
+          Date.now() -
+          started;
+
         if (isRetryable) {
           this.health
             .retryableFailure(
-              provider.id
+              provider.id,
+              latencyMs
             );
         } else {
           this.health.release(
@@ -484,9 +492,7 @@ export class AiGateway {
                 ? "aborted"
                 : "error",
 
-            latencyMs:
-              Date.now() -
-              started,
+            latencyMs,
 
             inputChars:
               inputChars(
@@ -656,8 +662,13 @@ export class AiGateway {
             }
           );
 
+        const latencyMs =
+          Date.now() -
+          started;
+
         this.health.success(
-          provider.id
+          provider.id,
+          latencyMs
         );
 
         if (!emitted) {
@@ -682,9 +693,7 @@ export class AiGateway {
             status:
               "success",
 
-            latencyMs:
-              Date.now() -
-              started,
+            latencyMs,
 
             inputChars:
               inputChars(
@@ -725,10 +734,15 @@ export class AiGateway {
           !aborted &&
           retryable(error);
 
+        const latencyMs =
+          Date.now() -
+          started;
+
         if (isRetryable) {
           this.health
             .retryableFailure(
-              provider.id
+              provider.id,
+              latencyMs
             );
         } else {
           this.health.release(
@@ -749,9 +763,7 @@ export class AiGateway {
                 ? "aborted"
                 : "error",
 
-            latencyMs:
-              Date.now() -
-              started,
+            latencyMs,
 
             inputChars:
               inputChars(
