@@ -132,24 +132,6 @@ function usageFrom(
 async function failureFrom(
   response: Response
 ): Promise<AiProviderError> {
-  let code =
-    "ANTHROPIC_UPSTREAM_ERROR";
-
-  try {
-    const data =
-      await response.json()
-        as AnthropicResponse;
-
-    code =
-      String(
-        data.error?.type ??
-        code
-      )
-        .slice(0, 100);
-  } catch {
-    // Upstream body may not be JSON.
-  }
-
   const retryable =
     response.status === 408 ||
     response.status === 409 ||
@@ -159,7 +141,8 @@ async function failureFrom(
   return new AiProviderError(
     "Anthropic provider request failed.",
     {
-      code,
+      code:
+        "ANTHROPIC_UPSTREAM_ERROR",
       retryable,
       httpStatus:
         response.status
@@ -492,11 +475,7 @@ export class AnthropicProvider
           "Anthropic stream failed.",
           {
             code:
-              String(
-                parsed.error?.type ??
-                "ANTHROPIC_STREAM_ERROR"
-              )
-                .slice(0, 100),
+              "ANTHROPIC_STREAM_ERROR",
 
             retryable:
               true
