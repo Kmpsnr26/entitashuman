@@ -51,6 +51,20 @@
           </div>
           <small>Panel ini hanya menampilkan status yang sudah disanitasi. Kunci API, token, password, isi file, dan payload mentah tidak disimpan di Data Spine visual.</small>
         </section>
+        <section class="cognition-panel" aria-labelledby="cognitionTitle">
+          <div class="cognition-heading"><div><span class="eyebrow" id="cognitionTitle">NARA COGNITIVE ACTIVITY</span><strong id="cognitionStage">IDLE</strong></div><span class="cognition-safe">NO CHAIN-OF-THOUGHT</span></div>
+          <div class="cognition-grid">
+            <button type="button" data-cognition-region="REASONER"><b>Reasoner</b><span>idle</span></button>
+            <button type="button" data-cognition-region="PLANNER"><b>Planner</b><span>idle</span></button>
+            <button type="button" data-cognition-region="AGENT_MANAGER"><b>Agents</b><span>idle</span></button>
+            <button type="button" data-cognition-region="BUG_HUNTER"><b>Bug Hunter</b><span>idle</span></button>
+            <button type="button" data-cognition-region="PROGRAM"><b>Program</b><span>idle</span></button>
+            <button type="button" data-cognition-region="MEMORY"><b>Memory</b><span>idle</span></button>
+          </div>
+          <div class="task-strip"><span>TASK</span><strong id="cognitionTask">Tidak ada task aktif</strong></div>
+          <ol id="cognitionTimeline" class="cognition-timeline" aria-live="polite"></ol>
+          <small>Yang ditampilkan hanya fase kerja operasional dan status region. Isi prompt, jawaban internal, token, password, dan chain-of-thought tidak dicatat di panel ini.</small>
+        </section>
         <form id="speech"><label for="words">Buat avatar berbicara</label><div class="speech-row"><input id="words" maxlength="160" placeholder="Tulis kalimat pendek…" autocomplete="off"><button type="submit">Ucapkan</button></div><small>Suara memakai fitur bawaan browser dan mungkin tidak tersedia di semua perangkat.</small></form>
       </aside>
     </main>
@@ -60,6 +74,7 @@
   <script src="./neural-core.js"></script>
   <script src="./nara-runtime.js"></script>
   <script src="./nara-data-spine.js"></script>
+  <script src="./nara-cognition.js"></script>
   <script src="./nara-connections.js"></script>
   <script src="./nara-sensors.js"></script>
   <script src="./avatar.js"></script>
