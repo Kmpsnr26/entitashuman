@@ -54,7 +54,8 @@ test('browser Context Bridge defaults to ask and never stores raw task text in s
 
   const task='LANJUTKAN_AVATAR_CANONICAL_RAW_TASK';
   const preview=bridge.prepare(task,{target:'reasoner'});
-  assert.equal(preview.count,1);
+  assert.equal(preview.count,1,'underscore-separated task terms must still match relevant memory');
+  assert.match(preview.text,/Avatar canonical/);
   assert.equal(preview.approved,false);
   assert.equal(preview.requiresApproval,true);
   assert.match(preview.text,/Avatar canonical/);
@@ -239,6 +240,7 @@ test('canonical site exposes context inspector and permission controls',async()=
   assert.match(site,/contextBridge\.transport/);
   assert.match(site,/window\.humanALEApprovedContext/);
   assert.doesNotMatch(bridge,/fetch\s*\(|WebSocket|XMLHttpRequest|sendBeacon|process\.env/);
+  assert.match(bridge,/replace\(\/\[_-\]\+\/g,' '\)/);
 });
 
 test('BrainState and Data Spine visualize context lifecycle without raw memory text',async()=>{
