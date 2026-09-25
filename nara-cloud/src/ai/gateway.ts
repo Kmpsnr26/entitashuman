@@ -401,8 +401,13 @@ export class AiGateway {
             child.signal
           );
 
+        const latencyMs =
+          Date.now() -
+          started;
+
         this.health.success(
-          provider.id
+          provider.id,
+          latencyMs
         );
 
         const attempt:
@@ -416,9 +421,7 @@ export class AiGateway {
             status:
               "success",
 
-            latencyMs:
-              Date.now() -
-              started,
+            latencyMs,
 
             inputChars:
               inputChars(
@@ -460,14 +463,27 @@ export class AiGateway {
           !aborted &&
           retryable(error);
 
-        if (isRetryable) {
-          this.health
-            .retryableFailure(
-              provider.id
-            );
-        } else {
+        const latencyMs =
+          Date.now() -
+          started;
+
+        const safeErrorCode =
+          errorCode(error);
+
+        if (aborted) {
           this.health.release(
             provider.id
+          );
+        } else {
+          this.health.failure(
+            provider.id,
+            {
+              retryable:
+                isRetryable,
+              latencyMs,
+              errorCode:
+                safeErrorCode
+            }
           );
         }
 
@@ -484,9 +500,7 @@ export class AiGateway {
                 ? "aborted"
                 : "error",
 
-            latencyMs:
-              Date.now() -
-              started,
+            latencyMs,
 
             inputChars:
               inputChars(
@@ -500,7 +514,7 @@ export class AiGateway {
               {},
 
             errorCode:
-              errorCode(error),
+              safeErrorCode,
 
             fallbackFrom:
               previous
@@ -656,8 +670,13 @@ export class AiGateway {
             }
           );
 
+        const latencyMs =
+          Date.now() -
+          started;
+
         this.health.success(
-          provider.id
+          provider.id,
+          latencyMs
         );
 
         if (!emitted) {
@@ -682,9 +701,7 @@ export class AiGateway {
             status:
               "success",
 
-            latencyMs:
-              Date.now() -
-              started,
+            latencyMs,
 
             inputChars:
               inputChars(
@@ -725,14 +742,27 @@ export class AiGateway {
           !aborted &&
           retryable(error);
 
-        if (isRetryable) {
-          this.health
-            .retryableFailure(
-              provider.id
-            );
-        } else {
+        const latencyMs =
+          Date.now() -
+          started;
+
+        const safeErrorCode =
+          errorCode(error);
+
+        if (aborted) {
           this.health.release(
             provider.id
+          );
+        } else {
+          this.health.failure(
+            provider.id,
+            {
+              retryable:
+                isRetryable,
+              latencyMs,
+              errorCode:
+                safeErrorCode
+            }
           );
         }
 
@@ -749,9 +779,7 @@ export class AiGateway {
                 ? "aborted"
                 : "error",
 
-            latencyMs:
-              Date.now() -
-              started,
+            latencyMs,
 
             inputChars:
               inputChars(
@@ -764,7 +792,7 @@ export class AiGateway {
               {},
 
             errorCode:
-              errorCode(error),
+              safeErrorCode,
 
             fallbackFrom:
               previous
