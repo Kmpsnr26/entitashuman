@@ -42,7 +42,7 @@ test('all HumanALE god egine conversation providers share the Brain Core prompt'
  }
 });
 
-test('Sites login is never represented as model access',async()=>{const r=await handleAPI(new Request('https://example.test/api/status',{headers:{'oai-authenticated-user-email':'owner@example.test'}}));assert.deepEqual(await r.json(),{configured:false,mode:'sites-login',signedIn:true});});
+test('Sites login is never represented as model access',async()=>{const email='owner@example.test';const r=await handleAPI(new Request('https://example.test/api/status',{headers:{'oai-authenticated-user-email':email}}));const data=await r.json();assert.equal(data.configured,false);assert.equal(data.mode,'sites-login');assert.equal(data.signedIn,true);assert.equal(data.connections.web,'connected');assert.equal(JSON.stringify(data).includes(email),false);});
 test('cloud chat explains the local login requirement',async()=>{const r=await handleAPI(new Request('https://example.test/api/chat',{method:'POST'}));assert.equal(r.status,409);});
 test('bridge rejects malformed, oversized and remote-image inputs',()=>{for(const data of [null,{message:''},{message:'a'.repeat(4001)},{message:'hi',image:'https://remote.test/image.jpg'}])assert.throws(()=>validateChat(data));});
 test('local Indonesian voice IPC rejects invalid recordings and oversized speech',async()=>{
