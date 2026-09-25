@@ -82,6 +82,10 @@ test('cognitive ledger stores only sanitized operational metadata',async()=>{
   assert.equal(Object.hasOwn(snapshot.entries.at(-1),'payload'),false);
   assert.equal(Object.hasOwn(snapshot.entries.at(-1),'prompt'),false);
 
+  runtime.dispatch('work.failed',{id:'task-1',label:'Uji aman'});
+  assert.equal(runtime.snapshot().currentTask,null);
+  assert.equal(runtime.snapshot().regions.PROGRAM.status,'error');
+
   cognition.stop();
   assert.ok(states.length>0);
 });
@@ -97,6 +101,7 @@ test('desktop real AI and agent paths emit NARA cognitive lifecycle events witho
   assert.match(main,/nara\.dispatch\('agent\.start'/);
   assert.match(main,/nara\.dispatch\('agent\.complete'/);
   assert.match(main,/nara\.dispatch\('agent\.failed'/);
+  assert.match(main,/nara\.dispatch\('work\.failed'/);
   assert.match(main,/nara\.dispatch\('program\.start'/);
   assert.match(main,/nara\.dispatch\('program\.complete'/);
   assert.match(main,/const label='Agent '\+id\+' · '/);
