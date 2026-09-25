@@ -353,9 +353,85 @@ test(
           "COMPAT_STREAM_ERROR"
         );
 
+        assert.equal(
+          error.retryable,
+          false
+        );
+
         return true;
       }
     );
   }
 );
 
+test(
+  "compatible stream retryability only trusts known transient codes",
+  async () => {
+    const sse = [
+      'data: {"error":{"code":"server_is_overloaded"}}',
+      "",
+      ""
+    ].join("\n");
+
+    const provider =
+      new OpenAiCompatibleProvider({
+        id:
+          "custom",
+        baseUrl:
+          "https://provider.example/v1",
+        apiKey:
+          "test-compatible-key-not-real",
+        model:
+          "custom-model",
+        fetchImpl:
+          (async () =>
+            new Response(
+              sse,
+              {
+                status:
+                  200,
+                headers: {
+                  "content-type":
+                    "text/event-stream"
+                }
+              }
+            )) as typeof fetch
+      });
+
+    await assert.rejects(
+      () =>
+        provider.stream(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal,
+          () => {}
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "COMPAT_STREAM_ERROR"
+        );
+
+        assert.equal(
+          error.retryable,
+          true
+        );
+
+        return true;
+      }
+    );
+  }
+);
