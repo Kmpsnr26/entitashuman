@@ -117,6 +117,94 @@ for(const button of cognitionButtons)button.addEventListener('click',()=>{
   avatar.selectBrainRegion?.(button.dataset.cognitionRegion);
 });
 
+const memorySummary=document.querySelector('#memorySummary');
+const memoryPersistence=document.querySelector('#memoryPersistence');
+const memoryForm=document.querySelector('#memoryForm');
+const memoryTitleInput=document.querySelector('#memoryTitleInput');
+const memoryNote=document.querySelector('#memoryNote');
+const memoryTags=document.querySelector('#memoryTags');
+const memorySearch=document.querySelector('#memorySearch');
+const memorySearchButton=document.querySelector('#memorySearchButton');
+const memoryList=document.querySelector('#memoryList');
+const memoryClear=document.querySelector('#memoryClear');
+let currentMemoryResults=null;
+
+const renderMemory=state=>{
+  if(memorySummary)memorySummary.textContent=state.count+' / '+state.maxEntries+' memori lokal';
+  if(memoryPersistence)memoryPersistence.textContent=state.persistent?'PERSISTEN LOKAL':'SESI SAJA';
+  if(!memoryList)return;
+  const entries=currentMemoryResults??state.entries.slice().reverse().slice(0,12);
+  memoryList.replaceChildren();
+  if(!entries.length){
+    const empty=document.createElement('div');empty.className='memory-empty';
+    empty.textContent=currentMemoryResults?'Tidak ada memori yang cocok.':'Belum ada memori proyek.';
+    memoryList.append(empty);return;
+  }
+  for(const entry of entries){
+    const item=document.createElement('article');item.className='memory-item';
+    const top=document.createElement('div');top.className='memory-item-top';
+    const title=document.createElement('strong');title.textContent=entry.title||'Memori NARA';
+    const type=document.createElement('span');type.textContent=entry.type;
+    top.append(title,type);
+    const summary=document.createElement('p');summary.textContent=entry.summary||'';
+    const tags=document.createElement('div');tags.className='memory-tags';
+    for(const tag of entry.tags||[]){const tagNode=document.createElement('span');tagNode.textContent=tag;tags.append(tagNode);}
+    const actions=document.createElement('div');actions.className='memory-item-actions';
+    const forget=document.createElement('button');forget.type='button';forget.textContent='Hapus';forget.dataset.memoryId=entry.id;
+    actions.append(forget);item.append(top,summary,tags,actions);memoryList.append(item);
+  }
+};
+
+const memory=window.HumanALEMemory.create({
+  runtime,
+  onState:state=>{if(!currentMemoryResults)renderMemory(state);},
+  onError:error=>showState('MEMORY · '+String(error?.message||'GAGAL').toUpperCase(),2600)
+});
+window.humanALEMemory=memory;
+renderMemory(memory.snapshot());
+
+memoryForm?.addEventListener('submit',event=>{
+  event.preventDefault();
+  const title=memoryTitleInput?.value||'';
+  const summary=memoryNote?.value||'';
+  if(!title.trim()&&!summary.trim()){showState('MEMORY · CATATAN KOSONG');return;}
+  const tags=String(memoryTags?.value||'').split(',').map(value=>value.trim()).filter(Boolean);
+  const saved=memory.remember({type:'note',title,summary,tags,source:'manual'});
+  if(saved){
+    if(memoryTitleInput)memoryTitleInput.value='';
+    if(memoryNote)memoryNote.value='';
+    if(memoryTags)memoryTags.value='';
+    if(memorySearch)memorySearch.value='';
+    currentMemoryResults=null;
+    renderMemory(memory.snapshot());
+    avatar.setZoom?.(3.05);avatar.selectBrainRegion?.('MEMORY');
+    showState('MEMORY · TERSIMPAN');
+  }
+});
+
+const runMemorySearch=()=>{
+  const query=memorySearch?.value||'';
+  currentMemoryResults=memory.recall(query,{limit:12});
+  renderMemory(memory.snapshot());
+  avatar.setZoom?.(3.05);avatar.selectBrainRegion?.('MEMORY');
+  showState(currentMemoryResults.length?'MEMORY · '+currentMemoryResults.length+' DITEMUKAN':'MEMORY · TIDAK DITEMUKAN');
+};
+memorySearchButton?.addEventListener('click',runMemorySearch);
+memorySearch?.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();runMemorySearch();}});
+memorySearch?.addEventListener('input',()=>{if(!memorySearch.value){currentMemoryResults=null;renderMemory(memory.snapshot());}});
+memoryList?.addEventListener('click',event=>{
+  const button=event.target.closest?.('[data-memory-id]');
+  if(!button)return;
+  if(memory.forget(button.dataset.memoryId)){
+    currentMemoryResults=null;renderMemory(memory.snapshot());showState('MEMORY · DIHAPUS');
+  }
+});
+memoryClear?.addEventListener('click',()=>{
+  if(!memory.snapshot().count)return;
+  if(!window.confirm('Hapus seluruh memori lokal NARA di browser ini?'))return;
+  memory.clear();currentMemoryResults=null;renderMemory(memory.snapshot());showState('MEMORY · DIKOSONGKAN');
+});
+
 const connections=window.HumanALEConnections.create({
   runtime,
   onStatus:event=>{
@@ -167,6 +255,7 @@ avatar.referencePromise.then(loaded => {
   showState(loaded ? 'WAJAH NARA SIAP' : 'PETA WAJAH GAGAL DIMUAT');
   dataSpine.start();
   cognition.start();
+  memory.start();
   runtime.start();
   connections.start();
 });
@@ -258,6 +347,7 @@ window.addEventListener('pagehide',()=>{
   naraVoiceUnlocked=false;
   sensors.stopAll().catch(()=>{});
   connections.stop();
+  memory.stop();
   cognition.stop();
   runtime.stop();
   dataSpine.stop();
