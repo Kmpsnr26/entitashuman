@@ -37,6 +37,35 @@ avatar.onBrainRegionSelect=region=>{
   showState('NARA · '+region.replaceAll('_',' '),0);
 };
 window.humanALENara=runtime;
+
+const sensorStatus=document.querySelector('#sensorStatus');
+const sensorMicButton=document.querySelector('#sensorMic');
+const sensorCameraButton=document.querySelector('#sensorCamera');
+const sensorStopButton=document.querySelector('#sensorStop');
+const updateSensorControls=({microphone=false,camera=false,message='' }={})=>{
+  sensorMicButton?.setAttribute('aria-pressed',String(Boolean(microphone)));
+  sensorCameraButton?.setAttribute('aria-pressed',String(Boolean(camera)));
+  if(sensorStopButton)sensorStopButton.disabled=!microphone&&!camera;
+  if(sensorStatus)sensorStatus.textContent=message||(microphone&&camera?'Mikrofon + kamera aktif':microphone?'Mikrofon aktif':camera?'Kamera aktif':'Tidak aktif');
+};
+const sensors=window.HumanALESensors.create({
+  runtime,
+  video:document.querySelector('#cameraPreview'),
+  onStatus:status=>updateSensorControls({...status,message:status.message})
+});
+window.humanALESensors=sensors;
+sensorMicButton?.addEventListener('click',async()=>{
+  try{
+    if(sensors.microphoneActive)await sensors.stopMicrophone();else await sensors.startMicrophone();
+  }catch(error){showState('MIKROFON · '+String(error?.message||'GAGAL').toUpperCase(),2600);}
+});
+sensorCameraButton?.addEventListener('click',async()=>{
+  try{
+    if(sensors.cameraActive)sensors.stopCamera();else await sensors.startCamera();
+  }catch(error){showState('KAMERA · '+String(error?.message||'GAGAL').toUpperCase(),2600);}
+});
+sensorStopButton?.addEventListener('click',async()=>{await sensors.stopAll();showState('SENSOR NARA BERHENTI');});
+
 const unlockNaraVoice=()=>{naraVoiceUnlocked=true;};
 window.addEventListener('pointerdown',unlockNaraVoice,{once:true});
 window.addEventListener('keydown',unlockNaraVoice,{once:true});
@@ -123,5 +152,6 @@ document.addEventListener('visibilitychange', () => {
   window.speechSynthesis?.cancel();
   avatar.setSpeaking(false);
   runtime.dispatch('speech.stop',{source:'site-hidden'});
+  sensors.stopAll().catch(()=>{});
 });
-window.addEventListener('pagehide',()=>{naraVoiceUnlocked=false;runtime.stop();},{once:true});
+window.addEventListener('pagehide',()=>{naraVoiceUnlocked=false;sensors.stopAll().catch(()=>{});runtime.stop();},{once:true});
