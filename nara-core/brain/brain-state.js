@@ -7,7 +7,8 @@ const connectionEvents=Object.freeze({
   'drive.connected':'DRIVE',
   'email.connected':'OWNER_EMAIL',
   'web.connected':'WEB',
-  'team.connected':'TEAM'
+  'team.connected':'TEAM',
+  'online.connected':'ONLINE'
 });
 const disconnectionEvents=Object.freeze({
   'github.disconnected':'GITHUB',
@@ -15,7 +16,8 @@ const disconnectionEvents=Object.freeze({
   'drive.disconnected':'DRIVE',
   'email.disconnected':'OWNER_EMAIL',
   'web.disconnected':'WEB',
-  'team.disconnected':'TEAM'
+  'team.disconnected':'TEAM',
+  'online.disconnected':'ONLINE'
 });
 
 function initialRegions(){
@@ -79,7 +81,9 @@ export class NaraBrainState{
   selectRegion(id,source='brain.region.select'){
     if(!isRegionId(id))throw new Error('Region NARA tidak dikenal: '+id);
     this.state.selectedRegion=id;
-    this.setRegion(id,{status:'active',activity:1,lastEvent:source},source);
+    const current=this.state.regions[id]||{status:'idle',activity:0};
+    const status=['idle','ready'].includes(current.status)?'active':current.status;
+    this.setRegion(id,{status,activity:Math.max(.92,clamp01(current.activity)),lastEvent:source},source);
     return id;
   }
 
