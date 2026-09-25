@@ -1,0 +1,119 @@
+name: NARA Cloud Verify
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "nara-cloud/**"
+      - ".github/workflows/nara-cloud-verify.yml"
+
+  push:
+    branches:
+      - codex/nara-cloud-auth-phase11
+    paths:
+      - "nara-cloud/**"
+      - ".github/workflows/nara-cloud-verify.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nara
+          POSTGRES_PASSWORD: nara_test_password
+          POSTGRES_DB: nara
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nara -d nara"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://nara:nara_test_password@127.0.0.1:5432/nara
+      BIND_HOST: 127.0.0.1
+      AUTH_PORT: 4100
+      NARA_PORT: 4200
+      PUBLIC_AUTH_ORIGIN: http://127.0.0.1:4100
+      PUBLIC_NARA_ORIGIN: http://127.0.0.1:4200
+      AUTH_SESSION_SECRET: test-auth-session-secret-2026-at-least-32-characters
+      NARA_SESSION_SECRET: test-nara-session-secret-2026-at-least-32-characters
+      TICKET_PEPPER: test-ticket-pepper-secret-2026-at-least-32-characters
+
+    defaults:
+      run:
+        working-directory: nara-cloud
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install NARA Cloud dependencies
+        run: npm install
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Migrate PostgreSQL
+        run: npm run db:migrate
+
+      - name: Re-run migration for idempotency
+        run: npm run db:migrate
+
+      - name: Run NARA Cloud tests
+        run: npm test
+
+      - name: Audit high severity dependencies
+        run: npm audit --audit-level=high
+
+      - name: Smoke Auth and NARA servers
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node dist/apps/authServer.js > auth-server.log 2>&1 &
+          AUTH_PID=$!
+
+          node dist/apps/naraServer.js > nara-server.log 2>&1 &
+          NARA_PID=$!
+
+          cleanup() {
+            kill "$AUTH_PID" "$NARA_PID" 2>/dev/null || true
+          }
+
+          trap cleanup EXIT
+
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:4100/health >/dev/null               && curl --silent --fail http://127.0.0.1:4200/health >/dev/null; then
+              break
+            fi
+
+            if [ "$attempt" -eq 30 ]; then
+              echo "Auth server log:"
+              cat auth-server.log || true
+              echo "NARA server log:"
+              cat nara-server.log || true
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          curl --fail --silent http://127.0.0.1:4100/health
+          echo
+          curl --fail --silent http://127.0.0.1:4200/health
+          echo
