@@ -241,7 +241,7 @@ test(
 
     assert.equal(
       snapshot.lastErrorCode,
-      "rate_limit___private_detail"
+      "AI_PROVIDER_RETRYABLE_ERROR"
     );
 
     now += 1;
