@@ -2052,6 +2052,79 @@ test(
 );
 
 test(
+  "non-retryable upstream 429 is reported as a limit without poisoning breaker health",
+  async () => {
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          1
+      });
+
+    const provider =
+      new FakeProvider(
+        "openai",
+        async () => {
+          throw new AiProviderError(
+            "account limit",
+            {
+              code:
+                "OPENAI_UPSTREAM_ERROR",
+              retryable:
+                false,
+              httpStatus:
+                429
+            }
+          );
+        }
+      );
+
+    const gateway =
+      new AiGateway(
+        [provider],
+        "openai",
+        health
+      );
+
+    await assert.rejects(
+      () =>
+        gateway.generate(
+          request,
+          {
+            provider:
+              "openai"
+          }
+        )
+    );
+
+    const snapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      snapshot.circuitState,
+      "healthy"
+    );
+
+    assert.equal(
+      snapshot.consecutiveFailures,
+      0
+    );
+
+    assert.equal(
+      snapshot.failures,
+      1
+    );
+
+    assert.equal(
+      snapshot.lastErrorCode,
+      "AI_UPSTREAM_LIMIT_REACHED"
+    );
+  }
+);
+
+test(
   "gateway health telemetry never stores arbitrary upstream error codes",
   async () => {
     const health =
