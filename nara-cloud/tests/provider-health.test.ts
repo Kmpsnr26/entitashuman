@@ -2345,7 +2345,9 @@ test(
         "prompt",
         "message",
         "content",
-        "cookie"
+        "cookie",
+        "activeprobeid",
+        "probesequence"
       ]
     ) {
       assert.equal(
