@@ -87,22 +87,72 @@ function publicError(
     error instanceof
       AiProviderError
   ) {
+    switch (
+      error.code
+    ) {
+      case "AI_NO_PROVIDER":
+        return {
+          code:
+            "AI_NO_PROVIDER",
+          status:
+            503
+        };
+
+      case "AI_PROVIDER_UNAVAILABLE":
+        return {
+          code:
+            "AI_PROVIDER_UNAVAILABLE",
+          status:
+            503
+        };
+
+      case "AI_PROVIDER_CIRCUIT_OPEN":
+        return {
+          code:
+            "AI_PROVIDER_CIRCUIT_OPEN",
+          status:
+            503
+        };
+
+      case "AI_NO_HEALTHY_PROVIDER":
+        return {
+          code:
+            "AI_NO_HEALTHY_PROVIDER",
+          status:
+            503
+        };
+
+      case "AI_PROVIDER_TIMEOUT":
+        return {
+          code:
+            "AI_PROVIDER_TIMEOUT",
+          status:
+            504
+        };
+
+      case "AI_GATEWAY_FAILED":
+        return {
+          code:
+            "AI_GATEWAY_FAILED",
+          status:
+            502
+        };
+
+      default:
+        break;
+    }
+
     if (
-      error.code ===
-        "AI_NO_PROVIDER" ||
-      error.code ===
-        "AI_PROVIDER_UNAVAILABLE" ||
-      error.code ===
-        "AI_PROVIDER_CIRCUIT_OPEN" ||
-      error.code ===
-        "AI_NO_HEALTHY_PROVIDER"
+      error.httpStatus ===
+        408 ||
+      error.httpStatus ===
+        504
     ) {
       return {
         code:
-          error.code,
-
+          "AI_UPSTREAM_TIMEOUT",
         status:
-          503
+          504
       };
     }
 
@@ -113,7 +163,34 @@ function publicError(
       return {
         code:
           "AI_UPSTREAM_RATE_LIMITED",
+        status:
+          503
+      };
+    }
 
+    if (
+      error.httpStatus ===
+        401 ||
+      error.httpStatus ===
+        403
+    ) {
+      return {
+        code:
+          "AI_UPSTREAM_AUTH_ERROR",
+        status:
+          502
+      };
+    }
+
+    if (
+      typeof error.httpStatus ===
+        "number" &&
+      error.httpStatus >=
+        500
+    ) {
+      return {
+        code:
+          "AI_UPSTREAM_UNAVAILABLE",
         status:
           503
       };
@@ -121,8 +198,9 @@ function publicError(
 
     return {
       code:
-        error.code,
-
+        error.retryable
+          ? "AI_UPSTREAM_ERROR"
+          : "AI_UPSTREAM_REJECTED",
       status:
         502
     };
@@ -136,7 +214,6 @@ function publicError(
       500
   };
 }
-
 function noStore(
   res:
     express.Response
