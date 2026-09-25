@@ -15,6 +15,10 @@
   const EVENT_LANES=Object.freeze({
     'nara.start':'CORE','nara.shutdown':'CORE',
     'work.start':'CORE','work.complete':'CORE','report.created':'CORE',
+    'planning.start':'CORE','planning.complete':'CORE',
+    'reasoner.start':'CORE','reasoner.complete':'CORE',
+    'agent.start':'CORE','agent.progress':'CORE','agent.complete':'CORE','agent.error':'CORE',
+    'memory.record':'MEMORY','memory.recall':'MEMORY',
     'terminal.open':'TERMINAL',
     'github.connected':'GITHUB','github.disconnected':'GITHUB',
     'copilot.connected':'COPILOT','copilot.disconnected':'COPILOT',
@@ -54,7 +58,8 @@
       if(event.includes('connected'))return'<>';
       if(event.startsWith('sync.'))return'01';
       if(event==='terminal.open')return'>_';
-      if(event.startsWith('work.'))return'AI';
+      if(event.startsWith('memory.'))return'{}';
+      if(event.startsWith('agent.')||event.startsWith('work.')||event.startsWith('planning.')||event.startsWith('reasoner.'))return'AI';
       const glyphs=BY_ID[lane]?.glyphs||['01'];
       return glyphs[this.sequence%glyphs.length];
     }
