@@ -407,6 +407,126 @@ test(
 );
 
 test(
+  "only one half-open probe is allowed and retryable probe failure reopens",
+  () => {
+    let now = 0;
+
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          1,
+        cooldownMs:
+          1_000,
+        now:
+          () => now
+      });
+
+    health.retryableFailure(
+      "openai",
+      50,
+      "TEMP"
+    );
+
+    const openSnapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      openSnapshot.nextProbeAt,
+      1_000
+    );
+
+    now =
+      1_001;
+
+    const firstProbe =
+      health.acquire(
+        "openai",
+        true
+      );
+
+    const concurrentProbe =
+      health.acquire(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      firstProbe.allowed,
+      true
+    );
+
+    assert.equal(
+      firstProbe.probe,
+      true
+    );
+
+    assert.equal(
+      firstProbe.circuitState,
+      "half-open"
+    );
+
+    assert.equal(
+      concurrentProbe.allowed,
+      false
+    );
+
+    assert.equal(
+      concurrentProbe.probe,
+      false
+    );
+
+    assert.equal(
+      concurrentProbe.circuitState,
+      "half-open"
+    );
+
+    health.failure(
+      "openai",
+      {
+        retryable:
+          true,
+        latencyMs:
+          75,
+        errorCode:
+          "TEMP_AGAIN"
+      }
+    );
+
+    const reopened =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      reopened.circuitState,
+      "open"
+    );
+
+    assert.equal(
+      reopened.openedAt,
+      now
+    );
+
+    assert.equal(
+      reopened.nextProbeAt,
+      now + 1_000
+    );
+
+    assert.equal(
+      health.acquire(
+        "openai",
+        true
+      ).allowed,
+      false
+    );
+  }
+);
+
+test(
   "abandoned half-open probe reopens with a fresh cooldown",
   () => {
     let now = 30_000;
