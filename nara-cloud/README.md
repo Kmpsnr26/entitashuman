@@ -179,3 +179,69 @@ AI_MAX_OUTPUT_TOKENS=2048
 ```
 
 Do not commit a real provider key. Production keys belong in server environment variables or a deployment secret manager.
+
+
+## Phase 11B2 — Multi-provider routing
+
+NARA AI Gateway now supports four adapter slots behind the same authenticated API contract:
+
+```text
+NARA AI Gateway
+     │
+     ├── OpenAI Responses API
+     ├── Gemini generateContent / streamGenerateContent
+     ├── Anthropic Messages API
+     └── OpenAI-compatible Chat Completions
+```
+
+Automatic routing uses:
+
+```env
+AI_PROVIDER_ORDER=openai,gemini,anthropic,compatible
+```
+
+A provider with no server-side credential is considered unconfigured and is skipped in automatic routing. Explicitly requesting an unconfigured provider returns an availability error instead of silently selecting a different provider.
+
+### Gemini
+
+```env
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.8-flash
+```
+
+The API key is sent only from the NARA backend using the Gemini API authentication header. The browser never receives it.
+
+### Anthropic
+
+```env
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=claude-sonnet-4-6
+```
+
+The backend uses the Anthropic Messages API and SSE message/content-block lifecycle for streaming.
+
+### OpenAI-compatible provider
+
+This adapter is intentionally configured only by server environment:
+
+```env
+COMPAT_PROVIDER_ID=compatible
+COMPAT_API_BASE_URL=
+COMPAT_API_KEY=
+COMPAT_MODEL=
+```
+
+All three connection values are required together. The provider ID cannot impersonate the built-in `openai`, `gemini`, `anthropic`, or `auto` identifiers. Production compatible-provider URLs must use HTTPS.
+
+The request body cannot supply an arbitrary provider base URL, which prevents the public AI API from becoming a user-controlled server-side HTTP proxy.
+
+### Fallback safety
+
+Fallback is allowed only when:
+
+1. automatic provider mode is selected;
+2. the failure is classified retryable;
+3. there is another configured provider; and
+4. no streamed text has been emitted yet.
+
+Once a provider emits the first text delta, NARA will not switch to another provider for that response.
