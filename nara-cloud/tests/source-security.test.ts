@@ -131,3 +131,38 @@ test(
     );
   }
 );
+
+test(
+  "production config rejects unsafe origins, placeholders and public bind",
+  async () => {
+    const source =
+      await read(
+        "src/config/env.ts"
+      );
+
+    assert.match(
+      source,
+      /superRefine/
+    );
+
+    assert.match(
+      source,
+      /wajib HTTPS di production/
+    );
+
+    assert.match(
+      source,
+      /tidak boleh bind langsung ke semua interface/
+    );
+
+    assert.match(
+      source,
+      /harus berbeda/
+    );
+
+    assert.match(
+      source,
+      /masih memakai placeholder/
+    );
+  }
+);
