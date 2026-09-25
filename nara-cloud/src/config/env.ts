@@ -32,7 +32,39 @@ const BaseEnvSchema = z.object({
 
   AUTH_SESSION_SECRET: z.string().min(32),
   NARA_SESSION_SECRET: z.string().min(32),
-  TICKET_PEPPER: z.string().min(32)
+  TICKET_PEPPER: z.string().min(32),
+
+  OPENAI_API_KEY: z
+    .string()
+    .min(20)
+    .optional(),
+
+  OPENAI_MODEL: z
+    .string()
+    .min(1)
+    .max(100)
+    .default("gpt-6-astra"),
+
+  AI_PROVIDER_ORDER: z
+    .string()
+    .min(1)
+    .default("openai"),
+
+  AI_REQUEST_TIMEOUT_MS:
+    z.coerce
+      .number()
+      .int()
+      .min(5_000)
+      .max(180_000)
+      .default(120_000),
+
+  AI_MAX_OUTPUT_TOKENS:
+    z.coerce
+      .number()
+      .int()
+      .min(64)
+      .max(8_192)
+      .default(2_048)
 });
 
 function isBareOrigin(
