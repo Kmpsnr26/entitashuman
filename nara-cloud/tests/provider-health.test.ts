@@ -392,7 +392,9 @@ test(
         latencyMs:
           30,
         errorCode:
-          "REQUEST_SPECIFIC"
+          "REQUEST_SPECIFIC",
+        probeId:
+          probe.probeId
       }
     );
 
@@ -499,7 +501,8 @@ test(
 
     health.success(
       "anthropic",
-      40
+      40,
+      lease.probeId
     );
 
     const snapshot =
@@ -630,7 +633,9 @@ test(
         latencyMs:
           75,
         errorCode:
-          "TEMP_AGAIN"
+          "TEMP_AGAIN",
+        probeId:
+          firstProbe.probeId
       }
     );
 
@@ -666,6 +671,127 @@ test(
 );
 
 test(
+  "stale in-flight completions cannot override the active half-open probe",
+  () => {
+    let now = 40_000;
+
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          1,
+        cooldownMs:
+          1_000,
+        now:
+          () => now
+      });
+
+    const staleLease =
+      health.acquire(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      staleLease.probe,
+      false
+    );
+
+    health.retryableFailure(
+      "openai",
+      25,
+      "AI_PROVIDER_RETRYABLE_ERROR"
+    );
+
+    now += 1_001;
+
+    const activeProbe =
+      health.acquire(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      activeProbe.probe,
+      true
+    );
+
+    health.success(
+      "openai",
+      30,
+      staleLease.probeId
+    );
+
+    let snapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      snapshot.circuitState,
+      "half-open"
+    );
+
+    assert.equal(
+      snapshot.probeInFlight,
+      true
+    );
+
+    health.failure(
+      "openai",
+      {
+        retryable:
+          true,
+        latencyMs:
+          35,
+        errorCode:
+          "AI_PROVIDER_RETRYABLE_ERROR",
+        probeId:
+          staleLease.probeId
+      }
+    );
+
+    snapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      snapshot.circuitState,
+      "half-open"
+    );
+
+    assert.equal(
+      snapshot.probeInFlight,
+      true
+    );
+
+    health.success(
+      "openai",
+      20,
+      activeProbe.probeId
+    );
+
+    snapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      snapshot.circuitState,
+      "healthy"
+    );
+
+    assert.equal(
+      snapshot.probeInFlight,
+      false
+    );
+  }
+);
+
+test(
   "abandoned half-open probe releases its lease without poisoning provider health",
   () => {
     let now = 30_000;
@@ -694,16 +820,20 @@ test(
 
     now += 1_001;
 
-    assert.equal(
+    const lease =
       health.acquire(
         "gemini",
         true
-      ).probe,
+      );
+
+    assert.equal(
+      lease.probe,
       true
     );
 
     health.release(
-      "gemini"
+      "gemini",
+      lease.probeId
     );
 
     const snapshot =
