@@ -45,6 +45,50 @@ const BaseEnvSchema = z.object({
     .max(100)
     .default("gpt-6-astra"),
 
+  GEMINI_API_KEY: z
+    .string()
+    .min(20)
+    .optional(),
+
+  GEMINI_MODEL: z
+    .string()
+    .min(1)
+    .max(100)
+    .default("gemini-3.8-flash"),
+
+  ANTHROPIC_API_KEY: z
+    .string()
+    .min(20)
+    .optional(),
+
+  ANTHROPIC_MODEL: z
+    .string()
+    .min(1)
+    .max(100)
+    .default("claude-sonnet-4-6"),
+
+  COMPAT_PROVIDER_ID: z
+    .string()
+    .regex(/^[a-z0-9._-]+$/)
+    .max(40)
+    .default("compatible"),
+
+  COMPAT_API_BASE_URL: z
+    .string()
+    .url()
+    .optional(),
+
+  COMPAT_API_KEY: z
+    .string()
+    .min(1)
+    .optional(),
+
+  COMPAT_MODEL: z
+    .string()
+    .min(1)
+    .max(100)
+    .optional(),
+
   AI_PROVIDER_ORDER: z
     .string()
     .min(1)
@@ -177,6 +221,33 @@ const EnvSchema =
         });
       }
 
+      const compatValues = [
+        value.COMPAT_API_BASE_URL,
+        value.COMPAT_API_KEY,
+        value.COMPAT_MODEL
+      ];
+
+      const compatConfigured =
+        compatValues.filter(
+          value =>
+            Boolean(value)
+        ).length;
+
+      if (
+        compatConfigured !== 0 &&
+        compatConfigured !==
+          compatValues.length
+      ) {
+        context.addIssue({
+          code:
+            z.ZodIssueCode.custom,
+          message:
+            "COMPAT_API_BASE_URL, COMPAT_API_KEY dan COMPAT_MODEL harus diisi bersama.",
+          path:
+            ["COMPAT_API_BASE_URL"]
+        });
+      }
+
       if (
         value.NODE_ENV ===
         "production"
@@ -224,6 +295,23 @@ const EnvSchema =
               "Production NARA Cloud tidak boleh bind langsung ke semua interface.",
             path:
               ["BIND_HOST"]
+          });
+        }
+
+        if (
+          value.COMPAT_API_BASE_URL &&
+          new URL(
+            value.COMPAT_API_BASE_URL
+          ).protocol !==
+            "https:"
+        ) {
+          context.addIssue({
+            code:
+              z.ZodIssueCode.custom,
+            message:
+              "COMPAT_API_BASE_URL wajib HTTPS di production.",
+            path:
+              ["COMPAT_API_BASE_URL"]
           });
         }
 
