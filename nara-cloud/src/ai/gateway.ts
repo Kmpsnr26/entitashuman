@@ -854,6 +854,21 @@ export class AiGateway {
             }
           );
 
+        if (
+          child.timedOut()
+        ) {
+          throw providerTimeoutError(
+            provider.id
+          );
+        }
+
+        if (
+          child
+            .abortedByParent()
+        ) {
+          throw clientAbortError();
+        }
+
         const latencyMs =
           Date.now() -
           started;
@@ -938,21 +953,6 @@ export class AiGateway {
           retryable(
             effectiveError
           );
-
-        if (
-          child.timedOut()
-        ) {
-          throw providerTimeoutError(
-            provider.id
-          );
-        }
-
-        if (
-          child
-            .abortedByParent()
-        ) {
-          throw clientAbortError();
-        }
 
         const latencyMs =
           Date.now() -
