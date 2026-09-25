@@ -26,6 +26,8 @@ export interface ProviderHealthSnapshot {
   openedAt?: number;
   nextProbeAt?: number;
   probeInFlight: boolean;
+  probeSequence: number;
+  activeProbeId?: number;
 }
 
 interface ProviderHealthRecord {
@@ -57,12 +59,14 @@ export interface ProviderLease {
     | ProviderCircuitState
     | "unavailable";
   probe: boolean;
+  probeId?: number;
 }
 
 interface FailureOptions {
   retryable: boolean;
   latencyMs: number;
   errorCode?: string;
+  probeId?: number;
 }
 
 const MAX_LATENCY_MS =
@@ -235,7 +239,9 @@ export class ProviderHealthRegistry {
         failures:
           0,
         probeInFlight:
-          false
+          false,
+        probeSequence:
+          0
       };
 
       this.records.set(
@@ -380,6 +386,12 @@ export class ProviderHealthRegistry {
       record.probeInFlight =
         true;
 
+      record.probeSequence +=
+        1;
+
+      record.activeProbeId =
+        record.probeSequence;
+
       return {
         allowed:
           true,
@@ -388,7 +400,9 @@ export class ProviderHealthRegistry {
         circuitState:
           "half-open",
         probe:
-          true
+          true,
+        probeId:
+          record.activeProbeId
       };
     }
 
@@ -414,6 +428,12 @@ export class ProviderHealthRegistry {
       record.probeInFlight =
         true;
 
+      record.probeSequence +=
+        1;
+
+      record.activeProbeId =
+        record.probeSequence;
+
       return {
         allowed:
           true,
@@ -422,7 +442,9 @@ export class ProviderHealthRegistry {
         circuitState:
           "half-open",
         probe:
-          true
+          true,
+        probeId:
+          record.activeProbeId
       };
     }
 
@@ -442,7 +464,8 @@ export class ProviderHealthRegistry {
 
   success(
     providerId: string,
-    latencyMs = 0
+    latencyMs = 0,
+    probeId?: number
   ): void {
     const record =
       this.record(
@@ -461,6 +484,40 @@ export class ProviderHealthRegistry {
       latencyMs
     );
 
+    const activeProbe =
+      probeId !==
+        undefined &&
+      record.circuitState ===
+        "half-open" &&
+      record.probeInFlight &&
+      record.activeProbeId ===
+        probeId;
+
+    if (
+      probeId !==
+        undefined &&
+      !activeProbe
+    ) {
+      return;
+    }
+
+    if (
+      !activeProbe &&
+      (
+        record.circuitState ===
+          "open" ||
+        record.circuitState ===
+          "half-open"
+      )
+    ) {
+      /*
+       * A normal request that started before the
+       * circuit changed state cannot close a newer
+       * open/half-open circuit when it completes.
+       */
+      return;
+    }
+
     record.circuitState =
       "healthy";
 
@@ -475,6 +532,9 @@ export class ProviderHealthRegistry {
 
     record.probeInFlight =
       false;
+
+    record.activeProbeId =
+      undefined;
 
     record.lastErrorCode =
       undefined;
@@ -514,20 +574,82 @@ export class ProviderHealthRegistry {
         options.retryable
       );
 
-    record.probeInFlight =
-      false;
+    const activeProbe =
+      options.probeId !==
+        undefined &&
+      record.circuitState ===
+        "half-open" &&
+      record.probeInFlight &&
+      record.activeProbeId ===
+        options.probeId;
+
+    if (
+      options.probeId !==
+        undefined &&
+      !activeProbe
+    ) {
+      /*
+       * A stale probe may finish after its lease
+       * was released or replaced. Its telemetry is
+       * kept, but it cannot change current health.
+       */
+      return;
+    }
 
     if (
       !options.retryable
     ) {
+      if (activeProbe) {
+        record.probeInFlight =
+          false;
+
+        record.activeProbeId =
+          undefined;
+      }
+
       /*
        * Non-retryable failures remain visible in
        * bounded telemetry, but they do not change
        * circuit health or the retryable failure
-       * count. This also applies to half-open:
-       * a request-specific/provider-declared
-       * non-retryable failure is not evidence that
-       * the provider is operationally unhealthy.
+       * count.
+       */
+      return;
+    }
+
+    if (activeProbe) {
+      record.consecutiveFailures =
+        Math.min(
+          this.failureThreshold,
+          record.consecutiveFailures +
+          1
+        );
+
+      record.probeInFlight =
+        false;
+
+      record.activeProbeId =
+        undefined;
+
+      record.circuitState =
+        "open";
+
+      record.openedAt =
+        now;
+
+      return;
+    }
+
+    if (
+      record.circuitState ===
+        "open" ||
+      record.circuitState ===
+        "half-open"
+    ) {
+      /*
+       * A normal request that started before the
+       * state transition is stale with respect to
+       * breaker control and cannot extend/open a
+       * newer circuit.
        */
       return;
     }
@@ -540,8 +662,6 @@ export class ProviderHealthRegistry {
       );
 
     if (
-      record.circuitState ===
-        "half-open" ||
       record.consecutiveFailures >=
         this.failureThreshold
     ) {
@@ -550,6 +670,12 @@ export class ProviderHealthRegistry {
 
       record.openedAt =
         now;
+
+      record.probeInFlight =
+        false;
+
+      record.activeProbeId =
+        undefined;
 
       return;
     }
@@ -561,7 +687,8 @@ export class ProviderHealthRegistry {
   retryableFailure(
     providerId: string,
     latencyMs = 0,
-    errorCode?: string
+    errorCode?: string,
+    probeId?: number
   ): void {
     this.failure(
       providerId,
@@ -569,13 +696,15 @@ export class ProviderHealthRegistry {
         retryable:
           true,
         latencyMs,
-        errorCode
+        errorCode,
+        probeId
       }
     );
   }
 
   release(
-    providerId: string
+    providerId: string,
+    probeId?: number
   ): void {
     const record =
       this.records.get(
@@ -586,16 +715,29 @@ export class ProviderHealthRegistry {
       return;
     }
 
+    if (
+      probeId ===
+        undefined ||
+      record.circuitState !==
+        "half-open" ||
+      !record.probeInFlight ||
+      record.activeProbeId !==
+        probeId
+    ) {
+      return;
+    }
+
     /*
      * Releasing an abandoned/client-aborted probe
-     * must not change provider health. If the
-     * circuit is half-open, keep it half-open and
-     * only release the single-probe lease so a
-     * later request can perform a real health
-     * probe.
+     * must not change provider health. Keep the
+     * circuit half-open and release only the exact
+     * active probe lease.
      */
     record.probeInFlight =
       false;
+
+    record.activeProbeId =
+      undefined;
   }
 
   snapshot(
