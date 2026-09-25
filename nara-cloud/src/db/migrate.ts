@@ -135,6 +135,60 @@ CREATE INDEX IF NOT EXISTS
 idx_messages_conversation_created
 ON messages(conversation_id, created_at ASC);
 
+CREATE TABLE IF NOT EXISTS ai_usage_logs (
+  id BIGSERIAL PRIMARY KEY,
+  request_id UUID NOT NULL,
+  owner_id UUID NOT NULL
+    REFERENCES owner_users(id)
+    ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  model TEXT NOT NULL,
+  status TEXT NOT NULL,
+  input_chars INTEGER NOT NULL DEFAULT 0,
+  output_chars INTEGER NOT NULL DEFAULT 0,
+  input_tokens INTEGER,
+  output_tokens INTEGER,
+  total_tokens INTEGER,
+  latency_ms INTEGER NOT NULL DEFAULT 0,
+  error_code TEXT,
+  fallback_from TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT ai_usage_logs_status_check
+    CHECK (
+      status IN (
+        'success',
+        'error',
+        'aborted'
+      )
+    ),
+  CONSTRAINT ai_usage_logs_nonnegative_check
+    CHECK (
+      input_chars >= 0
+      AND output_chars >= 0
+      AND latency_ms >= 0
+      AND (
+        input_tokens IS NULL
+        OR input_tokens >= 0
+      )
+      AND (
+        output_tokens IS NULL
+        OR output_tokens >= 0
+      )
+      AND (
+        total_tokens IS NULL
+        OR total_tokens >= 0
+      )
+    )
+);
+
+CREATE INDEX IF NOT EXISTS
+idx_ai_usage_owner_created
+ON ai_usage_logs(owner_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS
+idx_ai_usage_request
+ON ai_usage_logs(request_id);
+
 CREATE TABLE IF NOT EXISTS owner_auth_sessions (
   sid VARCHAR NOT NULL COLLATE "default",
   sess JSON NOT NULL,
