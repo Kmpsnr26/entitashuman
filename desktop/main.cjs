@@ -270,6 +270,7 @@ else{
     if(result?.error){
      if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
      nara.dispatch('agent.failed',{label,source:'agent'});
+     nara.dispatch('work.failed',{id,label,source:'agent'});
      nara.dispatch('error.detected',{message:String(result.error).slice(0,300),source:'agent'});
     }else{
      if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
@@ -280,6 +281,7 @@ else{
    }catch(error){
     if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
     nara.dispatch('agent.failed',{label,source:'agent'});
+    nara.dispatch('work.failed',{id,label,source:'agent'});
     nara.dispatch('error.detected',{message:error.message,source:'agent'});
     return {error:error.message};
    }
