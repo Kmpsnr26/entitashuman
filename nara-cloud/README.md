@@ -88,3 +88,94 @@ Not yet implemented:
 - Google Drive OAuth/backup
 - encrypted USB backup
 - passkeys/2FA/device management
+
+
+## Phase 11B — NARA AI Gateway
+
+Current B1 implementation adds a server-side AI gateway behind the authenticated NARA session.
+
+### Endpoints
+
+```text
+GET  /api/ai/providers
+POST /api/ai/chat
+POST /api/ai/stream
+```
+
+All AI endpoints require an authenticated NARA Owner session. POST endpoints also require the current NARA CSRF token in:
+
+```http
+X-CSRF-Token: <token>
+```
+
+### OpenAI provider
+
+The first production adapter uses the OpenAI Responses API from the NARA backend.
+
+Provider credentials remain server-side:
+
+```text
+Browser / HumanALE
+        │
+        ▼
+NARA Backend
+        │
+        ├── authenticated session
+        ├── CSRF
+        ├── request validation
+        ├── rate limit
+        ├── provider selection
+        └── OPENAI_API_KEY (server environment only)
+                │
+                ▼
+          OpenAI Responses API
+```
+
+The request explicitly uses `store: false`. No tools are enabled by the NARA chat endpoint.
+
+### Streaming
+
+`POST /api/ai/stream` returns Server-Sent Events:
+
+```text
+event: request
+event: provider
+event: delta
+event: done
+event: error
+```
+
+If the selected provider fails before any text delta is emitted, the gateway may try the next configured provider. Once any text has been emitted, fallback is disabled for that response so output from multiple providers cannot be mixed.
+
+### Fallback framework
+
+`AI_PROVIDER_ORDER` defines automatic provider priority. B1 includes the OpenAI adapter and a provider-neutral fallback engine. Additional provider adapters are added in later B steps without changing the public API routes.
+
+### Usage logging
+
+`ai_usage_logs` stores operational metrics only:
+
+- request UUID
+- Owner UUID
+- provider
+- model
+- success/error/aborted status
+- input/output character counts
+- provider token usage when available
+- latency
+- safe error code
+- fallback source
+
+It intentionally has no prompt, message, response-content, API-key, cookie or authorization columns.
+
+### AI environment
+
+```env
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-6-astra
+AI_PROVIDER_ORDER=openai
+AI_REQUEST_TIMEOUT_MS=120000
+AI_MAX_OUTPUT_TOKENS=2048
+```
+
+Do not commit a real provider key. Production keys belong in server environment variables or a deployment secret manager.
