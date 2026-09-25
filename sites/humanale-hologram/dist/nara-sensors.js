@@ -48,24 +48,27 @@
         analyser.smoothingTimeConstant=.72;
         source.connect(analyser);
         const frequencies=new Uint8Array(analyser.frequencyBinCount);
-        const tick=()=>{
+        const tick=timestamp=>{
           if(!this.microphoneActive)return;
           analyser.getByteFrequencyData(frequencies);
-          const length=frequencies.length;
-          const low=average(frequencies,0,Math.max(2,Math.floor(length*.12)));
-          const mid=average(frequencies,Math.floor(length*.12),Math.floor(length*.48));
-          const high=average(frequencies,Math.floor(length*.48),length);
-          const energy=clamp01(low*.38+mid*.42+high*.20);
-          this.runtime.dispatch('audio.energy',{energy,low,mid,high,source:'site-microphone'});
+          if(timestamp-this.microphone.lastSent>=100){
+            const length=frequencies.length;
+            const low=average(frequencies,0,Math.max(2,Math.floor(length*.12)));
+            const mid=average(frequencies,Math.floor(length*.12),Math.floor(length*.48));
+            const high=average(frequencies,Math.floor(length*.48),length);
+            const energy=clamp01(low*.38+mid*.42+high*.20);
+            this.runtime.dispatch('audio.energy',{energy,low,mid,high,source:'site-microphone'});
+            this.microphone.lastSent=timestamp;
+          }
           this.microphone.raf=global.requestAnimationFrame(tick);
         };
-        this.microphone={stream,context,source,analyser,frequencies,raf:0};
+        this.microphone={stream,context,source,analyser,frequencies,raf:0,lastSent:-Infinity};
         this.microphone.raf=global.requestAnimationFrame(tick);
         this.status('microphone','active','Mikrofon aktif untuk visual sensor NARA.');
         return this.snapshot();
       }catch(error){
         stream?.getTracks?.().forEach(track=>track.stop());
-        await context?.close?.().catch?.(()=>{});
+        try{await context?.close?.();}catch{}
         this.microphone=null;
         this.runtime.dispatch('audio.energy',{energy:0,low:0,mid:0,high:0,source:'site-microphone'});
         this.status('microphone','error',String(error?.message||'Mikrofon gagal diaktifkan.'));
