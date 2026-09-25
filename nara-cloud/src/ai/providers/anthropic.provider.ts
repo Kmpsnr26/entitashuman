@@ -342,7 +342,7 @@ export class AnthropicProvider
           code:
             "ANTHROPIC_EMPTY_RESPONSE",
           retryable:
-            true
+            false
         }
       );
     }
