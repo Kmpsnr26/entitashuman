@@ -71,7 +71,8 @@
         this.publish();
         return Object.freeze({blocked:true,reason:'mode-off',target});
       }
-      const memoryContext=this.memory.context(task,{
+      const recallQuery=safeText(task,160).replace(/[_-]+/g,' ');
+      const memoryContext=this.memory.context(recallQuery,{
         limit:Math.min(this.maxEntries,Number(options.limit)||this.maxEntries),
         maxChars:Math.min(this.maxChars,Number(options.maxChars)||this.maxChars)
       });
