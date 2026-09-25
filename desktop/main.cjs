@@ -6,7 +6,7 @@ const path=require('node:path');
 const {tmpdir}=require('node:os');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,server,origin,bridges,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,tray,saveTimer,pointerTimer;
+let win,panelWin,server,origin,bridges,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,tray,saveTimer,pointerTimer;
 let baseWindowSize={width:420,height:480};
 let panelZoomFactor=1;
 let quitting=false;
@@ -18,6 +18,7 @@ const summonShortcut='CommandOrControl+Alt+5';
 const ciSmoke=process.argv.includes('--ci-smoke');
 if(process.platform==='win32')app.setAppUserModelId('id.my.aleprinting.dudidam');
 if(ciSmoke)app.setPath('userData',mkdtempSync(path.join(tmpdir(),'dudidam-ci-smoke-')));
+app.on('before-quit',()=>{try{nara?.stop();}catch{}});
 
 function statePath(){return path.join(app.getPath('userData'),'window-state.json');}
 function projectRootPath(){return path.join(app.getPath('userData'),'project-root.txt');}
@@ -150,6 +151,9 @@ else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
   const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
+  const {createOrchestrator}=await import('../nara-core/brain/index.js');
+  nara=createOrchestrator();
+  nara.start();
   bridges={chatgpt:new ChatGPTBridge(),copilot:new CopilotBridge(),openai:new OpenAIBridge(),grok:new GrokBridge(),gemini:new GeminiBridge(),claude:new ClaudeBridge(),deepseek:new DeepSeekBridge(),askcodi:new AskCodiBridge()};
   agentHub=new DeveloperAgentHub();
   const savedProjectRoot=await readProjectRoot();if(savedProjectRoot)agentHub.setProjectRoot(savedProjectRoot);
@@ -190,9 +194,20 @@ else{
   win.setAlwaysOnTop(true,'floating');
   win.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true});
   const trusted=e=>(e.sender===win?.webContents||e.sender===panelWin?.webContents)&&e.senderFrame?.url?.startsWith(origin+'/');
+  const NARA_RENDERER_EVENTS=new Set(['audio.energy','vision.frame','vision.stop','speech.start','speech.energy','speech.stop','brain.region.select']);
+  const publishNaraState=snapshot=>{for(const target of [win,panelWin]){if(target&&!target.isDestroyed()&&!target.webContents.isLoading())target.webContents.send('dudidam:nara-state',snapshot);}};
+  nara.state.subscribe(snapshot=>publishNaraState(snapshot));
+  ipcMain.handle('dudidam:nara-snapshot',e=>trusted(e)?{ok:true,state:nara.snapshot()}:{error:'Akses ditolak.'});
+  ipcMain.handle('dudidam:nara-dispatch',(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   const event=String(value?.event||'');
+   if(!NARA_RENDERER_EVENTS.has(event))return {error:'Event NARA tidak diizinkan dari renderer.'};
+   try{return {ok:true,...nara.dispatch(event,value?.payload&&typeof value.payload==='object'?value.payload:{},{source:'renderer'})};}
+   catch(error){return {error:error.message};}
+  });
 
   const pickProvider=value=>['copilot','openai','grok','gemini','claude','deepseek','askcodi'].includes(value)?value:'chatgpt';
-  ipcMain.handle('dudidam:status',async(e,provider)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await bridges[pickProvider(provider)].status();}catch(error){return {configured:false,error:error.message};}});
+  ipcMain.handle('dudidam:status',async(e,provider)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{const selected=pickProvider(provider),result=await bridges[selected].status();if(selected==='copilot')nara.connection('COPILOT',Boolean(result?.configured));return result;}catch(error){if(provider==='copilot')nara.connection('COPILOT',false);return {configured:false,error:error.message};}});
   ipcMain.handle('dudidam:ask',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{const provider=pickProvider(value?.provider);const payload={...value};delete payload.provider;return await bridges[provider].ask(payload);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:login',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await bridges.chatgpt.login();}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:login-copilot',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await bridges.copilot.login();}catch(error){return {error:error.message};}});
@@ -212,14 +227,14 @@ else{
    try{await writeFile(projectRootPath(),selected,'utf8');}catch(error){return {error:'Folder terpilih, tetapi pengaturan tidak dapat disimpan: '+error.message};}
    return {ok:true,...await agentHub.status()};
   });
-  ipcMain.handle('dudidam:agent-run',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await agentHub.run(value);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:agent-run',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};const label=String(value?.task||value?.prompt||value?.id||'Pekerjaan agent').slice(0,160);nara.startWork({id:String(value?.id||'agent'),label});try{const result=await agentHub.run(value);if(result?.error)nara.dispatch('error.detected',{message:String(result.error).slice(0,300),source:'agent'});else nara.completeWork({source:'agent'});return result;}catch(error){nara.dispatch('error.detected',{message:error.message,source:'agent'});return {error:error.message};}});
   ipcMain.handle('dudidam:agent-open',async(e,id)=>{if(!trusted(e))return {error:'Akses ditolak.'};const url=agentLinks[String(id||'')];if(!url||!url.startsWith('https://'))return {error:'Tautan agent tidak valid.'};await shell.openExternal(url);return {ok:true};});
   ipcMain.handle('dudidam:terminal-create',async(e,value)=>{
    if(!trusted(e))return {error:'Akses ditolak.'};
    const shellId=['auto','pwsh','powershell','cmd'].includes(String(value?.shell||''))?String(value.shell):'auto';
    const profileId=['claude','codex','cursor','gemini'].includes(String(value?.profile||''))?String(value.profile):undefined;
    const options={shell:shellId,profile:profileId,title:String(value?.title||'').slice(0,80),cols:value?.cols,rows:value?.rows};
-   try{return await terminalManager.create(options);}catch(error){return {error:error.message};}
+   try{const result=await terminalManager.create(options);nara.dispatch('terminal.open',{source:'terminal-manager'});return result;}catch(error){nara.dispatch('error.detected',{message:error.message,source:'terminal'});return {error:error.message};}
   });
   ipcMain.handle('dudidam:terminal-write',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.write(value?.sessionId,value?.data);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:terminal-resize',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.resize(value?.sessionId,value?.cols,value?.rows);}catch(error){return {error:error.message};}});
@@ -248,6 +263,7 @@ else{
     const cwd=path.resolve(agentHub?.getProjectRoot?.()||process.env.DUDIDAM_PROJECT_ROOT||process.cwd());
     const child=spawn('powershell.exe',['-NoLogo','-NoExit'],{cwd,detached:true,stdio:'ignore',windowsHide:false});
     child.unref();
+    nara.dispatch('terminal.open',{source:'external-powershell'});
     return {ok:true,cwd};
    }catch(error){return {error:'Terminal gagal dibuka: '+error.message};}
   });
