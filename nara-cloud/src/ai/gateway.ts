@@ -114,23 +114,32 @@ function retryable(
 function childSignal(
   parent:
     AbortSignal |
-    undefined
+    undefined,
+  timeoutMs: number
 ): {
   signal: AbortSignal;
   cleanup: () => void;
+  timedOut: () => boolean;
 } {
   const controller =
     new AbortController();
 
+  let timeoutTriggered =
+    false;
+
   const timer =
     setTimeout(
-      () =>
+      () => {
+        timeoutTriggered =
+          true;
+
         controller.abort(
           new Error(
             "AI request timeout"
           )
-        ),
-      env.AI_REQUEST_TIMEOUT_MS
+        );
+      },
+      timeoutMs
     );
 
   const abort =
@@ -166,8 +175,30 @@ function childSignal(
           "abort",
           abort
         );
-      }
+      },
+
+    timedOut:
+      () =>
+        timeoutTriggered
   };
+}
+
+function providerTimeoutError(
+  providerId: string
+): AiProviderError {
+  return new AiProviderError(
+    `AI provider ${providerId} request timed out.`,
+    {
+      code:
+        "AI_PROVIDER_TIMEOUT",
+
+      retryable:
+        true,
+
+      httpStatus:
+        504
+    }
+  );
 }
 
 function circuitOpenError(
@@ -195,6 +226,9 @@ export class AiGateway {
   private readonly health:
     ProviderHealthRegistry;
 
+  private readonly requestTimeoutMs:
+    number;
+
   constructor(
     providers: AiProvider[],
     order:
@@ -208,7 +242,10 @@ export class AiGateway {
 
           cooldownMs:
             env.AI_BREAKER_COOLDOWN_MS
-        })
+        }),
+    requestTimeoutMs:
+      number =
+        env.AI_REQUEST_TIMEOUT_MS
   ) {
     this.providers =
       new Map(
@@ -227,6 +264,14 @@ export class AiGateway {
 
     this.health =
       health;
+
+    this.requestTimeoutMs =
+      Math.max(
+        1,
+        Math.trunc(
+          requestTimeoutMs
+        )
+      );
   }
 
   status():
@@ -391,7 +436,8 @@ export class AiGateway {
 
       const child =
         childSignal(
-          options.signal
+          options.signal,
+          this.requestTimeoutMs
         );
 
       try {
@@ -452,23 +498,44 @@ export class AiGateway {
           attempts
         };
       } catch (error) {
-        lastError =
-          error;
+        const timedOut =
+          child.timedOut();
 
         const aborted =
-          child.signal.aborted ||
-          options.signal?.aborted;
+          Boolean(
+            options.signal
+              ?.aborted
+          ) ||
+          (
+            child.signal
+              .aborted &&
+            !timedOut
+          );
+
+        const effectiveError =
+          timedOut
+            ? providerTimeoutError(
+                provider.id
+              )
+            : error;
+
+        lastError =
+          effectiveError;
 
         const isRetryable =
           !aborted &&
-          retryable(error);
+          retryable(
+            effectiveError
+          );
 
         const latencyMs =
           Date.now() -
           started;
 
         const safeErrorCode =
-          errorCode(error);
+          errorCode(
+            effectiveError
+          );
 
         if (aborted) {
           this.health.release(
@@ -534,7 +601,7 @@ export class AiGateway {
           selection.explicit ||
           !isRetryable
         ) {
-          throw error;
+          throw effectiveError;
         }
 
         previous =
@@ -633,7 +700,8 @@ export class AiGateway {
 
       const child =
         childSignal(
-          options.signal
+          options.signal,
+          this.requestTimeoutMs
         );
 
       let outputChars = 0;
@@ -731,23 +799,44 @@ export class AiGateway {
           attempts
         };
       } catch (error) {
-        lastError =
-          error;
+        const timedOut =
+          child.timedOut();
 
         const aborted =
-          child.signal.aborted ||
-          options.signal?.aborted;
+          Boolean(
+            options.signal
+              ?.aborted
+          ) ||
+          (
+            child.signal
+              .aborted &&
+            !timedOut
+          );
+
+        const effectiveError =
+          timedOut
+            ? providerTimeoutError(
+                provider.id
+              )
+            : error;
+
+        lastError =
+          effectiveError;
 
         const isRetryable =
           !aborted &&
-          retryable(error);
+          retryable(
+            effectiveError
+          );
 
         const latencyMs =
           Date.now() -
           started;
 
         const safeErrorCode =
-          errorCode(error);
+          errorCode(
+            effectiveError
+          );
 
         if (aborted) {
           this.health.release(
@@ -813,7 +902,7 @@ export class AiGateway {
           selection.explicit ||
           !isRetryable
         ) {
-          throw error;
+          throw effectiveError;
         }
 
         previous =
