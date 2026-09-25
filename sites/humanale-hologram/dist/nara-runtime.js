@@ -157,6 +157,10 @@
         this.state.currentTask=null;
         this.setRegion('PROGRAM',{status:'complete',activity:.15,message:'Pekerjaan selesai'},event);
         this.setRegion('REPORTING',{status:'active',activity:.8,message:'Menyiapkan laporan'},event);
+      }else if(event==='work.failed'){
+        this.state.currentTask=null;
+        this.setRegion('PROGRAM',{status:'error',activity:1,message:'Pekerjaan gagal'},event);
+        this.setRegion('FOLLOW_UP',{status:'error',activity:.8,message:'Tindak lanjut diperlukan'},event);
       }else if(event==='error.detected'){
         this.setRegion('ERROR_MONITOR',{status:'error',activity:1,message:String(payload.message||'Error terdeteksi')},event);
         this.setRegion('BUG_HUNTER',{status:'processing',activity:.9,message:'Menganalisis error'},event);
