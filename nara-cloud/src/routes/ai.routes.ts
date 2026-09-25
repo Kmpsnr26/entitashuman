@@ -162,7 +162,9 @@ function publicError(
     ) {
       return {
         code:
-          "AI_UPSTREAM_RATE_LIMITED",
+          error.retryable
+            ? "AI_UPSTREAM_RATE_LIMITED"
+            : "AI_UPSTREAM_LIMIT_REACHED",
         status:
           503
       };
