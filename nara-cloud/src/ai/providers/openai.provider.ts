@@ -76,29 +76,6 @@ function requestBody(
 async function providerFailure(
   response: Response
 ): Promise<AiProviderError> {
-  let code =
-    "OPENAI_UPSTREAM_ERROR";
-
-  try {
-    const data =
-      await response.json() as {
-        error?: {
-          code?: string;
-          type?: string;
-        };
-      };
-
-    code =
-      String(
-        data.error?.code ??
-        data.error?.type ??
-        code
-      )
-        .slice(0, 100);
-  } catch {
-    // Upstream error body may not be JSON.
-  }
-
   const retryable =
     response.status === 408 ||
     response.status === 409 ||
@@ -108,7 +85,8 @@ async function providerFailure(
   return new AiProviderError(
     "OpenAI provider request failed.",
     {
-      code,
+      code:
+        "OPENAI_UPSTREAM_ERROR",
       retryable,
       httpStatus:
         response.status
@@ -430,11 +408,7 @@ export class OpenAiProvider
           "OpenAI stream failed.",
           {
             code:
-              String(
-                parsed.error?.code ??
-                parsed.type
-              )
-                .slice(0, 100),
+              "OPENAI_STREAM_ERROR",
 
             retryable:
               true
