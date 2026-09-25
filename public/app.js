@@ -32,6 +32,9 @@ function updateDesktopMemoryContextUi(){
 }
 async function prepareDesktopMemoryContext(task,target='reasoner'){
  if(!desktopContextBridge||!desktopMemory)return null;
+ desktopMemory.load?.();
+ const storedMode=localStorage.getItem(window.HumanALEContextBridge?.key||'humanale.nara.context-mode.v1');
+ if(storedMode&&storedMode!==desktopContextBridge.snapshot().mode)desktopContextBridge.setMode(storedMode);
  const preview=desktopContextBridge.prepare(String(task||''),{target});
  if(!preview||preview.blocked||!preview.count){updateDesktopMemoryContextUi();return null;}
  if(preview.requiresApproval){
@@ -431,9 +434,25 @@ async function runDeveloperAgent(event){
   const result=await desktop.runAgent({id,prompt,mode,memoryContext});
   if(result?.error)throw new Error(result.error);
   $('#agentOutput').textContent=result?.text||'Agent selesai tanpa output.';
+  desktopMemory?.remember({
+   type:'task',
+   title:'Agent '+id+' · '+(mode==='work'?'mode kerja':'analisis'),
+   summary:'Aktivitas agent selesai. Detail prompt dan output tidak disimpan otomatis.',
+   tags:['agent',mode,'complete'],
+   source:'desktop-agent'
+  },{emit:false});
+  updateDesktopMemoryContextUi();
   workSucceeded=mode==='work';
  }catch(error){
   $('#agentOutput').textContent=error?.message||'Agent gagal dijalankan.';
+  desktopMemory?.remember({
+   type:'result',
+   title:'Agent '+id+' · '+(mode==='work'?'mode kerja':'analisis'),
+   summary:'Aktivitas agent gagal dan memerlukan tindak lanjut. Detail error mentah tidak disimpan otomatis.',
+   tags:['agent',mode,'failed'],
+   source:'desktop-agent'
+  },{emit:false});
+  updateDesktopMemoryContextUi();
  }finally{
   if(mode==='work')setEvolutionVisual(workSucceeded?'complete':'stop');
   $('#agentRun').disabled=false;
@@ -467,7 +486,24 @@ async function runCopilotProjectWork(text){
  if(!copilot?.canRun)throw new Error('GitHub Copilot Work mode belum siap. Pastikan Copilot CLI terpasang dan login, lalu Periksa koneksi di Developer agents.');
  const prompt=buildProjectWorkPrompt(text);
  const memoryContext=await prepareDesktopMemoryContext(text,'agent');
- return await desktop.runAgent({id:'github-copilot',mode:'work',prompt,memoryContext});
+ try{
+  const result=await desktop.runAgent({id:'github-copilot',mode:'work',prompt,memoryContext});
+  if(!result?.error)desktopMemory?.remember({
+   type:'task',title:'GitHub Copilot · mode kerja',
+   summary:'Pekerjaan proyek melalui Copilot selesai. Prompt dan output mentah tidak disimpan otomatis.',
+   tags:['agent','work','complete'],source:'desktop-copilot'
+  },{emit:false});
+  updateDesktopMemoryContextUi();
+  return result;
+ }catch(error){
+  desktopMemory?.remember({
+   type:'result',title:'GitHub Copilot · mode kerja',
+   summary:'Pekerjaan proyek melalui Copilot gagal dan memerlukan tindak lanjut.',
+   tags:['agent','work','failed'],source:'desktop-copilot'
+  },{emit:false});
+  updateDesktopMemoryContextUi();
+  throw error;
+ }
 }
 function setMicStatus(text){$('#micStatus').textContent=text;}
 async function checkMicrophoneHealth(){
