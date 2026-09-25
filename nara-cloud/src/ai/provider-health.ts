@@ -495,33 +495,14 @@ export class ProviderHealthRegistry {
       !options.retryable
     ) {
       /*
-       * A non-retryable upstream failure is
-       * visible as degraded, but does not
-       * increment the retryable breaker count.
-       * If it happened during a half-open probe,
-       * reopen the circuit for a fresh cooldown.
+       * Non-retryable failures remain visible in
+       * bounded telemetry, but they do not change
+       * circuit health or the retryable failure
+       * count. This also applies to half-open:
+       * a request-specific/provider-declared
+       * non-retryable failure is not evidence that
+       * the provider is operationally unhealthy.
        */
-      if (
-        record.circuitState ===
-        "half-open"
-      ) {
-        record.circuitState =
-          "open";
-
-        record.openedAt =
-          now;
-
-        return;
-      }
-
-      if (
-        record.circuitState ===
-        "healthy"
-      ) {
-        record.circuitState =
-          "degraded";
-      }
-
       return;
     }
 
