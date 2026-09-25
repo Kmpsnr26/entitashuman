@@ -287,7 +287,14 @@ test(
 
         assert.equal(
           error.code,
-          "rate_limit_error"
+          "ANTHROPIC_UPSTREAM_ERROR"
+        );
+
+        assert.equal(
+          error.code.includes(
+            "rate_limit_error"
+          ),
+          false
         );
 
         assert.equal(
