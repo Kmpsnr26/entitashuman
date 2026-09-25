@@ -85,6 +85,38 @@ const dataSpine=window.HumanALEDataSpine.create({
 });
 window.humanALEDataSpine=dataSpine;
 
+const cognitionStage=document.querySelector('#cognitionStage');
+const cognitionTask=document.querySelector('#cognitionTask');
+const cognitionTimeline=document.querySelector('#cognitionTimeline');
+const cognitionButtons=[...document.querySelectorAll('[data-cognition-region]')];
+const renderCognition=state=>{
+  if(cognitionStage)cognitionStage.textContent=String(state?.activeStage||'IDLE');
+  if(cognitionTask)cognitionTask.textContent=state?.currentTask?.label||'Tidak ada task aktif';
+  const brain=runtime.snapshot();
+  for(const button of cognitionButtons){
+    const item=brain?.regions?.[button.dataset.cognitionRegion]||{};
+    const status=String(item.status||'idle');
+    button.dataset.status=status;
+    const node=button.querySelector('span');if(node)node.textContent=status;
+  }
+  if(cognitionTimeline){
+    cognitionTimeline.replaceChildren();
+    for(const entry of (state?.entries||[]).slice(-8).reverse()){
+      const li=document.createElement('li');
+      const stage=document.createElement('b');stage.textContent=entry.stage;
+      const label=document.createElement('span');label.textContent=entry.label;
+      const status=document.createElement('em');status.textContent=entry.state;
+      li.append(stage,label,status);cognitionTimeline.append(li);
+    }
+  }
+};
+const cognition=window.HumanALECognition.create({runtime,onState:renderCognition});
+window.humanALECognition=cognition;
+for(const button of cognitionButtons)button.addEventListener('click',()=>{
+  avatar.setZoom?.(3.05);
+  avatar.selectBrainRegion?.(button.dataset.cognitionRegion);
+});
+
 const connections=window.HumanALEConnections.create({
   runtime,
   onStatus:event=>{
@@ -134,6 +166,7 @@ window.addEventListener('keydown',unlockNaraVoice,{once:true});
 avatar.referencePromise.then(loaded => {
   showState(loaded ? 'WAJAH NARA SIAP' : 'PETA WAJAH GAGAL DIMUAT');
   dataSpine.start();
+  cognition.start();
   runtime.start();
   connections.start();
 });
@@ -225,6 +258,7 @@ window.addEventListener('pagehide',()=>{
   naraVoiceUnlocked=false;
   sensors.stopAll().catch(()=>{});
   connections.stop();
+  cognition.stop();
   runtime.stop();
   dataSpine.stop();
 },{once:true});
