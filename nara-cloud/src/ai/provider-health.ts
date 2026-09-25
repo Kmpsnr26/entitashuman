@@ -484,6 +484,9 @@ export class ProviderHealthRegistry {
       latencyMs
     );
 
+    record.lastSuccessAt =
+      this.now();
+
     const activeProbe =
       probeId !==
         undefined &&
@@ -523,9 +526,6 @@ export class ProviderHealthRegistry {
 
     record.consecutiveFailures =
       0;
-
-    record.lastSuccessAt =
-      this.now();
 
     record.openedAt =
       undefined;
