@@ -41,11 +41,11 @@ interface StreamOptions
 
 class DownstreamCallbackError
   extends Error {
-  readonly cause:
+  readonly original:
     unknown;
 
   constructor(
-    cause: unknown
+    original: unknown
   ) {
     super(
       "AI downstream callback failed."
@@ -54,8 +54,8 @@ class DownstreamCallbackError
     this.name =
       "DownstreamCallbackError";
 
-    this.cause =
-      cause;
+    this.original =
+      original;
   }
 }
 
@@ -1001,7 +1001,7 @@ export class AiGateway {
             lease.probeId
           );
 
-          throw error.cause;
+          throw error.original;
         }
 
         const timedOut =
