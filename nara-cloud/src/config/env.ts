@@ -108,7 +108,23 @@ const BaseEnvSchema = z.object({
       .int()
       .min(64)
       .max(8_192)
-      .default(2_048)
+      .default(2_048),
+
+  AI_BREAKER_FAILURE_THRESHOLD:
+    z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(20)
+      .default(3),
+
+  AI_BREAKER_COOLDOWN_MS:
+    z.coerce
+      .number()
+      .int()
+      .min(1_000)
+      .max(1_800_000)
+      .default(60_000)
 });
 
 function isBareOrigin(
