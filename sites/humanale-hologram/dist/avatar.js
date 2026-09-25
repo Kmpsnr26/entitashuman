@@ -82,6 +82,7 @@
         vision:{active:false,activity:0,frameId:null},
         speech:{active:false,energy:0}
       };
+      this.dataSpineState={version:1,lanes:{},packets:[],updatedAt:0};
       this.brainRegionScreen = [];
       this.facePoints = this.buildFallback();
       this.referencePromise = options.referenceSrc ? this.loadReference(options.referenceSrc) : Promise.resolve(false);
@@ -323,6 +324,35 @@
       this.brainState = { selectedRegion:selected, regions:next };
       this.onBrainState?.(this.brainState);
     }
+    setDataSpineState(snapshot = {}) {
+      const laneIds=new Set((this.neuralCore.spineLanes||[]).map(lane=>lane.id));
+      const lanes={};
+      for(const meta of this.neuralCore.spineLanes||[]){
+        const source=snapshot?.lanes?.[meta.id]||{};
+        lanes[meta.id]={
+          id:meta.id,region:meta.region,label:meta.label,
+          status:String(source.status||'idle').slice(0,40),
+          activity:clamp(source.activity),
+          lastEvent:String(source.lastEvent||'').slice(0,100),
+          updatedAt:Number(source.updatedAt)||0,
+          packetCount:Math.max(0,Math.min(160,Number(source.packetCount)||0))
+        };
+      }
+      const packets=(Array.isArray(snapshot?.packets)?snapshot.packets:[])
+        .filter(packet=>laneIds.has(packet?.laneId))
+        .slice(-160)
+        .map(packet=>({
+          id:Number(packet.id)||0,
+          laneId:String(packet.laneId),
+          event:String(packet.event||'').slice(0,120),
+          glyph:String(packet.glyph||'01').slice(0,3),
+          direction:packet.direction==='down'?'down':'up',
+          bornAt:Number(packet.bornAt)||0,
+          ttl:Math.max(400,Math.min(6000,Number(packet.ttl)||2200))
+        }));
+      this.dataSpineState={version:1,lanes,packets,updatedAt:Number(snapshot?.updatedAt)||0};
+      this.onDataSpineState?.(this.dataSpineState);
+    }
     selectBrainRegion(id = '') {
       if (this.neuralCore.regionIndex?.[id] === undefined) return false;
       this.brainState = { ...(this.brainState || {}), selectedRegion:id };
@@ -511,28 +541,86 @@
         }
       }
 
-      // Packets travel continuously from the base of the neck into meaningful regions.
-      for (let lane = 0; lane < graph.paths.length; lane++) for (let packet = 0; packet < 5; packet++) {
-        const ids = graph.paths[lane];
-        const phase = ((this.reducedMotion ? 0 : time * 0.000075) + packet / 5 + lane * 0.037) % 1;
-        const index = phase * (ids.length - 1), i = Math.floor(index);
-        const aNode=graph.nodes[ids[i]], bNode=graph.nodes[ids[Math.min(i+1, ids.length-1)]];
-        const p = this.project(lerp(aNode.x,bNode.x,index-i), lerp(aNode.y,bNode.y,index-i), lerp(aNode.z,bNode.z,index-i), time, true);
-        const glyph = this.glyphCache[this.lightAt(p.x,p.y) ? 'light' : 'dark'];
-        const targetState=runtime[aNode.targetRegion||bNode.targetRegion]||{activity:0};
-        const h = Math.min(16, Math.max(5, this.scale*0.017*p.scale))*(1+clamp(targetState.activity)*.18);
-        c.globalAlpha = visibility * (0.68+clamp(targetState.activity)*.28);
-        c.drawImage(glyph.atlas, 15*24, ((lane+packet)%2)*32, 24, 32, p.x-h*.375,p.y-h/2,h*.75,h);
+      // Phase 7 Data Spine: lanes glow from real BrainState status, while moving
+      // packets exist only when the event-driven Data Spine engine emits them.
+      const spine=this.dataSpineState||{lanes:{},packets:[]};
+      for(let laneIndex=0;laneIndex<graph.paths.length;laneIndex++){
+        const ids=graph.paths[laneIndex],meta=graph.spineLanes?.[laneIndex];
+        if(!meta||!ids?.length)continue;
+        const laneState=spine.lanes?.[meta.id]||{};
+        const targetState=runtime[meta.region]||{status:'idle',activity:0};
+        const lanePackets=(spine.packets||[]).filter(packet=>packet.laneId===meta.id);
+        let packetActivity=0;
+        for(const packet of lanePackets){
+          const age=time-packet.bornAt;
+          if(age>=0&&age<=packet.ttl)packetActivity=Math.max(packetActivity,1-age/packet.ttl);
+        }
+        const activity=Math.max(clamp(targetState.activity),packetActivity);
+        const status=laneState.status||targetState.status||'idle';
+
+        c.save();
+        c.globalCompositeOperation=this.isLightEnvironment()?'source-over':'lighter';
+        c.lineWidth=Math.max(.65,this.scale*(.00105+activity*.0015));
+        c.strokeStyle=this.brainStatusColor(status,{x:this.cx,y:this.cy},1,time);
+        c.globalAlpha=visibility*(.045+activity*.30+(status==='connected'||status==='syncing'?.10:0));
+        c.beginPath();
+        for(let j=0;j<ids.length;j++){
+          const node=graph.nodes[ids[j]],p=this.project(node.x,node.y,node.z,time,true);
+          if(j)c.lineTo(p.x,p.y);else c.moveTo(p.x,p.y);
+        }
+        c.stroke();
+
+        for(const packet of lanePackets){
+          const age=time-packet.bornAt;
+          if(age<0||age>packet.ttl)continue;
+          let phase=clamp(age/packet.ttl);
+          if(packet.direction==='down')phase=1-phase;
+          const index=phase*(ids.length-1),segment=Math.min(ids.length-2,Math.max(0,Math.floor(index)));
+          const mix=index-segment;
+          const aNode=graph.nodes[ids[segment]],bNode=graph.nodes[ids[segment+1]];
+          const p=this.project(
+            lerp(aNode.x,bNode.x,mix),
+            lerp(aNode.y,bNode.y,mix),
+            lerp(aNode.z,bNode.z,mix),
+            time,true
+          );
+          const fade=smooth(0,.08,age/packet.ttl)*(1-smooth(.80,1,age/packet.ttl));
+          const fontSize=Math.max(6,Math.min(12,this.scale*.013*p.scale));
+          c.globalCompositeOperation='source-over';
+          c.font='700 '+fontSize+'px "Cascadia Mono", Consolas, monospace';
+          c.textAlign='center';c.textBaseline='middle';
+          c.fillStyle=this.brainStatusColor(status,p,1,time);
+          c.globalAlpha=visibility*fade*(.58+activity*.36);
+          c.fillText(packet.glyph,p.x,p.y);
+          c.globalCompositeOperation=this.isLightEnvironment()?'source-over':'lighter';
+        }
+
+        if(this.zoom>1.72){
+          const baseNode=graph.nodes[ids[0]],base=this.project(baseNode.x,baseNode.y,baseNode.z,time,true);
+          c.globalCompositeOperation='source-over';
+          c.font='600 '+Math.max(6,Math.min(9,this.scale*.010))+'px "Cascadia Mono", Consolas, monospace';
+          c.textAlign='center';c.textBaseline='top';
+          c.fillStyle=this.brainStatusColor(status,base,1,time);
+          c.globalAlpha=visibility*(.28+activity*.42);
+          c.fillText(meta.label,base.x,base.y+5,58);
+        }
+        c.restore();
       }
 
-      // Along cortical connections, smaller signals carry the data onward.
+      // Cortical signals now move only across regions that are actually active or selected.
       for (let i = 0; i < graph.links.length; i += 13) {
         const edge = graph.links[i];
         if (edge.a >= graph.brainCount || edge.b >= graph.brainCount) continue;
+        const aNode=graph.nodes[edge.a],bNode=graph.nodes[edge.b];
+        const sa=stateForNode(aNode),sb=stateForNode(bNode);
+        const active=Math.max(clamp(sa.activity),clamp(sb.activity));
+        const selected=aNode.region===selectedId||bNode.region===selectedId;
+        if(active<.08&&!selected)continue;
         const a = projected[edge.a], b = projected[edge.b];
         const t = ((this.reducedMotion ? 0 : time*0.00016) + i*0.071) % 1;
         const p = {x:lerp(a.x,b.x,t), y:lerp(a.y,b.y,t)};
-        c.globalAlpha = visibility * 0.7; c.fillStyle = color(p,15);
+        c.globalAlpha = visibility * (.32+active*.50+(selected?.12:0));
+        c.fillStyle=this.brainStatusColor(active>=clamp(sb.activity)?sa.status:sb.status,p,1,time);
         c.fillRect(p.x-1,p.y-1,2,2);
       }
 
