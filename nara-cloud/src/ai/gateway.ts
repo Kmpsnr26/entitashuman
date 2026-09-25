@@ -273,6 +273,20 @@ function providerTimeoutError(
   );
 }
 
+function clientAbortError():
+  AiProviderError {
+  return new AiProviderError(
+    "AI request was aborted by the client.",
+    {
+      code:
+        "AI_CLIENT_ABORTED",
+
+      retryable:
+        false
+    }
+  );
+}
+
 function circuitOpenError(
   providerId: string
 ): AiProviderError {
@@ -519,13 +533,29 @@ export class AiGateway {
             child.signal
           );
 
+        if (
+          child.timedOut()
+        ) {
+          throw providerTimeoutError(
+            provider.id
+          );
+        }
+
+        if (
+          child
+            .abortedByParent()
+        ) {
+          throw clientAbortError();
+        }
+
         const latencyMs =
           Date.now() -
           started;
 
         this.health.success(
           provider.id,
-          latencyMs
+          latencyMs,
+          lease.probeId
         );
 
         const attempt:
@@ -606,7 +636,8 @@ export class AiGateway {
 
         if (aborted) {
           this.health.release(
-            provider.id
+            provider.id,
+            lease.probeId
           );
         } else {
           this.health.failure(
@@ -616,7 +647,10 @@ export class AiGateway {
                 isRetryable,
               latencyMs,
               errorCode:
-                safeErrorCode
+                safeErrorCode,
+
+              probeId:
+                lease.probeId
             }
           );
         }
@@ -782,6 +816,21 @@ export class AiGateway {
             async (
               delta
             ) => {
+              if (
+                child.timedOut()
+              ) {
+                throw providerTimeoutError(
+                  provider.id
+                );
+              }
+
+              if (
+                child
+                  .abortedByParent()
+              ) {
+                throw clientAbortError();
+              }
+
               if (!emitted) {
                 emitted = true;
 
@@ -811,7 +860,8 @@ export class AiGateway {
 
         this.health.success(
           provider.id,
-          latencyMs
+          latencyMs,
+          lease.probeId
         );
 
         if (!emitted) {
@@ -889,6 +939,21 @@ export class AiGateway {
             effectiveError
           );
 
+        if (
+          child.timedOut()
+        ) {
+          throw providerTimeoutError(
+            provider.id
+          );
+        }
+
+        if (
+          child
+            .abortedByParent()
+        ) {
+          throw clientAbortError();
+        }
+
         const latencyMs =
           Date.now() -
           started;
@@ -902,7 +967,8 @@ export class AiGateway {
 
         if (aborted) {
           this.health.release(
-            provider.id
+            provider.id,
+            lease.probeId
           );
         } else {
           this.health.failure(
@@ -912,7 +978,10 @@ export class AiGateway {
                 isRetryable,
               latencyMs,
               errorCode:
-                safeErrorCode
+                safeErrorCode,
+
+              probeId:
+                lease.probeId
             }
           );
         }
