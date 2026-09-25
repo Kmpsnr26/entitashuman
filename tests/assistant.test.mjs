@@ -514,9 +514,9 @@ test('Indonesian TTS prefers Piper only when configured and falls back to Window
  assert.match(app,/localTtsConfigured=false/);
  assert.match(app,/localTtsConfigured=Boolean\(result\.configured\)/);
  assert.match(app,/function speakNativeIndonesian/);
- assert.match(app,/if\(localTtsConfigured&&desktop\?\.synthesize\)\{speakLocal\(text\);return;\}/);
- assert.match(app,/if\(speakNativeIndonesian\(text\)\)return/);
- assert.match(app,/if\(desktop\?\.synthesize\)\{speakLocal\(text\);return;\}/);
+ assert.match(app,/if\(localTtsConfigured&&desktop\?\.synthesize\)\{speakLocal\(text,style\);return true;\}/);
+ assert.match(app,/if\(speakNativeIndonesian\(text,style\)\)return true;/);
+ assert.match(app,/if\(desktop\?\.synthesize\)\{speakLocal\(text,style\);return true;\}/);
  assert.match(app,/u\.lang=chosen\.lang/);
  assert.match(app,/dudidam-voice-uri/);
  assert.match(app,/voiceschanged/);
