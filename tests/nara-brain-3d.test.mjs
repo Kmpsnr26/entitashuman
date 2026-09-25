@@ -1,29 +1,43 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile,stat} from 'node:fs/promises';
-import {NARA_REGION_IDS} from '../nara-core/brain/regions.js';
+import {NARA_REGION_IDS,NARA_REGIONS} from '../nara-core/brain/regions.js';
 
 const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');
+async function createGraph(){
+  if(!globalThis.NeuralCore)await import('../sites/humanale-hologram/dist/neural-core.js');
+  return globalThis.NeuralCore.create();
+}
 
 test('3D neural core exposes the exact official NARA region set',async()=>{
-  delete globalThis.NeuralCore;
-  await import('../sites/humanale-hologram/dist/neural-core.js');
-  const graph=globalThis.NeuralCore.create();
+  const graph=await createGraph();
   assert.equal(graph.regions.length,NARA_REGION_IDS.length);
   assert.deepEqual([...graph.regionIds].sort(),[...NARA_REGION_IDS].sort());
   assert.deepEqual([...globalThis.NeuralCore.regionIds].sort(),[...NARA_REGION_IDS].sort());
   assert.equal(graph.brainCount,288);
   for(const region of graph.regions){
     assert.ok(NARA_REGION_IDS.includes(region.id),region.id);
-    for(const axis of ['x','y','z'])assert.equal(Number.isFinite(region[axis]),true,region.id+' '+axis);
+    const official=NARA_REGIONS[region.id];
+    assert.equal(region.label,official.label);
+    assert.equal(region.group,official.group);
+    assert.deepEqual([...region.connections].sort(),[...official.connections].sort());
+    const expected={
+      x:official.position.x*.37,
+      y:-.30-official.position.y*.18,
+      z:.135+official.position.z*.28
+    };
+    for(const axis of ['x','y','z']){
+      assert.equal(Number.isFinite(region[axis]),true,region.id+' '+axis);
+      assert.ok(Math.abs(region[axis]-expected[axis])<1e-9,region.id+' visual '+axis+' drifted from official position');
+    }
     assert.ok(Number.isInteger(region.anchorNode));
     assert.ok(region.anchorNode>=0&&region.anchorNode<graph.brainCount);
   }
 });
 
 test('every cortical node and data-spine lane has a valid semantic NARA target',async()=>{
-  const graph=globalThis.NeuralCore.create();
+  const graph=await createGraph();
   for(const node of graph.nodes.slice(0,graph.brainCount)){
     assert.ok(NARA_REGION_IDS.includes(node.region),'invalid cortical region '+node.region);
   }
