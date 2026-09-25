@@ -1123,6 +1123,187 @@ test(
 );
 
 test(
+  "attempt observer failure does not fail a successful provider request",
+  async () => {
+    const health =
+      new ProviderHealthRegistry();
+
+    const provider =
+      new FakeProvider(
+        "openai",
+        async () => ({
+          text:
+            "ok",
+          provider:
+            "openai",
+          model:
+            "openai-model",
+          usage:
+            {}
+        })
+      );
+
+    const gateway =
+      new AiGateway(
+        [provider],
+        "openai",
+        health
+      );
+
+    const result =
+      await gateway.generate(
+        request,
+        {
+          provider:
+            "openai",
+
+          onAttempt:
+            () => {
+              throw new Error(
+                "observer failed"
+              );
+            }
+        }
+      );
+
+    assert.equal(
+      result.text,
+      "ok"
+    );
+
+    const snapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      snapshot.circuitState,
+      "healthy"
+    );
+
+    assert.equal(
+      snapshot.successes,
+      1
+    );
+
+    assert.equal(
+      snapshot.failures,
+      0
+    );
+  }
+);
+
+test(
+  "downstream stream callback failure does not poison provider health or fallback",
+  async () => {
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          1
+      });
+
+    const first =
+      new FakeProvider(
+        "first",
+        async () => ({
+          text:
+            "first-delta",
+          provider:
+            "first",
+          model:
+            "first-model",
+          usage:
+            {}
+        })
+      );
+
+    const second =
+      new FakeProvider(
+        "second",
+        async () => ({
+          text:
+            "second-delta",
+          provider:
+            "second",
+          model:
+            "second-model",
+          usage:
+            {}
+        })
+      );
+
+    const gateway =
+      new AiGateway(
+        [
+          first,
+          second
+        ],
+        "first,second",
+        health
+      );
+
+    const downstreamError =
+      new Error(
+        "client output failed"
+      );
+
+    await assert.rejects(
+      () =>
+        gateway.stream(
+          request,
+          {
+            provider:
+              "auto",
+
+            onProvider:
+              () => {},
+
+            onDelta:
+              () => {
+                throw downstreamError;
+              }
+          }
+        ),
+      error =>
+        error ===
+        downstreamError
+    );
+
+    assert.equal(
+      first.calls,
+      1
+    );
+
+    assert.equal(
+      second.calls,
+      0
+    );
+
+    const snapshot =
+      health.snapshot(
+        "first",
+        true
+      );
+
+    assert.equal(
+      snapshot.circuitState,
+      "healthy"
+    );
+
+    assert.equal(
+      snapshot.failures,
+      0
+    );
+
+    assert.equal(
+      snapshot.consecutiveFailures,
+      0
+    );
+  }
+);
+
+test(
   "gateway successful half-open probe closes the circuit",
   async () => {
     let now = 60_000;
