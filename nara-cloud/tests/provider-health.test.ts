@@ -578,3 +578,131 @@ test(
     }
   }
 );
+
+
+test(
+  "provider telemetry reports normalized availability, bounded counters and latency EMA",
+  () => {
+    let now = 50_000;
+
+    const health =
+      new ProviderHealthRegistry({
+        failureThreshold:
+          3,
+
+        cooldownMs:
+          10_000,
+
+        now:
+          () => now
+      });
+
+    health.success(
+      "openai",
+      100
+    );
+
+    now += 10;
+
+    health.success(
+      "openai",
+      200
+    );
+
+    now += 10;
+
+    health.retryableFailure(
+      "openai",
+      400
+    );
+
+    let snapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      snapshot.availability,
+      "degraded"
+    );
+
+    assert.equal(
+      snapshot.successCount,
+      2
+    );
+
+    assert.equal(
+      snapshot.failureCount,
+      1
+    );
+
+    assert.equal(
+      snapshot.successRate,
+      0.6667
+    );
+
+    assert.equal(
+      snapshot.lastLatencyMs,
+      400
+    );
+
+    assert.equal(
+      snapshot.latencyEmaMs,
+      194
+    );
+
+    for (
+      let index = 0;
+      index < 50;
+      index += 1
+    ) {
+      health.retryableFailure(
+        "openai",
+        250
+      );
+    }
+
+    snapshot =
+      health.snapshot(
+        "openai",
+        true
+      );
+
+    assert.equal(
+      snapshot.consecutiveFailures,
+      3
+    );
+
+    assert.equal(
+      snapshot.availability,
+      "unavailable"
+    );
+
+    assert.ok(
+      snapshot.failureCount <=
+        1_000_000
+    );
+
+    const unconfigured =
+      health.snapshot(
+        "anthropic",
+        false
+      );
+
+    assert.equal(
+      unconfigured.availability,
+      "unavailable"
+    );
+
+    assert.equal(
+      unconfigured.successCount,
+      0
+    );
+
+    assert.equal(
+      unconfigured.failureCount,
+      0
+    );
+  }
+);
