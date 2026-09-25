@@ -1,0 +1,36 @@
+{
+  "name": "nara-cloud",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:auth": "tsx watch src/apps/authServer.ts",
+    "dev:nara": "tsx watch src/apps/naraServer.ts",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "create-owner": "tsx src/scripts/createOwner.ts",
+    "build": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "start:auth": "node dist/apps/authServer.js",
+    "start:nara": "node dist/apps/naraServer.js"
+  },
+  "dependencies": {
+    "argon2": "latest",
+    "connect-pg-simple": "latest",
+    "dotenv": "latest",
+    "express": "latest",
+    "express-rate-limit": "latest",
+    "express-session": "latest",
+    "helmet": "latest",
+    "pg": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/connect-pg-simple": "latest",
+    "@types/express": "latest",
+    "@types/express-session": "latest",
+    "@types/node": "latest",
+    "@types/pg": "latest",
+    "tsx": "latest",
+    "typescript": "latest"
+  }
+}
