@@ -1,18 +1,24 @@
 name: Verify and package
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [main]
   push:
-    branches: [main, codex/entitasale170925]
+    branches: [main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 25
+  quality:
+    name: Linux quality gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -23,29 +29,15 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
-      - name: Verify
+      - name: Verify tests and build
         run: npm run verify
-      - name: Smoke interactive Windows terminal
-        run: npm run smoke:terminal
       - name: Audit high severity
         run: npm audit --audit-level=high
-      - name: Package portable desktop
-        run: npm run package:desktop
-      - name: Smoke packaged desktop
-        run: .\HumanALE-God-Engine-Desktop\HumanALE-God-Engine.exe --ci-smoke
-      - name: Build assisted Windows installer
-        run: npm run package:installer
-      - name: Validate installer output
-        shell: pwsh
-        run: |
-          $installer = Get-ChildItem release -Filter "HumanALE-God-Engine-Setup-*-x64.exe" | Select-Object -First 1
-          if (-not $installer) { throw "Installer HumanALE god egine tidak ditemukan." }
-          if ($installer.Length -lt 1000000) { throw "Installer HumanALE god egine terlalu kecil dan kemungkinan tidak lengkap." }
-          Write-Host "Installer ready: $($installer.FullName) ($($installer.Length) bytes)"
 
-  release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: windows
+  windows:
+    name: Windows runtime and package
+    if: github.event_name != 'pull_request'
+    needs: quality
     runs-on: windows-latest
     timeout-minutes: 25
     permissions:
@@ -60,18 +52,28 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
-      - name: Build portable desktop
+      - name: Smoke interactive Windows terminal
+        run: npm run smoke:terminal
+      - name: Package portable desktop
         run: npm run package:desktop
-      - name: Build installer
+      - name: Smoke packaged desktop
+        run: .\HumanALE-God-Engine-Desktop\HumanALE-God-Engine.exe --ci-smoke
+      - name: Build assisted Windows installer
         run: npm run package:installer
-      - name: Prepare release files
+      - name: Prepare and validate release files
         shell: pwsh
         run: |
           $version = node -p "require('./package.json').version"
+          $installer = Get-ChildItem release -Filter "HumanALE-God-Engine-Setup-*-x64.exe" | Select-Object -First 1
+          if (-not $installer) { throw "Installer HumanALE god egine tidak ditemukan." }
+          if ($installer.Length -lt 1000000) { throw "Installer HumanALE god egine terlalu kecil dan kemungkinan tidak lengkap." }
           $zip = "release\HumanALE-God-Engine-Portable-$version-x64.zip"
           Compress-Archive -Path "HumanALE-God-Engine-Desktop\*" -DestinationPath $zip -Force
+          if (-not (Test-Path $zip)) { throw "Portable ZIP tidak ditemukan." }
+          Write-Host "Installer ready: $($installer.FullName) ($($installer.Length) bytes)"
           Write-Host "Portable package: $zip"
       - name: Publish GitHub release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
