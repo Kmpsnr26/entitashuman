@@ -38,7 +38,7 @@ const zoom = document.querySelector('#zoom');
 avatar.onZoom = value => {
   zoom.value = String(value);
   document.querySelector('#zoom-value').textContent = value.toFixed(1) + '× · ' +
-    (value < 1.5 ? 'wajah' : value < 2.65 ? 'rongga kepala' : 'inti neural');
+    (value < 1.5 ? 'wajah' : value < 2.15 ? 'rongga kepala' : value < 2.75 ? 'otak 3D' : value < 3.3 ? 'NARA neural' : 'node / modul');
 };
 zoom.addEventListener('input', event => avatar.setZoom(event.target.value));
 
@@ -55,7 +55,11 @@ document.querySelectorAll('[data-action]').forEach(button => button.addEventList
   }, 420);
   showState(button.textContent.toUpperCase());
 }));
-canvas.addEventListener('click', () => { avatar.blinkStart = performance.now(); });
+canvas.addEventListener('click', event => {
+  const region=avatar.pickBrainRegion?.(event.clientX,event.clientY);
+  if(region){avatar.selectBrainRegion?.(region);showState('NARA · '+region.replaceAll('_',' '),0);return;}
+  avatar.blinkStart = performance.now();
+});
 
 let speechGeneration = 0;
 const stopSpeaking = (generation, label = 'SIAP') => {
