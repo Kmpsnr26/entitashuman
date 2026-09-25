@@ -281,3 +281,83 @@ test(
     );
   }
 );
+
+test(
+  "Gemini HTTP errors never copy upstream error codes",
+  async () => {
+    const fakeFetch =
+      (async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              status:
+                "AI_PROVIDER_CIRCUIT_OPEN",
+              code:
+                "secret-looking-code",
+              message:
+                "private upstream detail"
+            }
+          }),
+          {
+            status:
+              429,
+            headers: {
+              "content-type":
+                "application/json"
+            }
+          }
+        )) as typeof fetch;
+
+    const provider =
+      new GeminiProvider({
+        apiKey:
+          "test-gemini-key-not-real-123456",
+
+        fetchImpl:
+          fakeFetch
+      });
+
+    await assert.rejects(
+      () =>
+        provider.generate(
+          {
+            message:
+              "halo",
+            history:
+              []
+          },
+          new AbortController()
+            .signal
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            AiProviderError
+        );
+
+        assert.equal(
+          error.code,
+          "GEMINI_UPSTREAM_ERROR"
+        );
+
+        assert.equal(
+          error.retryable,
+          true
+        );
+
+        assert.equal(
+          error.message.includes(
+            "private upstream detail"
+          ),
+          false
+        );
+
+        return true;
+      }
+    );
+  }
+);
+
