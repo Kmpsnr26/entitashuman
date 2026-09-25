@@ -82,6 +82,42 @@ function usageFrom(
   };
 }
 
+const COMPAT_RETRYABLE_STREAM_CODES =
+  new Set([
+    "slow_down",
+    "server_is_overloaded",
+    "rate_limit_exceeded",
+    "server_error",
+    "service_unavailable",
+    "temporarily_unavailable",
+    "timeout",
+    "timeout_error"
+  ]);
+
+function isRetryableStreamError(
+  error:
+    CompatibleResponse["error"]
+): boolean {
+  if (!error) {
+    return false;
+  }
+
+  const value =
+    error.code ??
+    error.type;
+
+  return (
+    typeof value ===
+      "string" &&
+    COMPAT_RETRYABLE_STREAM_CODES
+      .has(
+        value
+          .trim()
+          .toLowerCase()
+      )
+  );
+}
+
 async function failureFrom(
   response: Response
 ): Promise<AiProviderError> {
@@ -468,7 +504,9 @@ export class OpenAiCompatibleProvider
               "COMPAT_STREAM_ERROR",
 
             retryable:
-              true
+              isRetryableStreamError(
+                parsed.error
+              )
           }
         );
       }
