@@ -19,7 +19,8 @@
     'bug.detected':{stage:'DEBUG',region:'BUG_HUNTER',state:'error'},
     'bug.fixed':{stage:'DEBUG',region:'BUG_HUNTER',state:'complete'},
     'work.start':{stage:'TASK',region:'PROGRAM',state:'running'},
-    'work.complete':{stage:'TASK',region:'PROGRAM',state:'complete'}
+    'work.complete':{stage:'TASK',region:'PROGRAM',state:'complete'},
+    'work.failed':{stage:'TASK',region:'PROGRAM',state:'error'}
   });
   const safeLabel=value=>String(value||'').replace(/\s+/g,' ').trim().slice(0,120);
   const defaultLabel=meta=>meta.stage+' · '+meta.state;
