@@ -173,6 +173,12 @@
           <label class="custom-range"><span>HUD Opacity <b data-visual-value="hudOpacity"></b></span><input type="range" min=".45" max="1" step=".05" data-visual-setting="hudOpacity"></label>
           <label class="custom-range"><span>UI Scale <b data-visual-value="uiScale"></b></span><input type="range" min=".82" max="1.18" step=".02" data-visual-setting="uiScale"></label>
           <label class="custom-toggle"><span>Audio</span><input type="checkbox" data-visual-setting="audio"></label>
+          <label class="custom-range"><span>Master Volume <b data-visual-value="masterVolume"></b></span><input type="range" min="0" max="1" step=".02" data-visual-setting="masterVolume"></label>
+          <label class="custom-range"><span>Transition FX <b data-visual-value="transitionFx"></b></span><input type="range" min="0" max="1" step=".02" data-visual-setting="transitionFx"></label>
+          <label class="custom-range"><span>Voice Volume <b data-visual-value="voiceVolume"></b></span><input type="range" min="0" max="1" step=".02" data-visual-setting="voiceVolume"></label>
+          <label class="custom-range"><span>Voice Rate <b data-visual-value="voiceRate"></b></span><input type="range" min=".72" max="1.15" step=".01" data-visual-setting="voiceRate"></label>
+          <label class="custom-range"><span>Voice Pitch <b data-visual-value="voicePitch"></b></span><input type="range" min=".5" max="1.2" step=".01" data-visual-setting="voicePitch"></label>
+          <label class="custom-toggle"><span>Droid Character</span><input type="checkbox" data-visual-setting="droidCharacter"></label>
           <label class="custom-select"><span>Quality</span>
             <select data-visual-setting="quality">
               <option value="auto">Auto</option>
@@ -185,7 +191,7 @@
       </div>
 
       <div class="custom-settings-foot">
-        <span>Visual preferences only · no credentials stored</span>
+        <span>Visual / audio preferences only · no credentials stored</span>
         <button id="customSettingsReset" type="button">RESET VISUAL</button>
       </div>
     </aside>
