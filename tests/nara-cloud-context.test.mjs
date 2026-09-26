@@ -15,15 +15,16 @@ const csrf='test-csrf-token-value-1234567890';
 const entryId='11111111-1111-4111-8111-111111111111';
 
 function packet(approved=true){
+ const text='[Project]\nMemory cloud aman.';
  return {
   version:1,
   target:'reasoner',
   mode:'ask',
   approved,
   count:1,
-  chars:29,
+  chars:text.length,
   entryIds:[entryId],
-  text:'[Project]\nMemory cloud aman.'
+  text
  };
 }
 
