@@ -46,3 +46,15 @@ button,select,input{background:#0c2732;color:#c9f5ff;border:1px solid #245365;bo
 .neural3d-hud{position:absolute;left:12px;bottom:12px;z-index:3;display:grid;gap:3px;min-width:250px;padding:9px 11px;border:1px solid #1d5264;border-radius:9px;background:#031018b8;backdrop-filter:blur(8px);pointer-events:none}
 .neural3d-hud span{font-size:8px;letter-spacing:.14em;color:#6d9aa6}.neural3d-hud strong{font-size:11px;color:#aef5ff}.neural3d-hud small{font-size:8px;color:#5f7e88}
 .neural3d-error{display:grid;place-items:center;height:100%;padding:24px;text-align:center;color:#ffb8c1;font:11px ui-monospace,SFMono-Regular,Consolas,monospace}
+
+
+/* Neural Space 3D — Stages 3–5 controls */
+.neural3d-toolbar{position:absolute;left:12px;top:12px;z-index:5;display:flex;align-items:center;gap:6px;padding:7px;border:1px solid #1b4b5c;border-radius:10px;background:#031018c7;backdrop-filter:blur(10px)}
+.neural3d-toolbar button{padding:6px 8px;font-size:9px;text-transform:uppercase;letter-spacing:.07em}
+.neural3d-toolbar button.mode-active{border-color:#69ebff;color:#d0fbff;box-shadow:0 0 15px #00cfff35}
+.neural3d-toolbar label{display:flex;align-items:center;gap:5px;font-size:8px;color:#668b97;text-transform:uppercase;letter-spacing:.06em}.neural3d-toolbar select{padding:5px 7px;font-size:9px}
+.neural3d-detail{position:absolute;right:12px;top:12px;z-index:5;width:min(265px,36%);padding:10px 11px;border:1px solid #1b4b5c;border-radius:10px;background:#031018c2;backdrop-filter:blur(10px);pointer-events:none}
+.neural3d-detail>span{display:block;font-size:8px;letter-spacing:.13em;color:#648895}.neural3d-detail>strong{display:block;margin:3px 0;color:#c9f8ff;font-size:12px}.neural3d-detail small{display:block;color:#66838d;font-size:8px;line-height:1.45}.neural3d-detail b{color:#79eafa}
+.neural3d-vignette{position:absolute;inset:0;z-index:2;pointer-events:none;background:radial-gradient(circle at 50% 48%,transparent 38%,#01040626 70%,#00080 100%);box-shadow:inset 0 0 80px #0009}
+.neural3d-canvas:focus{outline:1px solid #55dff566;outline-offset:-1px}
+@media(max-width:760px){.neural3d-toolbar{right:12px;flex-wrap:wrap}.neural3d-detail{top:auto;right:12px;bottom:12px;width:42%}.neural3d-hud{max-width:48%}}
