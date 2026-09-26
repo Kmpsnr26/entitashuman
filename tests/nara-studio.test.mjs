@@ -669,11 +669,13 @@ test('edge HUD module passes Node syntax check',async()=>{
 test('Stage 3 cinematic entry uses local bounded audio and Indonesian NARA voice',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
-  const [html,app,gateway,entry,styles]=await Promise.all([
+  const [html,app,gateway,entry,sound,matrix,styles]=await Promise.all([
     readFile(new URL('nara-core/studio/public/index.html',root),'utf8'),
     readFile(new URL('nara-core/studio/public/app.js',root),'utf8'),
     readFile(new URL('nara-core/studio/public/creator-gateway.js',root),'utf8'),
     readFile(new URL('nara-core/studio/public/neural-entry.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/cinematic-sound.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/matrix-transition.js',root),'utf8'),
     readFile(new URL('nara-core/studio/public/styles.css',root),'utf8')
   ]);
 
@@ -683,8 +685,9 @@ test('Stage 3 cinematic entry uses local bounded audio and Indonesian NARA voice
   assert.match(gateway,/onEntering\(session\)/);
   assert.match(app,/createNeuralEntryExperience/);
   assert.match(app,/onEntering:\(\)=>neuralEntry\.play/);
-  assert.match(entry,/new AudioContext|AudioContext=window\.AudioContext/);
-  assert.match(entry,/createOscillator\(\)/);
+  assert.match(sound,/AudioContext=window\.AudioContext/);
+  assert.match(sound,/createOscillator\(\)/);
+  assert.match(matrix,/fillText\(bit/);
   assert.match(entry,/SpeechSynthesisUtterance/);
   assert.match(entry,/NARA Core online/);
   assert.match(entry,/id-ID/);
@@ -980,4 +983,43 @@ test('Creator brain module passes Node syntax check',async()=>{
   const file=fileURLToPath(new URL('../nara-core/studio/public/creator-brain.js',import.meta.url));
   const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
   assert.equal(result.status,0,result.stderr||result.stdout||file);
+});
+
+
+test('Revision R2 sequences sweep zoom process pulse and flow with bounded local audio',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [html,entry,sound,matrix,styles]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/index.html',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/neural-entry.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/cinematic-sound.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/matrix-transition.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/styles.css',root),'utf8')
+  ]);
+  assert.match(html,/id="neuralEntryMatrix"/);
+  assert.match(html,/neural-entry-warp/);
+  assert.match(entry,/MATRIX GATE OPENING/);
+  for(const cue of ['sweep','zoomIn','pulse','process','flow','zoomOut']){
+    assert.match(entry,new RegExp(cue));
+    assert.match(sound,new RegExp("name==='"+cue+"'"));
+  }
+  assert.match(entry,/const total=motionReduced\?1050:\(compact\?1850:3600\)/);
+  assert.match(entry,/matrix\.start\(\{compact\}\)/);
+  assert.match(entry,/matrix\.burst\(\)/);
+  assert.match(entry,/sound\.cue\(item\[2\]\)/);
+  assert.match(matrix,/prefers-reduced-motion/);
+  assert.match(sound,/master\.gain\.value=\.055/);
+  assert.doesNotMatch(sound,/fetch\(|EventSource|https?:\/\//);
+  assert.doesNotMatch(matrix,/fetch\(|EventSource|https?:\/\//);
+  assert.match(styles,/Revision R2 — Smooth Matrix Gate/);
+});
+
+test('R2 cinematic sound and matrix modules pass Node syntax checks',async()=>{
+  const {spawnSync}=await import('node:child_process');
+  const {fileURLToPath}=await import('node:url');
+  for(const relative of ['../nara-core/studio/public/cinematic-sound.js','../nara-core/studio/public/matrix-transition.js']){
+    const file=fileURLToPath(new URL(relative,import.meta.url));
+    const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
+    assert.equal(result.status,0,result.stderr||result.stdout||file);
+  }
 });
