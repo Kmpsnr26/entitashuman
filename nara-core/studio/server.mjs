@@ -5,6 +5,7 @@ import {fileURLToPath} from 'node:url';
 import {createOrchestrator,NARA_REGIONS} from '../brain/index.js';
 import {createStudioTelemetry} from './telemetry.mjs';
 import {createSkillRegistry} from '../skills/index.js';
+import {createCreatorAuth} from './creator-auth.mjs';
 
 const HERE=fileURLToPath(new URL('.',import.meta.url));
 const PUBLIC=join(HERE,'public');
@@ -63,7 +64,16 @@ function sendSse(res,type,data){
   res.write('data: '+JSON.stringify(data)+'\n\n');
 }
 
-export function createNaraStudioServer({host='127.0.0.1',port=4178}={}){
+export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:creatorOptions={}}={}){
+  const creator=createCreatorAuth({
+    username:creatorOptions.username||process.env.NARA_CREATOR_USERNAME||'creator',
+    password:creatorOptions.password??process.env.NARA_CREATOR_PASSWORD??'',
+    ttlMs:creatorOptions.ttlMs,
+    maxSessions:creatorOptions.maxSessions,
+    maxAttempts:creatorOptions.maxAttempts,
+    attemptWindowMs:creatorOptions.attemptWindowMs
+  });
+  const creatorRequired=creatorOptions.required??creator.configured;
   const nara=createOrchestrator();
   const telemetry=createStudioTelemetry();
   const skills=createSkillRegistry();
@@ -103,6 +113,40 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178}={}){
         }
       }
 
+      if(req.method==='GET'&&url.pathname==='/api/creator/session'){
+        return json(res,200,{
+          ...creator.publicSession(req),
+          required:creatorRequired
+        });
+      }
+
+      if(req.method==='POST'&&url.pathname==='/api/creator/login'){
+        const data=await bodyJson(req);
+        const result=creator.login(req,{
+          username:String(data.username||'').slice(0,120),
+          password:String(data.password||'').slice(0,512)
+        });
+        if(!result.ok)return json(res,result.status||401,{ok:false,error:result.error||'Login gagal.'});
+        if(result.token){
+          const secure=String(req.headers['x-forwarded-proto']||'').toLowerCase()==='https';
+          res.setHeader('set-cookie',creator.sessionCookie(result.token,{secure}));
+        }
+        const {token,...publicResult}=result;
+        return json(res,200,publicResult);
+      }
+
+      if(req.method==='POST'&&url.pathname==='/api/creator/logout'){
+        creator.logout(req);
+        const secure=String(req.headers['x-forwarded-proto']||'').toLowerCase()==='https';
+        res.setHeader('set-cookie',creator.clearCookie({secure}));
+        return json(res,200,{ok:true});
+      }
+
+      const creatorSession=creator.getSession(req);
+      if(creatorRequired&&!creatorSession&&url.pathname.startsWith('/api/')){
+        return json(res,401,{ok:false,error:'Creator authentication required.'});
+      }
+
       if(req.method==='GET'&&url.pathname==='/api/snapshot'){
         return json(res,200,{
           state:nara.snapshot(),
@@ -110,7 +154,12 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178}={}){
           events:nara.bus.recent({limit:50}),
           telemetry:telemetry.snapshot(),
           skills:skills.snapshot(),
-          studio:{mode:'live',eventAllowlist:STUDIO_EVENT_ALLOWLIST}
+          studio:{
+            mode:'live',
+            eventAllowlist:STUDIO_EVENT_ALLOWLIST,
+            creatorAuthRequired:creatorRequired,
+            creator:creatorSession?{username:creatorSession.username}:null
+          }
         });
       }
 
@@ -165,6 +214,8 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178}={}){
     nara,
     telemetry,
     skills,
+    creator,
+    creatorRequired,
     server,
     async start(){
       if(server.listening)return server.address();
