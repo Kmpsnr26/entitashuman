@@ -811,7 +811,7 @@ function changeWakeEnabled(enabled){wakeEnabled=Boolean(enabled);if(desktop&&!pa
 $('#wakeToggle').onchange=e=>{if(panelOnly){panelChannel?.postMessage({type:'wake-toggle',enabled:e.target.checked});return;}changeWakeEnabled(e.target.checked);};
 $('#camera').onclick=toggleCamera;
 $('#center').onclick=center;
-$('#refreshStatus').onclick=checkAI;
+$('#refreshStatus').onclick=()=>{checkAI();refreshCloudMemoryStatus();};
 $('#provider').onchange=e=>{aiProvider=['chatgpt',...apiProviders].includes(e.target.value)?e.target.value:'chatgpt';localStorage.setItem('dudidam-provider',aiProvider);history=[];stopCamera();setPersona(aiProvider);checkAI();};
 $('#agentHub').onclick=async()=>{if(!desktop)return;showDialog('#agentDialog');await loadAgents();};
 $('#agentRefresh').onclick=loadAgents;
@@ -823,6 +823,21 @@ $('#popup').onclick=()=>{const pop=window.open(location.origin+'/?popup=1','dudi
 $('#login').onclick=async()=>{if(!desktop){location.href='/signin-with-chatgpt?return_to=%2F';return;}$('#login').disabled=true;try{const r=await (aiProvider==='copilot'?desktop.loginCopilot():desktop.login());if(r.error)toast(r.error);else toast('Login selesai.');await checkAI();}catch{toast('Login belum selesai. Coba lagi.');}finally{$('#login').disabled=false;}};
 $('#clickThrough').onclick=()=>{document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());desktop?.passthroughLock(true);toast('Tembus klik penuh aktif. Matikan dari ikon HumanALE god egine di tray Windows.');};$('#minimize').onclick=()=>panelOnly?desktop.closePanel():dismissAle('hide');$('#closeApp').onclick=()=>panelOnly?desktop.closePanel():dismissAle('hide');
 $('#memoryContextMode')?.addEventListener('change',()=>{desktopContextBridge?.setMode($('#memoryContextMode').value);updateDesktopMemoryContextUi();toast('Memory context: '+$('#memoryContextMode').selectedOptions[0].textContent+'.');});
+$('#memoryContextSource')?.addEventListener('change',async()=>{
+ const source=setMemorySource($('#memoryContextSource').value);
+ if(source==='cloud')await refreshCloudMemoryStatus();
+ updateDesktopMemoryContextUi();
+ toast('Sumber memory: '+(source==='cloud'?'NARA Cloud':'Lokal')+'.');
+});
+$('#cloudMemoryLogin')?.addEventListener('click',async()=>{
+ const result=await desktop?.cloudLogin?.();
+ if(result?.error){toast('NARA Cloud: '+result.error);return;}
+ toast('Window login NARA Cloud dibuka.');
+});
+$('#cloudMemoryRefresh')?.addEventListener('click',async()=>{
+ await refreshCloudMemoryStatus();
+ toast(cloudMemoryState.available?'NARA Cloud terhubung.':'Status NARA Cloud diperbarui.');
+});
 $('#chatForm').onsubmit=e=>{e.preventDefault();const text=$('#prompt').value.trim();if(text&&!busy){$('#prompt').value='';submit(text);}};let composing=false;$('#prompt').oncompositionstart=()=>{composing=true;};$('#prompt').oncompositionend=()=>{composing=false;};$('#prompt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!composing){e.preventDefault();$('#chatForm').requestSubmit();}};$('#clear').onclick=()=>{if(busy)return;history=[];$('#messages').replaceChildren();$('#bubble').hidden=true;stopSpeech();};$('#conversationSettings').onclick=()=>showDialog('#controls');
 $('#chatDialog').addEventListener('close',()=>{stopCamera();setPassthrough(true);syncPanelViewportFromDialogs();if(document.documentElement.classList.contains('stage-surface')&&!document.hidden&&!transitioning())requestAnimationFrame(()=>{if(!$('#chatDialog').open&&!transitioning())$('#chatDialog').show();});});
 $('#controls').addEventListener('close',()=>{setPassthrough(true);syncPanelViewportFromDialogs();});
@@ -896,4 +911,4 @@ window.dudidamAvatar=Object.freeze({
 });
 document.addEventListener('visibilitychange',()=>{if(document.hidden){setPassthrough(true);suspendWakeListening('ALE · wake mic dijeda');stopListening(false);stopSpeech(false);stopCamera();stopReactiveAudio();}else resumeWakeSoon(500);});
 window.addEventListener('pagehide',()=>{setPassthrough(true);wakeEnabled=false;suspendWakeListening('ALE · wake mic berhenti');stopListening(false);stopSpeech(false);stopCamera();stopReactiveAudio();assistantPopup.destroy?.();avatar.destroy?.();themeObserver.disconnect();systemThemeQuery.removeEventListener?.('change',syncSystemTheme);});
-applyBrainZoom(1,false);if(window.speechSynthesis){refreshIndonesianVoices();speechSynthesis.addEventListener?.('voiceschanged',refreshIndonesianVoices);}if(desktop)setPassthrough(true);setPersona(aiProvider);checkAI();if(desktop){setWakeStatus(!SR?'ALE · SpeechRecognition tidak tersedia':wakeEnabled?'ALE · menyalakan wake mic…':'ALE · wake mic nonaktif',false);if(wakeEnabled)startWakeListening();}
+applyBrainZoom(1,false);if(window.speechSynthesis){refreshIndonesianVoices();speechSynthesis.addEventListener?.('voiceschanged',refreshIndonesianVoices);}if(desktop)setPassthrough(true);setPersona(aiProvider);checkAI();if(desktop){refreshCloudMemoryStatus();setWakeStatus(!SR?'ALE · SpeechRecognition tidak tersedia':wakeEnabled?'ALE · menyalakan wake mic…':'ALE · wake mic nonaktif',false);if(wakeEnabled)startWakeListening();}
