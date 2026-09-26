@@ -14,7 +14,8 @@
     "smoke:terminal": "node scripts/terminal-smoke.mjs",
     "nara:studio": "node nara-core/studio/server.mjs",
     "test:nara": "node --test tests/nara-core.test.mjs tests/nara-studio.test.mjs tests/nara-voice.test.mjs",
-    "smoke:neural-live": "electron scripts/nara-neural-live-smoke.cjs"
+    "smoke:neural-live": "electron scripts/nara-neural-live-smoke.cjs",
+    "smoke:neural-gpu": "electron scripts/nara-neural-live-smoke.cjs"
   },
   "devDependencies": {
     "electron": "44.4.3"
