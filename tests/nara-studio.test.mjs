@@ -1105,7 +1105,7 @@ test('Revision R4 strengthens dark-room brain frame, binary lattice, aurora and 
 
   assert.match(scene,/function addFrameLine\(/);
   assert.match(scene,/role:'glow'/);
-  assert.match(scene,/baseOpacity:\.16\+\(band%3\)\*\.022/);
+  assert.match(scene,/baseOpacity:\.20\+\(band%3\)\*\.025/);
   assert.match(scene,/function makeBrainBinaryField\(\)/);
   assert.match(scene,/for\(let index=0;index<52;index\+\+\)/);
   assert.match(scene,/makeBinaryGlyphTexture\('0'\)/);
@@ -1141,4 +1141,15 @@ test('R4 custom settings module passes Node syntax check',async()=>{
   const file=fileURLToPath(new URL('../nara-core/studio/public/custom-settings.js',import.meta.url));
   const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
   assert.equal(result.status,0,result.stderr||result.stdout||file);
+});
+
+
+test('R4 guardian torus thickness remains bounded while brighter in dark scenes',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const scene=await readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8');
+  assert.match(scene,/new THREE\.TorusGeometry\(1\.34,\.055,8,64\)/);
+  assert.match(scene,/new THREE\.TorusGeometry\(1\.54,\.050,8,64\)/);
+  assert.match(scene,/frameGlow:1\.45/);
+  assert.match(scene,/auroraIntensity:1\.35/);
 });
