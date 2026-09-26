@@ -737,7 +737,7 @@ test('Stage 4 reduces idle root clutter while preserving active route emphasis',
   const scene=await readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8');
 
   assert.match(scene,/link\.targetIntensity=link\.selected\?1:link\.active\?\.72:\.032/);
-  assert.match(scene,/link\.sheath\.material\.opacity=\(\.018\+energy\*\.118/);
+  assert.match(scene,/link\.sheath\.material\.opacity=\(\.024\+energy\*\.142/);
   assert.match(scene,/const visible=energy>\.20\|\|link\.selected\|\|link\.active/);
   assert.match(scene,/new THREE\.SphereGeometry\(\.88,36,26\)/);
   assert.match(scene,/const haloSize=isCore\?3\.50:2\.05/);
@@ -1054,4 +1054,91 @@ test('R3 mechanical Core remains shader-free and bounded',async()=>{
   assert.doesNotMatch(scene,/ShaderMaterial|EffectComposer|UnrealBloomPass/);
   assert.equal((scene.match(/new THREE\.TorusGeometry/g)||[]).length,2);
   assert.match(scene,/coreFx=isCore\?makeCoreMechanicalSystem\(\):null/);
+});
+
+
+test('Revision R4 Creator control center stores visual preferences only and drives realtime renderer settings',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [html,app,settings,scene,styles]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/index.html',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/custom-settings.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/styles.css',root),'utf8')
+  ]);
+
+  assert.match(html,/id="edgeCustomSettings"/);
+  assert.match(html,/id="customSettingsPanel"/);
+  assert.match(html,/data-visual-setting="brainFrame"/);
+  assert.match(html,/data-visual-setting="binary"/);
+  assert.match(html,/data-visual-setting="ringSpeedA"/);
+  assert.match(html,/data-visual-setting="ringSpeedB"/);
+  assert.match(html,/data-visual-preset="neural-galaxy"/);
+  assert.match(html,/Visual preferences only · no credentials stored/);
+
+  assert.match(app,/createCustomSettingsPanel/);
+  assert.match(app,/applyVisualSettings\?\.\(customSettings\.getSettings\(\)\)/);
+  assert.match(app,/binary '\+\(stats\.brainBinary\?'on':'off'\)/);
+  assert.match(app,/guardian '\+\(stats\.guardianRingA\?'A':'-'\)/);
+
+  assert.match(settings,/const STORAGE_KEY='nara\.visual\.settings\.v1'/);
+  assert.match(settings,/sanitizeVisualSettings/);
+  assert.match(settings,/localStorage\.setItem\(STORAGE_KEY,JSON\.stringify\(settings\)\)/);
+  assert.match(settings,/frameGlow:\[\.35,2\]/);
+  assert.match(settings,/ringSpeedA:\[\.15,2\.2\]/);
+  assert.match(settings,/quality:'auto'/);
+  assert.doesNotMatch(settings,/password|api[_-]?key|access[_-]?token|bearer/i);
+
+  assert.match(scene,/applyVisualSettings\(settings=\{\}\)/);
+  assert.match(scene,/refreshVisualVisibility\(\)/);
+  assert.match(scene,/guardianRingA:/);
+  assert.match(scene,/guardianRingB:/);
+  assert.match(styles,/Revision R4\.1 — Creator Custom Visual Control Center/);
+  assert.match(styles,/\.custom-settings-panel/);
+});
+
+test('Revision R4 strengthens dark-room brain frame, binary lattice, aurora and broken living roots',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const scene=await readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8');
+
+  assert.match(scene,/function addFrameLine\(/);
+  assert.match(scene,/role:'glow'/);
+  assert.match(scene,/baseOpacity:\.16\+\(band%3\)\*\.022/);
+  assert.match(scene,/function makeBrainBinaryField\(\)/);
+  assert.match(scene,/for\(let index=0;index<52;index\+\+\)/);
+  assert.match(scene,/makeBinaryGlyphTexture\('0'\)/);
+  assert.match(scene,/makeBinaryGlyphTexture\('1'\)/);
+  assert.match(scene,/new THREE\.CurvePath\(\)/);
+  assert.match(scene,/new THREE\.LineCurve3/);
+  assert.match(scene,/const radius=Math\.min\(\.068,Math\.max\(\.032/);
+  assert.match(scene,/visual\.rootGlow/);
+  assert.match(scene,/visualSettings\.auroraIntensity/);
+  assert.match(scene,/brainBinary\.visible=visual\.brainFrame&&visual\.binary/);
+});
+
+test('Revision R4 guardian emblem has counter-rotation plus bounded precession',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const scene=await readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8');
+
+  assert.match(scene,/guardianBladeA/);
+  assert.match(scene,/guardianBladeB/);
+  assert.match(scene,/ringA\.userData=\{baseX:ringA\.rotation\.x,baseY:ringA\.rotation\.y\}/);
+  assert.match(scene,/ringB\.userData=\{baseX:ringB\.rotation\.x,baseY:ringB\.rotation\.y\}/);
+  assert.match(scene,/ringA\.rotation\.z\+=delta\*\.52\*motion\*visual\.ringSpeedA/);
+  assert.match(scene,/ringB\.rotation\.z-=delta\*\.67\*motion\*visual\.ringSpeedB/);
+  assert.match(scene,/ringA\.rotation\.x=fx\.ringA\.userData\.baseX\+Math\.sin/);
+  assert.match(scene,/ringB\.rotation\.y=fx\.ringB\.userData\.baseY-Math\.cos/);
+  assert.equal((scene.match(/new THREE\.TorusGeometry/g)||[]).length,2);
+  assert.doesNotMatch(scene,/ShaderMaterial|EffectComposer|UnrealBloomPass/);
+});
+
+test('R4 custom settings module passes Node syntax check',async()=>{
+  const {spawnSync}=await import('node:child_process');
+  const {fileURLToPath}=await import('node:url');
+  const file=fileURLToPath(new URL('../nara-core/studio/public/custom-settings.js',import.meta.url));
+  const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr||result.stdout||file);
 });
