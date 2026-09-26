@@ -54,6 +54,25 @@
     </div>
   </div>
 
+  <aside id="neuralNodeInspector" class="neural-node-inspector" hidden aria-label="Neural node inspector">
+    <div class="node-inspector-head">
+      <div>
+        <span class="node-inspector-kicker">NEURAL NODE</span>
+        <strong id="nodeInspectorTitle">NARA Core</strong>
+        <small id="nodeInspectorSubtitle">NARA_CORE · core</small>
+      </div>
+      <div class="node-inspector-actions">
+        <button id="nodeInspectorFocus" type="button">FOCUS</button>
+        <button id="nodeInspectorClose" type="button" aria-label="Close node inspector">×</button>
+      </div>
+    </div>
+    <div class="node-inspector-state">
+      <span>STATE</span>
+      <strong id="nodeInspectorStatus">IDLE</strong>
+    </div>
+    <div id="nodeInspectorBody" class="node-inspector-body"></div>
+  </aside>
+
   <div id="edgeHud" class="edge-hud" hidden>
     <div class="edge-top">
       <div class="edge-brand"><span class="dot"></span><strong>NARA CORE</strong><small id="edgeLifecycle">idle</small></div>
