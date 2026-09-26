@@ -1023,3 +1023,35 @@ test('R2 cinematic sound and matrix modules pass Node syntax checks',async()=>{
     assert.equal(result.status,0,result.stderr||result.stdout||file);
   }
 });
+
+
+test('Revision R3 gives NARA Core two counter-rotating mechanical rings and layered gradient energy',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [scene,app]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8')
+  ]);
+
+  assert.match(scene,/function makeCoreMechanicalSystem\(\)/);
+  assert.match(scene,/new THREE\.TorusGeometry\(1\.34/);
+  assert.match(scene,/new THREE\.TorusGeometry\(1\.54/);
+  assert.match(scene,/for\(let index=0;index<12;index\+\+\)/);
+  assert.match(scene,/for\(let index=0;index<14;index\+\+\)/);
+  assert.match(scene,/ringA\.rotation\.z\+=delta\*\.52\*motion/);
+  assert.match(scene,/ringB\.rotation\.z-=delta\*\.67\*motion/);
+  assert.match(scene,/entry\.mesh\.material\.color\.setHSL\(hue/);
+  assert.match(scene,/entry\.halo\.material\.color\.setHSL/);
+  assert.match(scene,/mechanicalCore:Boolean\(this\.nodes\.get\('NARA_CORE'\)\?\.coreFx\)/);
+  assert.match(scene,/disposeDecorativeGroup\(entry\.coreFx\)/);
+  assert.match(app,/core rings /);
+});
+
+test('R3 mechanical Core remains shader-free and bounded',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const scene=await readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8');
+  assert.doesNotMatch(scene,/ShaderMaterial|EffectComposer|UnrealBloomPass/);
+  assert.equal((scene.match(/new THREE\.TorusGeometry/g)||[]).length,2);
+  assert.match(scene,/coreFx=isCore\?makeCoreMechanicalSystem\(\):null/);
+});
