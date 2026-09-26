@@ -12,6 +12,8 @@ export const AVATAR_STUDIO_DEFAULTS=Object.freeze({
  mouthWidth:1,
  lipVolume:1,
  earSize:1,
+ lightIntensity:1,
+ particleScale:1,
  depth:1,
  density:1
 });
@@ -30,6 +32,8 @@ export const AVATAR_STUDIO_LIMITS=Object.freeze({
  mouthWidth:Object.freeze([.80,1.22]),
  lipVolume:Object.freeze([.65,1.40]),
  earSize:Object.freeze([.75,1.30]),
+ lightIntensity:Object.freeze([.70,1.30]),
+ particleScale:Object.freeze([.75,1.25]),
  depth:Object.freeze([.75,1.30]),
  density:Object.freeze([.35,1])
 });
