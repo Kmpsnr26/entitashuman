@@ -37,3 +37,13 @@ test('terminal and agent work lifecycle feed NARA operational state',async()=>{
   assert.match(main,/nara\.completeWork\(/);
   assert.match(main,/nara\.dispatch\('error\.detected'/);
 });
+
+
+test('packaged desktop CI smoke executes NARA IPC and rejects untrusted renderer events',async()=>{
+  const main=await readFile(new URL('desktop/main.cjs',root),'utf8');
+  assert.match(main,/naraSnapshot\(\).*lifecycle==='active'/);
+  assert.match(main,/naraDispatch\('brain\.region\.select',\{region:'MEMORY'\}\)/);
+  assert.match(main,/selectedRegion==='MEMORY'/);
+  assert.match(main,/naraDispatch\('owner\.secret',\{value:'blocked'\}\)/);
+  assert.match(main,/tidak diizinkan/);
+});

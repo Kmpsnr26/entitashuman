@@ -467,6 +467,12 @@ else{
   if(ciSmoke){
    const rendererReady=await win.webContents.executeJavaScript("Boolean(document.querySelector('#avatar')) && Boolean(document.querySelector('#assistantPopup')) && typeof window.dudidamAvatar?.setAvatarState === 'function' && typeof window.dudidamDesktop?.onGlobalPointer === 'function' && typeof window.dudidamDesktop?.avatarViewport === 'function' && typeof window.dudidamDesktop?.openTerminal === 'function' && document.title.includes('HumanALE god egine')");
    if(!rendererReady)throw new Error('Renderer HumanALE god egine tidak siap.');
+   const naraRuntimeReady=await win.webContents.executeJavaScript("window.dudidamDesktop.naraSnapshot().then(result=>Boolean(result?.ok&&result.state?.lifecycle==='active'&&result.state?.regions?.NARA_CORE?.status==='active'))");
+   if(!naraRuntimeReady)throw new Error('NARA Core tidak aktif di runtime desktop terpaket.');
+   const naraRegionReady=await win.webContents.executeJavaScript("window.dudidamDesktop.naraDispatch('brain.region.select',{region:'MEMORY'}).then(result=>Boolean(result?.ok&&result.state?.selectedRegion==='MEMORY'&&result.state?.regions?.MEMORY?.status==='active'))");
+   if(!naraRegionReady)throw new Error('NARA IPC gagal memilih region MEMORY.');
+   const naraBlocked=await win.webContents.executeJavaScript("window.dudidamDesktop.naraDispatch('owner.secret',{value:'blocked'}).then(result=>Boolean(result?.error&&String(result.error).includes('tidak diizinkan')))");
+   if(!naraBlocked)throw new Error('NARA IPC tidak menolak event renderer di luar allowlist.');
    const wakeIdle=await win.webContents.executeJavaScript("Boolean(document.querySelector('#wakeToggle')) && !document.querySelector('#wakeToggle').checked && document.querySelector('#wakeIndicator')?.textContent?.includes('nonaktif')");
    if(!wakeIdle)throw new Error('Wake mic harus nonaktif saat HumanALE god egine mulai.');
    await openPanel('controls');
