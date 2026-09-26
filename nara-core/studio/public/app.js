@@ -1,4 +1,5 @@
 import {initializeCreatorGateway} from './creator-gateway.js';
+import {createEdgeHud} from './edge-hud.js';
 
 const $=id=>document.getElementById(id);
 let snapshot=null,regions={},telemetry=null,skillsSnapshot=null;
@@ -6,6 +7,7 @@ let neural3d=null,neural3dLoading=null,studioView='2d';
 let eventBuffer=[],eventPaused=false,replayTimer=null;
 const connectionIds=['GITHUB','COPILOT','WEB','TEAM','PR','SYNC','ONLINE','OWNER_EMAIL','DRIVE'];
 const eventSelect=$('eventSelect');
+const edgeHud=createEdgeHud({onView:mode=>setStudioView(mode)});
 
 function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
 function statusClass(status='idle'){return 's-'+String(status).replace(/[^a-z0-9_-]/gi,'');}
@@ -30,6 +32,7 @@ function updateNeuralHud(){
   if(!neural3d)return;
 
   const stats=neural3d.getStats();
+  edgeHud.update({neural:stats});
   $('neural3dRoots').textContent=stats.links+' living roots · '+stats.activeLinks+' active';
   $('neural3dRoutes').textContent='routes: '+stats.routeCount+' · active '+stats.activeRoutes;
   $('neural3dPerf').textContent='fps '+stats.fps+' · quality '+stats.quality+' · '+stats.mode;
@@ -128,6 +131,7 @@ function drawBrain(){
 
 function renderState(state){
   snapshot=state;
+  edgeHud.update({snapshot:state});
   $('lifecycle').textContent=state.lifecycle||'—';
   $('selectedRegion').textContent=state.selectedRegion||'—';
   $('currentTask').textContent=state.currentTask?.label||'—';
@@ -209,6 +213,7 @@ const phaseElements={
 
 function renderTelemetry(data){
   telemetry=data||{};
+  edgeHud.update({telemetry});
   const decision=telemetry.decision||{};
   const history=Array.isArray(decision.history)?decision.history:[];
   $('decisionStatus').textContent=decision.status||'idle';
@@ -271,6 +276,7 @@ function renderDiagnostics(data){
 
 function renderSkills(data){
   skillsSnapshot=data||{};
+  edgeHud.update({skills:skillsSnapshot});
   const skills=Array.isArray(skillsSnapshot.skills)?skillsSnapshot.skills:[];
   $('skillSummary').textContent=(skillsSnapshot.total||skills.length)+' skills';
   $('skillEnabled').textContent=String(skillsSnapshot.enabled||0);
@@ -334,12 +340,12 @@ async function boot(){
   for(const event of data.events||[])appendEvent(event);
 
   const stream=new EventSource('/api/stream');
-  stream.addEventListener('ready',()=>{$('connection').textContent='LIVE';$('connection').className='live';});
+  stream.addEventListener('ready',()=>{$('connection').textContent='LIVE';$('connection').className='live';edgeHud.setConnection('LIVE');});
   stream.addEventListener('state',e=>renderState(JSON.parse(e.data)));
   stream.addEventListener('telemetry',e=>renderTelemetry(JSON.parse(e.data)));
   stream.addEventListener('skills',e=>renderSkills(JSON.parse(e.data)));
   stream.addEventListener('event',e=>appendEvent(JSON.parse(e.data)));
-  stream.onerror=()=>{$('connection').textContent='RECONNECTING';$('connection').className='warn';};
+  stream.onerror=()=>{$('connection').textContent='RECONNECTING';$('connection').className='warn';edgeHud.setConnection('RECONNECTING');};
 }
 
 $('view2d').onclick=()=>setStudioView('2d');
@@ -362,8 +368,11 @@ document.addEventListener('visibilitychange',()=>{
 });
 setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString('id-ID');renderPerformance();},1000);
 async function startStudioAfterCreatorAccess(){
-  setStudioView('2d');
+  document.body.classList.add('creator-session-active');
+  edgeHud.activate();
+  setStudioView('3d');
   $('connection').textContent='CONNECTING';
+  edgeHud.setConnection('CONNECTING');
   await boot();
 }
 
