@@ -173,7 +173,7 @@ function makeGalacticBrainFrame(){
       const material=new THREE.LineBasicMaterial({
         color:colors[band%colors.length],
         transparent:true,
-        opacity:.055+(band%3)*.012,
+        opacity:.075+(band%3)*.016,
         depthWrite:false,
         blending:THREE.AdditiveBlending
       });
@@ -646,7 +646,7 @@ export class Neural3DScene{
     const key=linkKey(fromId,toId);
     const curve=organicCurve(from.group.position,to.group.position,key);
     const distance=from.group.position.distanceTo(to.group.position);
-    const radius=Math.min(.075,Math.max(.038,distance*.008));
+    const radius=Math.min(.058,Math.max(.028,distance*.0062));
     const tubularSegments=Math.max(22,Math.min(42,Math.round(distance*4.5)));
 
     const group=new THREE.Group();
@@ -660,9 +660,9 @@ export class Neural3DScene{
     );
 
     const glow=new THREE.Mesh(
-      new THREE.TubeGeometry(curve,tubularSegments,radius*1.9,5,false),
+      new THREE.TubeGeometry(curve,tubularSegments,radius*1.62,5,false),
       new THREE.MeshBasicMaterial({
-        color:LINK_LIVE,transparent:true,opacity:.018,depthWrite:false,
+        color:LINK_LIVE,transparent:true,opacity:.012,depthWrite:false,
         blending:THREE.AdditiveBlending
       })
     );
@@ -730,7 +730,7 @@ export class Neural3DScene{
 
       const isCore=region.id==='NARA_CORE';
       const geometry=isCore
-        ?new THREE.SphereGeometry(.98,36,26)
+        ?new THREE.SphereGeometry(.88,36,26)
         :new THREE.IcosahedronGeometry(region.group==='connection'?.46:.58,2);
       const base=statusColor(region.defaultStatus,region.group);
       const material=new THREE.MeshStandardMaterial({
@@ -742,7 +742,7 @@ export class Neural3DScene{
       group.add(mesh);
 
       const shellGeometry=isCore
-        ?new THREE.SphereGeometry(1.30,24,18)
+        ?new THREE.SphereGeometry(1.18,24,18)
         :new THREE.IcosahedronGeometry(region.group==='connection'?.64:.78,1);
       const shell=new THREE.Mesh(shellGeometry,new THREE.MeshBasicMaterial({
         color:base,wireframe:true,transparent:true,opacity:isCore?.2:.1,depthWrite:false
@@ -755,7 +755,7 @@ export class Neural3DScene{
         opacity:isCore?.22:.08,depthWrite:false,
         blending:THREE.AdditiveBlending
       }));
-      const haloSize=isCore?3.85:2.05;
+      const haloSize=isCore?3.50:2.05;
       halo.scale.set(haloSize,haloSize,1);
       group.add(halo);
 
@@ -975,9 +975,9 @@ export class Neural3DScene{
       const energy=Math.min(1.6,link.intensity+link.pulse*.72+link.routePulse*1.05);
       const breathing=.5+.5*Math.sin(t*(1.1+link.phase*.55)+link.phase*Math.PI*2);
 
-      link.sheath.material.opacity=(.028+energy*.145+breathing*.012)*this.qualityScale;
-      link.core.material.opacity=(.010+energy*.46)*this.qualityScale;
-      link.glow.material.opacity=(.003+energy*.105)*this.qualityScale;
+      link.sheath.material.opacity=(.018+energy*.118+breathing*.009)*this.qualityScale;
+      link.core.material.opacity=(.008+energy*.38)*this.qualityScale;
+      link.glow.material.opacity=(.002+energy*.080)*this.qualityScale;
 
       const visible=energy>.20||link.selected||link.active;
       link.packet.visible=visible;
@@ -1087,7 +1087,7 @@ export class Neural3DScene{
 
       const haloBase=core?.17:.055;
       entry.halo.material.opacity=(haloBase+entry.pulse*.18+(id===this.selected?.12:0))*this.qualityScale;
-      const haloScale=(core?3.85:2.05)*(1+entry.pulse*.16+(core?Math.sin(t*1.2)*.025:0));
+      const haloScale=(core?3.50:2.05)*(1+entry.pulse*.16+(core?Math.sin(t*1.2)*.025:0));
       entry.halo.scale.set(haloScale,haloScale,1);
     }
 
