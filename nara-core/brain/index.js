@@ -14,3 +14,5 @@ export * from './workflow-engine.js';
 export * from './authority-policy.js';
 
 export * from './integration-readiness.js';
+
+export * from './humanale-integration-contract.js';
