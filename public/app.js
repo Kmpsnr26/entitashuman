@@ -937,6 +937,7 @@ window.dudidamAvatar=Object.freeze({
  triggerAvatarGlitch:()=>avatar.triggerGlitch?.(),
  getAvatarStudioProfile:()=>avatar.getStudioProfile?.()||null,
  getAvatarStudioMaterial:()=>avatar.mode||'mixed',
+ getNaraHumanALEPolicy:()=>avatar.naraPolicy?{...avatar.naraPolicy}:null,
  showAssistantPopup:()=>assistantPopup.show(),
  hideAssistantPopup:()=>assistantPopup.hide(),
  toggleAssistantPopup:()=>assistantPopup.toggleVisibility()
