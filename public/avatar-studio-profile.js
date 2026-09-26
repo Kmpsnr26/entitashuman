@@ -21,7 +21,7 @@ export const AVATAR_STUDIO_LIMITS=Object.freeze({
 const finite=(value,fallback)=>Number.isFinite(Number(value))?Number(value):fallback;
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const smooth=(a,b,value)=>{const t=clamp((value-a)/(b-a),0,1);return t*t*(3-2*t);};
-const gaussian=(value,center,radius)=>Math.exp(-((value-center)/radius)**2);
+const gaussian=(value,center,radius)=>Math.exp(-(((value-center)/radius)**2));
 
 export function normalizeAvatarStudioProfile(value={}){
  const source=value&&typeof value==='object'&&!Array.isArray(value)?value:{};
