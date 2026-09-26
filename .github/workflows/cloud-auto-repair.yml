@@ -192,6 +192,9 @@ jobs:
               });
               await addLabels(issue.number, ['automation:resolved']);
               await removeLabel(issue.number, 'automation:queued');
+              await removeLabel(issue.number, 'ai-fix-needed');
+              await removeLabel(issue.number, 'automation:fallback');
+              await removeLabel(issue.number, 'automation:delegated');
               await closeFallbackPullRequest(issue.number);
             }
 
