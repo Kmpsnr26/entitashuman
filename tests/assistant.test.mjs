@@ -551,12 +551,17 @@ test('release workflows use least privilege, pinned Android tooling, signed publ
   readFile(new URL('../.github/workflows/cloud-auto-repair.yml',import.meta.url),'utf8')
  ]);
  assert.match(windows,/release-windows:/);
- assert.match(windows,/actions\/download-artifact@v4/);
+ assert.match(windows,/actions\/download-artifact@v7/);
+ assert.match(windows,/actions\/upload-artifact@v7/);
  assert.match(windows,/release-windows:[\s\S]*permissions:\s*\n\s*contents: write/);
  assert.match(android,/permissions:\s*\n\s*contents: read/);
  assert.match(android,/@capacitor\/core@7\.6\.9/);
  assert.match(android,/@capacitor\/cli@7\.6\.9/);
  assert.match(android,/@capacitor\/android@7\.6\.9/);
+ assert.match(android,/scripts\/android-version\.mjs/);
+ assert.match(android,/package-lock\.json/);
+ assert.match(android,/actions\/setup-java@v6/);
+ assert.match(android,/actions\/upload-artifact@v7/);
  assert.match(android,/assembleDebug/);
  assert.match(android,/assembleRelease/);
  assert.match(android,/ANDROID_KEYSTORE_BASE64/);
@@ -596,9 +601,9 @@ test('explicit CodeQL workflow stays least-privilege and analyzes JavaScript/Typ
  assert.match(codeql,/name: CodeQL Security/);
  assert.match(codeql,/security-events: write/);
  assert.match(codeql,/contents: read/);
- assert.match(codeql,/github\/codeql-action\/init@v3/);
+ assert.match(codeql,/github\/codeql-action\/init@v4/);
  assert.match(codeql,/languages: javascript-typescript/);
  assert.match(codeql,/queries: security-extended/);
- assert.match(codeql,/github\/codeql-action\/analyze@v3/);
+ assert.match(codeql,/github\/codeql-action\/analyze@v4/);
  assert.doesNotMatch(codeql,/contents: write|pull-requests: write|issues: write/);
 });
