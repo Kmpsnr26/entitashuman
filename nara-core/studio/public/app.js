@@ -1,5 +1,6 @@
 import {initializeCreatorGateway} from './creator-gateway.js';
 import {createEdgeHud} from './edge-hud.js';
+import {createNeuralEntryExperience} from './neural-entry.js';
 
 const $=id=>document.getElementById(id);
 let snapshot=null,regions={},telemetry=null,skillsSnapshot=null;
@@ -7,7 +8,11 @@ let neural3d=null,neural3dLoading=null,studioView='2d';
 let eventBuffer=[],eventPaused=false,replayTimer=null;
 const connectionIds=['GITHUB','COPILOT','WEB','TEAM','PR','SYNC','ONLINE','OWNER_EMAIL','DRIVE'];
 const eventSelect=$('eventSelect');
-const edgeHud=createEdgeHud({onView:mode=>setStudioView(mode)});
+const neuralEntry=createNeuralEntryExperience();
+const edgeHud=createEdgeHud({onView:mode=>{
+  if(mode==='3d'&&studioView!=='3d')neuralEntry.play({announce:false,compact:true});
+  setStudioView(mode);
+}});
 
 function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
 function statusClass(status='idle'){return 's-'+String(status).replace(/[^a-z0-9_-]/gi,'');}
@@ -377,6 +382,7 @@ async function startStudioAfterCreatorAccess(){
 }
 
 initializeCreatorGateway({
+  onEntering:()=>neuralEntry.play({announce:true,compact:false}),
   onReady:()=>startStudioAfterCreatorAccess().catch(error=>{
     $('consoleLog').textContent=error.stack||error.message;
     $('connection').textContent='OFFLINE';
