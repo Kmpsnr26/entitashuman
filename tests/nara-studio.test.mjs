@@ -736,6 +736,16 @@ test('Stage 4 reduces idle root clutter while preserving active route emphasis',
   assert.match(scene,/link\.targetIntensity=link\.selected\?1:link\.active\?\.72:\.032/);
   assert.match(scene,/link\.sheath\.material\.opacity=\(\.028\+energy\*\.145/);
   assert.match(scene,/const visible=energy>\.20\|\|link\.selected\|\|link\.active/);
-  assert.match(scene,/new THREE\.SphereGeometry\(\.98,36,26\)/);
-  assert.match(scene,/const haloSize=isCore\?3\.85:2\.05/);
+  assert.match(scene,/new THREE\.SphereGeometry\(\.88,36,26\)/);
+  assert.match(scene,/const haloSize=isCore\?3\.50:2\.05/);
+});
+
+
+test('Stage 4 fullscreen polish hides legacy Neural cards and keeps controls edge-like',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const styles=await readFile(new URL('nara-core/studio/public/styles.css',root),'utf8');
+  assert.match(styles,/\.creator-session-active \.neural3d-detail,\s*\n\.creator-session-active \.neural3d-hud\{display:none\}/);
+  assert.match(styles,/\.creator-session-active \.neural3d-toolbar\{/);
+  assert.match(styles,/left:50%;right:auto;top:58px;transform:translateX\(-50%\)/);
 });
