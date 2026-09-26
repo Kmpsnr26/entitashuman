@@ -71,7 +71,7 @@ export const HUMANALE_TEST_SCENARIOS=Object.freeze({
 
 export function getHumanALETestScenario(value=''){
  const key=String(value||'').toLowerCase();
- return HUMANALE_TEST_SCENARIOS[key]||null;
+ return Object.hasOwn(HUMANALE_TEST_SCENARIOS,key)?HUMANALE_TEST_SCENARIOS[key]:null;
 }
 
 export function listHumanALETestScenarios(){
