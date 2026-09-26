@@ -14,8 +14,8 @@ const definitions=[
  ['planner','Planner','cognitive','PLANNER',['reasoning'],['state:read'],null],
  ['agents','Agent Manager','execution','AGENT_MANAGER',['planner','terminal'],['agent:execute-approved'],null],
  ['terminal','Terminal','execution','TERMINAL',['safety'],['terminal:bounded-execute'],null],
- ['program','Program / Development','execution','PROGRAM',['terminal','bug-hunter'],['workspace:write-approved'],'processing'],
- ['bug-hunter','Bug Hunter','execution','BUG_HUNTER',['program'],['diagnostic:read'],'error'],
+ ['program','Program / Development','execution','PROGRAM',['terminal','safety'],['workspace:write-approved'],'processing'],
+ ['bug-hunter','Bug Hunter','execution','BUG_HUNTER',['reasoning','terminal'],['diagnostic:read'],'error'],
  ['web','Web','connection','WEB',['safety'],['network:read'],null],
  ['github','GitHub','connection','GITHUB',['web','safety'],['repo:read','repo:write-approved'],null],
  ['copilot','Copilot','connection','COPILOT',['github','agents'],['agent:execute-approved'],null],
@@ -124,4 +124,29 @@ export function createSkillSnapshot({brainState={},agents=[]}={}){
 export function skillTestScenario(skillId){
  const skill=getSkill(skillId);
  return skill?.testScenario||null;
+}
+
+
+export function validateSkillDependencyGraph(){
+ const visiting=new Set(),visited=new Set(),path=[];
+ const visit=id=>{
+  if(visiting.has(id)){
+   const start=path.indexOf(id);
+   return {ok:false,cycle:[...path.slice(start),id]};
+  }
+  if(visited.has(id))return {ok:true,cycle:[]};
+  visiting.add(id);path.push(id);
+  for(const dep of NARA_SKILLS[id]?.dependencies||[]){
+   if(!isSkillId(dep))return {ok:false,cycle:[id,dep],error:'UNKNOWN_DEPENDENCY'};
+   const result=visit(dep);
+   if(!result.ok)return result;
+  }
+  path.pop();visiting.delete(id);visited.add(id);
+  return {ok:true,cycle:[]};
+ };
+ for(const id of NARA_SKILL_IDS){
+  const result=visit(id);
+  if(!result.ok)return Object.freeze(result);
+ }
+ return Object.freeze({ok:true,cycle:[]});
 }
