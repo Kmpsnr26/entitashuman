@@ -425,3 +425,31 @@ test('Neural live harness separates reproducible CI software GPU from physical G
   assert.match(ps1,/gpu\.modeMatched/);
   assert.match(bat,/nara-neural-gpu-acceptance\.ps1/i);
 });
+
+
+test('physical GPU gate trusts the live renderer and treats feature status as advisory',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const smoke=await readFile(new URL('scripts/nara-neural-live-smoke.cjs',root),'utf8');
+
+  assert.match(smoke,/function isSoftwareRenderer\(renderer=''/);
+  assert.match(smoke,/function gpuModeMatches\(mode,/);
+  assert.match(smoke,/if\(mode==='software'\)return softwareRenderer/);
+  assert.match(smoke,/return Boolean\(hardwareAcceleration&&!softwareRenderer\)/);
+  assert.match(smoke,/GPUFeatureStatus is only reliable after Chromium's GPU process has initialized/);
+  assert.match(smoke,/const featureStatus=app\.getGPUFeatureStatus\(\)/);
+  assert.match(smoke,/modeMatched:gpuModeMatches\(GPU_MODE/);
+  assert.doesNotMatch(smoke,/hardwareAcceleration&&!softwareRenderer&&featureLooksHardware/);
+});
+
+test('Windows physical GPU wrappers use UTF-8 console output',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [ps1,bat]=await Promise.all([
+    readFile(new URL('scripts/nara-neural-gpu-acceptance.ps1',root),'utf8'),
+    readFile(new URL('NARA-Neural-GPU-Acceptance.bat',root),'utf8')
+  ]);
+  assert.match(ps1,/\[Console\]::OutputEncoding/);
+  assert.match(ps1,/UTF8Encoding/);
+  assert.match(bat,/chcp 65001/);
+});
