@@ -146,3 +146,40 @@ test('NARA skill registry follows cognitive and agent lifecycle events',async t=
   assert.equal(agent.failures,1);
   assert.equal(agent.status,'failed');
 });
+
+
+test('diagnostic telemetry tracks error repair and verification cycle',()=>{
+  const telemetry=createStudioTelemetry();
+  telemetry.consume({id:1,event:'error.detected',timestamp:1000,payload:{message:'Renderer error'}});
+  telemetry.consume({id:2,event:'bug.detected',timestamp:1100,payload:{message:'State bug'}});
+  telemetry.consume({id:3,event:'bug.fixed',timestamp:1600,payload:{message:'Patch applied'}});
+  telemetry.consume({id:4,event:'verify.start',timestamp:1700,payload:{}});
+  telemetry.consume({id:5,event:'verify.complete',timestamp:1800,payload:{}});
+  const snap=telemetry.snapshot();
+  assert.equal(snap.diagnostics.counters.errors,1);
+  assert.equal(snap.diagnostics.counters.bugs,1);
+  assert.equal(snap.diagnostics.counters.fixed,1);
+  assert.equal(snap.diagnostics.counters.verified,1);
+  assert.equal(snap.diagnostics.lastRepairDurationMs,500);
+  assert.equal(snap.diagnostics.status,'verified');
+  assert.equal(snap.diagnostics.active,false);
+  assert.equal(snap.performance.totalEvents,5);
+  assert.equal(snap.performance.events10s,5);
+  assert.ok(Number.isFinite(snap.performance.startedAt));
+});
+
+test('event replay is visual-only and exposes no replay execution API',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [html,app,server]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/index.html',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/server.mjs',root),'utf8')
+  ]);
+  assert.match(html,/Event Timeline \/ Replay/);
+  assert.match(html,/visual replay only/);
+  assert.match(app,/function startReplay\(\)/);
+  assert.match(app,/renderEventItems\(shown\)/);
+  assert.doesNotMatch(server,/\/api\/replay/);
+  assert.doesNotMatch(app,/fetch\('\/api\/replay/);
+});
