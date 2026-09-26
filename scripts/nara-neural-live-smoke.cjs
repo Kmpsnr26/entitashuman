@@ -16,6 +16,10 @@ if(SOFTWARE_GPU){
 
 const ROOT=path.resolve(__dirname,'..');
 const ARTIFACTS=path.join(ROOT,'artifacts');
+const SMOKE_CREATOR=Object.freeze({
+  username:'creator',
+  password:'browser-acceptance-'+process.pid
+});
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
 function isSoftwareRenderer(renderer=''){
@@ -46,7 +50,11 @@ async function run(){
   mkdirSync(ARTIFACTS,{recursive:true});
   const moduleUrl=pathToFileURL(path.join(ROOT,'nara-core/studio/server.mjs')).href;
   const {createNaraStudioServer}=await import(moduleUrl);
-  const studio=createNaraStudioServer({host:'127.0.0.1',port:0});
+  const studio=createNaraStudioServer({
+    host:'127.0.0.1',
+    port:0,
+    creatorAuth:SMOKE_CREATOR
+  });
   const address=await studio.start();
   const url='http://127.0.0.1:'+address.port;
 
@@ -92,6 +100,25 @@ async function run(){
   try{
     await win.loadURL(url);
     await waitFor(win,"Boolean(document.getElementById('creatorGateway'))");
+    await waitFor(win,"Boolean(document.getElementById('creatorLoginForm')&&!document.getElementById('creatorLoginForm')?.hidden)");
+    report.checks.creatorLoginAuthenticated=await evaluate(win,`(async()=>{
+      const username=document.getElementById('creatorUsername');
+      const password=document.getElementById('creatorPassword');
+      const form=document.getElementById('creatorLoginForm');
+      if(!username||!password||!form)return false;
+      username.value=${JSON.stringify(SMOKE_CREATOR.username)};
+      password.value=${JSON.stringify(SMOKE_CREATOR.password)};
+      form.requestSubmit();
+      const started=Date.now();
+      while(Date.now()-started<8000){
+        if(!document.getElementById('creatorAccessPanel')?.hidden)return true;
+        await new Promise(resolve=>setTimeout(resolve,100));
+      }
+      return false;
+    })()`);
+    if(!report.checks.creatorLoginAuthenticated)throw new Error('Creator browser login failed');
+    report.creatorSession=await evaluate(win,"({identity:document.getElementById('creatorIdentity')?.textContent,mode:document.getElementById('creatorSessionMode')?.textContent})");
+    report.checks.creatorSecureSession=report.creatorSession.identity==='CREATOR VERIFIED'&&report.creatorSession.mode==='SECURE SESSION';
     await waitFor(win,"Boolean(document.getElementById('creatorEnter')&&!document.getElementById('creatorAccessPanel')?.hidden)");
     report.checks.creatorGatewayPassed=await evaluate(win,"(()=>{const button=document.getElementById('creatorEnter');if(!button)return false;button.click();return true;})()");
     await sleep(120);
