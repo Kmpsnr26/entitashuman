@@ -183,3 +183,18 @@ test('event replay is visual-only and exposes no replay execution API',async()=>
   assert.doesNotMatch(server,/\/api\/replay/);
   assert.doesNotMatch(app,/fetch\('\/api\/replay/);
 });
+
+
+test('NARA Studio reset clears skill runtime counters',async t=>{
+  const studio=createNaraStudioServer({host:'127.0.0.1',port:0});
+  t.after(()=>studio.stop());
+  const address=await studio.start();
+  const base='http://127.0.0.1:'+address.port;
+  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'agent.start',payload:{label:'Reset test'}})});
+  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'agent.complete',payload:{}})});
+  assert.equal(studio.skills.get('agent.manage').runs,1);
+  const reset=await fetch(base+'/api/reset',{method:'POST'});
+  assert.equal(reset.status,200);
+  assert.equal(studio.skills.get('agent.manage').runs,0);
+  assert.equal(studio.skills.get('agent.manage').status,'ready');
+});
