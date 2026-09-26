@@ -124,3 +124,18 @@ button,select,input{background:#0c2732;color:#c9f5ff;border:1px solid #245365;bo
 .neural-entry-compact .ring-a{width:min(42vw,540px)}.neural-entry-compact .ring-b{width:min(30vw,380px)}.neural-entry-compact .neural-entry-copy strong{font-size:clamp(20px,3vw,40px)}
 .neural-entry-reduced .neural-entry-space,.neural-entry-reduced .neural-entry-ring,.neural-entry-reduced .neural-entry-scan{animation:none}
 @media(prefers-reduced-motion:reduce){.neural-entry-space,.neural-entry-ring,.neural-entry-scan,.creator-gateway-grid,.creator-gateway-aura,.creator-core-mark{animation:none!important}}
+
+
+/* Stage 4 fullscreen polish — remove residual dashboard cards */
+.creator-session-active .neural3d-detail,
+.creator-session-active .neural3d-hud{display:none}
+.creator-session-active .neural3d-toolbar{
+  left:50%;right:auto;top:58px;transform:translateX(-50%);
+  border:0;border-radius:0;background:transparent;backdrop-filter:none;
+  padding:0;box-shadow:none
+}
+.creator-session-active .neural3d-toolbar button,
+.creator-session-active .neural3d-toolbar select{
+  background:#021018b8;border-color:#1c5060;backdrop-filter:blur(8px)
+}
+.creator-session-active .neural3d-toolbar label{padding:0 4px}
