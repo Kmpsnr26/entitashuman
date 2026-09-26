@@ -281,7 +281,7 @@ button,select,input{background:#0c2732;color:#c9f5ff;border:1px solid #245365;bo
   --nara-hud-opacity:.92;
   --nara-ui-scale:1;
 }
-.edge-hud{
+.edge-top,.edge-left,.edge-right-tools,.edge-bottom,.edge-monitor-drawer{
   opacity:var(--nara-hud-opacity);
 }
 .edge-right-tools{
