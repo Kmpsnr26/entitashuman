@@ -7,9 +7,43 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+  <div id="creatorGateway" class="creator-gateway" aria-label="NARA Creator Gateway">
+    <div class="creator-gateway-grid" aria-hidden="true"></div>
+    <div class="creator-gateway-aura" aria-hidden="true"></div>
+    <section class="creator-gateway-card">
+      <div class="creator-core-mark" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
+      <p class="creator-kicker">NARA CORE · CREATOR ACCESS GATEWAY</p>
+      <h1 id="creatorIdentity">IDENTITY REQUIRED</h1>
+      <p id="creatorSessionMode" class="creator-session-mode">SECURE SESSION LOCKED</p>
+
+      <form id="creatorLoginForm" class="creator-login-form" autocomplete="on">
+        <label>Creator ID
+          <input id="creatorUsername" name="username" autocomplete="username" maxlength="120" value="creator" required>
+        </label>
+        <label>Access Key
+          <input id="creatorPassword" name="password" type="password" autocomplete="current-password" maxlength="512" required>
+        </label>
+        <button type="submit">VERIFY CREATOR</button>
+        <output id="creatorLoginStatus">Awaiting creator authentication.</output>
+      </form>
+
+      <div id="creatorAccessPanel" class="creator-access-panel" hidden>
+        <div class="creator-access-title">
+          <span>CAPABILITY MATRIX</span>
+          <strong>AUTHORIZED SURFACE SCAN</strong>
+        </div>
+        <div id="creatorCapabilityRows" class="creator-capability-rows"></div>
+        <p class="creator-permission-note">Camera and microphone access always follow browser/OS permission controls. Secrets are never displayed in Neural Space.</p>
+        <button id="creatorEnter" type="button">INITIALIZE NEURAL SPACE</button>
+      </div>
+    </section>
+  </div>
+
   <header>
     <div><span class="dot"></span><strong>NARA CORE LIVE STUDIO</strong><small>Realtime Brain Laboratory</small></div>
-    <div class="status"><span id="connection">CONNECTING</span><span id="clock"></span></div>
+    <div class="status"><button id="creatorLogout" class="creator-logout" type="button">CREATOR LOGOUT</button><span id="connection">LOCKED</span><span id="clock"></span></div>
   </header>
 
   <main>
