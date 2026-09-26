@@ -59,8 +59,8 @@ const LINK_SELECTED=0xa9f7ff;
 const ROUTE_POOL_SIZE=24;
 const QUALITY_ORDER=['low','balanced','high'];
 const DEFAULT_SCENE_VISUALS=Object.freeze({
-  brainFrame:true,binary:true,frameGlow:1.35,
-  aurora:true,auroraIntensity:1.25,nebula:true,particles:true,
+  brainFrame:true,binary:true,frameGlow:1.45,
+  aurora:true,auroraIntensity:1.35,nebula:true,particles:true,
   roots:true,rootGlow:1.15,dataFlow:true,
   coreScale:1,coreGlow:1.25,ringA:true,ringB:true,
   ringSpeedA:1,ringSpeedB:1
@@ -179,10 +179,10 @@ function makeGalacticBrainFrame(){
 
     const glowGeometry=geometry.clone();
     const glowMaterial=new THREE.LineBasicMaterial({
-      color,transparent:true,opacity:baseOpacity*.34,depthWrite:false,
+      color,transparent:true,opacity:baseOpacity*.48,depthWrite:false,
       blending:THREE.AdditiveBlending
     });
-    glowMaterial.userData={baseOpacity:baseOpacity*.34,hueOffset:hueOffset+.03,role:'glow'};
+    glowMaterial.userData={baseOpacity:baseOpacity*.48,hueOffset:hueOffset+.03,role:'glow'};
     const glowLine=new THREE.Line(glowGeometry,glowMaterial);
     glowLine.scale.setScalar(bridge?1.018:1.012);
     glowLine.userData.galacticBrainFrameGlow=true;
@@ -209,7 +209,7 @@ function makeGalacticBrainFrame(){
       addFrameLine(curve.getPoints(72),{
         color:colors[band%colors.length],
         hueOffset:band*.035+(side>0?.018:0),
-        baseOpacity:.16+(band%3)*.022
+        baseOpacity:.20+(band%3)*.025
       });
     }
   }
@@ -227,7 +227,7 @@ function makeGalacticBrainFrame(){
     addFrameLine(curve.getPoints(48),{
       color:0xa6f8ff,
       hueOffset:.11+bridge*.018,
-      baseOpacity:.13,
+      baseOpacity:.16,
       bridge:true
     });
   }
@@ -380,16 +380,16 @@ function makeCoreMechanicalSystem(){
   const ringA=new THREE.Group();
   const ringB=new THREE.Group();
   const materialA=new THREE.MeshStandardMaterial({
-    color:0x60eaff,emissive:0x36d9ff,emissiveIntensity:1.25,
-    metalness:.78,roughness:.24,transparent:true,opacity:.78
+    color:0x60eaff,emissive:0x36d9ff,emissiveIntensity:1.45,
+    metalness:.8,roughness:.22,transparent:true,opacity:.88
   });
   const materialB=new THREE.MeshStandardMaterial({
-    color:0x866fff,emissive:0x705cff,emissiveIntensity:1.15,
-    metalness:.8,roughness:.22,transparent:true,opacity:.72
+    color:0x866fff,emissive:0x705cff,emissiveIntensity:1.40,
+    metalness:.82,roughness:.20,transparent:true,opacity:.86
   });
 
-  const torusA=new THREE.Mesh(new THREE.TorusGeometry(1.34,.035,7,64),materialA);
-  const torusB=new THREE.Mesh(new THREE.TorusGeometry(1.54,.032,7,64),materialB);
+  const torusA=new THREE.Mesh(new THREE.TorusGeometry(1.34,.055,8,64),materialA);
+  const torusB=new THREE.Mesh(new THREE.TorusGeometry(1.54,.050,8,64),materialB);
   ringA.add(torusA);
   ringB.add(torusB);
 
@@ -1339,10 +1339,10 @@ export class Neural3DScene{
           fx.shellB.material.color.setHSL(hueB,.9,.64);
           fx.materialA.color.setHSL(hue,.84,.62);
           fx.materialA.emissive.setHSL(hue,.95,.46);
-          fx.materialA.emissiveIntensity=1.25*visual.coreGlow;
+          fx.materialA.emissiveIntensity=1.45*visual.coreGlow;
           fx.materialB.color.setHSL(hueB,.82,.63);
           fx.materialB.emissive.setHSL(hueB,.94,.44);
-          fx.materialB.emissiveIntensity=1.15*visual.coreGlow;
+          fx.materialB.emissiveIntensity=1.40*visual.coreGlow;
           fx.shellA.material.opacity=.11*visual.coreGlow;
           fx.shellB.material.opacity=.075*visual.coreGlow;
           entry.coreFx.scale.setScalar(1+entry.pulse*.055+Math.sin(t*.9)*.008*motion);
