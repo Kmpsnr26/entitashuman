@@ -124,6 +124,12 @@ export class NaraBrainState{
       this.setRegion('FOLLOW_UP',{status:'ready',activity:.25,message:'Workflow menunggu eksekusi terkontrol'},event);
     }else if(event==='workflow.started'){
       this.setRegion('FOLLOW_UP',{status:'active',activity:.7,message:'Workflow NARA berjalan'},event);
+    }else if(event==='workflow.blocked'){
+      this.setRegion('FOLLOW_UP',{status:'paused',activity:.35,message:'Workflow menunggu dependency atau permission'},event);
+      this.setRegion('SAFETY',{status:'active',activity:.55,message:'Workflow diblokir sampai syarat terpenuhi'},event);
+    }else if(event==='workflow.resumed'){
+      this.setRegion('FOLLOW_UP',{status:'active',activity:.7,message:'Workflow dilanjutkan setelah blocker selesai'},event);
+      this.setRegion('SAFETY',{status:'ready',activity:.25,message:'Gate workflow terpenuhi'},event);
     }else if(event==='workflow.permission.granted'){
       this.setRegion('SAFETY',{status:'active',activity:.65,message:'Permission workflow diperbarui'},event);
     }else if(event==='workflow.permission.revoked'){
