@@ -14,8 +14,25 @@
 
   <main>
     <section class="panel brain-panel">
-      <div class="panel-title"><h2>Brain Map</h2><span id="brainSummary">22 regions</span></div>
-      <div id="brainMap" class="brain-map"><svg id="brainLines"></svg><div id="brainNodes"></div></div>
+      <div class="panel-title neural-title">
+        <h2>Neural Space</h2>
+        <div class="view-switch" role="group" aria-label="Neural view">
+          <button id="view2d" class="view-active" type="button">2D Brain Map</button>
+          <button id="view3d" type="button">3D Neural Explorer</button>
+          <span id="brainSummary">22 regions</span>
+        </div>
+      </div>
+      <div id="brainStage" class="brain-stage">
+        <div id="brainMap" class="brain-map neural-view"><svg id="brainLines"></svg><div id="brainNodes"></div></div>
+        <div id="neural3d" class="neural-3d neural-view" hidden>
+          <div class="neural3d-hud">
+            <span id="neural3dStatus">EXPERIMENTAL</span>
+            <strong id="neural3dSelected">NARA_CORE</strong>
+            <small>drag rotate · right-drag pan · wheel zoom · double-click focus</small>
+          </div>
+          <div id="neural3dHost" class="neural3d-host" aria-label="NARA Neural Space 3D"></div>
+        </div>
+      </div>
     </section>
 
     <section class="panel state-panel">
