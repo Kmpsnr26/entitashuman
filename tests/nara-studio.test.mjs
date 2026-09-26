@@ -629,3 +629,38 @@ test('Creator Gateway modules pass Node syntax checks',async()=>{
     assert.equal(result.status,0,result.stderr||result.stdout||file);
   }
 });
+
+
+test('Stage 2 edge HUD makes Neural Space the fullscreen primary surface',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [html,app,edge,styles]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/index.html',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/edge-hud.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/styles.css',root),'utf8')
+  ]);
+
+  assert.match(html,/id="edgeHud"/);
+  for(const mode of ['connection','loading','error','progress','evolution','damage']){
+    assert.match(html,new RegExp('data-edge-monitor="'+mode+'"'));
+    assert.match(edge,new RegExp("'"+mode+"'"));
+  }
+  assert.match(app,/import \{createEdgeHud\} from '\.\/edge-hud\.js'/);
+  assert.match(app,/edgeHud\.activate\(\)/);
+  assert.match(app,/setStudioView\('3d'\)/);
+  assert.match(app,/edgeHud\.update\(\{snapshot:state\}\)/);
+  assert.match(app,/edgeHud\.update\(\{telemetry\}\)/);
+  assert.match(styles,/Edge HUD — Stage 2/);
+  assert.match(styles,/\.creator-session-active \.panel:not\(\.brain-panel\)\{display:none\}/);
+  assert.match(styles,/\.creator-session-active \.brain-stage\{height:100vh\}/);
+  assert.doesNotMatch(edge,/innerHTML\s*=/);
+});
+
+test('edge HUD module passes Node syntax check',async()=>{
+  const {spawnSync}=await import('node:child_process');
+  const {fileURLToPath}=await import('node:url');
+  const file=fileURLToPath(new URL('../nara-core/studio/public/edge-hud.js',import.meta.url));
+  const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr||result.stdout||file);
+});
