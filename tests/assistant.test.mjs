@@ -562,9 +562,13 @@ test('release workflows use least privilege, pinned Android tooling, signed publ
  assert.match(android,/ANDROID_KEYSTORE_BASE64/);
  assert.match(android,/apksigner/);
  assert.match(android,/release:[\s\S]*permissions:\s*\n\s*contents: write/);
+ assert.doesNotMatch(android,/release:[\s\S]{0,500}?env:\s*\n\s*ANDROID_KEYSTORE_BASE64/);
+ assert.match(android,/Require Android signing secrets[\s\S]*?env:\s*\n\s*ANDROID_KEYSTORE_BASE64/);
+ assert.match(android,/Sign and verify production APK[\s\S]*?env:\s*\n\s*ANDROID_KEYSTORE_BASE64/);
+ assert.match(android,/Publish signed APK to versioned GitHub release[\s\S]*?GH_TOKEN/);
  assert.doesNotMatch(android,/Publish rolling Android release/);
  assert.match(nara,/push:\s*\n\s*branches: \[main\]/);
- assert.match(repair,/workflows: \["Verify and package", "Build Android APK", "NARA Cloud Verify"\]/);
+ assert.match(repair,/workflows: \\["Verify and package", "Build Android APK", "NARA Cloud Verify", "CodeQL Security"\\]/);
 });
 
 test('cloud auto-repair closes stale fallback draft PRs after CI recovery',async()=>{
@@ -576,4 +580,17 @@ test('cloud auto-repair closes stale fallback draft PRs after CI recovery',async
  assert.match(workflow,/github\.rest\.pulls\.update/);
  assert.match(workflow,/if \(issue\.state === 'closed'\) \{[\s\S]*await closeFallbackPullRequest\(issue\.number\);[\s\S]*return;/);
  assert.match(workflow,/await closeFallbackPullRequest\(issue\.number\)/);
+});
+
+
+test('explicit CodeQL workflow stays least-privilege and analyzes JavaScript/TypeScript',async()=>{
+ const codeql=await readFile(new URL('../.github/workflows/codeql.yml',import.meta.url),'utf8');
+ assert.match(codeql,/name: CodeQL Security/);
+ assert.match(codeql,/security-events: write/);
+ assert.match(codeql,/contents: read/);
+ assert.match(codeql,/github\/codeql-action\/init@v3/);
+ assert.match(codeql,/languages: javascript-typescript/);
+ assert.match(codeql,/queries: security-extended/);
+ assert.match(codeql,/github\/codeql-action\/analyze@v3/);
+ assert.doesNotMatch(codeql,/contents: write|pull-requests: write|issues: write/);
 });

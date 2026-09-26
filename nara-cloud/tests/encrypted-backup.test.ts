@@ -136,6 +136,18 @@ test(
       original.memories[0]!
         .content
     );
+
+    assert.ok(
+      decrypted.memories[0]!
+        .createdAt instanceof
+        Date
+    );
+
+    assert.ok(
+      decrypted.memories[0]!
+        .updatedAt instanceof
+        Date
+    );
   }
 );
 
@@ -315,6 +327,89 @@ test(
           "USB_BACKUP_INVALID_ENVELOPE"
         );
 
+        return true;
+      }
+    );
+  }
+);
+
+
+test(
+  "encrypted USB backup rejects unauthenticated envelope timestamps",
+  async () => {
+    const encrypted =
+      await encryptMemoryBackup(
+        snapshot(),
+        passphrase
+      );
+
+    await assert.rejects(
+      () =>
+        decryptMemoryBackup(
+          {
+            ...encrypted,
+            createdAt:
+              "2026-09-26T03:31:00.000Z"
+          },
+          passphrase
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            EncryptedBackupError
+        );
+        assert.equal(
+          error.code,
+          "USB_BACKUP_INVALID_ENVELOPE"
+        );
+        return true;
+      }
+    );
+  }
+);
+
+test(
+  "encrypted USB backup rejects malformed decrypted record shapes",
+  async () => {
+    const invalid =
+      snapshot();
+
+    (
+      invalid.memories[0] as
+        unknown as {
+          title:
+            unknown;
+        }
+    ).title =
+      123;
+
+    const encrypted =
+      await encryptMemoryBackup(
+        invalid,
+        passphrase
+      );
+
+    await assert.rejects(
+      () =>
+        decryptMemoryBackup(
+          encrypted,
+          passphrase
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            EncryptedBackupError
+        );
+        assert.equal(
+          error.code,
+          "USB_BACKUP_INVALID_ENVELOPE"
+        );
         return true;
       }
     );

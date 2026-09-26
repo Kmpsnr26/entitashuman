@@ -5,7 +5,12 @@ import {
   scrypt
 } from "node:crypto";
 
+import {
+  BACKUP_MEMORY_RECORD_LIMIT
+} from "./backup-export.service.js";
+
 import type {
+  MemoryBackupRecord,
   MemoryBackupSnapshot
 } from "./backup-export.service.js";
 
@@ -125,6 +130,111 @@ function deriveKey(
   );
 }
 
+function isCanonicalIsoTimestamp(
+  value: unknown
+): value is string {
+  if (
+    typeof value !== "string" ||
+    value.length < 20 ||
+    value.length > 40
+  ) {
+    return false;
+  }
+
+  const parsed =
+    new Date(value);
+
+  return (
+    Number.isFinite(
+      parsed.getTime()
+    ) &&
+    parsed.toISOString() ===
+      value
+  );
+}
+
+function isSerializedMemoryRecord(
+  value: unknown
+): value is Omit<
+  MemoryBackupRecord,
+  "createdAt" |
+    "updatedAt"
+> & {
+  createdAt: string;
+  updatedAt: string;
+} {
+  if (
+    typeof value !== "object" ||
+    value === null
+  ) {
+    return false;
+  }
+
+  const record =
+    value as
+      Record<string, unknown>;
+
+  return (
+    typeof record.id ===
+      "string" &&
+    record.id.length > 0 &&
+    record.id.length <= 128 &&
+    typeof record.scope ===
+      "string" &&
+    record.scope.length <= 64 &&
+    typeof record.title ===
+      "string" &&
+    record.title.length <= 500 &&
+    typeof record.content ===
+      "string" &&
+    record.content.length <=
+      1_000_000 &&
+    Array.isArray(
+      record.tags
+    ) &&
+    record.tags.length <=
+      100 &&
+    record.tags.every(
+      tag =>
+        typeof tag ===
+          "string" &&
+        tag.length <=
+          128
+    ) &&
+    typeof record.importance ===
+      "number" &&
+    Number.isFinite(
+      record.importance
+    ) &&
+    (
+      record.projectKey ===
+        null ||
+      (
+        typeof record.projectKey ===
+          "string" &&
+        record.projectKey.length <=
+          256
+      )
+    ) &&
+    (
+      record.conversationId ===
+        null ||
+      (
+        typeof record.conversationId ===
+          "string" &&
+        record.conversationId.length <=
+          256
+      )
+    ) &&
+    isCanonicalIsoTimestamp(
+      record.createdAt
+    ) &&
+    isCanonicalIsoTimestamp(
+      record.updatedAt
+    )
+  );
+}
+
 function isEnvelope(
   value: unknown
 ): value is EncryptedBackupEnvelope {
@@ -150,8 +260,9 @@ function isEnvelope(
       "aes-256-gcm" &&
     envelope.kdf ===
       "scrypt" &&
-    typeof envelope.createdAt ===
-      "string" &&
+    isCanonicalIsoTimestamp(
+      envelope.createdAt
+    ) &&
     typeof envelope.salt ===
       "string" &&
     typeof envelope.iv ===
@@ -419,28 +530,42 @@ export async function decryptMemoryBackup(
     if (
       typeof parsed !==
         "object" ||
-      parsed === null ||
-      (
-        parsed as {
-          schemaVersion?:
-            unknown;
-        }
-      ).schemaVersion !==
+      parsed === null
+    ) {
+      throw new EncryptedBackupError(
+        "USB_BACKUP_INVALID_ENVELOPE"
+      );
+    }
+
+    const candidate =
+      parsed as {
+        schemaVersion?:
+          unknown;
+        kind?:
+          unknown;
+        exportedAt?:
+          unknown;
+        memories?:
+          unknown;
+      };
+
+    if (
+      candidate.schemaVersion !==
         1 ||
-      (
-        parsed as {
-          kind?:
-            unknown;
-        }
-      ).kind !==
+      candidate.kind !==
         "nara-memory" ||
+      !isCanonicalIsoTimestamp(
+        candidate.exportedAt
+      ) ||
+      candidate.exportedAt !==
+        input.createdAt ||
       !Array.isArray(
-        (
-          parsed as {
-            memories?:
-              unknown;
-          }
-        ).memories
+        candidate.memories
+      ) ||
+      candidate.memories.length >
+        BACKUP_MEMORY_RECORD_LIMIT ||
+      !candidate.memories.every(
+        isSerializedMemoryRecord
       )
     ) {
       throw new EncryptedBackupError(
@@ -448,8 +573,28 @@ export async function decryptMemoryBackup(
       );
     }
 
-    return parsed as
-      MemoryBackupSnapshot;
+    return {
+      schemaVersion:
+        1,
+      kind:
+        "nara-memory",
+      exportedAt:
+        candidate.exportedAt,
+      memories:
+        candidate.memories.map(
+          record => ({
+            ...record,
+            createdAt:
+              new Date(
+                record.createdAt
+              ),
+            updatedAt:
+              new Date(
+                record.updatedAt
+              )
+          })
+        )
+    };
   } catch (error) {
     if (
       error instanceof
