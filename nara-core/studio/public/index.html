@@ -105,9 +105,44 @@
       </dl>
     </section>
 
+    <section class="panel bug-panel">
+      <div class="panel-title"><h2>Bug Hunter / Repair Monitor</h2><span id="bugStatus">idle</span></div>
+      <div class="bug-stats">
+        <div><span>ERRORS</span><strong id="bugErrors">0</strong></div>
+        <div><span>BUGS</span><strong id="bugDetected">0</strong></div>
+        <div><span>FIXED</span><strong id="bugFixed">0</strong></div>
+        <div><span>VERIFIED</span><strong id="bugVerified">0</strong></div>
+      </div>
+      <div class="bug-current">
+        <span>Current issue</span>
+        <strong id="bugCurrent">—</strong>
+        <small>Last repair: <b id="bugRepairDuration">—</b></small>
+      </div>
+      <div id="bugHistory" class="trace-list bug-trace"></div>
+    </section>
+
+    <section class="panel performance-panel">
+      <div class="panel-title"><h2>Performance Monitor</h2><span>read-only</span></div>
+      <div class="perf-grid">
+        <div><span>EVENTS</span><strong id="perfTotalEvents">0</strong><small>total</small></div>
+        <div><span>RATE</span><strong id="perfRate">0</strong><small>events/sec</small></div>
+        <div><span>ACTIVE REGIONS</span><strong id="perfActiveRegions">0</strong><small>live</small></div>
+        <div><span>UPTIME</span><strong id="perfUptime">0s</strong><small>studio telemetry</small></div>
+        <div><span>MEMORY OPS</span><strong id="perfMemoryOps">0</strong><small>read + write</small></div>
+        <div><span>SKILL RUNS</span><strong id="perfSkillRuns">0</strong><small>all skills</small></div>
+      </div>
+      <div class="perf-bar-wrap"><span>10s event window</span><progress id="perfEventWindow" max="100" value="0"></progress></div>
+    </section>
+
     <section class="panel event-panel">
-      <div class="panel-title"><h2>Event Stream</h2><button id="clearEvents">Clear view</button></div>
-      <div id="events" class="events"></div>
+      <div class="panel-title"><h2>Event Timeline / Replay</h2><span>visual replay only</span></div>
+      <div class="timeline-controls">
+        <input id="eventFilter" maxlength="80" placeholder="Filter event...">
+        <button id="pauseEvents">Pause</button>
+        <button id="replayEvents">Replay last 30</button>
+        <button id="clearEvents">Clear view</button>
+      </div>
+      <div id="events" class="events timeline-events"></div>
     </section>
 
     <section class="panel console-panel">
