@@ -213,6 +213,8 @@ test('desktop UI loads shared memory modules and requests permission before chat
   assert.match(app,/prepareEffectiveMemoryContext\(prompt,mode==='work'\?'agent':'planner'\)/);
   assert.match(app,/prepareEffectiveMemoryContext\(text,'agent'\)/);
   assert.match(app,/selectedMemorySource\(\)==='cloud'/);
+  assert.match(app,/return stored==='cloud'\?'cloud':'local'/);
+  assert.match(app,/if\(source==='cloud'&&cloudMemoryChecked&&!cloudMemoryState\.configured\)source=setMemorySource\('local'\)/);
   assert.match(app,/prepareCloudMemoryContext\(target\)/);
   assert.match(app,/prepareDesktopMemoryContext\(task,target\)/);
   assert.match(app,/window\.confirm\(/);
