@@ -198,3 +198,52 @@ test('NARA Studio reset clears skill runtime counters',async t=>{
   assert.equal(studio.skills.get('agent.manage').runs,0);
   assert.equal(studio.skills.get('agent.manage').status,'ready');
 });
+
+
+test('NARA Studio exposes experimental 3D Neural Space without removing 2D fallback',async t=>{
+  const studio=createNaraStudioServer({host:'127.0.0.1',port:0});
+  t.after(()=>studio.stop());
+  const address=await studio.start();
+  const base='http://127.0.0.1:'+address.port;
+
+  const html=await fetch(base+'/').then(r=>r.text());
+  assert.match(html,/2D Brain Map/);
+  assert.match(html,/3D Neural Explorer/);
+  assert.match(html,/id="brainMap"/);
+  assert.match(html,/id="neural3dHost"/);
+
+  const app=await fetch(base+'/app.js').then(r=>r.text());
+  assert.match(app,/import\('\.\/neural-space\.js'\)/);
+  assert.match(app,/function setStudioView\(mode\)/);
+
+  const scene=await fetch(base+'/neural-space.js');
+  assert.equal(scene.status,200);
+  assert.match(await scene.text(),/class Neural3DScene/);
+});
+
+test('NARA Studio serves Three.js from a fixed same-origin vendor route',async t=>{
+  const studio=createNaraStudioServer({host:'127.0.0.1',port:0});
+  t.after(()=>studio.stop());
+  const address=await studio.start();
+  const base='http://127.0.0.1:'+address.port;
+
+  const res=await fetch(base+'/vendor/three/three.module.js');
+  assert.equal(res.status,200);
+  assert.match(res.headers.get('content-type')||'',/text\/javascript/);
+  const source=await res.text();
+  assert.match(source,/WebGLRenderer/);
+});
+
+test('Neural Space 3D keeps existing Studio security boundaries',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [server,scene]=await Promise.all([
+    readFile(new URL('nara-core/studio/server.mjs',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8')
+  ]);
+  assert.match(server,/script-src 'self'/);
+  assert.match(server,/\/vendor\/three\/three\.module\.js/);
+  assert.doesNotMatch(scene,/fetch\(/);
+  assert.doesNotMatch(scene,/EventSource/);
+  assert.doesNotMatch(scene,/terminal\.exec/);
+});
