@@ -18,6 +18,12 @@ test('terminal policy separates SAFE CONFIRM and BLOCK commands',()=>{
  assert.equal(classifyCommand('git status | findstr main').category,'CONFIRM');
  assert.equal(classifyCommand('git status > status.txt').category,'CONFIRM');
  assert.equal(classifyCommand('git status $(echo injected)').category,'CONFIRM');
+ assert.equal(classifyCommand('Get-Content $env:USERPROFILE\\.ssh\\id_rsa').category,'CONFIRM');
+ assert.equal(classifyCommand('type %USERPROFILE%\\.ssh\\id_rsa').category,'CONFIRM');
+ assert.equal(classifyCommand('cd C:\\Users').category,'CONFIRM');
+ assert.equal(classifyCommand('Resolve-Path C:\\Users').category,'CONFIRM');
+ assert.equal(classifyCommand('Get-ChildItem').category,'SAFE');
+ assert.equal(classifyCommand('Get-ChildItem C:\\Users').category,'CONFIRM');
 });
 
 test('terminal redaction removes common credentials before AI or logs',()=>{

@@ -566,3 +566,13 @@ test('release workflows use least privilege, pinned Android tooling, signed publ
  assert.match(nara,/push:\s*\n\s*branches: \[main\]/);
  assert.match(repair,/workflows: \["Verify and package", "Build Android APK", "NARA Cloud Verify"\]/);
 });
+
+test('cloud auto-repair closes stale fallback draft PRs after CI recovery',async()=>{
+ const workflow=await readFile(new URL('../.github/workflows/cloud-auto-repair.yml',import.meta.url),'utf8');
+ assert.match(workflow,/pull-requests: write/);
+ assert.match(workflow,/async function closeFallbackPullRequest\(issueNumber\)/);
+ assert.match(workflow,/head: owner \+ ':automation\/issue-' \+ issueNumber/);
+ assert.match(workflow,/cloud-fallback-request: issue-/);
+ assert.match(workflow,/github\.rest\.pulls\.update/);
+ assert.match(workflow,/await closeFallbackPullRequest\(issue\.number\)/);
+});

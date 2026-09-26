@@ -188,12 +188,7 @@ The HumanALE renderer never receives the session cookie.
 
 ## Existing boundaries preserved
 
-Phase 11G does not change:
-
-- reference-face.png
-- face-rig.js
-- avatar.js face geometry/assets
-- HumanALE neural/hologram rendering
+At the original Phase 11G checkpoint, this bridge intentionally did not change the avatar renderer. Later consolidated hardening removed the image-based face reference entirely. The current HumanALE avatar is procedural-only and generated from code; this historical section must not be read as a current PNG/runtime dependency.
 - Owner identity/session/SSO semantics
 - CSRF policy
 - trusted-origin policy

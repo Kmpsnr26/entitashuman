@@ -27,7 +27,7 @@ jobs:
       actions: read
       contents: read
       issues: write
-      pull-requests: read
+      pull-requests: write
     outputs:
       candidates: ${{ steps.triage.outputs.candidates }}
       fallback_issues: ${{ steps.delegate.outputs.fallback_issues }}
@@ -135,6 +135,32 @@ jobs:
               }
             }
 
+            async function closeFallbackPullRequest(issueNumber) {
+              const response = await github.rest.pulls.list({
+                owner,
+                repo,
+                state: 'open',
+                head: owner + ':automation/issue-' + issueNumber,
+                per_page: 10
+              });
+              for (const pr of response.data) {
+                const body = pr.body || '';
+                if (!pr.draft || !body.includes('<!-- cloud-fallback-request: issue-' + issueNumber + ' -->')) continue;
+                await github.rest.pulls.update({
+                  owner,
+                  repo,
+                  pull_number: pr.number,
+                  state: 'closed'
+                });
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pr.number,
+                  body: 'Closed automatically because the tracked CI failure recovered successfully.'
+                });
+              }
+            }
+
             async function resolveRecoveredRun(run) {
               const branch = run.head_branch || context.payload.repository.default_branch;
               const key = 'workflow:' + run.workflow_id + ':' + branch;
@@ -162,6 +188,7 @@ jobs:
               });
               await addLabels(issue.number, ['automation:resolved']);
               await removeLabel(issue.number, 'automation:queued');
+              await closeFallbackPullRequest(issue.number);
             }
 
             const candidates = [];
