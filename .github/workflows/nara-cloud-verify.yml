@@ -66,7 +66,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install NARA Cloud dependencies
+      - name: Install locked NARA Cloud dependencies
         run: npm ci
 
       - name: Record resolved dependency versions
