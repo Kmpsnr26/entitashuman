@@ -31,6 +31,10 @@ test('terminal redaction removes common credentials before AI or logs',()=>{
  const redacted=redactSecrets(value);
  assert.doesNotMatch(redacted,/sk-test-secret|abc\.def\.ghi|hunter2|abc123|github_pat_|sk-ant-/);
  assert.match(redacted,/\[REDACTED\]/);
+ const quoted=redactSecrets('password="two words" token=\'quoted value\' {"token":"json secret","authorization":"Bearer json-secret"}');
+ assert.doesNotMatch(quoted,/two words|quoted value|json secret|json-secret/);
+ assert.match(quoted,/password="\[REDACTED\]"/);
+ assert.match(quoted,/"token":"\[REDACTED\]"/);
  assert.equal(shouldPersistHistory('git status'),true);
  assert.equal(shouldPersistHistory('set token=abc'),false);
 });
@@ -76,6 +80,8 @@ test('terminal startup is restricted to detected CLI profiles and cannot accept 
   readFile(new URL('../desktop/terminal-manager.mjs',import.meta.url),'utf8'),
   readFile(new URL('../public/terminal-ui.js',import.meta.url),'utf8')
  ]);
+ assert.match(manager,/MAX_TERMINAL_SESSIONS=12/);
+ assert.match(manager,/this\.sessions\.size>=MAX_TERMINAL_SESSIONS/);
  assert.match(manager,/async resolveProfile\(profile\)/);
  assert.match(manager,/if\(profile\)terminal\.write\(executableLine/);
  assert.doesNotMatch(manager,/options\.startupCommand/);

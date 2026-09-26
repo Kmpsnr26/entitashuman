@@ -33,7 +33,10 @@ test('structured HumanALE orchestrator keeps planning, work and review bounded',
  assert.match(hub,/Worker HumanALE/);
  assert.match(hub,/Reviewer HumanALE/);
  assert.match(hub,/Final Reviewer HumanALE/);
- assert.match(hub,/reviewVerdict\(review\.text\)==='needs_fix'/);
+ assert.match(hub,/let verdict=reviewVerdict\(review\.text\)/);
+ assert.match(hub,/verdict==='unknown'/);
+ assert.match(hub,/tidak memberikan VERDICT valid setelah retry/);
+ assert.match(hub,/Final Reviewer HumanALE belum memberikan VERDICT: PASS/);
  assert.match(hub,/runDirect\(planner,planPrompt,'analyze'\)/);
  assert.match(hub,/runDirect\(worker,workPrompt,mode\)/);
  assert.match(hub,/runDirect\(reviewer,reviewPrompt,'analyze'\)/);
