@@ -861,3 +861,67 @@ test('node inspector module passes Node syntax check',async()=>{
   const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
   assert.equal(result.status,0,result.stderr||result.stdout||file);
 });
+
+
+test('Stage 6 spoken summary is bounded operational metadata only',async()=>{
+  const {buildOperationalNarration}=await import('../nara-core/studio/public/node-voice.js');
+  const narration=buildOperationalNarration({
+    id:'MEMORY',
+    label:'Memory',
+    group:'cognitive',
+    status:'active',
+    lastEvent:'memory.read',
+    neighbors:[{id:'NARA_CORE',label:'NARA Core'},{id:'DRIVE',label:'Drive'}],
+    runtime:{lifecycle:'active',activeRegions:4,totalEvents:19,eventsPerSecond:1.2},
+    network:{scope:'loopback',address:'127.0.0.1',port:4178},
+    server:{health:'online',secrets:'DO_NOT_SPEAK_SERVER_SECRET'},
+    database:{state:'not_configured',credentials:'DO_NOT_SPEAK_DB_SECRET'},
+    diagnostics:{errors:1,bugs:2,fixed:2,verified:1},
+    memory:{reads:7,writes:3},
+    skills:[{id:'memory.read',label:'Memory Read',status:'complete',runs:7,successes:7,failures:0}],
+    security:{privateReasoningExposed:false},
+    privateReasoning:'DO_NOT_SPEAK_PRIVATE_REASONING'
+  });
+
+  assert.match(narration,/Memory\. Status active\./);
+  assert.match(narration,/127\.0\.0\.1 port 4178/);
+  assert.match(narration,/Database .* belum dikonfigurasi/);
+  assert.match(narration,/1 error, 2 bug, 2 perbaikan, dan 1 verifikasi/);
+  assert.match(narration,/7 pembacaan dan 3 penulisan/);
+  assert.match(narration,/Credential, secret, dan private reasoning tidak ditampilkan/);
+  assert.equal(narration.includes('DO_NOT_SPEAK_SERVER_SECRET'),false);
+  assert.equal(narration.includes('DO_NOT_SPEAK_DB_SECRET'),false);
+  assert.equal(narration.includes('DO_NOT_SPEAK_PRIVATE_REASONING'),false);
+  assert.ok(narration.length<=1100);
+});
+
+test('Stage 6 node voice is local, audio-gated and wired to sanitized inspector metadata',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [html,app,voice,styles]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/index.html',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/node-voice.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/styles.css',root),'utf8')
+  ]);
+
+  assert.match(html,/id="nodeInspectorSpeak"/);
+  assert.match(html,/id="nodeInspectorVoiceText"/);
+  assert.match(app,/import \{createNodeVoice\} from '\.\/node-voice\.js'/);
+  assert.match(app,/onMetadata:metadata=>nodeVoice\.speak\(metadata\)/);
+  assert.match(voice,/SpeechSynthesisUtterance/);
+  assert.match(voice,/edgeAudioToggle/);
+  assert.match(voice,/speechSynthesis\.cancel\(\)/);
+  assert.match(voice,/speechSynthesis\.speak\(utterance\)/);
+  assert.match(voice,/id-ID/);
+  assert.doesNotMatch(voice,/fetch\(|EventSource|https?:\/\//);
+  assert.match(styles,/NARA Node Voice — Stage 6/);
+});
+
+test('node voice module passes Node syntax check',async()=>{
+  const {spawnSync}=await import('node:child_process');
+  const {fileURLToPath}=await import('node:url');
+  const file=fileURLToPath(new URL('../nara-core/studio/public/node-voice.js',import.meta.url));
+  const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr||result.stdout||file);
+});
