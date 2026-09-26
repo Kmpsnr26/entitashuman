@@ -71,7 +71,7 @@ if (-not (Test-Path $reportPath)) {
   Fail "Report tidak dibuat. Exit code smoke: $smokeExit"
 }
 
-$report = Get-Content $reportPath -Raw | ConvertFrom-Json
+$report = Get-Content $reportPath -Raw -Encoding UTF8 | ConvertFrom-Json
 Write-Host ""
 Write-Host "[4/4] Hasil acceptance" -ForegroundColor Cyan
 Write-Host "Passed              : $($report.passed)"
