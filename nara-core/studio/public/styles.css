@@ -35,3 +35,14 @@ button,select,input{background:#0c2732;color:#c9f5ff;border:1px solid #245365;bo
 .timeline-controls{display:grid;grid-template-columns:1fr auto auto auto;gap:7px;padding:8px 10px;border-bottom:1px solid #173846;background:#06151d}.timeline-controls input{min-width:0}.timeline-events{height:calc(100% - 98px)}
 
 @media(max-width:980px){.timeline-controls{grid-template-columns:1fr 1fr}.perf-grid{grid-template-columns:1fr 1fr}.bug-stats{grid-template-columns:1fr 1fr}.timeline-events{height:320px}}
+
+
+/* Neural Space 3D — Stage 1 */
+.brain-stage{height:calc(100% - 48px);position:relative;overflow:hidden}
+.brain-stage .brain-map{height:100%}
+.neural-title{gap:12px}.neural-title h2{white-space:nowrap}.view-switch{display:flex;align-items:center;gap:6px;min-width:0}.view-switch button{padding:5px 8px;font-size:9px;letter-spacing:.06em;text-transform:uppercase}.view-switch .view-active{border-color:#58e6ff;color:#bff7ff;box-shadow:0 0 12px #00cfff26}.view-switch span{margin-left:3px}
+.neural-3d{position:absolute;inset:0;background:radial-gradient(circle at 50% 45%,#0a2633 0,#030a0f 56%,#010406 100%)}
+.neural3d-host{position:absolute;inset:0}.neural3d-canvas{display:block;width:100%;height:100%;cursor:grab;touch-action:none}.neural3d-canvas:active{cursor:grabbing}
+.neural3d-hud{position:absolute;left:12px;bottom:12px;z-index:3;display:grid;gap:3px;min-width:250px;padding:9px 11px;border:1px solid #1d5264;border-radius:9px;background:#031018b8;backdrop-filter:blur(8px);pointer-events:none}
+.neural3d-hud span{font-size:8px;letter-spacing:.14em;color:#6d9aa6}.neural3d-hud strong{font-size:11px;color:#aef5ff}.neural3d-hud small{font-size:8px;color:#5f7e88}
+.neural3d-error{display:grid;place-items:center;height:100%;padding:24px;text-align:center;color:#ffb8c1;font:11px ui-monospace,SFMono-Regular,Consolas,monospace}
