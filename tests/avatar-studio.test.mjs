@@ -108,6 +108,6 @@ test('Avatar Live Studio is wired as a detached live editor with explicit save/r
  assert.match(desktop,/Avatar Live Studio tidak menerapkan perubahan realtime ke avatar utama/);
  const canonical=await readFile(new URL('../sites/humanale-hologram/dist/avatar.js',import.meta.url),'utf8');
  assert.match(canonical,/transformFacePoint\(point\)/);
- assert.match(canonical,/feature: pt\.feature/);
+ assert.match(canonical,/x, y, z, feature,/);
  assert.match(canonical,/'ear-shell'/);
 });
