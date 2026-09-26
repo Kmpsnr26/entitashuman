@@ -329,8 +329,7 @@ export class AnthropicProvider
     }
 
     const data =
-      (await response.json())
-        as AnthropicResponse;
+      (await response.json()) as AnthropicResponse;
 
     const text =
       textFrom(data);
