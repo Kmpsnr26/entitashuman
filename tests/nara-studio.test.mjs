@@ -664,3 +664,41 @@ test('edge HUD module passes Node syntax check',async()=>{
   const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
   assert.equal(result.status,0,result.stderr||result.stdout||file);
 });
+
+
+test('Stage 3 cinematic entry uses local bounded audio and Indonesian NARA voice',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [html,app,gateway,entry,styles]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/index.html',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/creator-gateway.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/neural-entry.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/styles.css',root),'utf8')
+  ]);
+
+  assert.match(html,/id="neuralEntryTransition"/);
+  assert.match(html,/id="edgeAudioToggle"/);
+  assert.match(gateway,/onEntering=\(\)=>\{\}/);
+  assert.match(gateway,/onEntering\(session\)/);
+  assert.match(app,/createNeuralEntryExperience/);
+  assert.match(app,/onEntering:\(\)=>neuralEntry\.play/);
+  assert.match(entry,/new AudioContext|AudioContext=window\.AudioContext/);
+  assert.match(entry,/createOscillator\(\)/);
+  assert.match(entry,/SpeechSynthesisUtterance/);
+  assert.match(entry,/NARA Core online/);
+  assert.match(entry,/id-ID/);
+  assert.match(entry,/prefers-reduced-motion/);
+  assert.doesNotMatch(entry,/https?:\/\//);
+  assert.doesNotMatch(entry,/fetch\(/);
+  assert.match(styles,/Neural Entry — Stage 3/);
+  assert.match(styles,/@media\(prefers-reduced-motion:reduce\)/);
+});
+
+test('Neural entry module passes Node syntax check',async()=>{
+  const {spawnSync}=await import('node:child_process');
+  const {fileURLToPath}=await import('node:url');
+  const file=fileURLToPath(new URL('../nara-core/studio/public/neural-entry.js',import.meta.url));
+  const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr||result.stdout||file);
+});
