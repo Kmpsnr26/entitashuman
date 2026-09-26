@@ -64,6 +64,109 @@ function sendSse(res,type,data){
   res.write('data: '+JSON.stringify(data)+'\n\n');
 }
 
+
+function finiteNumber(value,fallback=0){
+  const number=Number(value);
+  return Number.isFinite(number)?number:fallback;
+}
+
+function safeEventName(value=''){
+  const event=String(value||'').slice(0,80);
+  return allow.has(event)?event:'';
+}
+
+export function buildCreatorRegionMetadata({
+  id,
+  state={},
+  telemetry={},
+  skills={},
+  host='127.0.0.1',
+  port=4178
+}={}){
+  const region=NARA_REGIONS[String(id||'')];
+  if(!region)return null;
+
+  const live=state.regions?.[region.id]||{};
+  const diagnostics=telemetry.diagnostics||{};
+  const memory=telemetry.memory||{};
+  const performance=telemetry.performance||{};
+  const skillRows=Array.isArray(skills.skills)?skills.skills:[];
+  const regionSkills=skillRows.filter(skill=>skill.region===region.id).slice(0,8).map(skill=>({
+    id:String(skill.id||'').slice(0,80),
+    label:String(skill.label||'').slice(0,120),
+    status:String(skill.status||'idle').slice(0,40),
+    runs:finiteNumber(skill.runs),
+    successes:finiteNumber(skill.successes),
+    failures:finiteNumber(skill.failures),
+    lastEvent:safeEventName(skill.lastEvent),
+    lastDurationMs:skill.lastDurationMs==null?null:finiteNumber(skill.lastDurationMs)
+  }));
+
+  const activeRegions=Object.values(state.regions||{}).filter(item=>
+    !['idle','ready','offline','disconnected','complete'].includes(item?.status)
+  ).length;
+  const loopback=host==='127.0.0.1'||host==='localhost'||host==='::1';
+
+  return {
+    id:region.id,
+    label:region.label,
+    group:region.group,
+    status:String(live.status||region.defaultStatus||'idle').slice(0,40),
+    defaultStatus:region.defaultStatus,
+    lastEvent:safeEventName(live.lastEvent),
+    neighbors:(region.connections||[]).slice(0,24).map(neighborId=>({
+      id:neighborId,
+      label:NARA_REGIONS[neighborId]?.label||neighborId,
+      status:String(state.regions?.[neighborId]?.status||NARA_REGIONS[neighborId]?.defaultStatus||'idle').slice(0,40)
+    })),
+    runtime:{
+      lifecycle:String(state.lifecycle||'unknown').slice(0,40),
+      activeRegions,
+      totalEvents:finiteNumber(performance.totalEvents),
+      eventsPerSecond:finiteNumber(performance.eventsPerSecond)
+    },
+    network:{
+      scope:loopback?'loopback':'configured-bind',
+      address:loopback?'127.0.0.1':'configured-host',
+      port:Math.max(0,Math.min(65535,finiteNumber(port))),
+      transport:'HTTP + SSE',
+      discovery:'disabled'
+    },
+    server:{
+      service:'NARA Core Live Studio',
+      health:'online',
+      mode:'local-studio',
+      secrets:'redacted'
+    },
+    database:{
+      state:'not_configured',
+      connector:'none',
+      credentials:'not_exposed'
+    },
+    diagnostics:{
+      status:String(diagnostics.status||'idle').slice(0,40),
+      errors:finiteNumber(diagnostics.counters?.errors),
+      bugs:finiteNumber(diagnostics.counters?.bugs),
+      fixed:finiteNumber(diagnostics.counters?.fixed),
+      verified:finiteNumber(diagnostics.counters?.verified),
+      lastRepairDurationMs:diagnostics.lastRepairDurationMs==null?null:finiteNumber(diagnostics.lastRepairDurationMs)
+    },
+    memory:{
+      reads:finiteNumber(memory.counters?.read),
+      writes:finiteNumber(memory.counters?.write),
+      contextUsed:finiteNumber(memory.counters?.context_used),
+      contextBlocked:finiteNumber(memory.counters?.context_blocked)
+    },
+    skills:regionSkills,
+    security:{
+      permissionBypass:false,
+      arbitraryNetworkDiscovery:false,
+      rawSecretsExposed:false,
+      privateReasoningExposed:false
+    }
+  };
+}
+
 export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:creatorOptions={}}={}){
   const creator=createCreatorAuth({
     username:creatorOptions.username||process.env.NARA_CREATOR_USERNAME||'creator',
@@ -151,6 +254,24 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
       const creatorSession=creator.getSession(req);
       if(creatorRequired&&!creatorSession&&url.pathname.startsWith('/api/')){
         return json(res,401,{ok:false,error:'Creator authentication required.'});
+      }
+
+      if(req.method==='GET'&&url.pathname.startsWith('/api/creator/region/')){
+        let regionId='';
+        try{regionId=decodeURIComponent(url.pathname.slice('/api/creator/region/'.length)).slice(0,80);}
+        catch{return json(res,400,{error:'Region ID tidak valid.'});}
+        const address=server.listening?server.address():null;
+        const actualPort=typeof address==='object'&&address?address.port:port;
+        const metadata=buildCreatorRegionMetadata({
+          id:regionId,
+          state:nara.snapshot(),
+          telemetry:telemetry.snapshot(),
+          skills:skills.snapshot(),
+          host,
+          port:actualPort
+        });
+        if(!metadata)return json(res,404,{error:'Region NARA tidak ditemukan.'});
+        return json(res,200,{ok:true,region:metadata});
       }
 
       if(req.method==='GET'&&url.pathname==='/api/snapshot'){
