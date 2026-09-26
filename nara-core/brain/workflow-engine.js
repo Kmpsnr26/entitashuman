@@ -48,15 +48,16 @@ function cloneStep(step){
  };
 }
 
-function skillPermissionClosure(skillId,seen=new Set()){
+function skillPermissionClosure(skillId,seen=new Set(),root=true){
  if(seen.has(skillId))return [];
  seen.add(skillId);
  const skill=getSkill(skillId);
  if(!skill)return [];
- return [...new Set([
-  ...skill.permissions,
-  ...skill.dependencies.flatMap(dependency=>skillPermissionClosure(dependency,seen))
- ])];
+ const direct=root
+  ?[...skill.permissions]
+  :skill.permissions.filter(permission=>!permission.endsWith('-approved'));
+ const inherited=skill.dependencies.flatMap(dependency=>skillPermissionClosure(dependency,seen,false));
+ return [...new Set([...direct,...inherited])];
 }
 
 function validateStepGraph(steps){
