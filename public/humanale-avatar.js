@@ -22,6 +22,7 @@ export class HumanALEAvatar extends BaseAvatar{
   this.persona='chatgpt';
   this.mode='mixed';
   this.state='idle';
+  this.naraPolicy={version:1,controlledBy:'NARA_CORE',state:'idle',rendererMode:'active',activity:0,reason:'startup'};
   this.listening=false;
   this._thinking=false;
   this._evolving=false;
@@ -117,6 +118,21 @@ export class HumanALEAvatar extends BaseAvatar{
   this.state=['idle','listening','thinking','speaking','processing','error'].includes(value)?value:'idle';
   this.flowEnergy={idle:1,listening:1.45,thinking:1.7,speaking:1.8,processing:2,error:2.2}[this.state];
   if(this.state==='speaking')this.speaking=true;
+ }
+ applyNaraPolicy(value={}){
+  const state=['idle','listening','thinking','speaking','processing','error'].includes(value?.state)?value.state:'idle';
+  const rendererMode=['eco','balanced','active'].includes(value?.rendererMode)?value.rendererMode:'active';
+  this.naraPolicy={
+   version:1,
+   controlledBy:'NARA_CORE',
+   state,
+   rendererMode,
+   activity:clamp(value?.activity),
+   reason:String(value?.reason||'nara.policy').slice(0,120)
+  };
+  this.setState(state);
+  this.setRenderPolicy?.(rendererMode);
+  return {...this.naraPolicy};
  }
  setEvolving(value=false){
   this._evolving=Boolean(value);
