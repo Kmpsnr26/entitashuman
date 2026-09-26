@@ -27,7 +27,10 @@ test('structured HumanALE orchestrator keeps planning, work and review bounded',
  assert.match(hub,/runDirect\(planner,planPrompt,'analyze'\)/);
  assert.match(hub,/runDirect\(worker,workPrompt,mode\)/);
  assert.match(hub,/runDirect\(reviewer,reviewPrompt,'analyze'\)/);
- assert.match(hub,/Jangan git push, git merge, publish/);\n assert.match(hub,/validateMemoryContext\(value\?\.memoryContext/);\n assert.match(hub,/memoryContextBlock\(memoryContext\)/);\n assert.match(hub,/if\(id==='humanale-orchestrator'\)return await this\.runStructured/);
+ assert.match(hub,/Jangan git push, git merge, publish/);
+ assert.match(hub,/validateMemoryContext\(value\?\.memoryContext/);
+ assert.match(hub,/memoryContextBlock\(memoryContext\)/);
+ assert.match(hub,/if\(id==='humanale-orchestrator'\)return await this\.runStructured/);
  assert.match(app,/\['humanale-orchestrator','github-copilot','codex','cursor','claude'\]\.includes\(id\)/);
  assert.match(html,/Planner → Worker → Reviewer/);
 });
