@@ -163,3 +163,14 @@ body.detached-panel .humanale-visual-studio-dialog{width:calc(100% - 18px);max-h
 .visual-studio-history i[data-mode="balanced"]{opacity:.75}
 .visual-studio-history i[data-mode="active"]{opacity:1}
 @media(max-width:620px){.visual-studio-scene{grid-template-columns:1fr}}
+
+/* HumanALE Visual Studio v3 */
+.visual-studio-test-lab{grid-column:1/-1}
+.visual-studio-test-actions{display:flex;flex-wrap:wrap;gap:6px}
+.visual-studio-test-actions button{font-size:9px}
+.visual-studio-test-trace,.visual-studio-test-history,.visual-studio-health-checks{display:grid;gap:5px;margin-top:8px}
+.visual-studio-test-step,.visual-studio-test-history-row,.visual-studio-health-row{padding:6px 7px;border:1px solid var(--line);border-radius:8px;background:#07130d88;font:9px/1.35 "Cascadia Code","Cascadia Mono",Consolas,monospace;color:#abc8b4}
+.visual-studio-test-history-row[data-status="pass"],.visual-studio-health-row[data-status="pass"]{border-color:#79e5a866;color:#d8ffe6}
+.visual-studio-test-history-row[data-status="fail"],.visual-studio-health-row[data-status="fail"]{border-color:#ff6f9566;color:#ffc7d7;background:#2b0b1666}
+.visual-studio-health-row[data-status="warn"]{border-color:#ffd66f66;color:#ffe7a8;background:#2b230b66}
+.visual-studio-test-actions button:disabled{opacity:.45;cursor:progress}
