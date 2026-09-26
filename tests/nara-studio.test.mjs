@@ -122,3 +122,27 @@ test('NARA Studio snapshot and SSE expose live telemetry',async t=>{
   assert.match(received,/event: telemetry/);
   assert.match(received,/"currentStage":"reason"/);
 });
+
+
+test('NARA skill registry follows cognitive and agent lifecycle events',async t=>{
+  const studio=createNaraStudioServer({host:'127.0.0.1',port:0});
+  t.after(()=>studio.stop());
+  const address=await studio.start();
+  const base='http://127.0.0.1:'+address.port;
+
+  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'reason.start',payload:{label:'Reason skill'}})});
+  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'reason.complete',payload:{}})});
+  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'agent.start',payload:{label:'Worker skill'}})});
+  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'agent.failed',payload:{}})});
+
+  const data=await fetch(base+'/api/snapshot').then(r=>r.json());
+  const reason=data.skills.skills.find(skill=>skill.id==='reason');
+  const agent=data.skills.skills.find(skill=>skill.id==='agent.manage');
+  assert.equal(data.skills.total,9);
+  assert.equal(reason.runs,1);
+  assert.equal(reason.successes,1);
+  assert.equal(reason.status,'complete');
+  assert.equal(agent.runs,1);
+  assert.equal(agent.failures,1);
+  assert.equal(agent.status,'failed');
+});
