@@ -209,9 +209,12 @@ test('desktop UI loads shared memory modules and requests permission before chat
   assert.match(html,/\/humanale\/nara-context-bridge\.js/);
   assert.match(html,/id="memoryContextMode"/);
   assert.match(html,/id="memoryContextStatus"/);
-  assert.match(app,/prepareDesktopMemoryContext\(text,'reasoner'\)/);
-  assert.match(app,/prepareDesktopMemoryContext\(prompt,mode==='work'\?'agent':'planner'\)/);
-  assert.match(app,/prepareDesktopMemoryContext\(text,'agent'\)/);
+  assert.match(app,/prepareEffectiveMemoryContext\(text,'reasoner'\)/);
+  assert.match(app,/prepareEffectiveMemoryContext\(prompt,mode==='work'\?'agent':'planner'\)/);
+  assert.match(app,/prepareEffectiveMemoryContext\(text,'agent'\)/);
+  assert.match(app,/selectedMemorySource\(\)==='cloud'/);
+  assert.match(app,/prepareCloudMemoryContext\(target\)/);
+  assert.match(app,/prepareDesktopMemoryContext\(task,target\)/);
   assert.match(app,/window\.confirm\(/);
   assert.match(app,/memoryContext\}/);
   assert.match(app,/desktopMemoryRuntime/);
