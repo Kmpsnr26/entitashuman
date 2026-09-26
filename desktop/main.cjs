@@ -1,4 +1,4 @@
-const {app,BrowserWindow,ipcMain,shell,dialog,screen,desktopCapturer,Tray,Menu,nativeImage,globalShortcut}=require('electron');
+const {app,BrowserWindow,ipcMain,shell,dialog,screen,desktopCapturer,Tray,Menu,nativeImage,globalShortcut,session}=require('electron');
 const http=require('node:http');
 const {readFile,writeFile}=require('node:fs/promises');
 const {mkdtempSync,existsSync}=require('node:fs');
@@ -6,7 +6,7 @@ const path=require('node:path');
 const {tmpdir}=require('node:os');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,server,origin,bridges,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer;
+let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer;
 let announceNaraEvent=()=>{};
 let baseWindowSize={width:420,height:480};
 let panelZoomFactor=1;
@@ -137,6 +137,14 @@ async function openPanel(view='controls'){
  try{await panelWin.loadURL(origin+'/?panel='+encodeURIComponent(target));panelWin?.show();panelWin?.focus();}
  catch(error){console.error('HumanALE god egine panel failed:',error);throw error;}
 }
+function safeCloudNavigation(value){
+ try{
+  const url=new URL(value);
+  const local=['127.0.0.1','localhost','::1'].includes(url.hostname);
+  return url.protocol==='https:'||(local&&url.protocol==='http:');
+ }catch{return false;}
+}
+
 function publishGlobalPointer(){
  if(!win||win.isDestroyed()||!win.isVisible()||win.webContents.isLoading())return;
  const point=screen.getCursorScreenPoint(),areas=screen.getAllDisplays().map(display=>display.workArea);
@@ -152,12 +160,22 @@ if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
-  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
+  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
   const [{createOrchestrator},{createVoiceFeedback}]=await Promise.all([import('../nara-core/brain/index.js'),import('../nara-core/voice/index.js')]);
   naraVoice=createVoiceFeedback();
   nara=createOrchestrator();
   nara.start();
   bridges={chatgpt:new ChatGPTBridge(),copilot:new CopilotBridge(),openai:new OpenAIBridge(),grok:new GrokBridge(),gemini:new GeminiBridge(),claude:new ClaudeBridge(),deepseek:new DeepSeekBridge(),askcodi:new AskCodiBridge()};
+  try{
+   cloudMemory=new NaraCloudContextClient({
+    origin:process.env.NARA_CLOUD_ORIGIN||'',
+    fetchImpl:(input,init)=>session.defaultSession.fetch(input,init),
+    validateMemoryContext
+   });
+  }catch(error){
+   console.error('[NARA CLOUD BRIDGE CONFIG]',error.message);
+   cloudMemory=new NaraCloudContextClient({origin:''});
+  }
   agentHub=new DeveloperAgentHub();
   const savedProjectRoot=await readProjectRoot();if(savedProjectRoot)agentHub.setProjectRoot(savedProjectRoot);
   terminalPolicy=policyModule;
@@ -211,6 +229,43 @@ else{
    if(!NARA_RENDERER_EVENTS.has(event))return {error:'Event NARA tidak diizinkan dari renderer.'};
    try{return {ok:true,...nara.dispatch(event,value?.payload&&typeof value.payload==='object'?value.payload:{},{source:'renderer'})};}
    catch(error){return {error:error.message};}
+  });
+
+  const openCloudLogin=()=>{
+   if(!cloudMemory?.configured())return {error:'NARA_CLOUD_NOT_CONFIGURED'};
+   if(cloudLoginWin&&!cloudLoginWin.isDestroyed()){cloudLoginWin.show();cloudLoginWin.focus();return {ok:true};}
+   const loginUrl=cloudMemory.loginUrl();
+   cloudLoginWin=new BrowserWindow({
+    width:720,height:820,minWidth:520,minHeight:600,
+    show:false,title:'NARA Cloud · Login',
+    webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,spellcheck:false}
+   });
+   cloudLoginWin.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+   cloudLoginWin.webContents.on('will-navigate',(event,url)=>{if(!safeCloudNavigation(url))event.preventDefault();});
+   cloudLoginWin.on('closed',()=>{cloudLoginWin=null;});
+   cloudLoginWin.loadURL(loginUrl).then(()=>{cloudLoginWin?.show();cloudLoginWin?.focus();}).catch(error=>{
+    console.error('[NARA CLOUD LOGIN]',error.message);
+    cloudLoginWin?.close();
+   });
+   cloudLoginWin.webContents.on('did-navigate',async()=>{
+    try{
+     const status=await cloudMemory.status();
+     if(status?.authenticated&&status?.available)cloudLoginWin?.close();
+    }catch{}
+   });
+   return {ok:true};
+  };
+  ipcMain.handle('dudidam:cloud-status',async e=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   try{return await cloudMemory.status();}catch(error){return {error:error.message};}
+  });
+  ipcMain.handle('dudidam:cloud-login',async e=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   return openCloudLogin();
+  });
+  ipcMain.handle('dudidam:cloud-context',async(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   try{return await cloudMemory.context(value);}catch(error){return {error:error.message};}
   });
 
   const pickProvider=value=>['copilot','openai','grok','gemini','claude','deepseek','askcodi'].includes(value)?value:'chatgpt';
