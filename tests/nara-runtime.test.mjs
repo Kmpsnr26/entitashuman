@@ -7,6 +7,7 @@ const root=new URL('../',import.meta.url);
 test('Electron preload exposes only the narrow NARA runtime bridge',async()=>{
   const preload=await readFile(new URL('desktop/preload.cjs',root),'utf8');
   assert.match(preload,/naraSnapshot:\(\)=>ipcRenderer\.invoke\('dudidam:nara-snapshot'\)/);
+  assert.match(preload,/naraSkillSnapshot:force=>ipcRenderer\.invoke\('dudidam:nara-skill-snapshot'/);
   assert.match(preload,/naraDispatch:\(event,payload=\{\}\)=>ipcRenderer\.invoke\('dudidam:nara-dispatch'/);
   assert.match(preload,/naraTestScenarios:\(\)=>ipcRenderer\.invoke\('dudidam:nara-test-scenarios'\)/);
   assert.match(preload,/naraTestScenario:scenario=>ipcRenderer\.invoke\('dudidam:nara-test-scenario'/);
@@ -21,6 +22,9 @@ test('Electron main owns and starts the NARA orchestrator with renderer event al
   assert.match(main,/NARA_RENDERER_EVENTS=new Set\(\['hearing\.start','hearing\.stop','audio\.energy','vision\.frame','vision\.stop','speech\.start','speech\.energy','speech\.stop','brain\.region\.select'\]\)/);
   assert.match(main,/Event NARA tidak diizinkan dari renderer/);
   assert.match(main,/dudidam:nara-test-scenario/);
+  assert.match(main,/dudidam:nara-skill-snapshot/);
+  assert.match(main,/createSkillSnapshot/);
+  assert.match(main,/naraSkillCache=\{at:0,agents:\[\]\}/);
   assert.match(main,/Controlled test hanya boleh dimulai saat NARA idle/);
   assert.match(main,/getHumanALETestScenario/);
   assert.match(main,/naraVisualTestRunning/);
@@ -79,4 +83,12 @@ test('Visual Studio test lab cannot use the generic renderer event allowlist for
   const allowlist=main.match(/NARA_RENDERER_EVENTS=new Set\(\[([^\]]+)\]\)/)?.[1]||'';
   for(const internalEvent of ['reason.start','error.detected','diagnostic.reset','work.start'])assert.doesNotMatch(allowlist,new RegExp(internalEvent.replace('.','\\.')));
   assert.match(main,/getHumanALETestScenario\(value\?\.scenario\)/);
+});
+
+
+test('NARA skill snapshot caches agent probes but always recomputes from current BrainState',async()=>{
+  const main=await readFile(new URL('desktop/main.cjs',root),'utf8');
+  assert.match(main,/now-naraSkillCache\.at>=8000/);
+  assert.match(main,/return createSkillSnapshot\(\{brainState:nara\.snapshot\(\),agents:naraSkillCache\.agents\}\)/);
+  assert.doesNotMatch(main,/naraSkillCache\.value/);
 });
