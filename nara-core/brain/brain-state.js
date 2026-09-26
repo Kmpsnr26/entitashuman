@@ -189,6 +189,9 @@ export class NaraBrainState{
       this.setRegion('SYNC',{status:'complete',activity:.2,message:'Sinkronisasi selesai'},event);
     }else if(event==='report.created'){
       this.setRegion('REPORTING',{status:'complete',activity:.2,message:'Laporan dibuat'},event);
+    }else if(event==='diagnostic.reset'){
+      this.setRegion('ERROR_MONITOR',{status:'ready',activity:0,message:'Diagnostic test selesai'},event);
+      this.setRegion('BUG_HUNTER',{status:'ready',activity:0,message:'Diagnostic test selesai'},event);
     }else if(event==='hearing.start'){
       const hearing=this.state.sensory.hearing={...this.state.sensory.hearing,active:true};
       this.notify({type:'sensory',channel:'hearing',value:{...hearing}});
