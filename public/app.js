@@ -921,6 +921,7 @@ window.dudidamAvatar=Object.freeze({
  setAvatarTheme:value=>applyVisualTheme(value),
  pulseAvatar:()=>avatar.pulse?.(),
  triggerAvatarGlitch:()=>avatar.triggerGlitch?.(),
+ getAvatarStudioProfile:()=>avatar.getStudioProfile?.()||null,
  showAssistantPopup:()=>assistantPopup.show(),
  hideAssistantPopup:()=>assistantPopup.hide(),
  toggleAssistantPopup:()=>assistantPopup.toggleVisibility()

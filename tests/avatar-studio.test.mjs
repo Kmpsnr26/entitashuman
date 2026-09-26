@@ -66,10 +66,13 @@ test('Avatar Live Studio is wired as a detached live editor with explicit save/r
  assert.match(app,/createAvatarStudioController/);
  assert.match(app,/avatarStudio\.handleMessage/);
  assert.match(app,/avatarStudio\.syncPayload/);
+ assert.match(app,/getAvatarStudioProfile/);
  assert.match(controller,/humanale\.avatar-studio\.v1/);
  assert.match(controller,/avatar-studio-profile/);
  assert.match(adapter,/setStudioProfile/);
  assert.match(adapter,/transformAvatarStudioPoint/);
  assert.match(adapter,/setDensity\(this\.studioProfile\.density\*100\)/);
  assert.match(desktop,/\['controls','avatarStudio','chatDialog','agentDialog','terminalDialog'\]/);
+ assert.match(desktop,/Avatar Live Studio tidak siap di panel terpisah/);
+ assert.match(desktop,/Avatar Live Studio tidak menerapkan perubahan realtime ke avatar utama/);
 });

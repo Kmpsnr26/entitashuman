@@ -480,6 +480,13 @@ else{
    if(!panelReady)throw new Error('Panel terpisah HumanALE god egine tidak siap.');
    const avatarControls=await panelWin.webContents.executeJavaScript("Boolean(document.querySelector('#emotion')) && Boolean(document.querySelector('#voiceStyle')) && document.querySelector('#voiceStyle').value==='baby-robot'");
    if(!avatarControls)throw new Error('Kontrol emosi dan suara bayi robot tidak siap.');
+   await openPanel('avatarStudio');
+   const avatarStudioReady=await panelWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+2500;const check=()=>{const dialog=document.querySelector('#avatarStudio'),slider=document.querySelector('[data-avatar-studio-key=\\"headWidth\\"]');const ready=Boolean(dialog?.open&&slider&&document.querySelector('#avatarStudioSave'));if(ready||Date.now()>deadline)resolve(ready);else setTimeout(check,50);};check();})");
+   if(!avatarStudioReady)throw new Error('Avatar Live Studio tidak siap di panel terpisah.');
+   await panelWin.webContents.executeJavaScript("(()=>{const slider=document.querySelector('[data-avatar-studio-key=\\"headWidth\\"]');slider.value='110';slider.dispatchEvent(new Event('input',{bubbles:true}));})()");
+   await new Promise(resolve=>setTimeout(resolve,180));
+   const avatarStudioLive=await win.webContents.executeJavaScript("(()=>{const profile=window.dudidamAvatar?.getAvatarStudioProfile?.();return Boolean(profile&&Math.abs(Number(profile.headWidth)-1.1)<0.001);})()");
+   if(!avatarStudioLive)throw new Error('Avatar Live Studio tidak menerapkan perubahan realtime ke avatar utama.');
    const avatarBounds=win.getBounds(),panelBounds=panelWin.getBounds(),workArea=screen.getDisplayNearestPoint({x:avatarBounds.x+avatarBounds.width/2,y:avatarBounds.y+avatarBounds.height/2}).workArea;
    if(workArea.width>=avatarBounds.width+panelBounds.width+16&&avatarBounds.x<panelBounds.x+panelBounds.width&&panelBounds.x<avatarBounds.x+avatarBounds.width&&avatarBounds.y<panelBounds.y+panelBounds.height&&panelBounds.y<avatarBounds.y+avatarBounds.height)throw new Error(`Panel menutupi avatar walau layar cukup lebar: ${JSON.stringify({avatarBounds,panelBounds,workArea})}`);
    await panelWin.webContents.executeJavaScript("new BroadcastChannel('dudidam-avatar-panel').postMessage({type:'persona',provider:'copilot'})");
