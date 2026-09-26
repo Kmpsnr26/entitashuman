@@ -1,3 +1,9 @@
+import {
+ AVATAR_STUDIO_DEFAULTS,
+ normalizeAvatarStudioProfile,
+ transformAvatarStudioPoint
+} from './avatar-studio-profile.js';
+
 const BaseAvatar=window.NeuralAvatar;
 if(!BaseAvatar)throw new Error('Mesin avatar HumanALE belum dimuat.');
 
@@ -21,6 +27,8 @@ export class HumanALEAvatar extends BaseAvatar{
   this._evolving=false;
   this.earSpectrum={low:0,mid:0,high:0};
   this.flowEnergy=1;
+  this.studioProfile=normalizeAvatarStudioProfile(options.studioProfile||AVATAR_STUDIO_DEFAULTS);
+  this.setDensity(this.studioProfile.density*100);
   this._gazePointer={x:0,y:0};
   this._gazeActive=false;
   this.onRender=(context,time)=>this.drawAudioSensors(context,time);
@@ -54,6 +62,20 @@ export class HumanALEAvatar extends BaseAvatar{
   if(this._gazeActive&&this.track)this.setPointer(this._gazePointer.x,this._gazePointer.y,true,false);
  }
  get gazeActive(){return this._gazeActive;}
+
+ setStudioProfile(value={}){
+  this.studioProfile=normalizeAvatarStudioProfile(value);
+  this.setDensity(this.studioProfile.density*100);
+  return this.getStudioProfile();
+ }
+ getStudioProfile(){return {...this.studioProfile};}
+ resetStudioProfile(){return this.setStudioProfile(AVATAR_STUDIO_DEFAULTS);}
+ project(x,y,z=0,time=0,rotateHead=false){
+  if(!rotateHead)return super.project(x,y,z,time,rotateHead);
+  const point=transformAvatarStudioPoint({x,y,z},this.studioProfile,window.FaceRig);
+  return super.project(point.x,point.y,point.z,time,rotateHead);
+ }
+
  set thinking(value){
   this._thinking=Boolean(value);
   if(this._thinking)this.setState('thinking');

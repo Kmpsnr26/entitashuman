@@ -105,11 +105,11 @@ function resizeForAvatar(value=420){
 }
 async function openPanel(view='controls'){
  if(!win||win.isDestroyed())return;
- const allowed=['controls','chatDialog','agentDialog','terminalDialog'];
+ const allowed=['controls','avatarStudio','chatDialog','agentDialog','terminalDialog'];
  const target=allowed.includes(view)?view:'controls';
  const bounds=win.getBounds(),display=screen.getDisplayNearestPoint({x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2}),area=display.workArea;
- const terminalView=target==='terminalDialog';
- const width=Math.min(terminalView?900:460,area.width),height=Math.min(terminalView?720:680,area.height);
+ const terminalView=target==='terminalDialog',studioView=target==='avatarStudio';
+ const width=Math.min(terminalView?900:studioView?520:460,area.width),height=Math.min(terminalView?720:studioView?760:680,area.height);
  if(panelWin&&!panelWin.isDestroyed()){
   const current=panelWin.getBounds();
   const x=Math.max(area.x,Math.min(area.x+area.width-width,current.x));

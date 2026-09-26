@@ -107,3 +107,12 @@ body.detached-panel .assistant-popup,body.detached-panel .assistant-popup-toggle
 #chatDialog .conversation-live{margin-left:auto;font-size:11px}
 body.detached-panel .terminal-dialog{width:calc(100% - 18px);height:calc(100dvh - 18px);max-height:none}
 body.detached-panel .terminal-dialog .terminal-views{min-height:300px}
+
+/* Avatar Live Studio */
+.avatar-studio-dialog{width:min(460px,calc(100% - 18px));max-width:none}
+.avatar-studio-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin:12px 0}
+.avatar-studio-slider{display:grid;grid-template-columns:1fr auto;gap:5px 8px;padding:8px;border:1px solid var(--line);border-radius:10px;background:#8fffb407;font-size:11px}
+.avatar-studio-slider output{font:10px "Cascadia Code","Cascadia Mono",Consolas,monospace;color:#b7ffce}
+.avatar-studio-slider input[type=range]{grid-column:1/-1;width:100%;accent-color:#a1fdbc}
+body.detached-panel .avatar-studio-dialog{width:calc(100% - 18px);max-height:calc(100dvh - 18px)}
+@media(max-width:430px){.avatar-studio-grid{grid-template-columns:1fr}}

@@ -1,4 +1,5 @@
 import {HumanALEAvatar} from './humanale-avatar.js';
+import {createAvatarStudioController} from './avatar-studio.js';
 import {DudidamPopup} from './dudidam-popup.js';
 import {parseCommand} from './commands.js';
 import {AudioReactor} from './audio-reactor.js';
@@ -7,6 +8,15 @@ import {isExplicitProjectWorkRequest} from './work-intent.js';
 import {emotionFromText,emotions} from './avatar-emotion.js';
 const $=s=>document.querySelector(s),desktop=window.dudidamDesktop,params=new URLSearchParams(location.search),popup=params.get('popup')==='1',panelOnly=Boolean(desktop&&params.has('panel')),avatar=new HumanALEAvatar($('#avatar'),{popup,panelOnly});
 const panelChannel=desktop?new BroadcastChannel('dudidam-avatar-panel'):null;
+const avatarStudio=createAvatarStudioController({
+ avatar,
+ root:document,
+ storage:localStorage,
+ channel:panelChannel,
+ isPanel:panelOnly,
+ onOpen:()=>showDialog('#avatarStudio'),
+ onToast:text=>toast(text)
+});
 const naraDispatch=(event,payload={})=>{if(!desktop?.naraDispatch||panelOnly)return Promise.resolve(null);return desktop.naraDispatch(event,payload).catch(()=>null);};
 const desktopMemoryRuntime=Object.freeze({
  dispatch:(event,payload={})=>{naraDispatch(event,payload);return{event,payload};},
@@ -845,6 +855,7 @@ $('#chatForm').onsubmit=e=>{e.preventDefault();const text=$('#prompt').value.tri
 $('#chatDialog').addEventListener('close',()=>{stopCamera();setPassthrough(true);syncPanelViewportFromDialogs();if(document.documentElement.classList.contains('stage-surface')&&!document.hidden&&!transitioning())requestAnimationFrame(()=>{if(!$('#chatDialog').open&&!transitioning())$('#chatDialog').show();});});
 $('#controls').addEventListener('close',()=>{setPassthrough(true);syncPanelViewportFromDialogs();});
 $('#agentDialog').addEventListener('close',()=>{setPassthrough(true);syncPanelViewportFromDialogs();});
+$('#avatarStudio').addEventListener('close',()=>{setPassthrough(true);syncPanelViewportFromDialogs();});
 document.addEventListener('mousemove',syncPassthrough,{passive:true});
 document.addEventListener('mouseleave',()=>setPassthrough(true));
 document.addEventListener('keydown',e=>{
@@ -861,6 +872,7 @@ function cancelHold5(){clearTimeout(hold5Timer);hold5Timer=null;hold5Fired=false
 window.addEventListener('blur',cancelHold5);
 if(panelChannel)panelChannel.onmessage=event=>{
  const data=event.data||{};
+ if(avatarStudio.handleMessage(data))return;
  if(data.type==='message'){message(String(data.text||''),data.role==='user'?'user':'assistant',false,false);return;}
  if(data.type==='history'){history=Array.isArray(data.history)?data.history.slice(-10):[];return;}
  if(data.type==='persona'&&!panelOnly){aiProvider=data.provider;setPersona(aiProvider);$('#provider').value=aiProvider;return;}
@@ -869,7 +881,7 @@ if(panelChannel)panelChannel.onmessage=event=>{
  if(data.type==='emotion-choice'&&!panelOnly){emotionChoice=data.value==='auto'||emotions.includes(data.value)?data.value:'auto';$('#emotion').value=emotionChoice;return;}
  if(data.type==='evolution'&&!panelOnly){setEvolutionVisual(data.mode==='complete'?'complete':data.mode==='start'?'start':'stop');return;}
  if(data.type==='wake-status'&&panelOnly){wakeEnabled=Boolean(data.enabled);setWakeStatus(String(data.text||''),Boolean(data.active));return;}
- if(data.type==='panel-ready'&&!panelOnly){setWakeStatus($('#wakeIndicator').textContent,$('#wakeIndicator').dataset.active==='true');setPersona(aiProvider);panelChannel?.postMessage({type:'setting',name:'brainZoom',value:avatar.zoomTarget||1});return;}
+ if(data.type==='panel-ready'&&!panelOnly){setWakeStatus($('#wakeIndicator').textContent,$('#wakeIndicator').dataset.active==='true');setPersona(aiProvider);panelChannel?.postMessage({type:'setting',name:'brainZoom',value:avatar.zoomTarget||1});panelChannel?.postMessage(avatarStudio.syncPayload());return;}
  if(panelOnly)return;
  if(data.type==='avatar-size'){applyAvatarSize(data.size);return;}
  if(data.type==='mode'){setMode(data.mode);return;}
@@ -899,7 +911,7 @@ if(panelOnly){
  desktop.onPanelView?.(async view=>{showDialog('#'+view);if(view==='agentDialog')await loadAgents();});
  panelChannel?.postMessage({type:'panel-ready'});
  const initial=params.get('panel');
- if(['controls','chatDialog','agentDialog','terminalDialog'].includes(initial))requestAnimationFrame(()=>showDialog('#'+initial));
+ if(['controls','avatarStudio','chatDialog','agentDialog','terminalDialog'].includes(initial))requestAnimationFrame(()=>showDialog('#'+initial));
 }
 document.querySelectorAll('dialog').forEach(dialog=>{if(!(dialog.id==='chatDialog'&&document.documentElement.classList.contains('stage-surface')))enableDialogDrag(dialog);});window.addEventListener('resize',()=>{document.querySelectorAll('dialog[open]').forEach(dialog=>{if(!(dialog.id==='chatDialog'&&document.documentElement.classList.contains('stage-surface')))clampDialog(dialog);});avatar.resize?.();});
 window.dudidamAvatar=Object.freeze({
