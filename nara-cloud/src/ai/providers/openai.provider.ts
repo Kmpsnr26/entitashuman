@@ -119,8 +119,7 @@ async function providerFailure(
   ) {
     try {
       const data =
-        await response.json()
-          as {
+        (await response.json()) as {
             error?: {
               code?: string;
               type?: string;
@@ -302,8 +301,7 @@ export class OpenAiProvider
     }
 
     const data =
-      (await response.json())
-        as OpenAiResponse;
+      (await response.json()) as OpenAiResponse;
 
     if (
       data.status ===
