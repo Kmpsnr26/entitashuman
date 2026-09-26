@@ -1,3 +1,5 @@
+import {initializeCreatorGateway} from './creator-gateway.js';
+
 const $=id=>document.getElementById(id);
 let snapshot=null,regions={},telemetry=null,skillsSnapshot=null;
 let neural3d=null,neural3dLoading=null,studioView='2d';
@@ -359,5 +361,18 @@ document.addEventListener('visibilitychange',()=>{
   if(neural3d)neural3d.setActive(studioView==='3d'&&!document.hidden);
 });
 setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString('id-ID');renderPerformance();},1000);
-setStudioView('2d');
-boot().catch(error=>{$('consoleLog').textContent=error.stack||error.message;$('connection').textContent='OFFLINE';});
+async function startStudioAfterCreatorAccess(){
+  setStudioView('2d');
+  $('connection').textContent='CONNECTING';
+  await boot();
+}
+
+initializeCreatorGateway({
+  onReady:()=>startStudioAfterCreatorAccess().catch(error=>{
+    $('consoleLog').textContent=error.stack||error.message;
+    $('connection').textContent='OFFLINE';
+  })
+}).catch(error=>{
+  $('consoleLog').textContent=error.stack||error.message;
+  $('connection').textContent='AUTH ERROR';
+});
