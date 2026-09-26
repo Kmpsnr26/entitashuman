@@ -124,7 +124,28 @@ const BaseEnvSchema = z.object({
       .int()
       .min(1_000)
       .max(1_800_000)
-      .default(60_000)
+      .default(60_000),
+
+  GOOGLE_DRIVE_CLIENT_ID:
+    z.string()
+      .min(10)
+      .optional(),
+
+  GOOGLE_DRIVE_CLIENT_SECRET:
+    z.string()
+      .min(10)
+      .optional(),
+
+  GOOGLE_DRIVE_REFRESH_TOKEN:
+    z.string()
+      .min(10)
+      .optional(),
+
+  GOOGLE_DRIVE_BACKUP_FOLDER_ID:
+    z.string()
+      .regex(/^[A-Za-z0-9_-]+$/)
+      .max(200)
+      .optional()
 });
 
 function isBareOrigin(
@@ -257,6 +278,34 @@ const EnvSchema =
         });
       }
 
+      const driveValues = [
+        value.GOOGLE_DRIVE_CLIENT_ID,
+        value.GOOGLE_DRIVE_CLIENT_SECRET,
+        value.GOOGLE_DRIVE_REFRESH_TOKEN,
+        value.GOOGLE_DRIVE_BACKUP_FOLDER_ID
+      ];
+
+      const driveConfigured =
+        driveValues.filter(
+          item =>
+            Boolean(item)
+        ).length;
+
+      if (
+        driveConfigured !== 0 &&
+        driveConfigured !==
+          driveValues.length
+      ) {
+        context.addIssue({
+          code:
+            z.ZodIssueCode.custom,
+          message:
+            "Semua GOOGLE_DRIVE_* wajib diisi bersama.",
+          path:
+            ["GOOGLE_DRIVE_CLIENT_ID"]
+        });
+      }
+
       const compatValues = [
         value.COMPAT_API_BASE_URL,
         value.COMPAT_API_KEY,
@@ -348,6 +397,38 @@ const EnvSchema =
               "COMPAT_API_BASE_URL wajib HTTPS di production.",
             path:
               ["COMPAT_API_BASE_URL"]
+          });
+        }
+
+        if (
+          value.GOOGLE_DRIVE_CLIENT_SECRET &&
+          /CHANGE_ME|YOUR_|GENERATE/i.test(
+            value.GOOGLE_DRIVE_CLIENT_SECRET
+          )
+        ) {
+          context.addIssue({
+            code:
+              z.ZodIssueCode.custom,
+            message:
+              "GOOGLE_DRIVE_CLIENT_SECRET masih memakai placeholder.",
+            path:
+              ["GOOGLE_DRIVE_CLIENT_SECRET"]
+          });
+        }
+
+        if (
+          value.GOOGLE_DRIVE_REFRESH_TOKEN &&
+          /CHANGE_ME|YOUR_|GENERATE/i.test(
+            value.GOOGLE_DRIVE_REFRESH_TOKEN
+          )
+        ) {
+          context.addIssue({
+            code:
+              z.ZodIssueCode.custom,
+            message:
+              "GOOGLE_DRIVE_REFRESH_TOKEN masih memakai placeholder.",
+            path:
+              ["GOOGLE_DRIVE_REFRESH_TOKEN"]
           });
         }
 
