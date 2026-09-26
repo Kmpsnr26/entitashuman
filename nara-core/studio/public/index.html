@@ -36,6 +36,44 @@
       <div id="connections" class="chips"></div>
     </section>
 
+    <section class="panel decision-panel">
+      <div class="panel-title"><h2>Decision / Reasoning Inspector</h2><span id="decisionStatus">idle</span></div>
+      <div class="phase-pipeline">
+        <div class="phase-card" data-stage="reason"><span>REASON</span><strong id="phaseReason">idle</strong><small id="phaseReasonTime">—</small></div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-card" data-stage="plan"><span>PLAN</span><strong id="phasePlan">idle</strong><small id="phasePlanTime">—</small></div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-card" data-stage="agent"><span>AGENT</span><strong id="phaseAgent">idle</strong><small id="phaseAgentTime">—</small></div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-card" data-stage="program"><span>PROGRAM</span><strong id="phaseProgram">idle</strong><small id="phaseProgramTime">—</small></div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-card" data-stage="verify"><span>VERIFY</span><strong id="phaseVerify">idle</strong><small id="phaseVerifyTime">—</small></div>
+      </div>
+      <div class="inspector-summary">
+        <div><span>Current stage</span><strong id="decisionCurrent">—</strong></div>
+        <div><span>Label</span><strong id="decisionLabel">—</strong></div>
+        <div><span>Completed</span><strong id="decisionCompleted">0</strong></div>
+        <div><span>Failed</span><strong id="decisionFailed">0</strong></div>
+      </div>
+      <div id="decisionHistory" class="trace-list"></div>
+    </section>
+
+    <section class="panel memory-panel">
+      <div class="panel-title"><h2>Memory Inspector</h2><span id="memoryActivity">idle</span></div>
+      <div class="memory-counters">
+        <div><span>READ</span><strong id="memoryReadCount">0</strong></div>
+        <div><span>WRITE</span><strong id="memoryWriteCount">0</strong></div>
+        <div><span>USED</span><strong id="memoryUsedCount">0</strong></div>
+        <div><span>BLOCKED</span><strong id="memoryBlockedCount">0</strong></div>
+      </div>
+      <div class="memory-last">
+        <span>Last operation</span>
+        <strong id="memoryLastOperation">—</strong>
+        <small id="memoryLastLabel">No memory activity yet.</small>
+      </div>
+      <div id="memoryHistory" class="trace-list memory-trace"></div>
+    </section>
+
     <section class="panel event-panel">
       <div class="panel-title"><h2>Event Stream</h2><button id="clearEvents">Clear view</button></div>
       <div id="events" class="events"></div>
