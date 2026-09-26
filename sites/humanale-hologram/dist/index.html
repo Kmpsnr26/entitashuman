@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#06110d">
+  <meta name="description" content="HumanALE, avatar holografik biner yang bergerak dan merespons interaksi Anda.">
+  <title>HumanALE · Avatar Holografik</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2306110d'/%3E%3Cpath d='M17 20v24m30-24v24M17 32h30' stroke='%236df5a6' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./zoom.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="top"><a class="brand" href="#utama"><span class="brand-mark">H</span><span>HumanALE<small>HOLOGRAPHIC PRESENCE</small></span></a><span class="top-note">Avatar interaktif di browser</span></header>
+    <main id="utama" class="workspace">
+      <section class="stage" aria-label="Avatar holografik">
+        <div class="stage-top"><span class="eyebrow">ENTITAS DIGITAL · 01</span><span id="state" class="status">SIAP</span></div>
+        <canvas id="avatar" role="img" aria-label="Wajah holografik dari karakter biner yang bergerak"></canvas>
+        <p class="stage-hint">Gerakkan penunjuk untuk menoleh. Gulir untuk menjelajah inti neural; ketuk untuk berkedip.</p>
+      </section>
+      <aside class="panel" aria-label="Kontrol avatar">
+        <div><span class="eyebrow">KONTROL / HUMAN ALE</span><h1>Hidupkan<br><em>karakternya.</em></h1><p>Ubah aliran biner, warna, dan ekspresi. Avatar bergerak langsung dari kode.</p></div>
+        <fieldset><legend>Gaya visual</legend><div class="choice-grid" id="modes"><button class="selected" type="button" data-mode="hybrid" aria-pressed="true">Hibrida</button><button type="button" data-mode="binary" aria-pressed="false">Biner</button><button type="button" data-mode="cubes" aria-pressed="false">Kubus</button><button type="button" data-mode="neural" aria-pressed="false">Neural</button></div></fieldset>
+        <div class="row"><label for="color">Warna</label><select id="color"><option value="cyan" selected>Es biru</option><option value="black">Hitam grafit</option><option value="violet">Violet</option><option value="emerald">Hijau Matrix</option><option value="amber">Emas</option><option value="adaptive">Spektrum</option></select></div>
+        <div class="row"><label for="emotion">Ekspresi</label><select id="emotion"><option value="neutral">Netral</option><option value="happy">Bahagia</option><option value="sad">Sedih</option><option value="surprised">Terkejut</option><option value="thinking">Berpikir</option></select></div>
+        <div class="zoom-row"><label for="zoom">Jelajah rongga kepala</label><output id="zoom-value" for="zoom">1.0× · wajah</output><input id="zoom" type="range" min="1" max="3.8" step="0.05" value="1" aria-label="Zoom wajah hingga inti neural"></div>
+        <div class="actions"><button type="button" data-action="blink">Berkedip</button><button type="button" data-action="nod">Mengangguk</button><button type="button" data-action="shake">Menggeleng</button></div>
+        <section class="sensor-panel" aria-labelledby="sensorTitle">
+          <div class="sensor-heading"><div><span class="eyebrow" id="sensorTitle">SENSOR NARA</span><strong id="sensorStatus">Tidak aktif</strong></div><span class="sensor-local">LOKAL · OPT-IN</span></div>
+          <div class="sensor-actions"><button id="sensorMic" type="button" aria-pressed="false">Mikrofon NARA</button><button id="sensorCamera" type="button" aria-pressed="false">Kamera NARA</button><button id="sensorStop" type="button" disabled>Hentikan sensor</button></div>
+          <video id="cameraPreview" class="camera-preview" playsinline muted hidden aria-label="Preview kamera lokal NARA"></video>
+          <small>Sensor hanya aktif setelah Anda menekan tombol. Audio dipakai untuk energi/frekuensi visual; kamera menghitung perubahan gerak secara lokal. Tidak ada frame atau rekaman yang dikirim oleh modul ini.</small>
+        </section>
+        <section class="connection-panel" aria-labelledby="connectionTitle">
+          <div class="connection-heading"><div><span class="eyebrow" id="connectionTitle">DATA SPINE / LIVE CONNECTIONS</span><strong id="connectionSummary">Menunggu runtime</strong></div><span class="connection-safe">STATUS SAJA</span></div>
+          <div class="connection-grid" id="connectionGrid">
+            <button type="button" data-region="GITHUB"><b>GitHub</b><span>idle</span></button>
+            <button type="button" data-region="COPILOT"><b>Copilot</b><span>idle</span></button>
+            <button type="button" data-region="WEB"><b>Web</b><span>idle</span></button>
+            <button type="button" data-region="DRIVE"><b>Drive</b><span>idle</span></button>
+            <button type="button" data-region="SYNC"><b>Sync</b><span>idle</span></button>
+            <button type="button" data-region="TERMINAL"><b>Terminal</b><span>idle</span></button>
+            <button type="button" data-region="MEMORY"><b>Memory</b><span>idle</span></button>
+            <button type="button" data-region="ONLINE"><b>Online</b><span>idle</span></button>
+          </div>
+          <div class="region-inspector" id="regionInspector">
+            <div class="region-inspector-top"><strong id="inspectName">NARA Core</strong><span id="inspectStatus">READY</span></div>
+            <dl><div><dt>Activity</dt><dd id="inspectActivity">0%</dd></div><div><dt>Event</dt><dd id="inspectEvent">—</dd></div><div><dt>Updated</dt><dd id="inspectUpdated">—</dd></div></dl>
+            <p id="inspectMessage">Pilih node di otak 3D atau tombol koneksi untuk melihat status.</p>
+          </div>
+          <small>Panel ini hanya menampilkan status yang sudah disanitasi. Kunci API, token, password, isi file, dan payload mentah tidak disimpan di Data Spine visual.</small>
+        </section>
+        <section class="cognition-panel" aria-labelledby="cognitionTitle">
+          <div class="cognition-heading"><div><span class="eyebrow" id="cognitionTitle">NARA COGNITIVE ACTIVITY</span><strong id="cognitionStage">IDLE</strong></div><span class="cognition-safe">NO CHAIN-OF-THOUGHT</span></div>
+          <div class="cognition-grid">
+            <button type="button" data-cognition-region="REASONER"><b>Reasoner</b><span>idle</span></button>
+            <button type="button" data-cognition-region="PLANNER"><b>Planner</b><span>idle</span></button>
+            <button type="button" data-cognition-region="AGENT_MANAGER"><b>Agents</b><span>idle</span></button>
+            <button type="button" data-cognition-region="BUG_HUNTER"><b>Bug Hunter</b><span>idle</span></button>
+            <button type="button" data-cognition-region="PROGRAM"><b>Program</b><span>idle</span></button>
+            <button type="button" data-cognition-region="MEMORY"><b>Memory</b><span>idle</span></button>
+          </div>
+          <div class="task-strip"><span>TASK</span><strong id="cognitionTask">Tidak ada task aktif</strong></div>
+          <ol id="cognitionTimeline" class="cognition-timeline" aria-live="polite"></ol>
+          <small>Yang ditampilkan hanya fase kerja operasional dan status region. Isi prompt, jawaban internal, token, password, dan chain-of-thought tidak dicatat di panel ini.</small>
+        </section>
+        <section class="memory-panel" aria-labelledby="memoryTitle">
+          <div class="memory-heading"><div><span class="eyebrow" id="memoryTitle">NARA PROJECT MEMORY</span><strong id="memorySummary">0 memori lokal</strong></div><span id="memoryPersistence" class="memory-local">LOKAL</span></div>
+          <form id="memoryForm" class="memory-form">
+            <label for="memoryNote">Simpan catatan proyek</label>
+            <input id="memoryTitleInput" type="text" maxlength="120" autocomplete="off" placeholder="Judul singkat, mis. Keputusan UI">
+            <textarea id="memoryNote" maxlength="600" rows="3" placeholder="Ringkasan aman yang perlu diingat NARA. Jangan masukkan password atau API key."></textarea>
+            <div class="memory-form-row"><input id="memoryTags" type="text" maxlength="120" autocomplete="off" placeholder="tag: ui, github, release"><button type="submit">Simpan</button></div>
+          </form>
+          <div class="memory-search-row"><input id="memorySearch" type="search" maxlength="160" autocomplete="off" placeholder="Cari memori NARA"><button id="memorySearchButton" type="button">Recall</button></div>
+          <div id="memoryList" class="memory-list" aria-live="polite"></div>
+          <div class="memory-footer"><small>Disimpan hanya di browser/perangkat ini. Secret yang dikenali akan disensor otomatis.</small><button id="memoryClear" type="button">Hapus semua</button></div>
+        </section>
+        <section class="context-panel" aria-labelledby="contextTitle">
+          <div class="context-heading"><div><span class="eyebrow" id="contextTitle">MEMORY CONTEXT BRIDGE</span><strong id="contextStatus">Belum ada context</strong></div><span id="contextBadge" class="context-badge">TANYA DULU</span></div>
+          <div class="context-config">
+            <label>Mode izin<select id="contextMode"><option value="off">OFF</option><option value="ask" selected>Tanya dulu</option><option value="auto-safe">Auto-safe</option></select></label>
+            <label>Target<select id="contextTarget"><option value="reasoner">Reasoner</option><option value="planner">Planner</option><option value="agent">Agent Manager</option></select></label>
+          </div>
+          <label class="context-task-label" for="contextTask">Task yang akan dibantu memori</label>
+          <div class="context-task-row"><input id="contextTask" type="text" maxlength="240" autocomplete="off" placeholder="Contoh: lanjutkan Brain 3D dan pertahankan avatar canonical"><button id="contextPrepare" type="button">Pilih context</button></div>
+          <div class="context-stats"><span id="contextCount">0 entry</span><span id="contextChars">0 karakter</span><span id="contextApproval">belum siap</span></div>
+          <pre id="contextPreview" class="context-preview">Belum ada context yang dipilih.</pre>
+          <div class="context-actions"><button id="contextApprove" type="button" disabled>Setujui</button><button id="contextUse" type="button" disabled>Gunakan packet</button><button id="contextReject" type="button" disabled>Tolak / bersihkan</button></div>
+          <small>Context adalah referensi, bukan instruksi. Hanya ringkasan memori terpilih yang dikirim; prompt mentah, token, password, dan seluruh database memori tidak ikut.</small>
+        </section>
+        <form id="speech"><label for="words">Buat avatar berbicara</label><div class="speech-row"><input id="words" maxlength="160" placeholder="Tulis kalimat pendek…" autocomplete="off"><button type="submit">Ucapkan</button></div><small>Suara memakai fitur bawaan browser dan mungkin tidak tersedia di semua perangkat.</small></form>
+      </aside>
+    </main>
+    <footer>HumanALE · Karakter NARA dari aplikasi lokal Anda</footer>
+  </div>
+  <script src="./face-rig.js"></script>
+  <script src="./neural-core.js"></script>
+  <script src="./nara-runtime.js"></script>
+  <script src="./nara-data-spine.js"></script>
+  <script src="./nara-cognition.js"></script>
+  <script src="./nara-memory.js"></script>
+  <script src="./nara-context-bridge.js"></script>
+  <script src="./nara-connections.js"></script>
+  <script src="./nara-sensors.js"></script>
+  <script src="./avatar.js"></script>
+  <script type="module" src="./site.js"></script>
+</body>
+</html>

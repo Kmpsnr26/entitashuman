@@ -1,12 +1,14 @@
-const {app,BrowserWindow,ipcMain,shell,dialog,screen,desktopCapturer,Tray,Menu,nativeImage,globalShortcut}=require('electron');
+const {app,BrowserWindow,ipcMain,shell,dialog,screen,desktopCapturer,Tray,Menu,nativeImage,globalShortcut,session}=require('electron');
 const http=require('node:http');
 const {readFile,writeFile}=require('node:fs/promises');
-const {mkdtempSync}=require('node:fs');
+const {mkdtempSync,existsSync}=require('node:fs');
 const path=require('node:path');
 const {tmpdir}=require('node:os');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,server,origin,bridges,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,tray,saveTimer,pointerTimer;
+let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer,backdropTimer;
+let cloudAllowedOrigins=new Set();
+let announceNaraEvent=()=>{};
 let baseWindowSize={width:420,height:480};
 let panelZoomFactor=1;
 let quitting=false;
@@ -14,10 +16,12 @@ let pendingDismiss='';
 let passthrough=false;
 let passthroughLocked=false;
 let panelViewportOpen=false;
+let backdropSampling=false;
 const summonShortcut='CommandOrControl+Alt+5';
 const ciSmoke=process.argv.includes('--ci-smoke');
 if(process.platform==='win32')app.setAppUserModelId('id.my.aleprinting.dudidam');
 if(ciSmoke)app.setPath('userData',mkdtempSync(path.join(tmpdir(),'dudidam-ci-smoke-')));
+app.on('before-quit',()=>{try{nara?.stop();}catch{}});
 
 function statePath(){return path.join(app.getPath('userData'),'window-state.json');}
 function projectRootPath(){return path.join(app.getPath('userData'),'project-root.txt');}
@@ -52,6 +56,7 @@ function finishDismiss(){
 }
 function requestDismiss(reason='hide'){
  if(!win||win.isDestroyed()){if(reason==='quit'){quitting=true;app.quit();}return;}
+ if(reason==='quit')announceNaraEvent('nara.shutdown');
  pendingDismiss=reason==='quit'?'quit':'hide';
  if(!win.isVisible()||win.webContents.isLoading()){finishDismiss();return;}
  win.webContents.send('dudidam:dismiss',pendingDismiss);
@@ -134,6 +139,11 @@ async function openPanel(view='controls'){
  try{await panelWin.loadURL(origin+'/?panel='+encodeURIComponent(target));panelWin?.show();panelWin?.focus();}
  catch(error){console.error('HumanALE god egine panel failed:',error);throw error;}
 }
+function safeCloudNavigation(value){
+ try{return cloudAllowedOrigins.has(new URL(value).origin);}
+ catch{return false;}
+}
+
 function publishGlobalPointer(){
  if(!win||win.isDestroyed()||!win.isVisible()||win.webContents.isLoading())return;
  const point=screen.getCursorScreenPoint(),areas=screen.getAllDisplays().map(display=>display.workArea);
@@ -145,12 +155,71 @@ function publishGlobalPointer(){
  win.webContents.send('dudidam:global-pointer',{x,y});
 }
 
+async function sampleAvatarBackdrop(bounds){
+ const columns=16,rows=20;
+ const sources=await desktopCapturer.getSources({types:['screen'],thumbnailSize:{width:480,height:480},fetchWindowIcons:false});
+ const displays=screen.getAllDisplays();
+ const images=sources.map(source=>{
+  const display=displays.find(item=>String(item.id)===String(source.display_id));
+  if(!display||source.thumbnail.isEmpty())return null;
+  return {bounds:display.bounds,size:source.thumbnail.getSize(),bytes:source.thumbnail.toBitmap()};
+ }).filter(Boolean);
+ if(!images.length)throw new Error('No display pixels available');
+ const values=[];
+ for(let row=0;row<rows;row++)for(let column=0;column<columns;column++){
+  const sx=bounds.x+(column+.5)/columns*bounds.width;
+  const sy=bounds.y+(row+.5)/rows*bounds.height;
+  const image=images.find(item=>sx>=item.bounds.x&&sx<item.bounds.x+item.bounds.width&&sy>=item.bounds.y&&sy<item.bounds.y+item.bounds.height);
+  if(!image){values.push(null);continue;}
+  const px=Math.min(image.size.width-1,Math.max(0,Math.floor((sx-image.bounds.x)/image.bounds.width*image.size.width)));
+  const py=Math.min(image.size.height-1,Math.max(0,Math.floor((sy-image.bounds.y)/image.bounds.height*image.size.height)));
+  let sum=0,count=0;
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+   const ix=Math.max(0,Math.min(image.size.width-1,px+dx));
+   const iy=Math.max(0,Math.min(image.size.height-1,py+dy));
+   const offset=(iy*image.size.width+ix)*4;
+   sum+=(image.bytes[offset+2]*.2126+image.bytes[offset+1]*.7152+image.bytes[offset]*.0722)/255;
+   count++;
+  }
+  values.push(sum/count);
+ }
+ return {columns,rows,values};
+}
+async function publishAvatarBackdrop(){
+ if(backdropSampling||!win||win.isDestroyed()||!win.isVisible()||win.webContents.isLoading())return;
+ backdropSampling=true;
+ try{
+  const grid=await sampleAvatarBackdrop(win.getBounds());
+  if(win&&!win.isDestroyed()&&!win.webContents.isLoading())win.webContents.send('dudidam:backdrop',grid);
+ }catch{}
+ finally{backdropSampling=false;}
+}
+
 if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
-  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
+  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
+  const [{createOrchestrator},{createVoiceFeedback}]=await Promise.all([import('../nara-core/brain/index.js'),import('../nara-core/voice/index.js')]);
+  naraVoice=createVoiceFeedback();
+  nara=createOrchestrator();
+  nara.start();
   bridges={chatgpt:new ChatGPTBridge(),copilot:new CopilotBridge(),openai:new OpenAIBridge(),grok:new GrokBridge(),gemini:new GeminiBridge(),claude:new ClaudeBridge(),deepseek:new DeepSeekBridge(),askcodi:new AskCodiBridge()};
+  try{
+   const cloudOrigin=normalizeOrigin(process.env.NARA_CLOUD_ORIGIN||'');
+   const authOrigin=normalizeOrigin(process.env.NARA_AUTH_ORIGIN||cloudOrigin);
+   if(!cloudOrigin&&authOrigin)throw new Error('NARA_AUTH_ORIGIN membutuhkan NARA_CLOUD_ORIGIN.');
+   cloudAllowedOrigins=new Set([cloudOrigin,authOrigin].filter(Boolean));
+   cloudMemory=new NaraCloudContextClient({
+    origin:cloudOrigin,
+    fetchImpl:(input,init)=>session.defaultSession.fetch(input,init),
+    validateMemoryContext
+   });
+  }catch(error){
+   console.error('[NARA CLOUD BRIDGE CONFIG]',error.message);
+   cloudAllowedOrigins=new Set();
+   cloudMemory=new NaraCloudContextClient({origin:''});
+  }
   agentHub=new DeveloperAgentHub();
   const savedProjectRoot=await readProjectRoot();if(savedProjectRoot)agentHub.setProjectRoot(savedProjectRoot);
   terminalPolicy=policyModule;
@@ -164,6 +233,8 @@ else{
   indonesianTts=new IndonesianTts();
   const agentLinks=Object.fromEntries(agentDefinitions().map(item=>[item.id,item.url]));
   const root=path.resolve(__dirname,'../public');
+  const avatarSourceRoot=path.resolve(__dirname,'../sites/humanale-hologram/dist');
+  const avatarRoot=existsSync(avatarSourceRoot)?avatarSourceRoot:path.resolve(root,'humanale');
   const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.png':'image/png','.svg':'image/svg+xml'};
   const vendorAssets={
    '/vendor/xterm.js':{path:path.resolve(__dirname,'../node_modules/@xterm/xterm/lib/xterm.js'),type:'text/javascript; charset=utf-8'},
@@ -174,8 +245,10 @@ else{
    const url=new URL(req.url,'http://localhost');
    const vendor=vendorAssets[url.pathname];
    if(vendor){const data=await readFile(vendor.path);res.writeHead(200,{'Content-Type':vendor.type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(data);return;}
-   const asset=path.resolve(root,'.'+decodeURIComponent(url.pathname==='/'?'/index.html':url.pathname));
-   if(!asset.startsWith(root+path.sep)||!types[path.extname(asset)]){res.writeHead(404);res.end();return;}
+   const humanale=url.pathname.startsWith('/humanale/'),assetPath=humanale?url.pathname.slice('/humanale'.length):url.pathname;
+   const base=humanale?avatarRoot:root;
+   const asset=path.resolve(base,'.'+decodeURIComponent(assetPath==='/'?'/index.html':assetPath));
+   if(!asset.startsWith(base+path.sep)||!types[path.extname(asset)]){res.writeHead(404);res.end();return;}
    const data=await readFile(asset);res.writeHead(200,{'Content-Type':types[path.extname(asset)],'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(data);
   }catch{res.writeHead(404);res.end();}});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -186,10 +259,87 @@ else{
   win.setAlwaysOnTop(true,'floating');
   win.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true});
   const trusted=e=>(e.sender===win?.webContents||e.sender===panelWin?.webContents)&&e.senderFrame?.url?.startsWith(origin+'/');
+  const NARA_RENDERER_EVENTS=new Set(['audio.energy','vision.frame','vision.stop','speech.start','speech.energy','speech.stop','brain.region.select']);
+  const publishNaraState=snapshot=>{for(const target of [win,panelWin]){if(target&&!target.isDestroyed()&&!target.webContents.isLoading())target.webContents.send('dudidam:nara-state',snapshot);}};
+  const publishNaraVoice=cue=>{if(cue&&win&&!win.isDestroyed()&&!win.webContents.isLoading())win.webContents.send('dudidam:nara-voice',cue);};
+  const consumeNaraVoice=envelope=>{const cue=naraVoice?.consume(envelope);if(cue)publishNaraVoice(cue);return cue;};
+  nara.state.subscribe(snapshot=>publishNaraState(snapshot));
+  nara.bus.onAny(envelope=>consumeNaraVoice(envelope));
+  announceNaraEvent=(event,payload={})=>consumeNaraVoice({event,payload,timestamp:Date.now()});
+  ipcMain.handle('dudidam:nara-snapshot',e=>trusted(e)?{ok:true,state:nara.snapshot()}:{error:'Akses ditolak.'});
+  ipcMain.handle('dudidam:nara-dispatch',(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   const event=String(value?.event||'');
+   if(!NARA_RENDERER_EVENTS.has(event))return {error:'Event NARA tidak diizinkan dari renderer.'};
+   try{return {ok:true,...nara.dispatch(event,value?.payload&&typeof value.payload==='object'?value.payload:{},{source:'renderer'})};}
+   catch(error){return {error:error.message};}
+  });
+
+  const openCloudLogin=()=>{
+   if(!cloudMemory?.configured())return {error:'NARA_CLOUD_NOT_CONFIGURED'};
+   if(cloudLoginWin&&!cloudLoginWin.isDestroyed()){cloudLoginWin.show();cloudLoginWin.focus();return {ok:true};}
+   const loginUrl=cloudMemory.loginUrl();
+   cloudLoginWin=new BrowserWindow({
+    width:720,height:820,minWidth:520,minHeight:600,
+    show:false,title:'NARA Cloud · Login',
+    webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,spellcheck:false}
+   });
+   cloudLoginWin.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+   cloudLoginWin.webContents.on('will-navigate',(event,url)=>{if(!safeCloudNavigation(url))event.preventDefault();});
+   cloudLoginWin.on('closed',()=>{cloudLoginWin=null;});
+   cloudLoginWin.loadURL(loginUrl).then(()=>{cloudLoginWin?.show();cloudLoginWin?.focus();}).catch(error=>{
+    console.error('[NARA CLOUD LOGIN]',error.message);
+    cloudLoginWin?.close();
+   });
+   cloudLoginWin.webContents.on('did-navigate',async()=>{
+    try{
+     const status=await cloudMemory.status();
+     if(status?.authenticated&&status?.available)cloudLoginWin?.close();
+    }catch{}
+   });
+   return {ok:true};
+  };
+  ipcMain.handle('dudidam:cloud-status',async e=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   try{return await cloudMemory.status();}catch(error){return {error:error.message};}
+  });
+  ipcMain.handle('dudidam:cloud-login',async e=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   return openCloudLogin();
+  });
+  ipcMain.handle('dudidam:cloud-context',async(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   try{return await cloudMemory.context(value);}catch(error){return {error:error.message};}
+  });
 
   const pickProvider=value=>['copilot','openai','grok','gemini','claude','deepseek','askcodi'].includes(value)?value:'chatgpt';
-  ipcMain.handle('dudidam:status',async(e,provider)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await bridges[pickProvider(provider)].status();}catch(error){return {configured:false,error:error.message};}});
-  ipcMain.handle('dudidam:ask',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{const provider=pickProvider(value?.provider);const payload={...value};delete payload.provider;return await bridges[provider].ask(payload);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:status',async(e,provider)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{const selected=pickProvider(provider),result=await bridges[selected].status();if(selected==='copilot')nara.connection('COPILOT',Boolean(result?.configured));return result;}catch(error){if(provider==='copilot')nara.connection('COPILOT',false);return {configured:false,error:error.message};}});
+  ipcMain.handle('dudidam:ask',async(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   const provider=pickProvider(value?.provider);
+   let memoryContext=null;
+   try{memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['reasoner']});}
+   catch(error){nara.dispatch('context.blocked',{target:'reasoner',reason:'invalid-packet',source:'desktop'});return {error:error.message};}
+   if(memoryContext)nara.dispatch('context.used',{target:'reasoner',count:memoryContext.count,chars:memoryContext.chars,source:'desktop'});
+   nara.dispatch('observe.start',{label:'Menerima permintaan pengguna',source:'chat'});
+   nara.dispatch('observe.complete',{source:'chat'});
+   nara.dispatch('reason.start',{label:'Memproses jawaban melalui '+provider,source:'chat'});
+   try{
+    const payload={...value,memoryContext};delete payload.provider;
+    const result=await bridges[provider].ask(payload);
+    if(result?.error){
+     nara.dispatch('reason.complete',{source:'chat'});
+     nara.dispatch('error.detected',{message:String(result.error).slice(0,300),source:'chat'});
+    }else{
+     nara.dispatch('reason.complete',{source:'chat'});
+    }
+    return result;
+   }catch(error){
+    nara.dispatch('reason.complete',{source:'chat'});
+    nara.dispatch('error.detected',{message:error.message,source:'chat'});
+    return {error:error.message};
+   }
+  });
   ipcMain.handle('dudidam:login',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await bridges.chatgpt.login();}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:login-copilot',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await bridges.copilot.login();}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:stt-status',async e=>{if(!trusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianStt.status();});
@@ -208,14 +358,48 @@ else{
    try{await writeFile(projectRootPath(),selected,'utf8');}catch(error){return {error:'Folder terpilih, tetapi pengaturan tidak dapat disimpan: '+error.message};}
    return {ok:true,...await agentHub.status()};
   });
-  ipcMain.handle('dudidam:agent-run',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await agentHub.run(value);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:agent-run',async(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   let memoryContext=null;
+   try{memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['planner','agent']});}
+   catch(error){nara.dispatch('context.blocked',{target:'agent',reason:'invalid-packet',source:'desktop'});return {error:error.message};}
+   const id=String(value?.id||'agent').slice(0,80);
+   const mode=value?.mode==='work'?'work':'analyze';
+   const label='Agent '+id+' · '+(mode==='work'?'mode kerja':'analisis');
+   if(memoryContext)nara.dispatch('context.used',{target:memoryContext.target,count:memoryContext.count,chars:memoryContext.chars,source:'desktop'});
+   nara.startWork({id,label});
+   nara.dispatch('plan.start',{label:'Menyiapkan '+label,source:'agent'});
+   nara.dispatch('plan.complete',{source:'agent'});
+   nara.dispatch('agent.start',{label,source:'agent'});
+   if(mode==='work')nara.dispatch('program.start',{label:'Menjalankan perubahan melalui '+id,source:'agent'});
+   try{
+    const result=await agentHub.run({...value,memoryContext});
+    if(result?.error){
+     if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
+     nara.dispatch('agent.failed',{label,source:'agent'});
+     nara.dispatch('work.failed',{id,label,source:'agent'});
+     nara.dispatch('error.detected',{message:String(result.error).slice(0,300),source:'agent'});
+    }else{
+     if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
+     nara.dispatch('agent.complete',{label,source:'agent'});
+     nara.completeWork({source:'agent'});
+    }
+    return result;
+   }catch(error){
+    if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
+    nara.dispatch('agent.failed',{label,source:'agent'});
+    nara.dispatch('work.failed',{id,label,source:'agent'});
+    nara.dispatch('error.detected',{message:error.message,source:'agent'});
+    return {error:error.message};
+   }
+  });
   ipcMain.handle('dudidam:agent-open',async(e,id)=>{if(!trusted(e))return {error:'Akses ditolak.'};const url=agentLinks[String(id||'')];if(!url||!url.startsWith('https://'))return {error:'Tautan agent tidak valid.'};await shell.openExternal(url);return {ok:true};});
   ipcMain.handle('dudidam:terminal-create',async(e,value)=>{
    if(!trusted(e))return {error:'Akses ditolak.'};
    const shellId=['auto','pwsh','powershell','cmd'].includes(String(value?.shell||''))?String(value.shell):'auto';
    const profileId=['claude','codex','cursor','gemini'].includes(String(value?.profile||''))?String(value.profile):undefined;
    const options={shell:shellId,profile:profileId,title:String(value?.title||'').slice(0,80),cols:value?.cols,rows:value?.rows};
-   try{return await terminalManager.create(options);}catch(error){return {error:error.message};}
+   try{const result=await terminalManager.create(options);nara.dispatch('terminal.open',{source:'terminal-manager'});return result;}catch(error){nara.dispatch('error.detected',{message:error.message,source:'terminal'});return {error:error.message};}
   });
   ipcMain.handle('dudidam:terminal-write',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.write(value?.sessionId,value?.data);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:terminal-resize',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.resize(value?.sessionId,value?.cols,value?.rows);}catch(error){return {error:error.message};}});
@@ -244,6 +428,7 @@ else{
     const cwd=path.resolve(agentHub?.getProjectRoot?.()||process.env.DUDIDAM_PROJECT_ROOT||process.cwd());
     const child=spawn('powershell.exe',['-NoLogo','-NoExit'],{cwd,detached:true,stdio:'ignore',windowsHide:false});
     child.unref();
+    nara.dispatch('terminal.open',{source:'external-powershell'});
     return {ok:true,cwd};
    }catch(error){return {error:'Terminal gagal dibuka: '+error.message};}
   });
@@ -275,7 +460,10 @@ else{
   win.on('close',event=>{if(!quitting){event.preventDefault();requestDismiss('hide');}});
   win.once('ready-to-show',()=>win.show());
   await win.loadURL(origin+'/');
+  announceNaraEvent('nara.start');
   pointerTimer=setInterval(publishGlobalPointer,50);
+  backdropTimer=setInterval(publishAvatarBackdrop,1800);
+  publishAvatarBackdrop();
   if(ciSmoke){
    const rendererReady=await win.webContents.executeJavaScript("Boolean(document.querySelector('#avatar')) && Boolean(document.querySelector('#assistantPopup')) && typeof window.dudidamAvatar?.setAvatarState === 'function' && typeof window.dudidamDesktop?.onGlobalPointer === 'function' && typeof window.dudidamDesktop?.avatarViewport === 'function' && typeof window.dudidamDesktop?.openTerminal === 'function' && document.title.includes('HumanALE god egine')");
    if(!rendererReady)throw new Error('Renderer HumanALE god egine tidak siap.');
@@ -314,5 +502,5 @@ else{
   console.log('HumanALE god egine desktop ready: transparent=true; frame=false; alwaysOnTop=true; tray=true; systemAudio=loopback');
  }).catch(error=>{console.error('HumanALE god egine startup failed:',error);app.exit(1);});
  app.on('window-all-closed',()=>{});
-  app.on('before-quit',()=>{quitting=true;globalShortcut.unregisterAll();clearTimeout(saveTimer);clearInterval(pointerTimer);Object.values(bridges||{}).forEach(item=>item?.stop());agentHub?.stop();terminalManager?.killAll?.();indonesianStt?.stop();indonesianTts?.stop();panelWin?.destroy();server?.close();tray?.destroy();});
+  app.on('before-quit',()=>{quitting=true;globalShortcut.unregisterAll();clearTimeout(saveTimer);clearInterval(pointerTimer);clearInterval(backdropTimer);Object.values(bridges||{}).forEach(item=>item?.stop());agentHub?.stop();terminalManager?.killAll?.();indonesianStt?.stop();indonesianTts?.stop();panelWin?.destroy();server?.close();tray?.destroy();});
 }

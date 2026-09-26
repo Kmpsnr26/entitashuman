@@ -36,7 +36,7 @@ export class IndonesianTts{
  async synthesize(value){
   const text=String(value?.text||'').trim();
   if(!text||text.length>2000)throw new Error('Teks suara harus berisi 1–2000 karakter.');
-  const style=value?.style==='natural'?'natural':'baby-robot';
+  const style=['natural','baby-robot','adult-robot'].includes(value?.style)?value.style:'baby-robot';
   if(this.pending)throw new Error('Suara sebelumnya masih dibuat.');
   this.pending=true;let folder;
   try{

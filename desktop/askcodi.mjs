@@ -27,7 +27,7 @@ export class AskCodiBridge{
   const timeout=setTimeout(()=>this.controller?.abort(),90000);
   try{
    const messages=[
-    {role:'system',content:humanaleSystemPrompt(data.message,'Jangan mengklaim dapat mengendalikan komputer atau membaca data pribadi.')},
+    {role:'system',content:humanaleSystemPrompt(data.message,'Jangan mengklaim dapat mengendalikan komputer atau membaca data pribadi.',data.memoryContext)},
     ...data.history.map(item=>({role:item.role,content:item.content})),
     {role:'user',content:data.message}
    ];

@@ -30,7 +30,7 @@ export class GrokBridge{
   this.pending=true;this.controller=new AbortController();
   const timeout=setTimeout(()=>this.controller?.abort(),90000);
   try{
-   const prompt=humanaleSystemPrompt(data.message,'Jangan mengklaim dapat mengendalikan komputer, membaca data pribadi, atau melihat kamera langsung.')+'\nPercakapan sebelumnya dan pesan saat ini diberikan sebagai JSON berikut:\n'+JSON.stringify({history:data.history,message:data.message});
+   const prompt=humanaleSystemPrompt(data.message,'Jangan mengklaim dapat mengendalikan komputer, membaca data pribadi, atau melihat kamera langsung.',data.memoryContext)+'\nPercakapan sebelumnya dan pesan saat ini diberikan sebagai JSON berikut:\n'+JSON.stringify({history:data.history,message:data.message});
    const response=await this.fetch(endpoint,{method:'POST',headers:{'Authorization':'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({model:model(),input:prompt}),signal:this.controller.signal});
    let body={};try{body=await response.json();}catch{}
    if(!response.ok){

@@ -1,0 +1,111 @@
+name: NARA Cloud Verify
+
+on:
+  workflow_dispatch:
+
+  pull_request:
+    paths:
+      - "nara-cloud/**"
+      - "desktop/**"
+      - "public/**"
+      - "tests/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".env.example"
+      - ".github/workflows/nara-cloud-verify.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nara-final-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nara-cloud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: nara
+          POSTGRES_PASSWORD: test-password
+          POSTGRES_DB: nara
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nara -d nara"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://nara:test-password@127.0.0.1:5432/nara
+      BIND_HOST: 127.0.0.1
+      AUTH_PORT: 4100
+      NARA_PORT: 4200
+      PUBLIC_AUTH_ORIGIN: http://127.0.0.1:4100
+      PUBLIC_NARA_ORIGIN: http://127.0.0.1:4200
+      AUTH_SESSION_SECRET: test-auth-session-secret-2026-at-least-32-characters
+      NARA_SESSION_SECRET: test-nara-session-secret-2026-at-least-32-characters
+      TICKET_PEPPER: test-ticket-pepper-secret-2026-at-least-32-characters
+
+    defaults:
+      run:
+        working-directory: nara-cloud
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install locked NARA Cloud dependencies
+        run: npm ci
+
+      - name: Record resolved dependency versions
+        run: npm ls --depth=0
+
+      - name: Apply PostgreSQL migrations
+        run: npm run db:migrate
+
+      - name: Verify database-backed security flows
+        run: npm run test:db
+
+      - name: Verify TypeScript and unit security tests
+        run: npm run verify
+
+      - name: Audit high severity dependencies
+        run: npm audit --audit-level=high
+
+  humanale-root:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install HumanALE dependencies
+        run: npm ci
+
+      - name: Verify HumanALE tests and web build
+        run: npm run verify
+
+      - name: Smoke interactive Windows terminal
+        run: npm run smoke:terminal
+
+      - name: Audit high severity dependencies
+        run: npm audit --audit-level=high

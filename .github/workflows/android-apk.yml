@@ -2,10 +2,17 @@ name: Build Android APK
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publish verified APK to the rolling Android GitHub release"
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [main]
     paths:
       - "public/**"
+      - "sites/humanale-hologram/dist/**"
       - "capacitor.config.json"
       - "scripts/prepare-android.mjs"
       - ".github/workflows/android-apk.yml"
@@ -68,6 +75,7 @@ jobs:
           ls -lh release/*.apk
 
       - name: Publish rolling Android release
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
