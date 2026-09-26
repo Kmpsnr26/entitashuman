@@ -568,7 +568,10 @@ export class Neural3DScene{
       lastRoute:this.lastRoute,
       fps:Math.round(this.frameWindow.fps||0),
       mode:this.mode,
-      quality:this.qualityMode==='auto'?'auto/'+this.effectiveQuality:this.effectiveQuality
+      quality:this.qualityMode==='auto'?'auto/'+this.effectiveQuality:this.effectiveQuality,
+      galacticFrame:Boolean(this.galacticFrame?.visible),
+      aurora:Boolean(this.aurora?.visible),
+      nebula:Boolean(this.nebula?.visible)
     };
   }
 
@@ -775,7 +778,24 @@ export class Neural3DScene{
       }
     }
 
+    this.recenterHomeView();
     this.setState(this.state||{regions:{}});
+  }
+
+  recenterHomeView(){
+    if(!this.nodes.size)return;
+    const bounds=new THREE.Box3();
+    for(const entry of this.nodes.values())bounds.expandByPoint(entry.group.position);
+    const center=bounds.getCenter(new THREE.Vector3());
+    const size=bounds.getSize(new THREE.Vector3());
+    const span=Math.max(size.x,size.y,size.z,1);
+    this.homeTarget.copy(center);
+    this.homeRadius=Math.max(12.5,Math.min(16.5,span*1.05));
+    if(this.mode==='explorer'&&!this.focusTarget){
+      this.target.copy(center);
+      this.radius=this.homeRadius;
+    }
+    if(this.galacticFrame)this.galacticFrame.position.copy(center);
   }
 
   setState(state={}){
