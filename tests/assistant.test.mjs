@@ -579,6 +579,9 @@ test('cloud auto-repair closes stale fallback draft PRs after CI recovery',async
  assert.match(workflow,/cloud-fallback-request: issue-/);
  assert.match(workflow,/github\.rest\.pulls\.update/);
  assert.match(workflow,/if \(issue\.state === 'closed'\) \{[\s\S]*await closeFallbackPullRequest\(issue\.number\);[\s\S]*return;/);
+ assert.match(workflow,/await removeLabel\(issue\.number, 'ai-fix-needed'\)/);
+ assert.match(workflow,/await removeLabel\(issue\.number, 'automation:fallback'\)/);
+ assert.match(workflow,/await removeLabel\(issue\.number, 'automation:delegated'\)/);
  assert.match(workflow,/await closeFallbackPullRequest\(issue\.number\)/);
  assert.match(workflow,/function issueRecovered\(issue\)/);
  assert.match(workflow,/Skipping recovered issue #/);
