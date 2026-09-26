@@ -142,3 +142,24 @@ body.detached-panel .avatar-studio-dialog{width:calc(100% - 18px);max-height:cal
 .humanale-visual-studio-dialog[data-runtime-state="processing"] .visual-studio-statusbar span:first-child{border-color:#ae8cff66}
 body.detached-panel .humanale-visual-studio-dialog{width:calc(100% - 18px);max-height:calc(100dvh - 18px)}
 @media(max-width:620px){.visual-studio-grid{grid-template-columns:1fr}.visual-studio-card dl>div{grid-template-columns:1fr}.visual-studio-card dd{text-align:left}}
+
+/* HumanALE Visual Studio v2 */
+.visual-studio-scene{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.visual-studio-scene>small{grid-column:1/-1}
+.visual-studio-scene label{display:grid;gap:5px;font-size:10px;color:#9ec3aa}
+.visual-studio-scene select,.visual-studio-scene input[type=range]{width:100%}
+.visual-studio-scene select{border:1px solid var(--line);border-radius:8px;background:#07130d;color:#d9ffe4;padding:6px;font-size:10px}
+.visual-studio-toggle{display:flex!important;align-items:center;justify-content:space-between;grid-template-columns:none!important}
+.visual-studio-regions,.visual-studio-connections{display:flex;flex-wrap:wrap;gap:6px}
+.visual-studio-region,.visual-studio-connection{padding:6px 8px;border:1px solid var(--line);border-radius:999px;background:#0a1710;color:#b7d9c0;font:9px/1.2 "Cascadia Code","Cascadia Mono",Consolas,monospace}
+.visual-studio-region[data-status="active"],.visual-studio-region[data-status="processing"],.visual-studio-region[data-status="thinking"]{border-color:#78d8ff66;color:#d8f7ff}
+.visual-studio-region[data-status="error"],.visual-studio-region[data-status="bug"],.visual-studio-connection[data-status="error"]{border-color:#ff6f9566;color:#ffc7d7;background:#2b0b1666}
+.visual-studio-connection[data-status="connected"],.visual-studio-region[data-status="complete"]{border-color:#79e5a866;color:#d8ffe6}
+.visual-studio-timeline{display:grid;gap:5px;max-height:190px;overflow:auto}
+.visual-studio-event{padding:6px 7px;border-left:2px solid #79d9ff55;background:#07130d80;font:9px/1.35 "Cascadia Code","Cascadia Mono",Consolas,monospace;color:#abc8b4}
+.visual-studio-history{height:90px;display:flex;align-items:flex-end;gap:3px;padding:7px;border:1px solid var(--line);border-radius:9px;background:#031008;overflow:hidden}
+.visual-studio-history i{display:block;flex:1 1 0;min-width:3px;max-width:12px;border-radius:3px 3px 1px 1px;background:#8ad7ff99}
+.visual-studio-history i[data-mode="eco"]{opacity:.55}
+.visual-studio-history i[data-mode="balanced"]{opacity:.75}
+.visual-studio-history i[data-mode="active"]{opacity:1}
+@media(max-width:620px){.visual-studio-scene{grid-template-columns:1fr}}
