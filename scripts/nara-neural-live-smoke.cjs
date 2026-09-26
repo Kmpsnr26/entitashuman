@@ -94,6 +94,9 @@ async function run(){
     await waitFor(win,"Boolean(document.getElementById('creatorGateway'))");
     await waitFor(win,"Boolean(document.getElementById('creatorEnter')&&!document.getElementById('creatorAccessPanel')?.hidden)");
     report.checks.creatorGatewayPassed=await evaluate(win,"(()=>{const button=document.getElementById('creatorEnter');if(!button)return false;button.click();return true;})()");
+    await sleep(120);
+    report.checks.cinematicEntryTriggered=await evaluate(win,"(()=>{const entry=document.getElementById('neuralEntryTransition');return Boolean(entry&&!entry.hidden&&entry.classList.contains('neural-entry-active'));})()");
+    report.checks.audioControlPresent=await evaluate(win,"Boolean(document.getElementById('edgeAudioToggle'))");
     await waitFor(win,"document.getElementById('connection')?.textContent==='LIVE'",{timeout:18000});
     report.checks.liveConnection=true;
     report.checks.edgeHudVisible=await evaluate(win,"(()=>{const el=document.getElementById('edgeHud');return Boolean(el&&!el.hidden&&getComputedStyle(el).display!=='none');})()");
