@@ -12,6 +12,12 @@ import type {
 const USB_BACKUP_MAX_PLAINTEXT_BYTES =
   5_000_000;
 
+const USB_BACKUP_MAX_CIPHERTEXT_BASE64_CHARS =
+  Math.ceil(
+    USB_BACKUP_MAX_PLAINTEXT_BYTES /
+      3
+  ) * 4;
+
 const SCRYPT_N =
   32_768;
 
@@ -166,8 +172,28 @@ function isEnvelope(
 function parseBase64(
   value: string,
   expectedBytes?:
+    number,
+  maxEncodedChars?:
     number
 ): Buffer {
+  if (
+    value.length === 0 ||
+    value.length % 4 !== 0 ||
+    (
+      maxEncodedChars !==
+        undefined &&
+      value.length >
+        maxEncodedChars
+    ) ||
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
+      value
+    )
+  ) {
+    throw new EncryptedBackupError(
+      "USB_BACKUP_INVALID_ENVELOPE"
+    );
+  }
+
   const buffer =
     Buffer.from(
       value,
@@ -176,6 +202,9 @@ function parseBase64(
 
   if (
     buffer.length === 0 ||
+    buffer.toString(
+      "base64"
+    ) !== value ||
     (
       expectedBytes !==
         undefined &&
@@ -331,7 +360,9 @@ export async function decryptMemoryBackup(
 
   const ciphertext =
     parseBase64(
-      input.ciphertext
+      input.ciphertext,
+      undefined,
+      USB_BACKUP_MAX_CIPHERTEXT_BASE64_CHARS
     );
 
   const key =

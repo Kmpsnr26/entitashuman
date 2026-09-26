@@ -225,3 +225,98 @@ test(
     );
   }
 );
+
+
+test(
+  "encrypted USB backup rejects malformed and non-canonical Base64 before decryption",
+  async () => {
+    const encrypted =
+      await encryptMemoryBackup(
+        snapshot(),
+        passphrase
+      );
+
+    for (
+      const invalid of [
+        {
+          ...encrypted,
+          salt:
+            "!!!!"
+        },
+        {
+          ...encrypted,
+          iv:
+            encrypted.iv +
+            "===="
+        }
+      ]
+    ) {
+      await assert.rejects(
+        () =>
+          decryptMemoryBackup(
+            invalid,
+            passphrase
+          ),
+        (
+          error:
+            unknown
+        ) => {
+          assert.ok(
+            error instanceof
+              EncryptedBackupError
+          );
+
+          assert.equal(
+            error.code,
+            "USB_BACKUP_INVALID_ENVELOPE"
+          );
+
+          return true;
+        }
+      );
+    }
+  }
+);
+
+test(
+  "encrypted USB backup rejects oversized ciphertext before allocating a decoded payload",
+  async () => {
+    const encrypted =
+      await encryptMemoryBackup(
+        snapshot(),
+        passphrase
+      );
+
+    const oversized = {
+      ...encrypted,
+      ciphertext:
+        "AAAA".repeat(
+          1_666_668
+        )
+    };
+
+    await assert.rejects(
+      () =>
+        decryptMemoryBackup(
+          oversized,
+          passphrase
+        ),
+      (
+        error:
+          unknown
+      ) => {
+        assert.ok(
+          error instanceof
+            EncryptedBackupError
+        );
+
+        assert.equal(
+          error.code,
+          "USB_BACKUP_INVALID_ENVELOPE"
+        );
+
+        return true;
+      }
+    );
+  }
+);

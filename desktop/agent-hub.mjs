@@ -260,11 +260,20 @@ export class DeveloperAgentHub{
   const work=await this.runDirect(worker,workPrompt,mode);
   const reviewPrompt='Kamu adalah Reviewer HumanALE. Periksa tugas, rencana, dan hasil Worker. Dalam mode read-only, inspeksi proyek bila tersedia tetapi jangan edit. Fokus pada correctness, regression, security, test coverage, dan apakah permintaan benar-benar selesai. Akhiri tepat dengan salah satu baris: VERDICT: PASS atau VERDICT: NEEDS_FIX.\n\nTASK:\n'+prompt+'\n\nPLAN:\n'+plan.text+'\n\nWORKER RESULT:\n'+work.text;
   let review=await this.runDirect(reviewer,reviewPrompt,'analyze'),repair=null;
-  if(mode==='work'&&reviewVerdict(review.text)==='needs_fix'){
+  let verdict=reviewVerdict(review.text);
+  if(verdict==='unknown'){
+   const retryPrompt=reviewPrompt+'\n\nPENTING: Respons sebelumnya tidak memiliki VERDICT valid. Ulangi review secara ringkas dan wajib akhiri tepat dengan VERDICT: PASS atau VERDICT: NEEDS_FIX.';
+   review=await this.runDirect(reviewer,retryPrompt,'analyze');
+   verdict=reviewVerdict(review.text);
+   if(verdict==='unknown')throw new Error('Reviewer HumanALE tidak memberikan VERDICT valid setelah retry. Pipeline dihentikan fail-closed.');
+  }
+  if(mode==='work'&&verdict==='needs_fix'){
    const repairPrompt='Kamu adalah Repair Worker HumanALE. Perbaiki hanya masalah konkret yang disebut Reviewer, tetap di folder proyek, tanpa push/merge/publish atau perubahan kredensial. Jalankan test relevan. TASK:\n'+prompt+'\n\nREVIEW:\n'+review.text;
    repair=await this.runDirect(worker,repairPrompt,'work');
    const finalPrompt='Kamu adalah Final Reviewer HumanALE. Periksa ulang tugas setelah repair. Jangan edit. Akhiri tepat dengan VERDICT: PASS atau VERDICT: NEEDS_FIX.\n\nTASK:\n'+prompt+'\n\nREPAIR RESULT:\n'+repair.text;
    review=await this.runDirect(reviewer,finalPrompt,'analyze');
+   verdict=reviewVerdict(review.text);
+   if(verdict!=='pass')throw new Error('Final Reviewer HumanALE belum memberikan VERDICT: PASS. Pipeline dihentikan fail-closed.');
   }
   const stages=[
    {role:'planner',agent:planner,text:plan.text},
