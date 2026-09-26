@@ -78,3 +78,27 @@ button,select,input{background:#0c2732;color:#c9f5ff;border:1px solid #245365;bo
 .creator-logout{display:none;padding:5px 8px;font-size:8px;letter-spacing:.08em;background:#081a22}.creator-session-active .creator-logout{display:inline-flex}
 @keyframes creatorGrid{to{background-position:42px 84px}}@keyframes creatorAura{to{transform:rotate(360deg)}}@keyframes creatorPulse{50%{transform:scale(1.045);box-shadow:0 0 52px #2adfff77,inset 0 0 40px #35e5ff44}}
 @media(max-width:620px){.creator-gateway-card{padding:22px}.creator-capability-rows{grid-template-columns:1fr}.creator-gateway-card h1{font-size:19px}}
+
+
+/* Edge HUD — Stage 2 */
+.creator-session-active{overflow:hidden;background:#010609}
+.creator-session-active>header{display:none}
+.creator-session-active main{display:block;position:fixed;inset:0;max-width:none;margin:0;padding:0}
+.creator-session-active .panel:not(.brain-panel){display:none}
+.creator-session-active .brain-panel{position:absolute;inset:0;border:0;border-radius:0;background:#010609;box-shadow:none}
+.creator-session-active .brain-panel>.panel-title{display:none}
+.creator-session-active .brain-stage{height:100vh}
+.creator-session-active .brain-map{height:100%}
+.creator-session-active .neural-3d{background:radial-gradient(circle at 50% 48%,#071e29 0,#02090e 52%,#000306 100%)}
+
+.edge-hud{position:fixed;inset:0;z-index:120;pointer-events:none;color:#c9f8ff;font:10px ui-monospace,SFMono-Regular,Consolas,monospace}
+.edge-hud[hidden]{display:none}
+.edge-top{position:absolute;left:18px;right:18px;top:14px;height:34px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;border-top:1px solid #4be9ff55;background:linear-gradient(90deg,#08202a9c,#03101822 35%,#03101822 65%,#08202a9c);box-shadow:0 -10px 28px #00cfff0c;pointer-events:none}
+.edge-brand,.edge-top-center,.edge-top-right{display:flex;align-items:center;gap:11px;letter-spacing:.1em}.edge-brand strong{color:#7decff}.edge-brand small,.edge-top-right{color:#668b96}.edge-top-center{justify-content:center}.edge-top-center span:first-child{color:#d8fbff}.edge-top-center span:last-child{color:#54efae}.edge-top-right{justify-content:flex-end}
+.edge-left{position:absolute;left:13px;top:50%;display:grid;gap:8px;transform:translateY(-50%);pointer-events:auto}.edge-left button{writing-mode:vertical-rl;transform:rotate(180deg);min-height:72px;padding:8px 6px;border-radius:5px;background:#03131bc2;border-color:#1d5364;color:#658d99;font-size:8px;letter-spacing:.13em}.edge-left button:hover,.edge-left button.edge-active{color:#d2fbff;border-color:#59e8ff;box-shadow:0 0 20px #00ccff2f;background:#082834db}
+.edge-right-tools{position:absolute;right:14px;top:50%;display:grid;gap:7px;transform:translateY(-50%);pointer-events:auto}.edge-right-tools button{width:42px;padding:7px 4px;font-size:8px;letter-spacing:.08em;background:#03131bc2;border-color:#1d5364}
+.edge-bottom{position:absolute;left:70px;right:70px;bottom:12px;height:28px;display:flex;align-items:center;justify-content:center;gap:28px;border-bottom:1px solid #4be9ff44;color:#587e89;letter-spacing:.09em;background:linear-gradient(90deg,#03101800,#071d2780 30%,#071d2780 70%,#03101800);pointer-events:none}.edge-bottom span:nth-child(1),.edge-bottom span:nth-child(2){color:#d59c83}.edge-bottom span:nth-child(3){color:#75dff2}
+.edge-monitor-drawer{position:absolute;left:62px;top:74px;width:min(340px,32vw);padding:0;border:1px solid #225b6d;border-radius:11px;background:#021018e8;backdrop-filter:blur(16px);box-shadow:0 24px 80px #000b,0 0 35px #00ccff12;pointer-events:auto;overflow:hidden}.edge-monitor-head{height:38px;display:flex;align-items:center;justify-content:space-between;padding:0 10px 0 13px;border-bottom:1px solid #17404f}.edge-monitor-head strong{font-size:9px;letter-spacing:.15em;color:#82efff}.edge-monitor-head button{border:0;background:transparent;padding:4px 8px;color:#7598a2;font-size:16px}.edge-monitor-body{display:grid;padding:8px}
+.edge-monitor-row{display:grid;grid-template-columns:1fr auto;gap:12px;padding:8px 7px;border-bottom:1px solid #0f2c37}.edge-monitor-row:last-child{border-bottom:0}.edge-monitor-row span{color:#587d88;font-size:8px;letter-spacing:.1em}.edge-monitor-row strong{font-size:9px;color:#d1f8ff;text-align:right}.edge-monitor-row[data-state="error"],.edge-monitor-row[data-state="failed"],.edge-monitor-row[data-state="bug"]{background:#31101755}.edge-monitor-row[data-state="ready"],.edge-monitor-row[data-state="complete"],.edge-monitor-row[data-state="active"] strong{color:#5aeeb2}
+.creator-session-active .neural3d-toolbar{left:78px;top:60px;background:#02101891;border-color:#164554}.creator-session-active .neural3d-detail{right:72px;top:60px;background:#02101891;border-color:#164554}.creator-session-active .neural3d-hud{left:78px;bottom:52px;background:#02101891;border-color:#164554}
+@media(max-width:760px){.edge-top{grid-template-columns:1fr auto}.edge-top-center{display:none}.edge-left{left:6px}.edge-left button{min-height:60px}.edge-right-tools{right:6px}.edge-monitor-drawer{left:48px;width:calc(100vw - 96px)}.edge-bottom{left:48px;right:48px;gap:10px;font-size:8px}.creator-session-active .neural3d-toolbar{left:52px}.creator-session-active .neural3d-detail{right:52px}}
