@@ -20,12 +20,43 @@ const EVENT_REGIONS=Object.freeze({
   reason:'REASONER',plan:'PLANNER',memory:'MEMORY',context:'MEMORY',
   agent:'AGENT_MANAGER',program:'PROGRAM',verify:'FOLLOW_UP',bug:'BUG_HUNTER',
   error:'ERROR_MONITOR',sync:'SYNC',github:'GITHUB',copilot:'COPILOT',
-  drive:'DRIVE',web:'WEB',work:'NARA_CORE'
+  drive:'DRIVE',web:'WEB',work:'NARA_CORE',terminal:'TERMINAL'
+});
+
+const EVENT_ROUTES=Object.freeze({
+  'work.start':['NARA_CORE','PLANNER'],
+  'work.complete':['FOLLOW_UP','NARA_CORE'],
+  'work.failed':['PROGRAM','ERROR_MONITOR'],
+  'reason.start':['NARA_CORE','REASONER'],
+  'reason.complete':['REASONER','PLANNER'],
+  'plan.start':['REASONER','PLANNER'],
+  'plan.complete':['PLANNER','AGENT_MANAGER'],
+  'memory.read':['MEMORY','REASONER'],
+  'memory.write':['NARA_CORE','MEMORY'],
+  'memory.complete':['MEMORY','NARA_CORE'],
+  'context.prepare':['MEMORY','REASONER'],
+  'context.approved':['SAFETY','MEMORY'],
+  'context.used':['MEMORY','PLANNER'],
+  'context.blocked':['SAFETY','MEMORY'],
+  'agent.start':['PLANNER','AGENT_MANAGER'],
+  'agent.complete':['AGENT_MANAGER','FOLLOW_UP'],
+  'agent.failed':['AGENT_MANAGER','BUG_HUNTER'],
+  'program.start':['AGENT_MANAGER','PROGRAM'],
+  'program.complete':['PROGRAM','FOLLOW_UP'],
+  'verify.start':['PROGRAM','FOLLOW_UP'],
+  'verify.complete':['FOLLOW_UP','REPORTING'],
+  'error.detected':['PROGRAM','ERROR_MONITOR'],
+  'bug.detected':['ERROR_MONITOR','BUG_HUNTER'],
+  'bug.fixed':['BUG_HUNTER','FOLLOW_UP'],
+  'sync.start':['NARA_CORE','SYNC'],
+  'sync.complete':['SYNC','NARA_CORE'],
+  'terminal.open':['TOOLS','TERMINAL']
 });
 
 const LINK_IDLE=0x123845;
 const LINK_LIVE=0x42ddff;
 const LINK_SELECTED=0xa9f7ff;
+const ROUTE_POOL_SIZE=24;
 
 function statusColor(status,group){
   return STATUS_COLORS[status]??GROUP_COLORS[group]??0x42ddff;
@@ -34,6 +65,16 @@ function statusColor(status,group){
 function regionForEvent(event=''){
   const prefix=String(event).split('.')[0];
   return EVENT_REGIONS[prefix]||null;
+}
+
+function routeColor(event=''){
+  const value=String(event);
+  if(value.includes('failed')||value.includes('error'))return 0xff5d70;
+  if(value.includes('bug.detected'))return 0xff784d;
+  if(value.includes('complete')||value.includes('fixed'))return 0x59efad;
+  if(value.startsWith('sync.'))return 0x9b7dff;
+  if(value.startsWith('memory.')||value.startsWith('context.'))return 0x64e9ff;
+  return 0xb9f8ff;
 }
 
 function linkKey(a,b){
@@ -111,6 +152,9 @@ export class Neural3DScene{
     this.links=[];
     this.linkIndex=new Map();
     this.adjacency=new Map();
+    this.routePackets=[];
+    this.routeCount=0;
+    this.lastRoute='—';
     this.selected=null;
     this.active=true;
     this.pointer={down:false,moved:false,x:0,y:0,button:0};
@@ -150,6 +194,9 @@ export class Neural3DScene{
 
     this.packetGeometry=new THREE.SphereGeometry(.075,10,8);
     this.packetHaloGeometry=new THREE.SphereGeometry(.145,10,8);
+    this.routePacketGeometry=new THREE.SphereGeometry(.095,12,9);
+    this.routeHaloGeometry=new THREE.SphereGeometry(.19,12,9);
+    this.initRoutePool();
 
     this.raycaster=new THREE.Raycaster();
     this.ndc=new THREE.Vector2();
@@ -157,6 +204,27 @@ export class Neural3DScene{
     this.resize();
     this.updateCamera(true);
     this.renderer.setAnimationLoop(()=>this.animate());
+  }
+
+  initRoutePool(){
+    for(let i=0;i<ROUTE_POOL_SIZE;i++){
+      const group=new THREE.Group();
+      const packet=new THREE.Mesh(this.routePacketGeometry,new THREE.MeshBasicMaterial({
+        color:0xb9f8ff,transparent:true,opacity:0,depthWrite:false,
+        blending:THREE.AdditiveBlending
+      }));
+      const halo=new THREE.Mesh(this.routeHaloGeometry,new THREE.MeshBasicMaterial({
+        color:0x64e9ff,transparent:true,opacity:0,depthWrite:false,
+        blending:THREE.AdditiveBlending
+      }));
+      group.add(halo,packet);
+      group.visible=false;
+      this.world.add(group);
+      this.routePackets.push({
+        group,packet,halo,active:false,path:[],segment:0,progress:0,
+        speed:1,event:'',startedAt:0
+      });
+    }
   }
 
   bindControls(){
@@ -212,7 +280,10 @@ export class Neural3DScene{
       nodes:this.nodes.size,
       links:this.links.length,
       activeLinks:this.links.filter(link=>link.active).length,
-      selectedLinks:this.links.filter(link=>link.selected).length
+      selectedLinks:this.links.filter(link=>link.selected).length,
+      activeRoutes:this.routePackets.filter(packet=>packet.active).length,
+      routeCount:this.routeCount,
+      lastRoute:this.lastRoute
     };
   }
 
@@ -245,6 +316,11 @@ export class Neural3DScene{
   }
 
   clearWorld(){
+    for(const route of this.routePackets){
+      route.active=false;
+      route.group.visible=false;
+      route.path=[];
+    }
     for(const link of this.links)this.disposeLink(link);
     this.links=[];
     this.linkIndex.clear();
@@ -321,7 +397,7 @@ export class Neural3DScene{
       phase:stableUnit(key+'phase'),
       speed:.035+stableUnit(key+'speed')*.035,
       flowDirection:index%2?1:-1,
-      intensity:.06,targetIntensity:.06,pulse:0,
+      intensity:.06,targetIntensity:.06,pulse:0,routePulse:0,
       selected:false,active:false,color:new THREE.Color(LINK_LIVE)
     };
 
@@ -449,9 +525,91 @@ export class Neural3DScene{
     }
   }
 
+  shortestPath(source,target){
+    if(!this.nodes.has(source)||!this.nodes.has(target))return [];
+    if(source===target)return [source];
+    const queue=[source];
+    const previous=new Map([[source,null]]);
+    while(queue.length){
+      const current=queue.shift();
+      for(const link of this.adjacency.get(current)||[]){
+        const next=link.from===current?link.to:link.from;
+        if(previous.has(next))continue;
+        previous.set(next,current);
+        if(next===target){
+          const path=[target];
+          let cursor=current;
+          while(cursor){
+            path.push(cursor);
+            cursor=previous.get(cursor);
+          }
+          return path.reverse();
+        }
+        queue.push(next);
+      }
+    }
+    return [];
+  }
+
+  routeSegments(nodes){
+    const result=[];
+    for(let i=0;i<nodes.length-1;i++){
+      const a=nodes[i],b=nodes[i+1];
+      const link=this.linkIndex.get(linkKey(a,b));
+      if(!link)continue;
+      result.push({link,forward:link.from===a,from:a,to:b});
+    }
+    return result;
+  }
+
+  acquireRoutePacket(){
+    const idle=this.routePackets.find(packet=>!packet.active);
+    if(idle)return idle;
+    return [...this.routePackets].sort((a,b)=>a.startedAt-b.startedAt)[0];
+  }
+
+  spawnRoute(envelope={}){
+    const direct=EVENT_ROUTES[envelope.event];
+    const fallback=regionForEvent(envelope.event);
+    const source=direct?.[0]||(fallback&&fallback!=='NARA_CORE'?'NARA_CORE':null);
+    const target=direct?.[1]||fallback;
+    if(!source||!target||source===target)return false;
+
+    const nodes=this.shortestPath(source,target);
+    const path=this.routeSegments(nodes);
+    if(!path.length)return false;
+
+    const route=this.acquireRoutePacket();
+    const color=routeColor(envelope.event);
+    route.active=true;
+    route.group.visible=true;
+    route.path=path;
+    route.segment=0;
+    route.progress=0;
+    route.speed=.72+Math.min(1.2,path.length*.08);
+    route.event=envelope.event;
+    route.startedAt=performance.now();
+    route.packet.material.color.setHex(color);
+    route.halo.material.color.setHex(color);
+    route.packet.material.opacity=.95;
+    route.halo.material.opacity=.32;
+    route.group.position.copy(path[0].link.curve.getPointAt(path[0].forward?0:1));
+
+    for(const segment of path){
+      segment.link.routePulse=Math.max(segment.link.routePulse,1);
+      segment.link.flowDirection=segment.forward?1:-1;
+    }
+
+    this.routeCount+=1;
+    this.lastRoute=source+' → '+target+' · '+envelope.event;
+    this.energizeRegion(target,.9);
+    return true;
+  }
+
   handleEvent(envelope={}){
     const id=regionForEvent(envelope.event);
     if(id)this.energizeRegion(id,1);
+    this.spawnRoute(envelope);
     if(envelope.event==='brain.region.select'&&envelope.payload?.region){
       this.focusRegion(envelope.payload.region);
       this.energizeRegion(envelope.payload.region,.55);
@@ -480,7 +638,8 @@ export class Neural3DScene{
     for(const link of this.links){
       link.intensity+=(link.targetIntensity-link.intensity)*.075;
       if(link.pulse>0)link.pulse=Math.max(0,link.pulse-.014*this.motionScale);
-      const energy=Math.min(1.45,link.intensity+link.pulse*.88);
+      if(link.routePulse>0)link.routePulse=Math.max(0,link.routePulse-.022*this.motionScale);
+      const energy=Math.min(1.6,link.intensity+link.pulse*.72+link.routePulse*1.05);
       const breathing=.5+.5*Math.sin(t*(1.1+link.phase*.55)+link.phase*Math.PI*2);
 
       link.sheath.material.opacity=.07+energy*.16+breathing*.018;
@@ -509,9 +668,46 @@ export class Neural3DScene{
     }
   }
 
+  animateRoutes(delta,t){
+    for(const route of this.routePackets){
+      if(!route.active)continue;
+      const segment=route.path[route.segment];
+      if(!segment){
+        route.active=false;
+        route.group.visible=false;
+        continue;
+      }
+
+      route.progress+=delta*route.speed*this.motionScale;
+      while(route.progress>=1&&route.active){
+        route.progress-=1;
+        route.segment+=1;
+        if(route.segment>=route.path.length){
+          route.active=false;
+          route.group.visible=false;
+          this.energizeRegion(segment.to,.65);
+          break;
+        }
+      }
+      if(!route.active)continue;
+
+      const current=route.path[route.segment];
+      const u=current.forward?route.progress:1-route.progress;
+      route.group.position.copy(current.link.curve.getPointAt(Math.max(0,Math.min(1,u))));
+      current.link.routePulse=Math.max(current.link.routePulse,.75);
+      current.link.flowDirection=current.forward?1:-1;
+
+      const flicker=.86+.14*Math.sin(t*8+route.startedAt*.001);
+      route.packet.material.opacity=.9*flicker;
+      route.halo.material.opacity=.3*flicker;
+      route.group.scale.setScalar(.82+.28*flicker);
+    }
+  }
+
   animate(){
     if(!this.active)return;
-    const t=this.clock.getElapsedTime();
+    const delta=Math.min(.05,this.clock.getDelta());
+    const t=this.clock.elapsedTime;
     this.updateCamera();
 
     for(const [id,entry] of this.nodes){
@@ -534,6 +730,7 @@ export class Neural3DScene{
     }
 
     this.animateLinks(t);
+    this.animateRoutes(delta,t);
     this.stars.rotation.y=t*.0025*this.motionScale;
     this.renderer.render(this.scene,this.camera);
   }
@@ -549,8 +746,16 @@ export class Neural3DScene{
   destroy(){
     this.renderer.setAnimationLoop(null);
     this.clearWorld();
+    for(const route of this.routePackets){
+      route.packet.material.dispose();
+      route.halo.material.dispose();
+      this.world.remove(route.group);
+    }
+    this.routePackets=[];
     this.packetGeometry.dispose();
     this.packetHaloGeometry.dispose();
+    this.routePacketGeometry.dispose();
+    this.routeHaloGeometry.dispose();
     this.stars.geometry.dispose();
     this.stars.material.dispose();
     this.renderer.dispose();
