@@ -155,7 +155,7 @@ export function createCreatorAuth({
         {id:'camera',label:'Camera',state:authenticated?'permission_required':'locked',authority:'browser-os'},
         {id:'microphone',label:'Microphone',state:authenticated?'permission_required':'locked',authority:'browser-os'},
         {id:'audio',label:'Audio',state:authenticated?'available':'locked',authority:'browser'},
-        {id:'database',label:'Database',state:authenticated?'registered':'locked',authority:'server'},
+        {id:'database',label:'Database',state:authenticated?'not_configured':'locked',authority:'server-connector'},
         {id:'localhost',label:'Localhost',state:authenticated?'ready':'locked',authority:'studio'},
         {id:'server',label:'Server',state:authenticated?'ready':'locked',authority:'studio'}
       ]
