@@ -41,6 +41,43 @@
     </section>
   </div>
 
+  <div id="edgeHud" class="edge-hud" hidden>
+    <div class="edge-top">
+      <div class="edge-brand"><span class="dot"></span><strong>NARA CORE</strong><small id="edgeLifecycle">idle</small></div>
+      <div class="edge-top-center"><span id="edgeSelected">NARA_CORE</span><span id="edgeConnection">LOCKED</span></div>
+      <div class="edge-top-right"><span id="edgeFps">FPS —</span><span id="edgeQuality">auto</span><span id="edgeClock"></span></div>
+    </div>
+
+    <nav class="edge-left" aria-label="System monitors">
+      <button type="button" data-edge-monitor="connection">CONNECTION</button>
+      <button type="button" data-edge-monitor="loading">LOADING</button>
+      <button type="button" data-edge-monitor="error">ERROR</button>
+      <button type="button" data-edge-monitor="progress">PROGRESS</button>
+      <button type="button" data-edge-monitor="evolution">EVOLUTION</button>
+      <button type="button" data-edge-monitor="damage">DAMAGE</button>
+    </nav>
+
+    <div class="edge-right-tools">
+      <button id="edgeView3d" type="button">3D</button>
+      <button id="edgeView2d" type="button">2D</button>
+    </div>
+
+    <aside id="edgeMonitorDrawer" class="edge-monitor-drawer" hidden>
+      <div class="edge-monitor-head">
+        <strong id="edgeMonitorTitle">SYSTEM MONITOR</strong>
+        <button id="edgeMonitorClose" type="button">×</button>
+      </div>
+      <div id="edgeMonitorBody" class="edge-monitor-body"></div>
+    </aside>
+
+    <div class="edge-bottom">
+      <span id="edgeErrors">ERR 0</span>
+      <span id="edgeBugs">BUG 0</span>
+      <span id="edgeRoutes">ROUTES 0</span>
+      <span>CREATOR SESSION</span>
+    </div>
+  </div>
+
   <header>
     <div><span class="dot"></span><strong>NARA CORE LIVE STUDIO</strong><small>Realtime Brain Laboratory</small></div>
     <div class="status"><button id="creatorLogout" class="creator-logout" type="button">CREATOR LOGOUT</button><span id="connection">LOCKED</span><span id="clock"></span></div>
