@@ -19,6 +19,10 @@ const customSettings=createCustomSettingsPanel({
     neuralEntry.setAudioEnabled(enabled);
     if(!enabled)nodeVoice.stop();
   },
+  onAudioProfileChange:settings=>{
+    neuralEntry.applyAudioSettings?.(settings);
+    nodeVoice.applyVoiceSettings?.(settings);
+  },
   onQualityChange:quality=>{
     const select=$('neuralQuality');
     if(select&&select.value!==quality)select.value=quality;
