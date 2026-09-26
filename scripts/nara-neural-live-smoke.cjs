@@ -7,6 +7,7 @@ app.commandLine.appendSwitch('enable-webgl');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('use-gl','angle');
 app.commandLine.appendSwitch('use-angle','swiftshader');
+app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 
 const ROOT=path.resolve(__dirname,'..');
 const ARTIFACTS=path.join(ROOT,'artifacts');
@@ -102,7 +103,7 @@ async function run(){
 
     report.hud=await evaluate(win,"({status:document.getElementById('neural3dStatus')?.textContent,selected:document.getElementById('neural3dSelected')?.textContent,roots:document.getElementById('neural3dRoots')?.textContent,routes:document.getElementById('neural3dRoutes')?.textContent,performance:document.getElementById('neural3dPerf')?.textContent,lastRoute:document.getElementById('neural3dLastRoute')?.textContent,detail:document.getElementById('neuralDetailLabel')?.textContent})");
 
-    const fpsMatch=String(report.hud.performance||'').match(/fps\\s+(\\d+)/);
+    const fpsMatch=String(report.hud.performance||'').match(/fps\s+(\d+)/);
     report.checks.fpsMeasured=Number(fpsMatch?.[1]||0)>0;
     report.checks.noRendererCrash=rendererGone.length===0;
     const fatalErrors=browserErrors.filter(item=>/uncaught|referenceerror|typeerror|webgl.*(fail|error)|three\\.webglrenderer/i.test(item.message));
