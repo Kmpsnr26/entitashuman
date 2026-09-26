@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 
 const read=path=>readFile(new URL('../'+path,import.meta.url),'utf8');
 
-test('main HumanALE renderer uses the exact NARA avatar engine and reference from the HumanALE Site',async()=>{
+test('main HumanALE renderer uses the exact procedural NARA avatar engine from the HumanALE Site',async()=>{
   const [app,adapter,avatar,index]=await Promise.all([
     read('public/app.js'),
     read('public/humanale-avatar.js'),
@@ -12,11 +12,13 @@ test('main HumanALE renderer uses the exact NARA avatar engine and reference fro
     read('public/index.html')
   ]);
   assert.match(app,/import \{HumanALEAvatar\} from '\.\/humanale-avatar\.js'/);
-  assert.match(app,/new HumanALEAvatar\(\$\('#avatar'\),\{referenceSrc:'\/humanale\/assets\/reference-face\.png'/);
+  assert.match(app,/new HumanALEAvatar\(\$\('#avatar'\),\{popup,panelOnly\}\)/);
+  assert.doesNotMatch(app,/reference-face\.png|referenceSrc\s*:/);
   assert.match(adapter,/class HumanALEAvatar extends BaseAvatar/);
   assert.match(adapter,/drawAudioSensors/);
   assert.match(avatar,/class NeuralAvatar/);
-  assert.match(avatar,/loadReference\(src\)/);
+  assert.match(avatar,/buildFallback\(\)/);
+  assert.match(avatar,/setBackdrop\(grid\)/);
   assert.match(avatar,/Math\.PI\/6/);
   assert.match(index,/Wajah holografik NARA dari karakter biner yang bergerak/);
   for(const script of ['face-rig.js','neural-core.js','avatar.js'])assert.match(index,new RegExp('/humanale/'+script.replace('.', '\\.')));
