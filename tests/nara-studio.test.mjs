@@ -379,3 +379,48 @@ test('Three vendor surface stays fixed to required ESM build modules',async()=>{
   assert.doesNotMatch(server,/node_modules\/three\/\*\*/);
   assert.doesNotMatch(server,/url\.pathname\.startsWith\('\/vendor\/three\/'\)/);
 });
+
+
+test('Neural renderer lifecycle really pauses hidden work and skips hidden 2D redraws',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [scene,app]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8')
+  ]);
+
+  assert.match(scene,/this\.animationLoop=\(\)=>this\.animate\(\)/);
+  assert.match(scene,/this\.renderer\.setAnimationLoop\(null\)/);
+  assert.match(scene,/this\.timer\.reset\(\)/);
+  assert.match(scene,/this\.renderer\.setAnimationLoop\(this\.animationLoop\)/);
+  assert.match(app,/if\(studioView==='2d'\)drawBrain\(\)/);
+  assert.match(app,/document\.addEventListener\('visibilitychange'/);
+  assert.match(app,/studioView==='3d'&&!document\.hidden/);
+});
+
+test('Neural live harness separates reproducible CI software GPU from physical GPU acceptance',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [smoke,workflow,pkg,ps1,bat]=await Promise.all([
+    readFile(new URL('scripts/nara-neural-live-smoke.cjs',root),'utf8'),
+    readFile(new URL('.github/workflows/nara-cloud-verify.yml',root),'utf8'),
+    readFile(new URL('package.json',root),'utf8'),
+    readFile(new URL('scripts/nara-neural-gpu-acceptance.ps1',root),'utf8'),
+    readFile(new URL('NARA-Neural-GPU-Acceptance.bat',root),'utf8')
+  ]);
+
+  assert.match(smoke,/NARA_GPU_MODE\|\|'hardware'/);
+  assert.match(smoke,/GPU_MODE==='software'/);
+  assert.match(smoke,/app\.getGPUInfo\('basic'\)/);
+  assert.match(smoke,/app\.getGPUFeatureStatus\(\)/);
+  assert.match(smoke,/app\.isHardwareAccelerationEnabled\(\)/);
+  assert.match(smoke,/swiftshader\|llvmpipe\|software rasterizer/);
+  assert.match(smoke,/report\.checks\.gpuModeMatched/);
+  assert.match(workflow,/NARA_GPU_MODE: "software"/);
+  assert.match(workflow,/nara-core\/studio\/\*\*/);
+  assert.match(workflow,/scripts\/nara-neural-live-smoke\.cjs/);
+  assert.match(pkg,/"smoke:neural-gpu": "electron scripts\/nara-neural-live-smoke\.cjs"/);
+  assert.match(ps1,/NARA_GPU_MODE = 'hardware'/);
+  assert.match(ps1,/gpu\.modeMatched/);
+  assert.match(bat,/nara-neural-gpu-acceptance\.ps1/i);
+});
