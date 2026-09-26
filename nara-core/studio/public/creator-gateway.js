@@ -75,7 +75,7 @@ async function primeAudio(){
   }
 }
 
-export async function initializeCreatorGateway({onReady=()=>{}}={}){
+export async function initializeCreatorGateway({onEntering=()=>{},onReady=()=>{}}={}){
   const gateway=byId('creatorGateway');
   const form=byId('creatorLoginForm');
   const status=byId('creatorLoginStatus');
@@ -124,6 +124,7 @@ export async function initializeCreatorGateway({onReady=()=>{}}={}){
   });
 
   enter.addEventListener('click',async()=>{
+    try{onEntering(session);}catch{}
     await Promise.allSettled([requestMediaPermissions(),primeAudio()]);
     gateway.classList.add('creator-gateway-leaving');
     setTimeout(()=>{
