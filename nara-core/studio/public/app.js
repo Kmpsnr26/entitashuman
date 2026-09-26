@@ -1,6 +1,7 @@
 import {initializeCreatorGateway} from './creator-gateway.js';
 import {createEdgeHud} from './edge-hud.js';
 import {createNeuralEntryExperience} from './neural-entry.js';
+import {createNodeInspector} from './node-inspector.js';
 
 const $=id=>document.getElementById(id);
 let snapshot=null,regions={},telemetry=null,skillsSnapshot=null;
@@ -9,6 +10,12 @@ let eventBuffer=[],eventPaused=false,replayTimer=null;
 const connectionIds=['GITHUB','COPILOT','WEB','TEAM','PR','SYNC','ONLINE','OWNER_EMAIL','DRIVE'];
 const eventSelect=$('eventSelect');
 const neuralEntry=createNeuralEntryExperience();
+const nodeInspector=createNodeInspector({
+  onNavigate:region=>dispatch('brain.region.select',{region}).catch(error=>{
+    $('consoleLog').textContent=error.message;
+  }),
+  onFocus:region=>ensureNeural3D().then(scene=>scene.focusRegion(region)).catch(()=>{})
+});
 const edgeHud=createEdgeHud({onView:mode=>{
   if(mode==='3d'&&studioView!=='3d')neuralEntry.play({announce:false,compact:true});
   setStudioView(mode);
@@ -70,9 +77,14 @@ async function ensureNeural3D(){
     const host=$('neural3dHost');
     host.innerHTML='';
     neural3d=createNeural3DScene(host,{
-      onSelect:region=>dispatch('brain.region.select',{region}).catch(error=>{
-        $('consoleLog').textContent=error.message;
-      }),
+      onSelect:async region=>{
+        try{
+          await dispatch('brain.region.select',{region});
+          await nodeInspector.open(region);
+        }catch(error){
+          $('consoleLog').textContent=error.message;
+        }
+      },
       onMetrics:()=>updateNeuralHud()
     });
     neural3d.setRegions(regions);
@@ -117,7 +129,14 @@ function drawBrain(){
     el.className='brain-node '+statusClass(state.status)+(snapshot?.selectedRegion===region.id?' selected':'');
     el.style.left=x+'%';el.style.top=y+'%';el.dataset.region=region.id;
     el.innerHTML='<strong>'+escapeHtml(region.label)+'</strong><span>'+escapeHtml(state.status||'idle')+'</span>';
-    el.onclick=()=>dispatch('brain.region.select',{region:region.id});
+    el.onclick=async()=>{
+      try{
+        await dispatch('brain.region.select',{region:region.id});
+        await nodeInspector.open(region.id);
+      }catch(error){
+        $('consoleLog').textContent=error.message;
+      }
+    };
     nodes.appendChild(el);
   }
   const seen=new Set();
