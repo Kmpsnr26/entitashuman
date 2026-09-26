@@ -74,6 +74,37 @@
       <div id="memoryHistory" class="trace-list memory-trace"></div>
     </section>
 
+    <section class="panel skill-panel">
+      <div class="panel-title"><h2>Skill Registry</h2><span id="skillSummary">0 skills</span></div>
+      <div class="skill-stats">
+        <div><span>ENABLED</span><strong id="skillEnabled">0</strong></div>
+        <div><span>RUNNING</span><strong id="skillRunning">0</strong></div>
+        <div><span>FAILED</span><strong id="skillFailed">0</strong></div>
+      </div>
+      <div class="skill-table">
+        <div class="skill-head"><span>Skill</span><span>Region</span><span>Status</span><span>Runs</span><span>Last</span></div>
+        <div id="skillRows"></div>
+      </div>
+    </section>
+
+    <section class="panel agent-panel">
+      <div class="panel-title"><h2>Agent Monitor</h2><span id="agentStatus">ready</span></div>
+      <div class="agent-orbit">
+        <div class="agent-core">
+          <span>AGENT_MANAGER</span>
+          <strong id="agentCoreStatus">idle</strong>
+        </div>
+      </div>
+      <dl class="agent-grid">
+        <div><dt>Current work</dt><dd id="agentLabel">—</dd></div>
+        <div><dt>Runs</dt><dd id="agentRuns">0</dd></div>
+        <div><dt>Success</dt><dd id="agentSuccess">0</dd></div>
+        <div><dt>Failures</dt><dd id="agentFailures">0</dd></div>
+        <div><dt>Last duration</dt><dd id="agentDuration">—</dd></div>
+        <div><dt>Last event</dt><dd id="agentLastEvent">—</dd></div>
+      </dl>
+    </section>
+
     <section class="panel event-panel">
       <div class="panel-title"><h2>Event Stream</h2><button id="clearEvents">Clear view</button></div>
       <div id="events" class="events"></div>
