@@ -21,7 +21,9 @@ test('Avatar Live Studio profile clamps malformed values to safe finite bounds',
   foreheadWidth:5,
   noseDepth:.1,
   lipVolume:9,
-  earSize:.1
+  earSize:.1,
+  lightIntensity:9,
+  particleScale:.1
  });
  assert.equal(profile.headWidth,AVATAR_STUDIO_LIMITS.headWidth[1]);
  assert.equal(profile.headHeight,AVATAR_STUDIO_LIMITS.headHeight[0]);
@@ -34,6 +36,8 @@ test('Avatar Live Studio profile clamps malformed values to safe finite bounds',
  assert.equal(profile.noseDepth,AVATAR_STUDIO_LIMITS.noseDepth[0]);
  assert.equal(profile.lipVolume,AVATAR_STUDIO_LIMITS.lipVolume[1]);
  assert.equal(profile.earSize,AVATAR_STUDIO_LIMITS.earSize[0]);
+ assert.equal(profile.lightIntensity,AVATAR_STUDIO_LIMITS.lightIntensity[1]);
+ assert.equal(profile.particleScale,AVATAR_STUDIO_LIMITS.particleScale[0]);
  for(const value of Object.values(profile))assert.equal(Number.isFinite(value),true);
 });
 
@@ -86,26 +90,33 @@ test('Avatar Live Studio is wired as a detached live editor with explicit save/r
  ]);
  assert.match(html,/id="avatarStudio"/);
  assert.match(html,/id="avatarStudioOpen"/);
- for(const key of ['headWidth','headHeight','cheekVolume','jawWidth','eyeSpacing','foreheadWidth','foreheadHeight','chinLength','chinWidth','noseDepth','mouthWidth','lipVolume','earSize','depth','density']){
+ for(const key of ['headWidth','headHeight','cheekVolume','jawWidth','eyeSpacing','foreheadWidth','foreheadHeight','chinLength','chinWidth','noseDepth','mouthWidth','lipVolume','earSize','lightIntensity','particleScale','depth','density']){
   assert.match(html,new RegExp('data-avatar-studio-key="'+key+'"'));
  }
  assert.match(html,/id="avatarStudioSave"/);
  assert.match(html,/id="avatarStudioRevert"/);
  assert.match(html,/id="avatarStudioReset"/);
+ assert.match(html,/id="avatarStudioMaterial"/);
+ for(const id of ['avatarStudioSaveA','avatarStudioPreviewA','avatarStudioSaveB','avatarStudioPreviewB'])assert.match(html,new RegExp('id="'+id+'"'));
  assert.match(app,/createAvatarStudioController/);
  assert.match(app,/avatarStudio\.handleMessage/);
  assert.match(app,/avatarStudio\.syncPayload/);
  assert.match(app,/getAvatarStudioProfile/);
  assert.match(controller,/humanale\.avatar-studio\.v1/);
+ assert.match(controller,/humanale\.avatar-studio\.slots\.v1/);
+ assert.match(controller,/humanale\.avatar-studio\.material\.v1/);
+ assert.match(controller,/const MATERIALS=/);
  assert.match(controller,/avatar-studio-profile/);
  assert.match(adapter,/setStudioProfile/);
  assert.match(adapter,/transformAvatarStudioPoint/);
  assert.match(adapter,/transformFacePoint/);
  assert.doesNotMatch(adapter,/\n project\(x,y,z/);
  assert.match(adapter,/setDensity\(this\.studioProfile\.density\*100\)/);
+ assert.match(adapter,/faceVisualTuning/);
  assert.match(desktop,/\['controls','avatarStudio','chatDialog','agentDialog','terminalDialog'\]/);
  assert.match(desktop,/Avatar Live Studio tidak siap di panel terpisah/);
  assert.match(desktop,/Avatar Live Studio tidak menerapkan perubahan realtime ke avatar utama/);
+ assert.match(desktop,/Avatar Live Studio material tidak sinkron ke avatar utama/);
  const canonical=await readFile(new URL('../sites/humanale-hologram/dist/avatar.js',import.meta.url),'utf8');
  assert.match(canonical,/transformFacePoint\(point\)/);
  assert.match(canonical,/x, y, z, feature,/);
