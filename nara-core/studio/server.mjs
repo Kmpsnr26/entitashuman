@@ -73,8 +73,8 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
     maxAttempts:creatorOptions.maxAttempts,
     attemptWindowMs:creatorOptions.attemptWindowMs
   });
-  const creatorMisconfigured=creatorOptions.required===true&&!creator.configured;
-  const creatorRequired=creator.configured&&(creatorOptions.required??true);
+  const creatorRequired=creatorOptions.required===false?false:(creator.configured||creatorOptions.required===true);
+  const creatorMisconfigured=creatorRequired&&!creator.configured;
   const nara=createOrchestrator();
   const telemetry=createStudioTelemetry();
   const skills=createSkillRegistry();
@@ -115,8 +115,11 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
       }
 
       if(req.method==='GET'&&url.pathname==='/api/creator/session'){
+        const publicCreator=creator.publicSession(req);
         return json(res,200,{
-          ...creator.publicSession(req),
+          ...publicCreator,
+          authenticated:creatorMisconfigured?false:publicCreator.authenticated,
+          development:creatorMisconfigured?false:publicCreator.development,
           required:creatorRequired,
           misconfigured:creatorMisconfigured
         });
