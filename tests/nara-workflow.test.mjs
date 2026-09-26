@@ -34,6 +34,8 @@ test('NARA observe workflow executes only auto-safe capability chain and complet
  });
  assert.equal(workflow.state,'planned');
  assert.deepEqual(workflow.permissions.missing,[]);
+ assert.ok(workflow.workflow.steps.reason.permissions.includes('memory:read'));
+ assert.equal(workflow.workflow.steps.reason.permissions.includes('memory:write-approved'),false);
  assert.equal(workflow.workflow.steps.reason.status,'ready');
  assert.equal(workflow.workflow.steps.plan.status,'blocked');
  assert.deepEqual(workflow.workflow.steps.plan.blockers,['step:reason']);
@@ -88,6 +90,7 @@ test('execute workflow derives transitive permissions and becomes ready only aft
  assert.ok(permissions.includes('workspace:write-approved'));
  assert.ok(permissions.includes('terminal:bounded-execute'));
  assert.ok(permissions.includes('policy:enforce'));
+ assert.equal(permissions.includes('memory:write-approved'),false);
  assert.ok(workflow.permissions.granted.includes('policy:enforce'));
  assert.ok(workflow.permissions.missing.includes('workspace:write-approved'));
  assert.ok(workflow.permissions.missing.includes('terminal:bounded-execute'));
