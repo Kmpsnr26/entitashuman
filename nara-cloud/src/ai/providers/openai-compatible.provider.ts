@@ -350,7 +350,7 @@ export class OpenAiCompatibleProvider
     }
 
     const data =
-      await response.json()
+      (await response.json())
         as CompatibleResponse;
 
     const text =
