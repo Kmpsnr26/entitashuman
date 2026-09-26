@@ -1,5 +1,7 @@
 import {
+  findMemory,
   listMemory,
+  type MemoryRecord,
   type MemoryScope
 } from "./memory.service.js";
 
@@ -22,29 +24,141 @@ export interface HumanALECloudContextInput {
     string;
   conversationId?:
     string;
+  entryIds?:
+    string[];
+}
+
+function matchesFilters(
+  memory:
+    MemoryRecord,
+  input:
+    HumanALECloudContextInput
+): boolean {
+  if (
+    input.scope &&
+    memory.scope !==
+      input.scope
+  ) {
+    return false;
+  }
+
+  if (
+    input.projectKey &&
+    memory.projectKey !==
+      input.projectKey
+  ) {
+    return false;
+  }
+
+  if (
+    input.conversationId &&
+    memory.conversationId !==
+      input.conversationId
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+async function exactMemories(
+  input:
+    HumanALECloudContextInput
+): Promise<MemoryRecord[] | null> {
+  if (
+    !input.entryIds ||
+    input.entryIds.length ===
+      0
+  ) {
+    return null;
+  }
+
+  const uniqueIds =
+    [
+      ...new Set(
+        input.entryIds
+      )
+    ];
+
+  if (
+    uniqueIds.length !==
+      input.entryIds.length ||
+    uniqueIds.length > 6
+  ) {
+    return null;
+  }
+
+  const memories:
+    MemoryRecord[] = [];
+
+  for (
+    const id of
+      uniqueIds
+  ) {
+    const memory =
+      await findMemory(
+        input.ownerId,
+        id
+      );
+
+    if (
+      !memory ||
+      !matchesFilters(
+        memory,
+        input
+      )
+    ) {
+      return null;
+    }
+
+    memories.push(
+      memory
+    );
+  }
+
+  return memories;
 }
 
 export async function createHumanALECloudContext(
   input:
     HumanALECloudContextInput
 ): Promise<HumanALEContextPacket | null> {
-  const memories =
-    await listMemory({
-      ownerId:
-        input.ownerId,
+  let memories:
+    MemoryRecord[];
 
-      scope:
-        input.scope,
+  if (
+    input.entryIds
+  ) {
+    const exact =
+      await exactMemories(
+        input
+      );
 
-      projectKey:
-        input.projectKey,
+    if (!exact) {
+      return null;
+    }
 
-      conversationId:
-        input.conversationId,
+    memories =
+      exact;
+  } else {
+    memories =
+      await listMemory({
+        ownerId:
+          input.ownerId,
 
-      limit:
-        50
-    });
+        scope:
+          input.scope,
+
+        projectKey:
+          input.projectKey,
+
+        conversationId:
+          input.conversationId,
+
+        limit:
+          50
+      });
+  }
 
   return buildHumanALEContextPacket(
     memories.map(
