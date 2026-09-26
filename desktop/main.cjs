@@ -6,7 +6,7 @@ const path=require('node:path');
 const {tmpdir}=require('node:os');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer,backdropTimer;
+let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer,backdropTimer,naraVisualTestRunning=false;
 let cloudAllowedOrigins=new Set();
 let announceNaraEvent=()=>{};
 let baseWindowSize={width:420,height:480};
@@ -200,7 +200,7 @@ else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
   const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
-  const [{createOrchestrator},{createVoiceFeedback}]=await Promise.all([import('../nara-core/brain/index.js'),import('../nara-core/voice/index.js')]);
+  const [{createOrchestrator,getHumanALETestScenario,listHumanALETestScenarios},{createVoiceFeedback}]=await Promise.all([import('../nara-core/brain/index.js'),import('../nara-core/voice/index.js')]);
   naraVoice=createVoiceFeedback();
   nara=createOrchestrator();
   nara.start();
@@ -273,6 +273,60 @@ else{
    if(!NARA_RENDERER_EVENTS.has(event))return {error:'Event NARA tidak diizinkan dari renderer.'};
    try{return {ok:true,...nara.dispatch(event,value?.payload&&typeof value.payload==='object'?value.payload:{},{source:'renderer'})};}
    catch(error){return {error:error.message};}
+  });
+  ipcMain.handle('dudidam:nara-test-scenarios',e=>trusted(e)?{ok:true,scenarios:listHumanALETestScenarios()}:{error:'Akses ditolak.'});
+  ipcMain.handle('dudidam:nara-test-scenario',async(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   const scenario=getHumanALETestScenario(value?.scenario);
+   if(!scenario)return {error:'Skenario test HumanALE tidak dikenal.'};
+   if(naraVisualTestRunning)return {error:'Test HumanALE lain masih berjalan.'};
+   const before=nara.snapshot();
+   const hasRealError=Object.values(before.regions||{}).some(region=>['error','bug'].includes(region?.status));
+   if(before.lifecycle!=='active')return {error:'NARA Core belum aktif.'};
+   if(before.currentTask||before.sensory?.hearing?.active||before.sensory?.speech?.active||before.humanale?.state!=='idle'||hasRealError){
+    return {error:'Controlled test hanya boleh dimulai saat NARA idle, tanpa task, sensor aktif, atau error nyata.'};
+   }
+   naraVisualTestRunning=true;
+   const trace=[],startedAt=Date.now();
+   let failure=null;
+   try{
+    for(const step of scenario.steps){
+     let result;
+     if(step.event==='work.start')result=nara.startWork(step.payload);
+     else if(step.event==='work.complete')result=nara.completeWork(step.payload);
+     else result=nara.dispatch(step.event,step.payload,{source:'visual-studio-test'});
+     const snapshot=result?.state||nara.snapshot();
+     trace.push({
+      event:step.event,
+      state:snapshot.humanale?.state||'idle',
+      rendererMode:snapshot.humanale?.rendererMode||'eco',
+      activity:Number(snapshot.humanale?.activity)||0,
+      timestamp:Date.now()
+     });
+     if(step.waitMs)await new Promise(resolve=>setTimeout(resolve,step.waitMs));
+    }
+   }catch(error){
+    failure=error;
+    for(const event of scenario.cleanup){
+     try{
+      if(event==='work.complete')nara.completeWork({source:'visual-studio-test-cleanup'});
+      else nara.dispatch(event,{source:'visual-studio-test-cleanup'},{source:'visual-studio-test'});
+     }catch{}
+    }
+   }finally{
+    naraVisualTestRunning=false;
+   }
+   const finalState=nara.snapshot();
+   if(failure)return {error:failure.message,scenario:scenario.id,trace,finalState};
+   return {
+    ok:true,
+    scenario:scenario.id,
+    label:scenario.label,
+    durationMs:Date.now()-startedAt,
+    trace,
+    finalState,
+    restored:Boolean(finalState.humanale?.state==='idle'&&!finalState.currentTask&&!finalState.sensory?.hearing?.active&&!finalState.sensory?.speech?.active)
+   };
   });
 
   const openCloudLogin=()=>{
