@@ -1,4 +1,5 @@
 import {NARA_REGIONS,isRegionId} from './regions.js';
+import {createHumanALEPolicy,reduceHumanALEPolicy} from './humanale-policy.js';
 
 const clamp01=value=>Math.max(0,Math.min(1,Number(value)||0));
 const connectionEvents=Object.freeze({
@@ -41,6 +42,7 @@ export class NaraBrainState{
         vision:{active:false,activity:0,frameId:null},
         speech:{active:false,energy:0}
       },
+      humanale:createHumanALEPolicy(),
       lastEvent:null
     };
   }
@@ -60,6 +62,7 @@ export class NaraBrainState{
         speech:{...this.state.sensory.speech}
       },
       currentTask:this.state.currentTask?{...this.state.currentTask}:null,
+      humanale:{...this.state.humanale},
       lastEvent:this.state.lastEvent?{...this.state.lastEvent}:null
     };
   }
@@ -91,6 +94,7 @@ export class NaraBrainState{
     if(!envelope?.event)return null;
     const {event,payload={}}=envelope;
     this.state.lastEvent={id:envelope.id,event,timestamp:envelope.timestamp};
+    this.state.humanale=reduceHumanALEPolicy(this.state.humanale,event,payload,this.state);
 
     if(event==='nara.start'){
       this.state.lifecycle='active';
