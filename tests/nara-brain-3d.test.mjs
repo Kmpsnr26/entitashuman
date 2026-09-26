@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile,stat} from 'node:fs/promises';
+import {readFile} from 'node:fs/promises';
 import {NARA_REGION_IDS,NARA_REGIONS} from '../nara-core/brain/regions.js';
 
 const root=new URL('../',import.meta.url);
@@ -89,7 +89,14 @@ test('HumanALE runtime synchronizes brain state, zoom and region selection throu
   assert.match(preload,/onNaraState/);
 });
 
-test('reference face asset remains present and substantial',async()=>{
-  const asset=await stat(new URL('../sites/humanale-hologram/dist/assets/reference-face.png',import.meta.url));
-  assert.ok(asset.size>100_000);
+test('procedural face geometry remains embedded in code with no required face image asset',async()=>{
+  const [avatar,site]=await Promise.all([
+    read('sites/humanale-hologram/dist/avatar.js'),
+    read('sites/humanale-hologram/dist/site.js')
+  ]);
+  assert.match(avatar,/buildFallback\(\)/);
+  assert.match(avatar,/for \(let y = -0\.68; y < 0\.74; y \+= 0\.009\)/);
+  assert.match(avatar,/this\.addFacialCode\(points, hash\)/);
+  assert.match(site,/new window\.NeuralAvatar\(canvas\);/);
+  assert.doesNotMatch(site,/referenceSrc\s*:|reference-face\.png/);
 });

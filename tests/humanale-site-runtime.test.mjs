@@ -81,8 +81,9 @@ test('canonical site wires real NARA state into the existing avatar instead of r
   assert.match(site,/pointerdown',unlockNaraVoice/);
   assert.match(site,/runtime\.dispatch\('speech\.start'/);
   assert.match(site,/runtime\.dispatch\('speech\.stop'/);
-  assert.match(avatar,/loadReference\(src\)/);
-  assert.match(site,/assets\/reference-face\.png/);
+  assert.match(avatar,/buildFallback\(\)/);
+  assert.match(site,/new window\.NeuralAvatar\(canvas\);/);
+  assert.doesNotMatch(site,/referenceSrc\s*:|reference-face\.png/);
 });
 
 test('site runtime supports the important connection and workflow events copied from NARA core',async()=>{
