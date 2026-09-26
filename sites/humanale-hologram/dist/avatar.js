@@ -783,8 +783,14 @@
     transformFacePoint(point) {
       return point;
     }
+    faceVisualTuning() {
+      return { lightIntensity:1, particleScale:1 };
+    }
     drawFace(c, time) {
       const points = this.facePoints;
+      const visual = this.faceVisualTuning?.() || {};
+      const lightIntensity = clamp(Number(visual.lightIntensity) || 1, .7, 1.3);
+      const particleScale = clamp(Number(visual.particleScale) || 1, .75, 1.25);
       const shell = 1 - smooth(1.28, 2.65, this.zoom);
       if (shell < 0.003) return;
       const cosYaw = Math.cos(this.headPose.yaw), sinYaw = Math.sin(this.headPose.yaw);
@@ -873,11 +879,11 @@
         const lighting = 0.36 + diffuse * 0.64;
         const intensity = pt.intensity;
         let shade = clamp(Math.round(4 + intensity * 8 + diffuse * 3), 0, 15);
-        let alpha = (0.17 + intensity * 0.82) * lighting * localPresence * opacity;
+        let alpha = (0.17 + intensity * 0.82) * lighting * localPresence * opacity * lightIntensity;
         if (pt.outer) alpha *= 0.34;
         if (y > 0.52) alpha *= 1 - smooth(0.52, 0.81, y) * 0.53;
         if (feature === 'mouth-cavity') { shade = light ? 15 : 0; alpha = 0.22; }
-        const depthScale = p.scale * (pt.size || 1);
+        const depthScale = p.scale * (pt.size || 1) * particleScale;
         c.globalAlpha = clamp(alpha * shell * localPresence * (light && !pt.outer ? 1.55 : 1), 0, 0.97);
         if (useBinary) {
           const size = clamp(this.scale * 0.0175 * depthScale, feature ? 2.1 : 3.6, 11.4);
