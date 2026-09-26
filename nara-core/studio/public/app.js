@@ -25,6 +25,10 @@ function updateViewButtons(){
 function updateNeuralHud(){
   if(!$('neural3dSelected'))return;
   $('neural3dSelected').textContent=snapshot?.selectedRegion||'NARA_CORE';
+  if(neural3d&&$('neural3dRoots')){
+    const stats=neural3d.getStats();
+    $('neural3dRoots').textContent=stats.links+' living roots · '+stats.activeLinks+' active · bounded flow';
+  }
 }
 
 async function ensureNeural3D(){
@@ -46,7 +50,7 @@ async function ensureNeural3D(){
     });
     neural3d.setRegions(regions);
     if(snapshot)neural3d.setState(snapshot);
-    $('neural3dStatus').textContent='LIVE · EXPERIMENTAL';
+    $('neural3dStatus').textContent='LIVE · ROOT FLOW';
     updateNeuralHud();
     return neural3d;
   }).catch(error=>{
@@ -64,9 +68,10 @@ function setStudioView(mode){
   $('neural3d').hidden=studioView!=='3d';
   updateViewButtons();
   if(studioView==='3d'){
-    ensureNeural3D().then(scene=>scene.resize()).catch(()=>{});
-  }else if(snapshot){
-    drawBrain();
+    ensureNeural3D().then(scene=>{scene.setActive(true);scene.resize();updateNeuralHud();}).catch(()=>{});
+  }else{
+    neural3d?.setActive(false);
+    if(snapshot)drawBrain();
   }
 }
 
