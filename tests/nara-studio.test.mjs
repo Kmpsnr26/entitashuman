@@ -283,8 +283,9 @@ test('Neural Space Stage 2 highlights selected neighborhood and pauses when hidd
   assert.match(scene,/selectedNeighbors/);
   assert.match(scene,/link\.targetIntensity=link\.selected/);
   assert.match(scene,/energizeRegion\(id,amount=1\)/);
-  assert.match(app,/scene\.setActive\(true\)/);
+  assert.match(app,/scene\.setActive\(!document\.hidden\)/);
   assert.match(app,/neural3d\?\.setActive\(false\)/);
+  assert.match(app,/studioView==='3d'&&!document\.hidden/);
   assert.match(html,/id="neural3dRoots"/);
 });
 
