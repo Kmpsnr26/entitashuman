@@ -1,3 +1,5 @@
+import {createCreatorBrainBackdrop} from './creator-brain.js';
+
 const byId=id=>document.getElementById(id);
 
 async function jsonFetch(url,options={}){
@@ -81,6 +83,7 @@ export async function initializeCreatorGateway({onEntering=()=>{},onReady=()=>{}
   const status=byId('creatorLoginStatus');
   const enter=byId('creatorEnter');
   const logout=byId('creatorLogout');
+  const brain=createCreatorBrainBackdrop(byId('creatorBrainCanvas'));
 
   let session=await jsonFetch('/api/creator/session',{method:'GET',headers:{}});
 
@@ -90,6 +93,7 @@ export async function initializeCreatorGateway({onEntering=()=>{},onReady=()=>{}
     byId('creatorSessionMode').textContent=current.development?'AUTH NOT CONFIGURED':'SECURE SESSION';
     form.hidden=true;
     byId('creatorAccessPanel').hidden=false;
+    brain.setState('verified');
     if(probe){
       await Promise.allSettled([requestMediaPermissions(),primeAudio()]);
     }
@@ -107,6 +111,7 @@ export async function initializeCreatorGateway({onEntering=()=>{},onReady=()=>{}
   form.addEventListener('submit',async event=>{
     event.preventDefault();
     status.textContent='VERIFYING CREATOR IDENTITY…';
+    brain.setState('verifying');
     const username=byId('creatorUsername').value;
     const password=byId('creatorPassword').value;
     try{
@@ -119,6 +124,7 @@ export async function initializeCreatorGateway({onEntering=()=>{},onReady=()=>{}
       status.textContent=result.authenticated?'CREATOR AUTHENTICATED':'AUTH FAILED';
       await unlock(session,{probe:true});
     }catch(error){
+      brain.setState('error');
       status.textContent=error.message;
     }
   });
@@ -126,9 +132,11 @@ export async function initializeCreatorGateway({onEntering=()=>{},onReady=()=>{}
   enter.addEventListener('click',async()=>{
     try{onEntering(session);}catch{}
     await Promise.allSettled([requestMediaPermissions(),primeAudio()]);
+    brain.setState('verified');
     gateway.classList.add('creator-gateway-leaving');
     setTimeout(()=>{
       gateway.hidden=true;
+      brain.setActive(false);
       document.body.classList.add('creator-session-active');
       onReady(session);
     },520);
