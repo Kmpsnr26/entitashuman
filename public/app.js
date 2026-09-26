@@ -200,7 +200,7 @@ const apiProviders=['copilot','openai','grok','gemini','claude','deepseek','askc
 const SUMMON_DURATION_MS=4200;
 const DISMISS_DURATION_MS=3000;
 const DEFAULT_AVATAR_SIZE=420;
-let panelZoomFactor=1,latestNaraBrainState=null,selectedBrainRegion='NARA_CORE',humanaleVisualFrame={fps:0,points:0},lastVisualStudioBroadcast=0,humanaleVisualEvents=[],lastHumanaleVisualEventId=null;
+let panelZoomFactor=1,latestNaraBrainState=null,latestNaraSkillSnapshot=null,selectedBrainRegion='NARA_CORE',humanaleVisualFrame={fps:0,points:0},lastVisualStudioBroadcast=0,humanaleVisualEvents=[],lastHumanaleVisualEventId=null;
 let aiReady=false,savedProvider=desktop?localStorage.getItem('dudidam-provider'):'',aiProvider=apiProviders.includes(savedProvider)?savedProvider:'chatgpt',busy=false,voice=true,selectedVoiceURI=desktop?(localStorage.getItem('dudidam-voice-uri')||''):'',listening=false,recognition,cameraStream,cameraPending=false,history=[],toastTimer,bubbleTimer,speechTimer,drag,offset={x:0,y:0},ttsActive=false,ttsEnergy=0,audioEnergy=0,audioMode='',musicUrl='',wakeRecognition,wakeListening=false,wakeEnabled=desktop?localStorage.getItem('dudidam-wake-enabled')==='true':false,wakeRestartTimer,wakeHealthVerified=false,wakeRetryBlocked=false,wakeNetworkFailures=0,summoning=false,dismissing=false,transitionSerial=0,hold5Timer,hold5Fired=false;
 let wakeStartGeneration=0;
 let micProbeGeneration=0,micChecking=false;
@@ -218,6 +218,7 @@ function humanaleVisualStudioSnapshot(){
  const regions=Object.values(snapshot.regions||{});
  const errorRegions=regions.filter(region=>['error','bug'].includes(region?.status)).map(region=>region.id);
  const connectionIds=['GITHUB','COPILOT','DRIVE','OWNER_EMAIL','WEB','TEAM','ONLINE','TERMINAL','MEMORY'];
+ const skillSnapshot=latestNaraSkillSnapshot||{};
  return {
   timestamp:Date.now(),
   runtime:{state:policy.state||avatar.state||'idle',rendererMode:policy.rendererMode||avatar.renderPolicy||'eco',activity:Number(policy.activity)||0,controlledBy:policy.controlledBy||'NARA_CORE',reason:policy.reason||'nara.idle'},
@@ -228,7 +229,9 @@ function humanaleVisualStudioSnapshot(){
   scene:{material:avatar.mode||'mixed',accent:$('#color')?.value||'cyan',environment:$('#environment')?.value||'auto',track:avatar.track!==false,animate:avatar.animate!==false,brainZoom:Number(avatar.zoomTarget||avatar.zoom)||1},
   regions:regions.map(region=>({id:region.id,status:region.status,activity:region.activity,message:region.message||region.lastEvent||''})),
   connections:connectionIds.filter(id=>snapshot.regions?.[id]).map(id=>({id,status:snapshot.regions[id].status})),
-  timeline:humanaleVisualEvents
+  timeline:humanaleVisualEvents,
+  skills:Object.values(skillSnapshot.skills||{}),
+  skillCounts:skillSnapshot.counts||{}
  };
 }
 const humanaleVisualStudio=createHumanALEVisualStudio({
@@ -237,11 +240,12 @@ const humanaleVisualStudio=createHumanALEVisualStudio({
  channel:panelChannel,
  isPanel:panelOnly,
  getSnapshot:humanaleVisualStudioSnapshot,
- onOpen:()=>showDialog('#humanaleVisualStudio'),
+ onOpen:()=>{showDialog('#humanaleVisualStudio');if(!panelOnly)refreshNaraSkillSnapshot(false);},
  onOpenAvatarStudio:()=>showDialog('#avatarStudio'),
  onSceneChange:(name,value)=>applyHumanALEVisualScene(name,value),
  onRegionSelect:region=>selectHumanALEVisualRegion(region),
  onTestScenario:scenario=>runHumanALEVisualTest(scenario),
+ onRefresh:force=>refreshNaraSkillSnapshot(force),
  onToast:text=>toast(text)
 });
 avatar.onFrame=frame=>{
@@ -253,6 +257,17 @@ avatar.onFrame=frame=>{
  humanaleVisualStudio.render(humanaleVisualStudioSnapshot());
  panelChannel?.postMessage(humanaleVisualStudio.syncPayload());
 };
+async function refreshNaraSkillSnapshot(force=false){
+ if(panelOnly||!desktop?.naraSkillSnapshot)return latestNaraSkillSnapshot;
+ const result=await desktop.naraSkillSnapshot(Boolean(force));
+ if(result?.skills){
+  latestNaraSkillSnapshot=result.skills;
+  const payload=humanaleVisualStudio.syncPayload();
+  humanaleVisualStudio.render(payload.snapshot);
+  panelChannel?.postMessage(payload);
+ }
+ return latestNaraSkillSnapshot;
+}
 async function runHumanALEVisualTest(scenario){
  if(!desktop?.naraTestScenario)return {error:'Controlled Test Lab hanya tersedia pada HumanALE Desktop.',scenario,trace:[]};
  const result=await desktop.naraTestScenario(scenario);
@@ -968,7 +983,7 @@ if(panelChannel)panelChannel.onmessage=event=>{
  if(data.type==='emotion-choice'&&!panelOnly){emotionChoice=data.value==='auto'||emotions.includes(data.value)?data.value:'auto';$('#emotion').value=emotionChoice;return;}
  if(data.type==='evolution'&&!panelOnly){setEvolutionVisual(data.mode==='complete'?'complete':data.mode==='start'?'start':'stop');return;}
  if(data.type==='wake-status'&&panelOnly){wakeEnabled=Boolean(data.enabled);setWakeStatus(String(data.text||''),Boolean(data.active));return;}
- if(data.type==='panel-ready'&&!panelOnly){setWakeStatus($('#wakeIndicator').textContent,$('#wakeIndicator').dataset.active==='true');setPersona(aiProvider);panelChannel?.postMessage({type:'setting',name:'brainZoom',value:avatar.zoomTarget||1});panelChannel?.postMessage(avatarStudio.syncPayload());panelChannel?.postMessage(humanaleVisualStudio.syncPayload());return;}
+ if(data.type==='panel-ready'&&!panelOnly){setWakeStatus($('#wakeIndicator').textContent,$('#wakeIndicator').dataset.active==='true');setPersona(aiProvider);panelChannel?.postMessage({type:'setting',name:'brainZoom',value:avatar.zoomTarget||1});panelChannel?.postMessage(avatarStudio.syncPayload());refreshNaraSkillSnapshot(false).catch(()=>{}).finally(()=>panelChannel?.postMessage(humanaleVisualStudio.syncPayload()));return;}
  if(panelOnly)return;
  if(data.type==='avatar-size'){applyAvatarSize(data.size);return;}
  if(data.type==='mode'){setMode(data.mode);return;}
@@ -991,6 +1006,7 @@ if(!panelOnly){
  desktop?.onNaraVoice?.(cue=>enqueueNaraVoice(cue));
  desktop?.onNaraState?.(snapshot=>syncNaraBrainState(snapshot));
  if(desktop?.naraSnapshot)desktop.naraSnapshot().then(result=>{if(result?.state)syncNaraBrainState(result.state);}).catch(()=>{});
+ if(desktop?.naraSkillSnapshot)refreshNaraSkillSnapshot(false).catch(()=>{});
  desktop?.onGlobalPointer?.(point=>{if(!point||drag)return;avatar.gazePointer={x:Math.max(-1,Math.min(1,Number(point.x)||0)),y:Math.max(-1,Math.min(1,Number(point.y)||0))};avatar.gazeActive=true;});
  desktop?.onBackdrop?.(grid=>avatar.setBackdrop?.(grid));
 }
