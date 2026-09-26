@@ -302,7 +302,7 @@ export class OpenAiProvider
     }
 
     const data =
-      await response.json()
+      (await response.json())
         as OpenAiResponse;
 
     if (
