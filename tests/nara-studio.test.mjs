@@ -734,7 +734,7 @@ test('Stage 4 reduces idle root clutter while preserving active route emphasis',
   const scene=await readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8');
 
   assert.match(scene,/link\.targetIntensity=link\.selected\?1:link\.active\?\.72:\.032/);
-  assert.match(scene,/link\.sheath\.material\.opacity=\(\.028\+energy\*\.145/);
+  assert.match(scene,/link\.sheath\.material\.opacity=\(\.018\+energy\*\.118/);
   assert.match(scene,/const visible=energy>\.20\|\|link\.selected\|\|link\.active/);
   assert.match(scene,/new THREE\.SphereGeometry\(\.88,36,26\)/);
   assert.match(scene,/const haloSize=isCore\?3\.50:2\.05/);
