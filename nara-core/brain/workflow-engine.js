@@ -6,7 +6,8 @@ export const NARA_WORKFLOW_LIMITS=Object.freeze({
  maxGoalLength:240,
  maxLabelLength:120,
  maxResultLength:320,
- maxRetries:2
+ maxRetries:2,
+ maxHistory:32
 });
 
 export const NARA_WORKFLOW_STATES=Object.freeze([
@@ -180,10 +181,26 @@ export class NaraWorkflowEngine{
   this.workflow=null;
   this.granted=new Set();
   this.skillSnapshot=null;
+  this.history=[];
+  this.checkpoints=[];
   return this.snapshot();
  }
 
+ record(event,payload={}){
+  const item=Object.freeze({
+   event:String(event||'').slice(0,80),
+   timestamp:this.clock(),
+   workflowId:String(payload.workflowId||this.workflow?.id||'').slice(0,40),
+   stepId:String(payload.stepId||'').slice(0,40),
+   skill:String(payload.skill||'').slice(0,48),
+   reason:String(payload.reason||'').slice(0,120)
+  });
+  this.history=[...this.history,item].slice(-NARA_WORKFLOW_LIMITS.maxHistory);
+  return item;
+ }
+
  emit(event,payload={}){
+  this.record(event,payload);
   if(this.bus?.emit)this.bus.emit(event,payload,{source:'nara-workflow'});
  }
 
@@ -195,6 +212,8 @@ export class NaraWorkflowEngine{
   const steps=Object.fromEntries(plan.steps.map(step=>[step.id,{
    ...step,status:'queued',blockers:[],attempts:0,startedAt:0,finishedAt:0,result:''
   }]));
+  this.history=[];
+  this.checkpoints=[];
   this.workflow={
    id,goal:plan.goal,mode:plan.mode,state:'planned',
    createdAt:now,startedAt:0,finishedAt:0,
@@ -260,6 +279,7 @@ export class NaraWorkflowEngine{
  refresh(skillSnapshot=this.skillSnapshot){
   if(!this.workflow)return this.snapshot();
   this.skillSnapshot=skillSnapshot||{};
+  const previousState=this.workflow.state;
   const steps=this.workflow.steps;
   for(const id of this.workflow.order){
    const step=steps[id];
@@ -275,6 +295,10 @@ export class NaraWorkflowEngine{
    else if(c.verifying)this.workflow.state='verifying';
    else if(c.running||c.ready)this.workflow.state='running';
    else this.workflow.state='blocked';
+  }
+  if(previousState!==this.workflow.state){
+   if(this.workflow.state==='blocked')this.emit('workflow.blocked',{workflowId:this.workflow.id,reason:'no-ready-step'});
+   else if(previousState==='blocked'&&this.workflow.state==='running')this.emit('workflow.resumed',{workflowId:this.workflow.id});
   }
   return this.snapshot();
  }
@@ -328,6 +352,11 @@ export class NaraWorkflowEngine{
   if(ok){
    step.status='complete';step.finishedAt=this.clock();
    if(message)step.result=bounded(message,NARA_WORKFLOW_LIMITS.maxResultLength);
+   this.checkpoints=[...this.checkpoints,Object.freeze({
+    stepId:id,skill:step.skill,attempt:step.attempts,
+    result:bounded(step.result,NARA_WORKFLOW_LIMITS.maxResultLength),
+    timestamp:step.finishedAt
+   })].slice(-NARA_WORKFLOW_LIMITS.maxSteps);
    this.workflow.lastEvent='workflow.verify.complete';
    this.emit('workflow.verify.complete',{workflowId:this.workflow.id,stepId:id,skill:step.skill,ok:true});
    this.refresh(skillSnapshot);
@@ -379,9 +408,47 @@ export class NaraWorkflowEngine{
   this.emit('workflow.complete',{workflowId:this.workflow.id,goal:this.workflow.goal});
  }
 
+ queue(){
+  if(!this.workflow)return Object.freeze({active:null,next:null,ready:Object.freeze([]),blocked:Object.freeze([]),verifying:null});
+  const values=this.workflow.order.map(id=>this.workflow.steps[id]);
+  const active=values.find(step=>step.status==='running')||null;
+  const verifying=values.find(step=>step.status==='verifying')||null;
+  const ready=values.filter(step=>step.status==='ready').map(step=>step.id);
+  const blocked=values.filter(step=>step.status==='blocked').map(step=>Object.freeze({id:step.id,blockers:Object.freeze([...step.blockers])}));
+  return Object.freeze({
+   active:active?.id||null,
+   verifying:verifying?.id||null,
+   next:ready[0]||null,
+   ready:Object.freeze(ready),
+   blocked:Object.freeze(blocked)
+  });
+ }
+
+ report(){
+  const snapshot=this.snapshot();
+  if(!snapshot.workflow)return Object.freeze({controlledBy:'NARA_CORE',state:'idle',generatedAt:this.clock()});
+  const workflow=snapshot.workflow;
+  return Object.freeze({
+   controlledBy:'NARA_CORE',
+   executionBoundary:'NARA_CORE_ONLY',
+   generatedAt:this.clock(),
+   workflowId:workflow.id,
+   goal:workflow.goal,
+   mode:workflow.mode,
+   state:workflow.state,
+   progress:workflow.progress,
+   counts:workflow.counts,
+   queue:snapshot.queue,
+   permissions:snapshot.permissions,
+   checkpoints:snapshot.checkpoints
+  });
+ }
+
  snapshot(){
   if(!this.workflow)return Object.freeze({
-   version:1,controlledBy:'NARA_CORE',state:'idle',workflow:null,
+   version:1,controlledBy:'NARA_CORE',executionBoundary:'NARA_CORE_ONLY',state:'idle',workflow:null,
+   queue:Object.freeze({active:null,next:null,ready:Object.freeze([]),blocked:Object.freeze([]),verifying:null}),
+   history:Object.freeze([]),checkpoints:Object.freeze([]),
    permissions:Object.freeze({required:Object.freeze([]),granted:Object.freeze([]),missing:Object.freeze([])})
   });
   const c=counts(this.workflow.steps);
@@ -389,6 +456,7 @@ export class NaraWorkflowEngine{
   return Object.freeze({
    version:1,
    controlledBy:'NARA_CORE',
+   executionBoundary:'NARA_CORE_ONLY',
    state:this.workflow.state,
    workflow:Object.freeze({
     id:this.workflow.id,goal:this.workflow.goal,mode:this.workflow.mode,state:this.workflow.state,
@@ -399,6 +467,9 @@ export class NaraWorkflowEngine{
     order:Object.freeze([...this.workflow.order]),
     steps:Object.freeze(Object.fromEntries(this.workflow.order.map(id=>[id,Object.freeze(cloneStep(this.workflow.steps[id]))])))
    }),
+   queue:this.queue(),
+   history:Object.freeze([...this.history]),
+   checkpoints:Object.freeze([...this.checkpoints]),
    permissions:Object.freeze({
     required:Object.freeze(this.requiredPermissions()),
     granted:Object.freeze([...this.granted]),
