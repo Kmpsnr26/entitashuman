@@ -1,3 +1,4 @@
+# Realtime WebGL acceptance for NARA Neural Space
 name: NARA Neural Live Browser Smoke
 
 on:
