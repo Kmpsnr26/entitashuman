@@ -67,6 +67,10 @@ test('HumanALE Visual Studio UI and runtime wiring remain present',async()=>{
  assert.match(desktop,/HumanALE Visual Studio v2 scene controls tidak diterapkan ke renderer utama/);
  assert.match(desktop,/HumanALE Visual Studio v2 region map tidak tersinkron ke NARA Core/);
  assert.match(desktop,/HumanALE Visual Studio v2 performance history tidak menerima sampel bounded/);
+ assert.match(desktop,/HumanALE Visual Studio v3 controlled thinking test tidak selesai/);
+ assert.match(desktop,/HumanALE Visual Studio v3 tidak mengembalikan NARA ke IDLE\/ECO/);
+ assert.match(desktop,/HumanALE Visual Studio v3 Health Scan tidak menghasilkan pemeriksaan runtime/);
+ assert.match(desktop,/HumanALE Visual Studio v3 menerima skenario test di luar whitelist/);
  assert.match(style,/\/\* HumanALE Visual Studio \*\//);
  assert.match(style,/\/\* HumanALE Visual Studio v2 \*\//);
  assert.match(style,/\/\* HumanALE Visual Studio v3 \*\//);
@@ -76,5 +80,7 @@ test('HumanALE Visual Studio UI and runtime wiring remain present',async()=>{
  assert.match(module,/data-nara-test|\[data-nara-test\]/);
  assert.match(module,/testHistory=.*slice\(-12\)/);
  assert.match(module,/runHealthScan/);
+ assert.match(html,/data-nara-test="thinking"/);
+ assert.match(html,/data-nara-test="full"/);
  assert.doesNotMatch(module,/new HumanALEAvatar|new NeuralAvatar|createElement\(['"]canvas/);
 });
