@@ -119,6 +119,14 @@ jobs:
       - name: Install HumanALE dependencies
         run: npm ci
 
+      - name: Validate physical GPU acceptance wrappers
+        shell: pwsh
+        run: |
+          $source = Get-Content scripts/nara-neural-gpu-acceptance.ps1 -Raw
+          [scriptblock]::Create($source) | Out-Null
+          if (-not (Test-Path NARA-Neural-GPU-Acceptance.bat)) { throw "BAT wrapper missing" }
+          if (-not (Select-String -Path NARA-Neural-GPU-Acceptance.bat -Pattern "nara-neural-gpu-acceptance.ps1" -Quiet)) { throw "BAT wrapper target missing" }
+
       - name: Verify HumanALE tests and web build
         run: npm run verify
 
