@@ -66,13 +66,18 @@ Desktop configuration:
 
 `NARA_CLOUD_ORIGIN=https://your-nara-cloud-origin.example`
 
+`NARA_AUTH_ORIGIN=https://your-owner-auth-origin.example`
+
+If the Owner auth service shares the same origin as NARA Cloud, `NARA_AUTH_ORIGIN` may be left empty and the cloud origin is reused.
+
 Requirements:
 
-- bare origin only
+- both values are bare origins only
 - no username/password in URL
 - no path/query/hash
 - HTTPS required
 - HTTP is accepted only for loopback development (`localhost`, `127.0.0.1`, `::1`)
+- login-window navigation is restricted to the configured cloud/auth origins
 
 No NARA Cloud password, cookie, API token, or CSRF token is stored in `.env.example`.
 
@@ -174,7 +179,8 @@ The NARA Cloud login BrowserWindow:
 - has context isolation enabled
 - runs sandboxed
 - denies new popup windows
-- accepts only HTTPS navigation, plus loopback HTTP for development
+- permits navigation only to the exact configured NARA Cloud/Auth origins
+- rejects unrelated HTTPS origins instead of treating all HTTPS destinations as trusted
 - shares Electron's default session with the cloud API client
 - closes automatically once the Owner session and HumanALE bridge are available
 
