@@ -41,3 +41,25 @@ test('NARA Studio reset preserves standalone NARA operation',async t=>{
   assert.equal(reset.status,200);
   assert.equal(studio.nara.snapshot().lifecycle,'active');
 });
+
+
+test('NARA Studio serves the laboratory UI and streams live state over SSE',async t=>{
+  const studio=createNaraStudioServer({host:'127.0.0.1',port:0});
+  t.after(()=>studio.stop());
+  const address=await studio.start();
+  const base='http://127.0.0.1:'+address.port;
+
+  const page=await fetch(base+'/');
+  assert.equal(page.status,200);
+  assert.match(await page.text(),/NARA CORE LIVE STUDIO/);
+
+  const controller=new AbortController();
+  const stream=await fetch(base+'/api/stream',{signal:controller.signal});
+  assert.equal(stream.status,200);
+  assert.match(stream.headers.get('content-type')||'',/text\/event-stream/);
+  const reader=stream.body.getReader();
+  const first=await reader.read();
+  const text=new TextDecoder().decode(first.value||new Uint8Array());
+  assert.match(text,/event: state/);
+  controller.abort();
+});
