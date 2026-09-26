@@ -7,6 +7,7 @@ const {tmpdir}=require('node:os');
 const {spawn}=require('node:child_process');
 
 let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer;
+let cloudAllowedOrigins=new Set();
 let announceNaraEvent=()=>{};
 let baseWindowSize={width:420,height:480};
 let panelZoomFactor=1;
@@ -138,11 +139,8 @@ async function openPanel(view='controls'){
  catch(error){console.error('HumanALE god egine panel failed:',error);throw error;}
 }
 function safeCloudNavigation(value){
- try{
-  const url=new URL(value);
-  const local=['127.0.0.1','localhost','::1'].includes(url.hostname);
-  return url.protocol==='https:'||(local&&url.protocol==='http:');
- }catch{return false;}
+ try{return cloudAllowedOrigins.has(new URL(value).origin);}
+ catch{return false;}
 }
 
 function publishGlobalPointer(){
@@ -160,20 +158,25 @@ if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
-  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
+  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
   const [{createOrchestrator},{createVoiceFeedback}]=await Promise.all([import('../nara-core/brain/index.js'),import('../nara-core/voice/index.js')]);
   naraVoice=createVoiceFeedback();
   nara=createOrchestrator();
   nara.start();
   bridges={chatgpt:new ChatGPTBridge(),copilot:new CopilotBridge(),openai:new OpenAIBridge(),grok:new GrokBridge(),gemini:new GeminiBridge(),claude:new ClaudeBridge(),deepseek:new DeepSeekBridge(),askcodi:new AskCodiBridge()};
   try{
+   const cloudOrigin=normalizeOrigin(process.env.NARA_CLOUD_ORIGIN||'');
+   const authOrigin=normalizeOrigin(process.env.NARA_AUTH_ORIGIN||cloudOrigin);
+   if(!cloudOrigin&&authOrigin)throw new Error('NARA_AUTH_ORIGIN membutuhkan NARA_CLOUD_ORIGIN.');
+   cloudAllowedOrigins=new Set([cloudOrigin,authOrigin].filter(Boolean));
    cloudMemory=new NaraCloudContextClient({
-    origin:process.env.NARA_CLOUD_ORIGIN||'',
+    origin:cloudOrigin,
     fetchImpl:(input,init)=>session.defaultSession.fetch(input,init),
     validateMemoryContext
    });
   }catch(error){
    console.error('[NARA CLOUD BRIDGE CONFIG]',error.message);
+   cloudAllowedOrigins=new Set();
    cloudMemory=new NaraCloudContextClient({origin:''});
   }
   agentHub=new DeveloperAgentHub();
