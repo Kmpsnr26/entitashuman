@@ -271,6 +271,22 @@ test(
 
     assert.match(
       main,
+      /NARA_AUTH_ORIGIN/
+    );
+
+    assert.match(
+      main,
+      /cloudAllowedOrigins/
+    );
+
+    assert.match(
+      main,
+      /cloudAllowedOrigins\.has\(new URL\(value\)\.origin\)/
+    );
+
+
+    assert.match(
+      main,
       /session\.defaultSession\.fetch/
     );
 
