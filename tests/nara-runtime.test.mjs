@@ -8,6 +8,8 @@ test('Electron preload exposes only the narrow NARA runtime bridge',async()=>{
   const preload=await readFile(new URL('desktop/preload.cjs',root),'utf8');
   assert.match(preload,/naraSnapshot:\(\)=>ipcRenderer\.invoke\('dudidam:nara-snapshot'\)/);
   assert.match(preload,/naraDispatch:\(event,payload=\{\}\)=>ipcRenderer\.invoke\('dudidam:nara-dispatch'/);
+  assert.match(preload,/naraTestScenarios:\(\)=>ipcRenderer\.invoke\('dudidam:nara-test-scenarios'\)/);
+  assert.match(preload,/naraTestScenario:scenario=>ipcRenderer\.invoke\('dudidam:nara-test-scenario'/);
   assert.match(preload,/onNaraState:callback/);
 });
 
@@ -18,6 +20,10 @@ test('Electron main owns and starts the NARA orchestrator with renderer event al
   assert.match(main,/nara\.start\(\)/);
   assert.match(main,/NARA_RENDERER_EVENTS=new Set\(\['hearing\.start','hearing\.stop','audio\.energy','vision\.frame','vision\.stop','speech\.start','speech\.energy','speech\.stop','brain\.region\.select'\]\)/);
   assert.match(main,/Event NARA tidak diizinkan dari renderer/);
+  assert.match(main,/dudidam:nara-test-scenario/);
+  assert.match(main,/Controlled test hanya boleh dimulai saat NARA idle/);
+  assert.match(main,/getHumanALETestScenario/);
+  assert.match(main,/naraVisualTestRunning/);
   assert.match(main,/app\.on\('before-quit'.*nara\?\.stop/s);
 });
 
@@ -65,4 +71,12 @@ test('NARA-owned HumanALE policy drives adaptive renderer mode',async()=>{
   assert.match(engine,/setRenderPolicy\(value = 'active'\)/);
   assert.match(engine,/mode === 'eco' \? 1000 \/ 20/);
   assert.match(engine,/mode === 'balanced' \? 1000 \/ 30 : 1000 \/ 60/);
+});
+
+
+test('Visual Studio test lab cannot use the generic renderer event allowlist for internal diagnostic events',async()=>{
+  const main=await readFile(new URL('desktop/main.cjs',root),'utf8');
+  const allowlist=main.match(/NARA_RENDERER_EVENTS=new Set\(\[([^\]]+)\]\)/)?.[1]||'';
+  for(const internalEvent of ['reason.start','error.detected','diagnostic.reset','work.start'])assert.doesNotMatch(allowlist,new RegExp(internalEvent.replace('.','\\.')));
+  assert.match(main,/getHumanALETestScenario\(value\?\.scenario\)/);
 });
