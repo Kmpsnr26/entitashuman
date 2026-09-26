@@ -3,6 +3,7 @@ import {createBrainState} from './brain-state.js';
 import {isRegionId} from './regions.js';
 import {createSkillSnapshot} from './skill-registry.js';
 import {createWorkflowEngine} from './workflow-engine.js';
+import {createAuthorityPolicy} from './authority-policy.js';
 
 const connectionEvents=Object.freeze({
   GITHUB:['github.connected','github.disconnected'],
@@ -20,6 +21,7 @@ export class NaraOrchestrator{
     this.running=false;
     this.unsubscribe=null;
     this.workflow=createWorkflowEngine({bus:this.bus});
+    this.authority=createAuthorityPolicy();
   }
 
   start(){
@@ -126,6 +128,14 @@ export class NaraOrchestrator{
 
   workflowReport(){
     return this.workflow.report();
+  }
+
+  authoritySnapshot(){
+    return this.authority.snapshot();
+  }
+
+  advanceAuthorityPhase(next,options={}){
+    return this.authority.advancePhase(next,options);
   }
 
   snapshot(){return this.state.snapshot();}
