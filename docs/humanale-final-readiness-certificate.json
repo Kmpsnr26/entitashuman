@@ -1,0 +1,105 @@
+{
+  "protocol": "humanale-final-readiness/1",
+  "certificateVersion": 1,
+  "finalState": "LOCKED",
+  "integrationUnlocked": false,
+  "build": {
+    "version": "2.5.0",
+    "commit": "69bdf34da732c982484a88e103cdf52fd4bcab8c",
+    "branch": "codex/release-2.5.0-final-candidate"
+  },
+  "issuedAt": 1790467200000,
+  "creatorApproval": {
+    "approved": false,
+    "by": "",
+    "note": "Final HumanALE↔Nara Core integration remains locked pending technical readiness and explicit creator approval.",
+    "timestamp": 0
+  },
+  "gates": [
+    {
+      "id": "runtime-core",
+      "status": "pass",
+      "required": true,
+      "source": "github-actions",
+      "note": "HumanALE root tests/build, packaged desktop smoke, NARA Cloud Verify and CodeQL are green on the release-candidate line.",
+      "timestamp": 1790465100000
+    },
+    {
+      "id": "visual-avatar",
+      "status": "pass",
+      "required": true,
+      "source": "operator-windows-real-test",
+      "note": "Operator real-device evidence reports visual-motion PASS.",
+      "timestamp": 1790465462000
+    },
+    {
+      "id": "voice-sensors",
+      "status": "pass",
+      "required": true,
+      "source": "operator-windows-real-test",
+      "note": "Operator real-device evidence reports Indonesian microphone/STT/TTS/Wake ALE PASS.",
+      "timestamp": 1790465463328
+    },
+    {
+      "id": "live-studio",
+      "status": "pass",
+      "required": true,
+      "source": "visual-studio+operator",
+      "note": "Visual Studio automated preflight and operator panel-interaction evidence are PASS.",
+      "timestamp": 1790465465215
+    },
+    {
+      "id": "performance-stability",
+      "status": "pending",
+      "required": true,
+      "source": "release-readiness-issue-63",
+      "note": "Idle CPU/RAM re-measurement on the fixed installer remains required after 30–60 seconds with no interaction.",
+      "timestamp": 0
+    },
+    {
+      "id": "desktop-runtime",
+      "status": "pass",
+      "required": true,
+      "source": "github-actions+operator-windows-real-test",
+      "note": "Packaged desktop smoke passes and operator desktop-install evidence is PASS.",
+      "timestamp": 1790465466257
+    },
+    {
+      "id": "android-runtime",
+      "status": "pending",
+      "required": true,
+      "source": "release-readiness-issue-63",
+      "note": "Debug APK is green, but signed production Android release and real-device install validation remain open.",
+      "timestamp": 0
+    },
+    {
+      "id": "release-security",
+      "status": "pending",
+      "required": true,
+      "source": "release-readiness-issue-63",
+      "note": "CodeQL passes, but Windows Authenticode and Android production signing/release security requirements remain open.",
+      "timestamp": 0
+    },
+    {
+      "id": "integration-boundary",
+      "status": "pass",
+      "required": true,
+      "source": "regression-tests",
+      "note": "Final integration remains fail-closed; no HumanALE authority/workflow bridge is active.",
+      "timestamp": 1790465100000
+    }
+  ],
+  "summary": {
+    "total": 9,
+    "required": 9,
+    "pass": 6,
+    "fail": 0,
+    "blocked": 0,
+    "pending": 3
+  },
+  "blockers": [
+    "performance-stability:PENDING",
+    "android-runtime:PENDING",
+    "release-security:PENDING"
+  ]
+}
