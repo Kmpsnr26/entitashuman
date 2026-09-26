@@ -91,7 +91,10 @@ async function run(){
 
   try{
     await win.loadURL(url);
-    await waitFor(win,"document.getElementById('connection')?.textContent==='LIVE'");
+    await waitFor(win,"Boolean(document.getElementById('creatorGateway'))");
+    await waitFor(win,"Boolean(document.getElementById('creatorEnter')&&!document.getElementById('creatorAccessPanel')?.hidden)");
+    report.checks.creatorGatewayPassed=await evaluate(win,"(()=>{const button=document.getElementById('creatorEnter');if(!button)return false;button.click();return true;})()");
+    await waitFor(win,"document.getElementById('connection')?.textContent==='LIVE'",{timeout:18000});
     report.checks.liveConnection=true;
 
     report.moduleProbe=await evaluate(win,"(async()=>{const urls=['/neural-space.js','/vendor/three/three.module.js'];const result={};for(const url of urls){try{const res=await fetch(url);const text=await res.text();result[url]={ok:res.ok,status:res.status,contentType:res.headers.get('content-type'),length:text.length,prefix:text.slice(0,120)};}catch(error){result[url]={ok:false,error:error.message};}}return result;})()");
