@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('dudidamDesktop',Object.freeze({
  runAgent:payload=>ipcRenderer.invoke('dudidam:agent-run',payload),
  openAgent:id=>ipcRenderer.invoke('dudidam:agent-open',id),
  naraSnapshot:()=>ipcRenderer.invoke('dudidam:nara-snapshot'),
+ naraSkillSnapshot:force=>ipcRenderer.invoke('dudidam:nara-skill-snapshot',{force:Boolean(force)}),
  naraDispatch:(event,payload={})=>ipcRenderer.invoke('dudidam:nara-dispatch',{event,payload}),
  naraTestScenarios:()=>ipcRenderer.invoke('dudidam:nara-test-scenarios'),
  naraTestScenario:scenario=>ipcRenderer.invoke('dudidam:nara-test-scenario',{scenario}),
