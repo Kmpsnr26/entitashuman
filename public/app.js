@@ -209,7 +209,7 @@ let onlineSpeech,onlineSpeechUrl,speechGeneration=0,localTtsConfigured=false,loc
 let activeSpeechSource='',naraVoiceQueue=[],naraVoiceActive=false,naraVoiceDrainTimer,lastNaraSpeechSent=0;
 let voiceStyle=desktop?localStorage.getItem('dudidam-voice-style')||'baby-robot':'baby-robot',emotionChoice=desktop?localStorage.getItem('dudidam-emotion')||'auto':'auto',lastBandsSent=0;
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-let naraAudioBands={low:0,mid:0,high:0},lastNaraAudioSent=0;
+let naraAudioBands={low:0,mid:0,high:0},lastNaraAudioSent=0,lastNaraHearingActive=null;
 function syncNaraHearing(){
  if(panelOnly||!desktop?.naraDispatch)return;
  const now=performance.now();if(now-lastNaraAudioSent<100)return;lastNaraAudioSent=now;
@@ -274,10 +274,22 @@ function updateBrainNodeInfo(regionId=selectedBrainRegion){
  $('#brainNodeMessage').textContent=String(region.message||region.lastEvent||'Region siap menerima aktivitas NARA.');
  panel.hidden=Math.max(avatar.zoom||1,avatar.zoomTarget||1)<2.2;
 }
+function naraHumanALEPolicy(){
+ const policy=latestNaraBrainState?.humanale;
+ return desktop&&policy?.controlledBy==='NARA_CORE'?policy:null;
+}
+function applyNaraHumanALEPolicy(policy=naraHumanALEPolicy()){
+ if(!policy)return null;
+ const applied=avatar.applyNaraPolicy?.(policy)||policy;
+ const next=applied.state||'idle';
+ const label=next==='idle'?'Ready':next==='listening'?'Listening':next==='thinking'?'Thinking':next==='speaking'?'Speaking':next==='processing'?'Processing':'Attention';
+ assistantPopup.setStatus(next,label);
+ return applied;
+}
 function syncNaraBrainState(snapshot){
  if(!snapshot||typeof snapshot!=='object')return;
  latestNaraBrainState=snapshot;selectedBrainRegion=snapshot.selectedRegion||selectedBrainRegion;
- avatar.setBrainState?.(snapshot);updateBrainNodeInfo(selectedBrainRegion);
+ avatar.setBrainState?.(snapshot);applyNaraHumanALEPolicy(snapshot.humanale);updateBrainNodeInfo(selectedBrainRegion);
 }
 function applyBrainZoom(value,forward=true){
  const zoom=Math.max(1,Math.min(3.8,Number(value)||1));
@@ -303,6 +315,8 @@ function resolveAvatarState(text=''){
  return 'idle';
 }
 function syncAvatarPresentation(text=''){
+ const policy=naraHumanALEPolicy();
+ if(policy){applyNaraHumanALEPolicy(policy);return;}
  const next=resolveAvatarState(text);
  avatar.setState?.(next);
  const label=next==='idle'?'Ready':next==='listening'?'Listening':next==='thinking'?'Thinking':next==='speaking'?'Speaking':next==='processing'?'Processing':'Attention';
@@ -312,12 +326,12 @@ function state(text=''){
  $('#state').textContent=text;
  $('#state').hidden=!text;
  $('#conversationState').textContent=text||'Siap';
- avatar.thinking=busy;
+ if(!naraHumanALEPolicy())avatar.thinking=busy;
  syncAvatarPresentation(text);
 }
 const chatMicIcon='<svg class="mic-icon" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14.5a3.25 3.25 0 0 0 3.25-3.25V6.25a3.25 3.25 0 1 0-6.5 0v5A3.25 3.25 0 0 0 12 14.5Zm-5.5-3.25a5.5 5.5 0 0 0 11 0M12 16.75V21m-3 0h6"/></svg>';
 const setChatMicLabel=label=>{$('#chatMic').innerHTML=chatMicIcon+'<span>'+label+'</span>';};
-function syncListeningVisual(){const active=Boolean(listening||wakeListening||micChecking||audioMode);avatar.setListening?.(active);syncAvatarPresentation($('#state')?.textContent||'');$('#mic').setAttribute('aria-busy',String(micChecking));$('#chatMic').setAttribute('aria-busy',String(micChecking));if(micChecking)setChatMicLabel('Memeriksa mikrofon');else if(!listening&&$('#chatMic').textContent.includes('Memeriksa'))setChatMicLabel('Dikte suara');}
+function syncListeningVisual(){const active=Boolean(listening||wakeListening||micChecking||audioMode);if(desktop?.naraDispatch&&active!==lastNaraHearingActive){lastNaraHearingActive=active;naraDispatch(active?'hearing.start':'hearing.stop').then(result=>{if(result?.state)syncNaraBrainState(result.state);}).catch(()=>{});}if(!naraHumanALEPolicy())avatar.setListening?.(active);syncAvatarPresentation($('#state')?.textContent||'');$('#mic').setAttribute('aria-busy',String(micChecking));$('#chatMic').setAttribute('aria-busy',String(micChecking));if(micChecking)setChatMicLabel('Memeriksa mikrofon');else if(!listening&&$('#chatMic').textContent.includes('Memeriksa'))setChatMicLabel('Dikte suara');}
 function applyEmotion(value,forward=true){
  const emotion=emotions.includes(value)?value:'neutral';
  avatar.setEmotion(emotion);
