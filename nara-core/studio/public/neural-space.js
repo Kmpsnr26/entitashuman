@@ -148,6 +148,147 @@ function makeGlowTexture(){
   return texture;
 }
 
+function makeGalacticBrainFrame(){
+  const group=new THREE.Group();
+  const materials=[];
+  const geometries=[];
+  const colors=[0x45dfff,0x687dff,0x55e7bd];
+
+  for(const side of [-1,1]){
+    for(let band=0;band<6;band++){
+      const points=[];
+      const y=-3.7+band*1.45;
+      const width=4.9-Math.abs(y)*.28;
+      const depth=3.2-Math.abs(y)*.12;
+      for(let i=0;i<=42;i++){
+        const angle=-Math.PI*.56+(i/42)*Math.PI*1.12;
+        const x=side*(1.0+Math.cos(angle)*width);
+        const z=Math.sin(angle)*depth;
+        const ripple=Math.sin(angle*3+band*.7)*.16;
+        points.push(new THREE.Vector3(x,y+ripple,z));
+      }
+      const curve=new THREE.CatmullRomCurve3(points,false,'centripetal',.45);
+      const sampled=curve.getPoints(72);
+      const geometry=new THREE.BufferGeometry().setFromPoints(sampled);
+      const material=new THREE.LineBasicMaterial({
+        color:colors[band%colors.length],
+        transparent:true,
+        opacity:.055+(band%3)*.012,
+        depthWrite:false,
+        blending:THREE.AdditiveBlending
+      });
+      const line=new THREE.Line(geometry,material);
+      line.userData.galacticBrainFrame=true;
+      group.add(line);
+      geometries.push(geometry);
+      materials.push(material);
+    }
+  }
+
+  for(let bridge=0;bridge<5;bridge++){
+    const y=-2.8+bridge*1.4;
+    const points=[
+      new THREE.Vector3(-1.25,y,-2.4),
+      new THREE.Vector3(-.55,y+.18,-.7),
+      new THREE.Vector3(0,y+.28,0),
+      new THREE.Vector3(.55,y+.18,.7),
+      new THREE.Vector3(1.25,y,2.4)
+    ];
+    const curve=new THREE.CatmullRomCurve3(points,false,'centripetal',.5);
+    const geometry=new THREE.BufferGeometry().setFromPoints(curve.getPoints(48));
+    const material=new THREE.LineBasicMaterial({
+      color:0x93f4ff,transparent:true,opacity:.05,depthWrite:false,
+      blending:THREE.AdditiveBlending
+    });
+    group.add(new THREE.Line(geometry,material));
+    geometries.push(geometry);
+    materials.push(material);
+  }
+
+  group.scale.set(1.16,1.02,1.12);
+  group.rotation.y=.12;
+  group.userData={materials,geometries};
+  return group;
+}
+
+function makeAuroraRibbon({y=0,z=-5,color=0x48ddff,phase=0}={}){
+  const segments=36;
+  const positions=[];
+  const indices=[];
+  for(let i=0;i<=segments;i++){
+    const u=i/segments;
+    const x=(u-.5)*18;
+    const wave=Math.sin(u*Math.PI*2.15+phase)*1.15+Math.sin(u*Math.PI*5+phase*.7)*.26;
+    const centerY=y+wave;
+    const width=.45+.32*Math.sin(u*Math.PI);
+    positions.push(x,centerY-width,z+.35*Math.sin(u*Math.PI*2+phase));
+    positions.push(x,centerY+width,z-.35*Math.sin(u*Math.PI*2+phase));
+    if(i<segments){
+      const base=i*2;
+      indices.push(base,base+1,base+2,base+1,base+3,base+2);
+    }
+  }
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+  geometry.setIndex(indices);
+  geometry.computeBoundingSphere();
+  const material=new THREE.MeshBasicMaterial({
+    color,transparent:true,opacity:.055,depthWrite:false,side:THREE.DoubleSide,
+    blending:THREE.AdditiveBlending
+  });
+  const mesh=new THREE.Mesh(geometry,material);
+  mesh.userData={phase};
+  return mesh;
+}
+
+function makeAuroraField(){
+  const group=new THREE.Group();
+  const ribbons=[
+    makeAuroraRibbon({y:2.8,z:-6.5,color:0x46dfff,phase:.2}),
+    makeAuroraRibbon({y:.6,z:-7.4,color:0x7869ff,phase:1.7}),
+    makeAuroraRibbon({y:-2.0,z:-6.9,color:0x4ce6b4,phase:3.1})
+  ];
+  for(const ribbon of ribbons)group.add(ribbon);
+  group.rotation.y=-.16;
+  group.userData.ribbons=ribbons;
+  return group;
+}
+
+function makeNebulaField(glowTexture){
+  const group=new THREE.Group();
+  const specs=[
+    [-6,3,-10,0x3bdfff,10,.07],
+    [6,1,-11,0x725fff,11,.055],
+    [1,-4,-9,0x46e8b2,9,.045],
+    [-2,5,-13,0xb0f8ff,8,.035]
+  ];
+  const sprites=[];
+  for(const [x,y,z,color,size,opacity] of specs){
+    const material=new THREE.SpriteMaterial({
+      map:glowTexture,color,transparent:true,opacity,depthWrite:false,
+      blending:THREE.AdditiveBlending
+    });
+    const sprite=new THREE.Sprite(material);
+    sprite.position.set(x,y,z);
+    sprite.scale.set(size,size,1);
+    group.add(sprite);
+    sprites.push(sprite);
+  }
+  group.userData.sprites=sprites;
+  return group;
+}
+
+function disposeDecorativeGroup(group){
+  if(!group)return;
+  group.traverse(object=>{
+    if(object.geometry)object.geometry.dispose();
+    if(object.material){
+      const list=Array.isArray(object.material)?object.material:[object.material];
+      for(const material of list)material.dispose();
+    }
+  });
+}
+
 function organicCurve(from,to,key){
   const start=from.clone();
   const end=to.clone();
@@ -236,7 +377,11 @@ export class Neural3DScene{
     this.stars=makeStarField();
     this.dust=makeDustField();
     this.glowTexture=makeGlowTexture();
-    this.scene.add(this.stars,this.dust);
+    this.galacticFrame=makeGalacticBrainFrame();
+    this.aurora=makeAuroraField();
+    this.nebula=makeNebulaField(this.glowTexture);
+    this.world.add(this.galacticFrame);
+    this.scene.add(this.stars,this.dust,this.aurora,this.nebula);
 
     this.scene.add(new THREE.HemisphereLight(0x7deeff,0x031017,1.3));
     const key=new THREE.PointLight(0x65eaff,12,26,2);
@@ -386,14 +531,24 @@ export class Neural3DScene{
   applyQuality(level){
     this.effectiveQuality=QUALITY_ORDER.includes(level)?level:'balanced';
     const config={
-      high:{pixel:1.8,scale:1,fog:.030,dust:true},
-      balanced:{pixel:1.35,scale:.8,fog:.033,dust:true},
-      low:{pixel:1,scale:.55,fog:.037,dust:false}
+      high:{pixel:1.8,scale:1,fog:.028,dust:true,aurora:true,nebula:true,frame:.9},
+      balanced:{pixel:1.35,scale:.8,fog:.031,dust:true,aurora:true,nebula:true,frame:.68},
+      low:{pixel:1,scale:.55,fog:.036,dust:false,aurora:false,nebula:false,frame:.42}
     }[this.effectiveQuality];
     this.qualityScale=config.scale;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,config.pixel));
     this.scene.fog.density=config.fog;
     if(this.dust)this.dust.visible=config.dust;
+    if(this.aurora)this.aurora.visible=config.aurora;
+    if(this.nebula)this.nebula.visible=config.nebula;
+    if(this.galacticFrame){
+      this.galacticFrame.visible=true;
+      for(const material of this.galacticFrame.userData.materials||[]){
+        const base=material.userData.baseOpacity??material.opacity;
+        material.userData.baseOpacity=base;
+        material.opacity=base*config.frame;
+      }
+    }
     this.resize();
     this.emitMetrics();
   }
@@ -572,7 +727,7 @@ export class Neural3DScene{
 
       const isCore=region.id==='NARA_CORE';
       const geometry=isCore
-        ?new THREE.SphereGeometry(1.18,40,30)
+        ?new THREE.SphereGeometry(.98,36,26)
         :new THREE.IcosahedronGeometry(region.group==='connection'?.46:.58,2);
       const base=statusColor(region.defaultStatus,region.group);
       const material=new THREE.MeshStandardMaterial({
@@ -584,7 +739,7 @@ export class Neural3DScene{
       group.add(mesh);
 
       const shellGeometry=isCore
-        ?new THREE.SphereGeometry(1.52,26,20)
+        ?new THREE.SphereGeometry(1.30,24,18)
         :new THREE.IcosahedronGeometry(region.group==='connection'?.64:.78,1);
       const shell=new THREE.Mesh(shellGeometry,new THREE.MeshBasicMaterial({
         color:base,wireframe:true,transparent:true,opacity:isCore?.2:.1,depthWrite:false
@@ -597,7 +752,7 @@ export class Neural3DScene{
         opacity:isCore?.22:.08,depthWrite:false,
         blending:THREE.AdditiveBlending
       }));
-      const haloSize=isCore?4.6:2.2;
+      const haloSize=isCore?3.85:2.05;
       halo.scale.set(haloSize,haloSize,1);
       group.add(halo);
 
@@ -653,7 +808,7 @@ export class Neural3DScene{
       const toState=this.state.regions?.[link.to]||{};
       link.selected=Boolean(this.selected&&(link.from===this.selected||link.to===this.selected));
       link.active=ACTIVE_STATUSES.has(fromState.status)||ACTIVE_STATUSES.has(toState.status);
-      link.targetIntensity=link.selected?1:link.active?.7:.075;
+      link.targetIntensity=link.selected?1:link.active?.72:.032;
 
       const selectedPeer=link.from===this.selected?link.to:link.to===this.selected?link.from:null;
       const activeRegion=ACTIVE_STATUSES.has(toState.status)?link.to:ACTIVE_STATUSES.has(fromState.status)?link.from:selectedPeer;
@@ -800,11 +955,11 @@ export class Neural3DScene{
       const energy=Math.min(1.6,link.intensity+link.pulse*.72+link.routePulse*1.05);
       const breathing=.5+.5*Math.sin(t*(1.1+link.phase*.55)+link.phase*Math.PI*2);
 
-      link.sheath.material.opacity=(.07+energy*.16+breathing*.018)*this.qualityScale;
-      link.core.material.opacity=(.025+energy*.48)*this.qualityScale;
-      link.glow.material.opacity=(.008+energy*.115)*this.qualityScale;
+      link.sheath.material.opacity=(.028+energy*.145+breathing*.012)*this.qualityScale;
+      link.core.material.opacity=(.010+energy*.46)*this.qualityScale;
+      link.glow.material.opacity=(.003+energy*.105)*this.qualityScale;
 
-      const visible=energy>.16||link.selected||link.active;
+      const visible=energy>.20||link.selected||link.active;
       link.packet.visible=visible;
       link.halo.visible=visible;
       if(!visible)continue;
@@ -910,17 +1065,31 @@ export class Neural3DScene{
         entry.mesh.material.emissiveIntensity=.7+entry.pulse*1.2;
       }
 
-      const haloBase=core?.2:.065;
+      const haloBase=core?.17:.055;
       entry.halo.material.opacity=(haloBase+entry.pulse*.18+(id===this.selected?.12:0))*this.qualityScale;
-      const haloScale=(core?4.6:2.2)*(1+entry.pulse*.16+(core?Math.sin(t*1.2)*.025:0));
+      const haloScale=(core?3.85:2.05)*(1+entry.pulse*.16+(core?Math.sin(t*1.2)*.025:0));
       entry.halo.scale.set(haloScale,haloScale,1);
     }
 
     this.animateLinks(t);
     this.animateRoutes(delta,t);
-    this.stars.rotation.y=t*.0025*this.motionScale;
-    this.dust.rotation.x=t*.004*this.motionScale;
-    this.dust.rotation.y=-t*.003*this.motionScale;
+    this.stars.rotation.y=t*.0022*this.motionScale;
+    this.dust.rotation.x=t*.0035*this.motionScale;
+    this.dust.rotation.y=-t*.0028*this.motionScale;
+    if(this.galacticFrame){
+      this.galacticFrame.rotation.y=.12+Math.sin(t*.11)*.025*this.motionScale;
+      this.galacticFrame.rotation.z=Math.sin(t*.08)*.012*this.motionScale;
+    }
+    if(this.aurora?.visible){
+      this.aurora.rotation.z=Math.sin(t*.07)*.035*this.motionScale;
+      this.aurora.position.y=Math.sin(t*.16)*.16*this.motionScale;
+      for(const [index,ribbon] of (this.aurora.userData.ribbons||[]).entries()){
+        ribbon.material.opacity=(.032+.022*Math.sin(t*.32+index*1.8))*this.qualityScale;
+      }
+    }
+    if(this.nebula?.visible){
+      this.nebula.rotation.z=t*.0012*this.motionScale;
+    }
     const activeRoutes=this.routePackets.filter(packet=>packet.active).length;
     const targetExposure=1.08+Math.min(.18,activeRoutes*.012);
     this.renderer.toneMappingExposure+=(targetExposure-this.renderer.toneMappingExposure)*.04;
@@ -954,6 +1123,11 @@ export class Neural3DScene{
     this.stars.material.dispose();
     this.dust.geometry.dispose();
     this.dust.material.dispose();
+    disposeDecorativeGroup(this.galacticFrame);
+    disposeDecorativeGroup(this.aurora);
+    disposeDecorativeGroup(this.nebula);
+    this.world.remove(this.galacticFrame);
+    this.scene.remove(this.aurora,this.nebula);
     this.timer.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
