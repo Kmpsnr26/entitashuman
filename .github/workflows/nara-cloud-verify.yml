@@ -23,6 +23,10 @@ on:
       - "desktop/**"
       - "public/**"
       - "tests/**"
+      - "nara-core/studio/**"
+      - "scripts/nara-neural-live-smoke.cjs"
+      - "scripts/nara-neural-gpu-acceptance.ps1"
+      - "NARA-Neural-GPU-Acceptance.bat"
       - "package.json"
       - "package-lock.json"
       - ".env.example"
@@ -130,6 +134,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
+      NARA_GPU_MODE: "software"
       LIBGL_ALWAYS_SOFTWARE: "1"
       ELECTRON_ENABLE_LOGGING: "1"
 
