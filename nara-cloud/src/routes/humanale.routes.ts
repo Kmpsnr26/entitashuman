@@ -92,6 +92,15 @@ const ContextRequestSchema =
     conversationId:
       z.string()
         .uuid()
+        .optional(),
+
+    entryIds:
+      z.array(
+        z.string()
+          .uuid()
+      )
+        .min(1)
+        .max(6)
         .optional()
   })
     .superRefine(
@@ -198,14 +207,15 @@ router.post(
       if (
         parsed.data.mode ===
           "ask" &&
-        parsed.data.approved !==
-          true
+        parsed.data.approved ===
+          true &&
+        !parsed.data.entryIds
       ) {
         return res
-          .status(409)
+          .status(400)
           .json({
             error:
-              "HUMANALE_CONTEXT_APPROVAL_REQUIRED"
+              "HUMANALE_CONTEXT_PREVIEW_REQUIRED"
           });
       }
 
@@ -229,8 +239,54 @@ router.post(
 
           conversationId:
             parsed.data
-              .conversationId
+              .conversationId,
+
+          entryIds:
+            parsed.data
+              .entryIds
         });
+
+      if (
+        parsed.data.mode ===
+          "ask" &&
+        parsed.data.approved !==
+          true
+      ) {
+        if (!context) {
+          return res.json({
+            preview:
+              null,
+            context:
+              null
+          });
+        }
+
+        return res.json({
+          preview: {
+            ...context,
+            approved:
+              false
+          },
+          context:
+            null
+        });
+      }
+
+      if (
+        parsed.data.mode ===
+          "ask" &&
+        parsed.data.approved ===
+          true &&
+        parsed.data.entryIds &&
+        !context
+      ) {
+        return res
+          .status(409)
+          .json({
+            error:
+              "HUMANALE_CONTEXT_STALE"
+          });
+      }
 
       if (context) {
         await audit({
