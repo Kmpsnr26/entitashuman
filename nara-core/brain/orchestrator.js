@@ -4,6 +4,7 @@ import {isRegionId} from './regions.js';
 import {createSkillSnapshot} from './skill-registry.js';
 import {createWorkflowEngine} from './workflow-engine.js';
 import {createAuthorityPolicy} from './authority-policy.js';
+import {evaluateNaraIntegrationReadiness,readinessCertificate} from './integration-readiness.js';
 
 const connectionEvents=Object.freeze({
   GITHUB:['github.connected','github.disconnected'],
@@ -136,6 +137,24 @@ export class NaraOrchestrator{
 
   advanceAuthorityPhase(next,options={}){
     return this.authority.advancePhase(next,options);
+  }
+
+  integrationReadiness({agents=[]}={}){
+    return evaluateNaraIntegrationReadiness({
+      brainState:this.snapshot(),
+      skillSnapshot:this.skillSnapshot(agents),
+      workflowSnapshot:this.workflowSnapshot(),
+      authoritySnapshot:this.authoritySnapshot()
+    });
+  }
+
+  integrationCertificate({agents=[]}={}){
+    return readinessCertificate({
+      brainState:this.snapshot(),
+      skillSnapshot:this.skillSnapshot(agents),
+      workflowSnapshot:this.workflowSnapshot(),
+      authoritySnapshot:this.authoritySnapshot()
+    });
   }
 
   snapshot(){return this.state.snapshot();}
