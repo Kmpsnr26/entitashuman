@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-let snapshot=null,regions={};
+let snapshot=null,regions={},telemetry=null;
 const connectionIds=['GITHUB','COPILOT','WEB','TEAM','PR','SYNC','ONLINE','OWNER_EMAIL','DRIVE'];
 const eventSelect=$('eventSelect');
 
@@ -63,6 +63,74 @@ function appendEvent(envelope){
   while($('events').children.length>100)$('events').lastChild.remove();
 }
 
+
+const phaseElements={
+  reason:['phaseReason','phaseReasonTime'],
+  plan:['phasePlan','phasePlanTime'],
+  agent:['phaseAgent','phaseAgentTime'],
+  program:['phaseProgram','phaseProgramTime'],
+  verify:['phaseVerify','phaseVerifyTime']
+};
+
+function formatDuration(ms){
+  if(ms===null||ms===undefined)return '—';
+  if(ms<1000)return Math.round(ms)+' ms';
+  return (ms/1000).toFixed(ms<10000?2:1)+' s';
+}
+
+function formatClock(ts){
+  return ts?new Date(ts).toLocaleTimeString('id-ID'):'—';
+}
+
+function renderTelemetry(data){
+  telemetry=data||{};
+  const decision=telemetry.decision||{};
+  const history=Array.isArray(decision.history)?decision.history:[];
+  $('decisionStatus').textContent=decision.status||'idle';
+  $('decisionCurrent').textContent=decision.currentStage?.toUpperCase()||'—';
+  $('decisionLabel').textContent=decision.currentLabel||'—';
+  $('decisionCompleted').textContent=String(decision.completedStages||0);
+  $('decisionFailed').textContent=String(decision.failedStages||0);
+
+  for(const [stage,[statusId,timeId]] of Object.entries(phaseElements)){
+    const active=decision.active?.[stage];
+    const last=[...history].reverse().find(item=>item.stage===stage);
+    const item=active||last;
+    const status=item?.status||'idle';
+    $(statusId).textContent=status;
+    $(timeId).textContent=item?.durationMs!==null&&item?.durationMs!==undefined
+      ?formatDuration(item.durationMs)
+      :(item?.startedAt?formatClock(item.startedAt):'—');
+    const card=document.querySelector('.phase-card[data-stage="'+stage+'"]');
+    if(card)card.className='phase-card p-'+status;
+  }
+
+  $('decisionHistory').innerHTML=[...history].reverse().slice(0,14).map(item=>
+    '<div class="trace-row"><time>'+escapeHtml(formatClock(item.endedAt||item.startedAt))+'</time>'+
+    '<strong>'+escapeHtml(item.stage.toUpperCase())+'</strong>'+
+    '<span>'+escapeHtml(item.status)+'</span>'+
+    '<span>'+escapeHtml(item.label||'')+'</span>'+
+    '<em>'+escapeHtml(formatDuration(item.durationMs))+'</em></div>'
+  ).join('')||'<div class="trace-empty">Belum ada decision trace.</div>';
+
+  const memory=telemetry.memory||{};
+  const counters=memory.counters||{};
+  $('memoryActivity').textContent=memory.active?'active':'idle';
+  $('memoryReadCount').textContent=String(counters.read||0);
+  $('memoryWriteCount').textContent=String(counters.write||0);
+  $('memoryUsedCount').textContent=String(counters.context_used||0);
+  $('memoryBlockedCount').textContent=String(counters.context_blocked||0);
+  $('memoryLastOperation').textContent=memory.lastOperation?.operation||'—';
+  $('memoryLastLabel').textContent=memory.lastOperation?.label||'No memory activity yet.';
+  const memoryHistory=Array.isArray(memory.history)?memory.history:[];
+  $('memoryHistory').innerHTML=[...memoryHistory].reverse().slice(0,16).map(item=>
+    '<div class="trace-row memory-row"><time>'+escapeHtml(formatClock(item.timestamp))+'</time>'+
+    '<strong>'+escapeHtml(item.operation)+'</strong>'+
+    '<span>'+escapeHtml(item.target||'—')+'</span>'+
+    '<span>'+escapeHtml(item.label||'')+'</span></div>'
+  ).join('')||'<div class="trace-empty">Belum ada aktivitas memory.</div>';
+}
+
 async function dispatch(event,payload={}){
   $('consoleLog').textContent='Dispatching '+event+' ...';
   const res=await fetch('/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event,payload})});
@@ -78,11 +146,13 @@ async function boot(){
   $('brainSummary').textContent=Object.keys(regions).length+' regions';
   eventSelect.innerHTML=(data.studio?.eventAllowlist||[]).map(e=>'<option>'+escapeHtml(e)+'</option>').join('');
   renderState(data.state);
+  renderTelemetry(data.telemetry);
   for(const event of data.events||[])appendEvent(event);
 
   const stream=new EventSource('/api/stream');
   stream.addEventListener('ready',()=>{$('connection').textContent='LIVE';$('connection').className='live';});
   stream.addEventListener('state',e=>renderState(JSON.parse(e.data)));
+  stream.addEventListener('telemetry',e=>renderTelemetry(JSON.parse(e.data)));
   stream.addEventListener('event',e=>appendEvent(JSON.parse(e.data)));
   stream.onerror=()=>{$('connection').textContent='RECONNECTING';$('connection').className='warn';};
 }
