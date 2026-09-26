@@ -1,10 +1,19 @@
 const $=id=>document.getElementById(id);
 let snapshot=null,regions={},telemetry=null,skillsSnapshot=null;
+let eventBuffer=[],eventPaused=false,replayTimer=null;
 const connectionIds=['GITHUB','COPILOT','WEB','TEAM','PR','SYNC','ONLINE','OWNER_EMAIL','DRIVE'];
 const eventSelect=$('eventSelect');
 
 function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
 function statusClass(status='idle'){return 's-'+String(status).replace(/[^a-z0-9_-]/gi,'');}
+function formatClock(ts){return ts?new Date(ts).toLocaleTimeString('id-ID'):'—';}
+function formatDuration(ms){
+  if(ms===null||ms===undefined)return '—';
+  if(ms<1000)return Math.round(ms)+' ms';
+  if(ms<60000)return (ms/1000).toFixed(ms<10000?2:1)+' s';
+  const min=Math.floor(ms/60000),sec=Math.floor((ms%60000)/1000);
+  return min+'m '+sec+'s';
+}
 
 function drawBrain(){
   const nodes=$('brainNodes'),svg=$('brainLines');
@@ -18,8 +27,7 @@ function drawBrain(){
     const el=document.createElement('button');
     const state=snapshot?.regions?.[region.id]||{};
     el.className='brain-node '+statusClass(state.status)+(snapshot?.selectedRegion===region.id?' selected':'');
-    el.style.left=x+'%';el.style.top=y+'%';
-    el.dataset.region=region.id;
+    el.style.left=x+'%';el.style.top=y+'%';el.dataset.region=region.id;
     el.innerHTML='<strong>'+escapeHtml(region.label)+'</strong><span>'+escapeHtml(state.status||'idle')+'</span>';
     el.onclick=()=>dispatch('brain.region.select',{region:region.id});
     nodes.appendChild(el);
@@ -54,16 +62,60 @@ function renderState(state){
   }).join('');
   drawBrain();
   if(skillsSnapshot)renderSkills(skillsSnapshot);
+  renderPerformance();
+}
+
+function matchingEvents(){
+  const filter=String($('eventFilter')?.value||'').trim().toLowerCase();
+  if(!filter)return eventBuffer;
+  return eventBuffer.filter(item=>{
+    const hay=(item.event+' '+JSON.stringify(item.payload||{})).toLowerCase();
+    return hay.includes(filter);
+  });
+}
+
+function renderEventItems(items){
+  const rows=[...items].reverse().slice(0,120).map(envelope=>{
+    const time=formatClock(envelope.timestamp||Date.now());
+    return '<div class="event-row"><time>'+escapeHtml(time)+'</time><strong>'+escapeHtml(envelope.event)+'</strong><span>'+escapeHtml(JSON.stringify(envelope.payload||{}))+'</span></div>';
+  });
+  $('events').innerHTML=rows.join('')||'<div class="trace-empty">Belum ada event.</div>';
+}
+
+function renderEventView(){
+  if(eventPaused||replayTimer)return;
+  renderEventItems(matchingEvents());
 }
 
 function appendEvent(envelope){
-  const row=document.createElement('div');row.className='event-row';
-  const time=new Date(envelope.timestamp||Date.now()).toLocaleTimeString('id-ID');
-  row.innerHTML='<time>'+time+'</time><strong>'+escapeHtml(envelope.event)+'</strong><span>'+escapeHtml(JSON.stringify(envelope.payload||{}))+'</span>';
-  $('events').prepend(row);
-  while($('events').children.length>100)$('events').lastChild.remove();
+  eventBuffer.push(envelope);
+  if(eventBuffer.length>250)eventBuffer.splice(0,eventBuffer.length-250);
+  renderEventView();
 }
 
+function stopReplay(){
+  if(replayTimer){clearInterval(replayTimer);replayTimer=null;}
+  $('replayEvents').textContent='Replay last 30';
+}
+
+function startReplay(){
+  stopReplay();
+  const sequence=matchingEvents().slice(-30);
+  if(!sequence.length)return;
+  eventPaused=true;
+  $('pauseEvents').textContent='Resume';
+  $('replayEvents').textContent='Stop replay';
+  let index=0,shown=[];
+  $('events').innerHTML='';
+  replayTimer=setInterval(()=>{
+    if(index>=sequence.length){
+      stopReplay();
+      return;
+    }
+    shown.push(sequence[index++]);
+    renderEventItems(shown);
+  },180);
+}
 
 const phaseElements={
   reason:['phaseReason','phaseReasonTime'],
@@ -72,16 +124,6 @@ const phaseElements={
   program:['phaseProgram','phaseProgramTime'],
   verify:['phaseVerify','phaseVerifyTime']
 };
-
-function formatDuration(ms){
-  if(ms===null||ms===undefined)return '—';
-  if(ms<1000)return Math.round(ms)+' ms';
-  return (ms/1000).toFixed(ms<10000?2:1)+' s';
-}
-
-function formatClock(ts){
-  return ts?new Date(ts).toLocaleTimeString('id-ID'):'—';
-}
 
 function renderTelemetry(data){
   telemetry=data||{};
@@ -96,26 +138,20 @@ function renderTelemetry(data){
   for(const [stage,[statusId,timeId]] of Object.entries(phaseElements)){
     const active=decision.active?.[stage];
     const last=[...history].reverse().find(item=>item.stage===stage);
-    const item=active||last;
-    const status=item?.status||'idle';
+    const item=active||last,status=item?.status||'idle';
     $(statusId).textContent=status;
-    $(timeId).textContent=item?.durationMs!==null&&item?.durationMs!==undefined
-      ?formatDuration(item.durationMs)
-      :(item?.startedAt?formatClock(item.startedAt):'—');
+    $(timeId).textContent=item?.durationMs!==null&&item?.durationMs!==undefined?formatDuration(item.durationMs):(item?.startedAt?formatClock(item.startedAt):'—');
     const card=document.querySelector('.phase-card[data-stage="'+stage+'"]');
     if(card)card.className='phase-card p-'+status;
   }
 
   $('decisionHistory').innerHTML=[...history].reverse().slice(0,14).map(item=>
     '<div class="trace-row"><time>'+escapeHtml(formatClock(item.endedAt||item.startedAt))+'</time>'+
-    '<strong>'+escapeHtml(item.stage.toUpperCase())+'</strong>'+
-    '<span>'+escapeHtml(item.status)+'</span>'+
-    '<span>'+escapeHtml(item.label||'')+'</span>'+
-    '<em>'+escapeHtml(formatDuration(item.durationMs))+'</em></div>'
+    '<strong>'+escapeHtml(item.stage.toUpperCase())+'</strong><span>'+escapeHtml(item.status)+'</span>'+
+    '<span>'+escapeHtml(item.label||'')+'</span><em>'+escapeHtml(formatDuration(item.durationMs))+'</em></div>'
   ).join('')||'<div class="trace-empty">Belum ada decision trace.</div>';
 
-  const memory=telemetry.memory||{};
-  const counters=memory.counters||{};
+  const memory=telemetry.memory||{},counters=memory.counters||{};
   $('memoryActivity').textContent=memory.active?'active':'idle';
   $('memoryReadCount').textContent=String(counters.read||0);
   $('memoryWriteCount').textContent=String(counters.write||0);
@@ -126,12 +162,30 @@ function renderTelemetry(data){
   const memoryHistory=Array.isArray(memory.history)?memory.history:[];
   $('memoryHistory').innerHTML=[...memoryHistory].reverse().slice(0,16).map(item=>
     '<div class="trace-row memory-row"><time>'+escapeHtml(formatClock(item.timestamp))+'</time>'+
-    '<strong>'+escapeHtml(item.operation)+'</strong>'+
-    '<span>'+escapeHtml(item.target||'—')+'</span>'+
+    '<strong>'+escapeHtml(item.operation)+'</strong><span>'+escapeHtml(item.target||'—')+'</span>'+
     '<span>'+escapeHtml(item.label||'')+'</span></div>'
   ).join('')||'<div class="trace-empty">Belum ada aktivitas memory.</div>';
+
+  renderDiagnostics(telemetry.diagnostics||{});
+  renderPerformance();
 }
 
+function renderDiagnostics(data){
+  const counters=data.counters||{};
+  $('bugStatus').textContent=data.status||'idle';
+  $('bugErrors').textContent=String(counters.errors||0);
+  $('bugDetected').textContent=String(counters.bugs||0);
+  $('bugFixed').textContent=String(counters.fixed||0);
+  $('bugVerified').textContent=String(counters.verified||0);
+  $('bugCurrent').textContent=data.current?.message||'—';
+  $('bugRepairDuration').textContent=formatDuration(data.lastRepairDurationMs);
+  const history=Array.isArray(data.history)?data.history:[];
+  $('bugHistory').innerHTML=[...history].reverse().slice(0,16).map(item=>
+    '<div class="trace-row bug-row"><time>'+escapeHtml(formatClock(item.timestamp))+'</time>'+
+    '<strong>'+escapeHtml(item.event)+'</strong><span>'+escapeHtml(item.status)+'</span>'+
+    '<span>'+escapeHtml(item.message||'')+'</span></div>'
+  ).join('')||'<div class="trace-empty">Belum ada diagnostic event.</div>';
+}
 
 function renderSkills(data){
   skillsSnapshot=data||{};
@@ -141,17 +195,12 @@ function renderSkills(data){
   $('skillRunning').textContent=String(skillsSnapshot.running||0);
   $('skillFailed').textContent=String(skillsSnapshot.failed||0);
   $('skillRows').innerHTML=skills.map(skill=>
-    '<div class="skill-row">'+
-    '<strong>'+escapeHtml(skill.label)+'</strong>'+
-    '<span>'+escapeHtml(skill.region||'—')+'</span>'+
+    '<div class="skill-row"><strong>'+escapeHtml(skill.label)+'</strong><span>'+escapeHtml(skill.region||'—')+'</span>'+
     '<span class="skill-status '+statusClass(skill.status)+'">'+escapeHtml(skill.status)+'</span>'+
-    '<span>'+escapeHtml(skill.runs)+'</span>'+
-    '<span>'+escapeHtml(skill.lastEvent||'—')+'</span>'+
-    '</div>'
+    '<span>'+escapeHtml(skill.runs)+'</span><span>'+escapeHtml(skill.lastEvent||'—')+'</span></div>'
   ).join('')||'<div class="trace-empty">Belum ada skill terdaftar.</div>';
 
-  const agent=skills.find(skill=>skill.id==='agent.manage')||{};
-  const region=snapshot?.regions?.AGENT_MANAGER||{};
+  const agent=skills.find(skill=>skill.id==='agent.manage')||{},region=snapshot?.regions?.AGENT_MANAGER||{};
   const status=agent.status||region.status||'ready';
   $('agentStatus').textContent=status;
   $('agentCoreStatus').textContent=region.status||status;
@@ -163,6 +212,24 @@ function renderSkills(data){
   $('agentLastEvent').textContent=agent.lastEvent||region.lastEvent||'—';
   const core=document.querySelector('.agent-core');
   if(core)core.className='agent-core '+statusClass(status);
+  renderPerformance();
+}
+
+function renderPerformance(){
+  if(!$('perfTotalEvents'))return;
+  const perf=telemetry?.performance||{},memory=telemetry?.memory?.counters||{};
+  const regionStates=Object.values(snapshot?.regions||{});
+  const active=regionStates.filter(item=>!['idle','ready','offline','disconnected','complete'].includes(item.status)).length;
+  const skills=Array.isArray(skillsSnapshot?.skills)?skillsSnapshot.skills:[];
+  const skillRuns=skills.reduce((sum,item)=>sum+(Number(item.runs)||0),0);
+  $('perfTotalEvents').textContent=String(perf.totalEvents||0);
+  $('perfRate').textContent=String(perf.eventsPerSecond||0);
+  $('perfActiveRegions').textContent=String(active);
+  const uptime=perf.startedAt?Math.max(0,Date.now()-perf.startedAt):(perf.uptimeMs||0);
+  $('perfUptime').textContent=formatDuration(uptime);
+  $('perfMemoryOps').textContent=String((memory.read||0)+(memory.write||0));
+  $('perfSkillRuns').textContent=String(skillRuns);
+  $('perfEventWindow').value=Math.min(100,Number(perf.events10s||0)*5);
 }
 
 async function dispatch(event,payload={}){
@@ -195,8 +262,11 @@ async function boot(){
 
 $('sendEvent').onclick=()=>dispatch(eventSelect.value,{label:$('eventLabel').value,message:$('eventLabel').value}).catch(e=>$('consoleLog').textContent=e.message);
 document.querySelectorAll('.quick button').forEach(btn=>btn.onclick=()=>dispatch(btn.dataset.event,{label:'NARA Studio test',message:'NARA Studio simulated event'}).catch(e=>$('consoleLog').textContent=e.message));
-$('clearEvents').onclick=()=>{$('events').innerHTML='';};
-$('resetStudio').onclick=async()=>{const r=await fetch('/api/reset',{method:'POST'});$('consoleLog').textContent=JSON.stringify(await r.json(),null,2);};
+$('clearEvents').onclick=()=>{stopReplay();eventBuffer=[];eventPaused=false;$('pauseEvents').textContent='Pause';renderEventItems([]);};
+$('pauseEvents').onclick=()=>{stopReplay();eventPaused=!eventPaused;$('pauseEvents').textContent=eventPaused?'Resume':'Pause';if(!eventPaused)renderEventView();};
+$('replayEvents').onclick=()=>replayTimer?stopReplay():startReplay();
+$('eventFilter').addEventListener('input',()=>{if(!eventPaused&&!replayTimer)renderEventView();});
+$('resetStudio').onclick=async()=>{const r=await fetch('/api/reset',{method:'POST'});const data=await r.json();$('consoleLog').textContent=JSON.stringify(data,null,2);};
 window.addEventListener('resize',()=>snapshot&&drawBrain());
-setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString('id-ID');},1000);
+setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString('id-ID');renderPerformance();},1000);
 boot().catch(error=>{$('consoleLog').textContent=error.stack||error.message;$('connection').textContent='OFFLINE';});
