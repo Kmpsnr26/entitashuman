@@ -281,3 +281,77 @@ test('Neural Space Stage 2 highlights selected neighborhood and pauses when hidd
   assert.match(app,/neural3d\?\.setActive\(false\)/);
   assert.match(html,/id="neural3dRoots"/);
 });
+
+
+test('Neural Space renderer scripts pass Node syntax checks',async()=>{
+  const {spawnSync}=await import('node:child_process');
+  const {fileURLToPath}=await import('node:url');
+  const files=[
+    fileURLToPath(new URL('../nara-core/studio/public/neural-space.js',import.meta.url)),
+    fileURLToPath(new URL('../nara-core/studio/public/app.js',import.meta.url))
+  ];
+  for(const file of files){
+    const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
+    assert.equal(result.status,0,result.stderr||result.stdout||file);
+  }
+});
+
+test('Stage 3 routes semantic events through a bounded shortest-path packet pool',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const scene=await readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8');
+
+  assert.match(scene,/const EVENT_ROUTES=Object\.freeze/);
+  assert.match(scene,/ROUTE_POOL_SIZE=24/);
+  assert.match(scene,/shortestPath\(source,target\)/);
+  assert.match(scene,/routeSegments\(nodes\)/);
+  assert.match(scene,/acquireRoutePacket\(\)/);
+  assert.match(scene,/spawnRoute\(envelope=\{\}\)/);
+  assert.match(scene,/for\(let i=0;i<ROUTE_POOL_SIZE;i\+\+\)/);
+  assert.match(scene,/'reason\.start':\['NARA_CORE','REASONER'\]/);
+  assert.match(scene,/'bug\.detected':\['ERROR_MONITOR','BUG_HUNTER'\]/);
+  assert.match(scene,/'verify\.complete':\['FOLLOW_UP','REPORTING'\]/);
+});
+
+test('Stage 4 provides focus core explorer modes accessibility and quality controls',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [scene,app,html]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/index.html',root),'utf8')
+  ]);
+
+  assert.match(scene,/setMode\(mode\)/);
+  assert.match(scene,/resetView\(updateMode=true\)/);
+  assert.match(scene,/setQuality\(mode='auto'\)/);
+  assert.match(scene,/handleKey\(event\)/);
+  assert.match(scene,/tabIndex=0/);
+  assert.match(scene,/getRegionDetails\(id=/);
+  assert.match(app,/neural3d\.setMode|scene\.setMode/);
+  assert.match(html,/id="neuralExplorer"/);
+  assert.match(html,/id="neuralFocus"/);
+  assert.match(html,/id="neuralCore"/);
+  assert.match(html,/id="neuralQuality"/);
+});
+
+test('Stage 5 uses adaptive cinematic resources and measured performance budgets',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [scene,styles]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/styles.css',root),'utf8')
+  ]);
+
+  assert.match(scene,/function makeGlowTexture\(\)/);
+  assert.match(scene,/function makeDustField\(/);
+  assert.match(scene,/this\.glowTexture=makeGlowTexture\(\)/);
+  assert.match(scene,/this\.dust=makeDustField\(\)/);
+  assert.match(scene,/samplePerformance\(delta\)/);
+  assert.match(scene,/state\.fps<38/);
+  assert.match(scene,/state\.fps>57/);
+  assert.match(scene,/toneMappingExposure/);
+  assert.match(styles,/neural3d-vignette/);
+  assert.doesNotMatch(scene,/EffectComposer/);
+  assert.doesNotMatch(scene,/https?:\/\//);
+});
