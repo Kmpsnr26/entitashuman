@@ -113,7 +113,7 @@ test('Avatar Live Studio is wired as a detached live editor with explicit save/r
  assert.doesNotMatch(adapter,/\n project\(x,y,z/);
  assert.match(adapter,/setDensity\(this\.studioProfile\.density\*100\)/);
  assert.match(adapter,/faceVisualTuning/);
- assert.match(desktop,/\['controls','avatarStudio','chatDialog','agentDialog','terminalDialog'\]/);
+ assert.match(desktop,/\['controls','avatarStudio','humanaleVisualStudio','chatDialog','agentDialog','terminalDialog'\]/);
  assert.match(desktop,/Avatar Live Studio tidak siap di panel terpisah/);
  assert.match(desktop,/Avatar Live Studio tidak menerapkan perubahan realtime ke avatar utama/);
  assert.match(desktop,/Avatar Live Studio material tidak sinkron ke avatar utama/);
