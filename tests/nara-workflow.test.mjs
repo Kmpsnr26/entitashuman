@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createOrchestrator} from '../nara-core/brain/orchestrator.js';
-import {normalizeWorkflowPlan,NARA_WORKFLOW_LIMITS} from '../nara-core/brain/workflow-engine.js';
+import {normalizeWorkflowPlan,NARA_WORKFLOW_LIMITS,createWorkflowEngine} from '../nara-core/brain/workflow-engine.js';
 
 function completeVerified(nara,id,message='ok'){
  nara.startWorkflowStep(id);
@@ -58,6 +58,15 @@ test('NARA observe workflow executes only auto-safe capability chain and complet
  assert.equal(workflow.workflow.counts.complete,3);
  assert.equal(nara.snapshot().regions.REPORTING.status,'complete');
  assert.equal(nara.workflowSnapshot().controlledBy,'NARA_CORE');
+ assert.equal(nara.workflowSnapshot().executionBoundary,'NARA_CORE_ONLY');
+ assert.equal(nara.workflowQueue().active,null);
+ assert.equal(nara.workflowQueue().next,null);
+ const report=nara.workflowReport();
+ assert.equal(report.executionBoundary,'NARA_CORE_ONLY');
+ assert.equal(report.state,'completed');
+ assert.equal(report.progress,100);
+ assert.equal(report.checkpoints.length,3);
+ assert.deepEqual(report.checkpoints.map(item=>item.stepId),['reason','plan','report']);
 });
 
 test('observe workflow cannot receive execution approval or run mutating Program capability',()=>{
@@ -98,11 +107,19 @@ test('execute workflow derives transitive permissions and becomes ready only aft
 
  workflow=nara.startWorkflow();
  assert.equal(workflow.state,'blocked');
+ assert.equal(nara.snapshot().regions.FOLLOW_UP.status,'paused');
+ assert.equal(nara.workflowQueue().next,null);
+ assert.ok(nara.workflowQueue().blocked.some(item=>item.id==='code'));
  workflow=nara.grantWorkflowPermissions(['workspace:write-approved']);
  assert.equal(workflow.workflow.steps.code.status,'blocked');
  workflow=nara.grantWorkflowPermissions(['terminal:bounded-execute']);
  assert.equal(workflow.workflow.steps.code.status,'ready');
  assert.equal(workflow.state,'running');
+ assert.equal(nara.workflowQueue().next,'code');
+ assert.equal(nara.snapshot().regions.SAFETY.status,'ready');
+ const events=workflow.history.map(item=>item.event);
+ assert.ok(events.indexOf('workflow.started')<events.indexOf('workflow.blocked'));
+ assert.ok(events.includes('workflow.resumed'));
 
  workflow=nara.startWorkflowStep('code');
  assert.equal(workflow.workflow.steps.code.status,'running');
@@ -155,4 +172,21 @@ test('workflow allows only one active step at a time even when multiple steps ar
  assert.equal(workflow.workflow.steps.a.status,'running');
  assert.equal(workflow.workflow.steps.b.status,'ready');
  assert.throws(()=>nara.startWorkflowStep('b'),/Hanya satu step workflow NARA boleh aktif/);
+});
+
+
+test('workflow monitor history remains bounded and report never exposes an execution adapter',()=>{
+ let now=1000;
+ const engine=createWorkflowEngine({clock:()=>++now});
+ const skillSnapshot={skills:{reasoning:{state:'ready',missingDependencies:[]},memory:{state:'ready',missingDependencies:[]}}};
+ engine.create({id:'history-flow',goal:'Bound monitor history',mode:'observe',steps:[{id:'reason',skill:'reasoning'}]},skillSnapshot);
+ for(let i=0;i<50;i++)engine.grantPermissions(['state:read'],skillSnapshot);
+ const snapshot=engine.snapshot();
+ assert.equal(snapshot.history.length,NARA_WORKFLOW_LIMITS.maxHistory);
+ assert.equal(snapshot.executionBoundary,'NARA_CORE_ONLY');
+ assert.equal(Object.hasOwn(snapshot,'executor'),false);
+ const report=engine.report();
+ assert.equal(report.executionBoundary,'NARA_CORE_ONLY');
+ assert.equal(Object.hasOwn(report,'adapter'),false);
+ assert.equal(Object.hasOwn(report,'command'),false);
 });
