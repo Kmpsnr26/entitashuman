@@ -48,6 +48,17 @@ function cloneStep(step){
  };
 }
 
+function skillPermissionClosure(skillId,seen=new Set()){
+ if(seen.has(skillId))return [];
+ seen.add(skillId);
+ const skill=getSkill(skillId);
+ if(!skill)return [];
+ return [...new Set([
+  ...skill.permissions,
+  ...skill.dependencies.flatMap(dependency=>skillPermissionClosure(dependency,seen))
+ ])];
+}
+
 function validateStepGraph(steps){
  const ids=new Set(steps.map(step=>step.id));
  for(const step of steps){
@@ -89,7 +100,7 @@ export function normalizeWorkflowPlan(value={}){
   const skill=getSkill(skillId);
   const dependsOn=[...new Set((Array.isArray(raw?.dependsOn)?raw.dependsOn:[]).map(item=>bounded(item,40).toLowerCase()).filter(Boolean))];
   if(dependsOn.length>NARA_WORKFLOW_LIMITS.maxDependenciesPerStep)throw new Error('Dependency step terlalu banyak: '+id);
-  const permissions=[...skill.permissions];
+  const permissions=skillPermissionClosure(skillId);
   return {
    id,
    label:bounded(raw?.label||skill.label,NARA_WORKFLOW_LIMITS.maxLabelLength),
@@ -128,8 +139,9 @@ function skillBlockers(step,skillSnapshot={}){
  return blockers;
 }
 
-function stepBlockers(step,steps,granted,skillSnapshot){
+function stepBlockers(step,steps,granted,skillSnapshot,mode='observe'){
  const blockers=[];
+ if(mode!=='execute'&&step.approvalRequired)blockers.push('mode:observe');
  for(const id of step.dependsOn){
   if(steps[id]?.status!=='complete')blockers.push('step:'+id);
  }
@@ -211,6 +223,9 @@ export class NaraWorkflowEngine{
   const list=[...new Set((Array.isArray(values)?values:[]).map(item=>String(item||'').trim()).filter(Boolean))];
   for(const permission of list){
    if(!required.has(permission))throw new Error('Permission tidak dibutuhkan workflow: '+permission);
+   if(this.workflow.mode!=='execute'&&(APPROVAL_PERMISSIONS.has(permission)||permission.endsWith('-approved'))){
+    throw new Error('Workflow observe tidak dapat menerima permission eksekusi: '+permission);
+   }
    if(!APPROVAL_PERMISSIONS.has(permission)&&!permission.endsWith('-approved')&&!AUTO_PERMISSIONS.has(permission)){
     throw new Error('Permission workflow tidak dikenal: '+permission);
    }
@@ -234,7 +249,7 @@ export class NaraWorkflowEngine{
   for(const id of this.workflow.order){
    const step=steps[id];
    if(['running','verifying','complete','failed','cancelled'].includes(step.status))continue;
-   const blockers=stepBlockers(step,steps,this.granted,this.skillSnapshot);
+   const blockers=stepBlockers(step,steps,this.granted,this.skillSnapshot,this.workflow.mode);
    step.blockers=blockers;
    step.status=blockers.length?'blocked':'ready';
   }
