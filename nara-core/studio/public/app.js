@@ -3,6 +3,7 @@ import {createEdgeHud} from './edge-hud.js';
 import {createNeuralEntryExperience} from './neural-entry.js';
 import {createNodeInspector} from './node-inspector.js';
 import {createNodeVoice} from './node-voice.js';
+import {createCustomSettingsPanel} from './custom-settings.js';
 
 const $=id=>document.getElementById(id);
 let snapshot=null,regions={},telemetry=null,skillsSnapshot=null;
@@ -12,6 +13,18 @@ const connectionIds=['GITHUB','COPILOT','WEB','TEAM','PR','SYNC','ONLINE','OWNER
 const eventSelect=$('eventSelect');
 const neuralEntry=createNeuralEntryExperience();
 const nodeVoice=createNodeVoice();
+const customSettings=createCustomSettingsPanel({
+  onChange:settings=>neural3d?.applyVisualSettings?.(settings),
+  onAudioChange:enabled=>{
+    neuralEntry.setAudioEnabled(enabled);
+    if(!enabled)nodeVoice.stop();
+  },
+  onQualityChange:quality=>{
+    const select=$('neuralQuality');
+    if(select&&select.value!==quality)select.value=quality;
+    neural3d?.setQuality?.(quality);
+  }
+});
 const nodeInspector=createNodeInspector({
   onNavigate:region=>dispatch('brain.region.select',{region}).catch(error=>{
     $('consoleLog').textContent=error.message;
@@ -23,6 +36,12 @@ const edgeHud=createEdgeHud({onView:mode=>{
   if(mode==='3d'&&studioView!=='3d')neuralEntry.play({announce:false,compact:true});
   setStudioView(mode);
 }});
+
+customSettings.applyToRuntime();
+document.getElementById('edgeAudioToggle')?.addEventListener('click',()=>{
+  const pressed=document.getElementById('edgeAudioToggle')?.getAttribute('aria-pressed')!=='false';
+  if(customSettings.getSettings().audio!==pressed)customSettings.setSettings({audio:pressed});
+});
 
 function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
 function statusClass(status='idle'){return 's-'+String(status).replace(/[^a-z0-9_-]/gi,'');}
@@ -91,6 +110,7 @@ async function ensureNeural3D(){
       onMetrics:()=>updateNeuralHud()
     });
     neural3d.setRegions(regions);
+    neural3d.applyVisualSettings?.(customSettings.getSettings());
     if(snapshot)neural3d.setState(snapshot);
     neural3d.setActive(studioView==='3d'&&!document.hidden);
     $('neural3dStatus').textContent='LIVE · ROOT FLOW';
