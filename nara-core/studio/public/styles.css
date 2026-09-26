@@ -274,3 +274,247 @@ button,select,input{background:#0c2732;color:#c9f5ff;border:1px solid #245365;bo
   .neural-entry-warp{transform:translate(-50%,-50%) scale(.88);opacity:.26}
   .neural-entry-sweep{display:none}
 }
+
+
+/* Revision R4.1 — Creator Custom Visual Control Center */
+:root{
+  --nara-hud-opacity:.92;
+  --nara-ui-scale:1;
+}
+.edge-hud{
+  opacity:var(--nara-hud-opacity);
+}
+.edge-right-tools{
+  transform:translateY(-50%) scale(var(--nara-ui-scale));
+  transform-origin:right center;
+}
+.edge-right-tools #edgeCustomSettings{
+  width:66px;
+  font-size:7px;
+  color:#9cefff;
+  border-color:#285e70;
+  background:linear-gradient(180deg,#041a22d9,#031018d9);
+}
+.edge-right-tools #edgeCustomSettings.settings-active{
+  color:#e1fdff;
+  border-color:#69eaff;
+  box-shadow:0 0 22px #31ddff35,inset 0 0 14px #34dfff12;
+}
+.custom-settings-panel{
+  position:absolute;
+  z-index:240;
+  right:66px;
+  top:56px;
+  bottom:48px;
+  width:min(390px,34vw);
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+  pointer-events:auto;
+  border:1px solid #245b6b;
+  border-right-color:#5ae7fb75;
+  border-radius:14px;
+  overflow:hidden;
+  background:
+    linear-gradient(145deg,#031018f4,#020a10ec),
+    radial-gradient(circle at 88% 8%,#1fdfff16,transparent 34%);
+  box-shadow:-28px 0 90px #000b,0 0 50px #18dfff13,inset 0 0 46px #15dfff08;
+  backdrop-filter:blur(20px) saturate(1.15);
+  transform:translateX(calc(100% + 90px)) scale(.985);
+  opacity:0;
+  transition:transform .28s cubic-bezier(.18,.78,.2,1),opacity .22s ease;
+}
+.custom-settings-panel[hidden]{display:none}
+.custom-settings-panel.custom-settings-open{
+  transform:translateX(0) scale(1);
+  opacity:1;
+}
+.custom-settings-panel:before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    linear-gradient(90deg,#57eaff12 1px,transparent 1px),
+    linear-gradient(#57eaff0a 1px,transparent 1px);
+  background-size:22px 22px;
+  mask-image:linear-gradient(90deg,#0007,transparent 78%);
+}
+.custom-settings-head{
+  position:relative;
+  z-index:1;
+  min-height:58px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  padding:11px 12px 10px 14px;
+  border-bottom:1px solid #174451;
+  background:linear-gradient(90deg,#07212bcb,#03101866);
+}
+.custom-settings-head>div{display:grid;gap:3px}
+.custom-settings-head span{
+  font:7px ui-monospace,SFMono-Regular,Consolas,monospace;
+  letter-spacing:.18em;
+  color:#5e8995;
+}
+.custom-settings-head strong{
+  font:11px ui-monospace,SFMono-Regular,Consolas,monospace;
+  letter-spacing:.14em;
+  color:#bdf7ff;
+  text-shadow:0 0 16px #4deaff44;
+}
+.custom-settings-head button{
+  border:0;
+  background:transparent;
+  padding:5px 8px;
+  color:#719aa4;
+  font-size:18px;
+}
+.custom-settings-head button:hover{color:#d4fbff}
+.custom-settings-body{
+  position:relative;
+  z-index:1;
+  overflow:auto;
+  padding:8px 12px 14px;
+  scrollbar-width:thin;
+  scrollbar-color:#205969 #02090e;
+}
+.custom-setting-section{
+  display:grid;
+  gap:8px;
+  padding:11px 2px 13px;
+  border-bottom:1px solid #10333d;
+}
+.custom-setting-section:last-child{border-bottom:0}
+.custom-setting-section h3{
+  margin:0 0 2px;
+  font:8px ui-monospace,SFMono-Regular,Consolas,monospace;
+  letter-spacing:.16em;
+  color:#65dceb;
+}
+.custom-preset-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px;
+}
+.custom-preset-grid button{
+  min-height:30px;
+  padding:6px 7px;
+  font-size:7px;
+  letter-spacing:.09em;
+  background:linear-gradient(180deg,#061b23,#031017);
+  border-color:#1c4b59;
+}
+.custom-preset-grid button:hover{
+  color:#dbfbff;
+  border-color:#53e2f6;
+  box-shadow:0 0 15px #28dfff1c;
+}
+.custom-preset-grid button:last-child{grid-column:1/-1}
+.custom-toggle,.custom-range,.custom-select{
+  display:grid;
+  gap:6px;
+  min-height:31px;
+  padding:6px 8px;
+  border:1px solid #123541;
+  border-radius:8px;
+  background:#04131a9c;
+}
+.custom-toggle{
+  grid-template-columns:1fr auto;
+  align-items:center;
+}
+.custom-toggle span,.custom-range span,.custom-select>span{
+  font:8px ui-monospace,SFMono-Regular,Consolas,monospace;
+  letter-spacing:.06em;
+  color:#82a4ad;
+}
+.custom-range span{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+}
+.custom-range b{
+  color:#9ceefd;
+  font-weight:600;
+}
+.custom-toggle input{
+  appearance:none;
+  width:34px;
+  height:18px;
+  margin:0;
+  border:1px solid #245463;
+  border-radius:999px;
+  background:#07161c;
+  position:relative;
+  cursor:pointer;
+}
+.custom-toggle input:before{
+  content:"";
+  position:absolute;
+  width:12px;
+  height:12px;
+  left:2px;
+  top:2px;
+  border-radius:50%;
+  background:#52747c;
+  transition:transform .16s ease,background .16s ease,box-shadow .16s ease;
+}
+.custom-toggle input:checked{
+  border-color:#49dfee;
+  background:#0b313a;
+}
+.custom-toggle input:checked:before{
+  transform:translateX(16px);
+  background:#b8fbff;
+  box-shadow:0 0 12px #55edff;
+}
+.custom-range input[type="range"]{
+  width:100%;
+  accent-color:#54e8f8;
+}
+.custom-select{
+  grid-template-columns:1fr auto;
+  align-items:center;
+}
+.custom-select select{
+  min-width:110px;
+  padding:6px 8px;
+  background:#031017;
+  border:1px solid #1e4e5c;
+  color:#bdeef5;
+  font:8px ui-monospace,SFMono-Regular,Consolas,monospace;
+}
+.custom-settings-foot{
+  position:relative;
+  z-index:1;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:9px 12px;
+  border-top:1px solid #174451;
+  background:#020b10ea;
+}
+.custom-settings-foot span{
+  max-width:190px;
+  font:7px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;
+  color:#4f747e;
+}
+.custom-settings-foot button{
+  padding:7px 9px;
+  font-size:7px;
+  letter-spacing:.08em;
+  border-color:#61533a;
+  color:#d6b782;
+  background:#1a1309a8;
+}
+@media(max-width:900px){
+  .custom-settings-panel{right:54px;width:min(390px,calc(100vw - 66px))}
+}
+@media(max-width:620px){
+  .custom-settings-panel{left:44px;right:44px;width:auto}
+}
+@media(prefers-reduced-motion:reduce){
+  .custom-settings-panel{transition:none}
+}
