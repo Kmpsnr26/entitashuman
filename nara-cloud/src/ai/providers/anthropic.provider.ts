@@ -329,7 +329,7 @@ export class AnthropicProvider
     }
 
     const data =
-      await response.json()
+      (await response.json())
         as AnthropicResponse;
 
     const text =
