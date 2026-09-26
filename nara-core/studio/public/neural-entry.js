@@ -114,7 +114,10 @@ export function createNeuralEntryExperience(){
     root.hidden=false;
     root.classList.toggle('neural-entry-compact',compact);
     root.classList.toggle('neural-entry-reduced',motionReduced);
-    requestAnimationFrame(()=>root.classList.add('neural-entry-active'));
+    // Force the initial hidden->visible style to commit before activating the transition.
+    // This keeps the animation deterministic in Electron/Xvfb as well as on desktop GPUs.
+    root.getBoundingClientRect();
+    root.classList.add('neural-entry-active');
 
     if(audioEnabled){
       playSyntheticCoreTone();
