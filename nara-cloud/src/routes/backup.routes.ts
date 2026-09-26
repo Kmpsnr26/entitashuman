@@ -30,6 +30,14 @@ import {
   requireCsrf
 } from "../middleware/requireCsrf.js";
 
+import {
+  requireTrustedOrigin
+} from "../middleware/requireTrustedOrigin.js";
+
+import {
+  requireJsonContentType
+} from "../middleware/requireJsonContentType.js";
+
 const router =
   express.Router();
 
@@ -256,6 +264,7 @@ router.get(
 router.post(
   "/google-drive",
   backupLimiter,
+  requireTrustedOrigin,
   requireCsrf,
   async (
     req,
@@ -332,6 +341,8 @@ router.post(
 router.post(
   "/usb",
   backupLimiter,
+  requireTrustedOrigin,
+  requireJsonContentType,
   requireCsrf,
   async (
     req,
