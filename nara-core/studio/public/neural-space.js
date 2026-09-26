@@ -12,12 +12,20 @@ const GROUP_COLORS=Object.freeze({
   workflow:0x62e7af,safety:0xffcf68
 });
 
+const ACTIVE_STATUSES=new Set([
+  'active','listening','seeing','speaking','thinking','processing','syncing','error','bug'
+]);
+
 const EVENT_REGIONS=Object.freeze({
   reason:'REASONER',plan:'PLANNER',memory:'MEMORY',context:'MEMORY',
   agent:'AGENT_MANAGER',program:'PROGRAM',verify:'FOLLOW_UP',bug:'BUG_HUNTER',
   error:'ERROR_MONITOR',sync:'SYNC',github:'GITHUB',copilot:'COPILOT',
   drive:'DRIVE',web:'WEB',work:'NARA_CORE'
 });
+
+const LINK_IDLE=0x123845;
+const LINK_LIVE=0x42ddff;
+const LINK_SELECTED=0xa9f7ff;
 
 function statusColor(status,group){
   return STATUS_COLORS[status]??GROUP_COLORS[group]??0x42ddff;
@@ -26,6 +34,23 @@ function statusColor(status,group){
 function regionForEvent(event=''){
   const prefix=String(event).split('.')[0];
   return EVENT_REGIONS[prefix]||null;
+}
+
+function linkKey(a,b){
+  return [String(a),String(b)].sort().join(':');
+}
+
+function stableUnit(text=''){
+  let hash=2166136261;
+  for(const char of String(text)){
+    hash^=char.charCodeAt(0);
+    hash=Math.imul(hash,16777619);
+  }
+  return (hash>>>0)/4294967295;
+}
+
+function positiveModulo(value,mod=1){
+  return ((value%mod)+mod)%mod;
 }
 
 function makeStarField(count=420){
@@ -40,9 +65,38 @@ function makeStarField(count=420){
   }
   const geometry=new THREE.BufferGeometry();
   geometry.setAttribute('position',new THREE.BufferAttribute(values,3));
-  return new THREE.Points(geometry,new THREE.PointsMaterial({
+  const material=new THREE.PointsMaterial({
     color:0x6bbfd2,size:.045,transparent:true,opacity:.42,depthWrite:false
-  }));
+  });
+  return new THREE.Points(geometry,material);
+}
+
+function organicCurve(from,to,key){
+  const start=from.clone();
+  const end=to.clone();
+  const delta=end.clone().sub(start);
+  const distance=Math.max(.001,delta.length());
+  const direction=delta.clone().normalize();
+  const up=Math.abs(direction.y)>.88?new THREE.Vector3(1,0,0):new THREE.Vector3(0,1,0);
+  const side=new THREE.Vector3().crossVectors(direction,up).normalize();
+  const lift=new THREE.Vector3().crossVectors(side,direction).normalize();
+
+  const seedA=stableUnit(key+'a')-.5;
+  const seedB=stableUnit(key+'b')-.5;
+  const seedC=stableUnit(key+'c')-.5;
+  const amplitude=Math.min(1.15,Math.max(.22,distance*.13));
+
+  const p1=start.clone().addScaledVector(delta,.22)
+    .addScaledVector(side,amplitude*(.55+seedA*.6))
+    .addScaledVector(lift,amplitude*(seedB*.55));
+  const p2=start.clone().addScaledVector(delta,.50)
+    .addScaledVector(side,amplitude*(seedB*.72))
+    .addScaledVector(lift,amplitude*(.36+seedC*.7));
+  const p3=start.clone().addScaledVector(delta,.78)
+    .addScaledVector(side,-amplitude*(.46+seedC*.55))
+    .addScaledVector(lift,amplitude*(seedA*.5));
+
+  return new THREE.CatmullRomCurve3([start,p1,p2,p3,end],false,'centripetal',.5);
 }
 
 export class Neural3DScene{
@@ -51,10 +105,14 @@ export class Neural3DScene{
     this.container=container;
     this.onSelect=onSelect;
     this.regions={};
+    this.regionSignature='';
     this.state=null;
     this.nodes=new Map();
     this.links=[];
+    this.linkIndex=new Map();
+    this.adjacency=new Map();
     this.selected=null;
+    this.active=true;
     this.pointer={down:false,moved:false,x:0,y:0,button:0};
     this.target=new THREE.Vector3(0,-.3,0);
     this.radius=14;
@@ -63,6 +121,7 @@ export class Neural3DScene{
     this.focusTarget=null;
     this.focusRadius=null;
     this.clock=new THREE.Clock();
+    this.motionScale=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?.35:1;
 
     this.scene=new THREE.Scene();
     this.scene.background=new THREE.Color(0x02070b);
@@ -72,7 +131,7 @@ export class Neural3DScene{
     this.camera.position.set(8,6,10);
 
     this.renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.8));
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;
     this.renderer.toneMapping=THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure=1.15;
@@ -81,12 +140,16 @@ export class Neural3DScene{
 
     this.world=new THREE.Group();
     this.scene.add(this.world);
-    this.scene.add(makeStarField());
+    this.stars=makeStarField();
+    this.scene.add(this.stars);
 
     this.scene.add(new THREE.HemisphereLight(0x7deeff,0x031017,1.3));
     const key=new THREE.PointLight(0x65eaff,12,26,2);
     key.position.set(0,4,4);
     this.scene.add(key);
+
+    this.packetGeometry=new THREE.SphereGeometry(.075,10,8);
+    this.packetHaloGeometry=new THREE.SphereGeometry(.145,10,8);
 
     this.raycaster=new THREE.Raycaster();
     this.ndc=new THREE.Vector2();
@@ -140,6 +203,10 @@ export class Neural3DScene{
     },{passive:false});
   }
 
+  setActive(active){
+    this.active=Boolean(active);
+  }
+
   updateCamera(force=false){
     if(this.focusTarget){
       this.target.lerp(this.focusTarget,force?1:.085);
@@ -158,13 +225,22 @@ export class Neural3DScene{
     this.camera.lookAt(this.target);
   }
 
-  clearWorld(){
-    for(const link of this.links){
-      link.geometry.dispose();
-      link.material.dispose();
-      this.world.remove(link);
+  disposeLink(link){
+    for(const mesh of [link.sheath,link.glow,link.core]){
+      mesh.geometry.dispose();
+      mesh.material.dispose();
     }
+    link.packet.material.dispose();
+    link.halo.material.dispose();
+    this.world.remove(link.group);
+  }
+
+  clearWorld(){
+    for(const link of this.links)this.disposeLink(link);
     this.links=[];
+    this.linkIndex.clear();
+    this.adjacency.clear();
+
     for(const entry of this.nodes.values()){
       entry.mesh.geometry.dispose();
       entry.mesh.material.dispose();
@@ -175,7 +251,86 @@ export class Neural3DScene{
     this.nodes.clear();
   }
 
+  createLink(fromId,toId,index){
+    const from=this.nodes.get(fromId);
+    const to=this.nodes.get(toId);
+    if(!from||!to)return null;
+
+    const key=linkKey(fromId,toId);
+    const curve=organicCurve(from.group.position,to.group.position,key);
+    const distance=from.group.position.distanceTo(to.group.position);
+    const radius=Math.min(.075,Math.max(.038,distance*.008));
+    const tubularSegments=Math.max(22,Math.min(42,Math.round(distance*4.5)));
+
+    const group=new THREE.Group();
+    group.userData={from:fromId,to:toId,key};
+
+    const sheath=new THREE.Mesh(
+      new THREE.TubeGeometry(curve,tubularSegments,radius,6,false),
+      new THREE.MeshBasicMaterial({
+        color:LINK_IDLE,transparent:true,opacity:.13,depthWrite:false
+      })
+    );
+
+    const glow=new THREE.Mesh(
+      new THREE.TubeGeometry(curve,tubularSegments,radius*1.9,5,false),
+      new THREE.MeshBasicMaterial({
+        color:LINK_LIVE,transparent:true,opacity:.018,depthWrite:false,
+        blending:THREE.AdditiveBlending
+      })
+    );
+
+    const core=new THREE.Mesh(
+      new THREE.TubeGeometry(curve,tubularSegments,radius*.32,5,false),
+      new THREE.MeshBasicMaterial({
+        color:LINK_LIVE,transparent:true,opacity:.08,depthWrite:false,
+        blending:THREE.AdditiveBlending
+      })
+    );
+
+    const packet=new THREE.Mesh(
+      this.packetGeometry,
+      new THREE.MeshBasicMaterial({
+        color:LINK_SELECTED,transparent:true,opacity:0,depthWrite:false,
+        blending:THREE.AdditiveBlending
+      })
+    );
+
+    const halo=new THREE.Mesh(
+      this.packetHaloGeometry,
+      new THREE.MeshBasicMaterial({
+        color:LINK_LIVE,transparent:true,opacity:0,depthWrite:false,
+        blending:THREE.AdditiveBlending
+      })
+    );
+
+    group.add(glow,sheath,core,halo,packet);
+    this.world.add(group);
+
+    const entry={
+      key,from:fromId,to:toId,curve,group,sheath,glow,core,packet,halo,
+      phase:stableUnit(key+'phase'),
+      speed:.035+stableUnit(key+'speed')*.035,
+      flowDirection:index%2?1:-1,
+      intensity:.06,targetIntensity:.06,pulse:0,
+      selected:false,active:false,color:new THREE.Color(LINK_LIVE)
+    };
+
+    this.links.push(entry);
+    this.linkIndex.set(key,entry);
+    for(const regionId of [fromId,toId]){
+      if(!this.adjacency.has(regionId))this.adjacency.set(regionId,[]);
+      this.adjacency.get(regionId).push(entry);
+    }
+    return entry;
+  }
+
   setRegions(regions={}){
+    const signature=JSON.stringify(Object.values(regions||{}).map(region=>[
+      region.id,region.position,region.connections
+    ]));
+    if(signature===this.regionSignature&&this.nodes.size)return;
+    this.regionSignature=signature;
     this.clearWorld();
     this.regions=regions||{};
 
@@ -210,35 +365,20 @@ export class Neural3DScene{
 
       this.world.add(group);
       this.nodes.set(region.id,{
-        group,mesh,shell,region,baseY:position.y,phase:Math.random()*Math.PI*2,pulse:0
+        group,mesh,shell,region,baseY:position.y,
+        phase:stableUnit(region.id+'node')*Math.PI*2,pulse:0
       });
     }
 
     const seen=new Set();
+    let linkIndex=0;
     for(const region of Object.values(this.regions)){
-      const from=this.nodes.get(region.id);
-      if(!from)continue;
       for(const targetId of region.connections||[]){
-        const to=this.nodes.get(targetId);
-        if(!to)continue;
-        const key=[region.id,targetId].sort().join(':');
+        if(!this.nodes.has(targetId))continue;
+        const key=linkKey(region.id,targetId);
         if(seen.has(key))continue;
         seen.add(key);
-        const mid=from.group.position.clone().lerp(to.group.position,.5);
-        mid.z+=(Math.sin(seen.size*1.71)*.55);
-        const curve=new THREE.CatmullRomCurve3([
-          from.group.position.clone(),
-          mid,
-          to.group.position.clone()
-        ]);
-        const points=curve.getPoints(22);
-        const geometry=new THREE.BufferGeometry().setFromPoints(points);
-        const line=new THREE.Line(geometry,new THREE.LineBasicMaterial({
-          color:0x245e6d,transparent:true,opacity:.28
-        }));
-        line.userData={from:region.id,to:targetId};
-        this.world.add(line);
-        this.links.push(line);
+        this.createLink(region.id,targetId,linkIndex++);
       }
     }
 
@@ -248,29 +388,63 @@ export class Neural3DScene{
   setState(state={}){
     this.state=state||{};
     this.selected=this.state.selectedRegion||null;
+    const selectedRegion=this.regions[this.selected];
+    const selectedNeighbors=new Set(selectedRegion?.connections||[]);
+
     for(const [id,entry] of this.nodes){
       const live=this.state.regions?.[id]||{};
       const color=statusColor(live.status||entry.region.defaultStatus,entry.region.group);
       entry.mesh.material.color.setHex(color);
       entry.mesh.material.emissive.setHex(color);
       entry.shell.material.color.setHex(color);
+
       const selected=id===this.selected;
-      entry.mesh.scale.setScalar(selected?1.16:1);
-      entry.shell.scale.setScalar(selected?1.12:1);
-      entry.shell.material.opacity=selected?.34:(id==='NARA_CORE'?.2:.1);
-      entry.mesh.material.emissiveIntensity=selected?1.6:(id==='NARA_CORE'?1.65:.78);
+      const neighbor=selectedNeighbors.has(id);
+      entry.mesh.scale.setScalar(selected?1.16:neighbor?1.045:1);
+      entry.shell.scale.setScalar(selected?1.12:neighbor?1.04:1);
+      entry.shell.material.opacity=selected?.34:(neighbor?.18:(id==='NARA_CORE'?.2:.1));
+      entry.mesh.material.emissiveIntensity=selected?1.6:(neighbor?1.05:(id==='NARA_CORE'?1.65:.78));
     }
+
     for(const link of this.links){
-      const active=link.userData.from===this.selected||link.userData.to===this.selected;
-      link.material.opacity=active?.62:.28;
-      link.material.color.setHex(active?0x4ce6ff:0x245e6d);
+      const fromState=this.state.regions?.[link.from]||{};
+      const toState=this.state.regions?.[link.to]||{};
+      link.selected=Boolean(this.selected&&(link.from===this.selected||link.to===this.selected));
+      link.active=ACTIVE_STATUSES.has(fromState.status)||ACTIVE_STATUSES.has(toState.status);
+      link.targetIntensity=link.selected?1:link.active?.7:.075;
+
+      const selectedPeer=link.from===this.selected?link.to:link.to===this.selected?link.from:null;
+      const activeRegion=ACTIVE_STATUSES.has(toState.status)?link.to:ACTIVE_STATUSES.has(fromState.status)?link.from:selectedPeer;
+      const activeDef=activeRegion?this.regions[activeRegion]:null;
+      const activeState=activeRegion?this.state.regions?.[activeRegion]:null;
+      const color=link.selected
+        ?LINK_SELECTED
+        :activeDef?statusColor(activeState?.status||activeDef.defaultStatus,activeDef.group):LINK_LIVE;
+      link.color.setHex(color);
+      link.sheath.material.color.setHex(link.selected?0x357d8d:LINK_IDLE);
+      link.core.material.color.copy(link.color);
+      link.glow.material.color.copy(link.color);
+      link.packet.material.color.copy(link.color);
+      link.halo.material.color.copy(link.color);
+    }
+  }
+
+  energizeRegion(id,amount=1){
+    const entry=this.nodes.get(id);
+    if(entry)entry.pulse=Math.max(entry.pulse,amount);
+    for(const link of this.adjacency.get(id)||[]){
+      link.pulse=Math.max(link.pulse,amount);
+      link.flowDirection=link.to===id?1:-1;
     }
   }
 
   handleEvent(envelope={}){
     const id=regionForEvent(envelope.event);
-    if(id&&this.nodes.has(id))this.nodes.get(id).pulse=1;
-    if(envelope.event==='brain.region.select'&&envelope.payload?.region)this.focusRegion(envelope.payload.region);
+    if(id)this.energizeRegion(id,1);
+    if(envelope.event==='brain.region.select'&&envelope.payload?.region){
+      this.focusRegion(envelope.payload.region);
+      this.energizeRegion(envelope.payload.region,.55);
+    }
   }
 
   focusRegion(id){
@@ -291,26 +465,65 @@ export class Neural3DScene{
     return id;
   }
 
+  animateLinks(t){
+    for(const link of this.links){
+      link.intensity+=(link.targetIntensity-link.intensity)*.075;
+      if(link.pulse>0)link.pulse=Math.max(0,link.pulse-.014*this.motionScale);
+      const energy=Math.min(1.45,link.intensity+link.pulse*.88);
+      const breathing=.5+.5*Math.sin(t*(1.1+link.phase*.55)+link.phase*Math.PI*2);
+
+      link.sheath.material.opacity=.07+energy*.16+breathing*.018;
+      link.core.material.opacity=.025+energy*.48;
+      link.glow.material.opacity=.008+energy*.115;
+
+      const visible=energy>.16||link.selected||link.active;
+      link.packet.visible=visible;
+      link.halo.visible=visible;
+      if(!visible)continue;
+
+      const speed=link.speed*(1+energy*2.3)*this.motionScale;
+      const raw=link.phase+t*speed*link.flowDirection;
+      const u=positiveModulo(raw,1);
+      const point=link.curve.getPointAt(u);
+      link.packet.position.copy(point);
+      link.halo.position.copy(point);
+
+      const flicker=.86+Math.sin(t*5.4+link.phase*8)*.14;
+      const packetOpacity=Math.min(1,.2+energy*.72)*flicker;
+      link.packet.material.opacity=packetOpacity;
+      link.halo.material.opacity=Math.min(.42,.04+energy*.21)*flicker;
+      const scale=.72+Math.min(1,energy)*.7;
+      link.packet.scale.setScalar(scale);
+      link.halo.scale.setScalar(.9+energy*.72);
+    }
+  }
+
   animate(){
+    if(!this.active)return;
     const t=this.clock.getElapsedTime();
     this.updateCamera();
+
     for(const [id,entry] of this.nodes){
       const core=id==='NARA_CORE';
-      const breathing=1+(core?Math.sin(t*1.35)*.035:0);
-      entry.group.position.y=entry.baseY+Math.sin(t*.58+entry.phase)*(core?.08:.12);
-      entry.group.rotation.y+=core?.0015:.0007;
-      entry.shell.rotation.x+=core?.0011:.0005;
-      entry.shell.rotation.y-=core?.0014:.0006;
-      if(entry.pulse>0)entry.pulse=Math.max(0,entry.pulse-.025);
+      const motion=this.motionScale;
+      const breathing=1+(core?Math.sin(t*1.35)*.035*motion:0);
+      entry.group.position.y=entry.baseY+Math.sin(t*.58+entry.phase)*(core?.045:.065)*motion;
+      entry.group.rotation.y+=core?.0015*motion:.0007*motion;
+      entry.shell.rotation.x+=core?.0011*motion:.0005*motion;
+      entry.shell.rotation.y-=core?.0014*motion:.0006*motion;
+      if(entry.pulse>0)entry.pulse=Math.max(0,entry.pulse-.025*motion);
       const pulseScale=1+entry.pulse*.22;
       entry.group.scale.setScalar(breathing*pulseScale);
       if(core){
-        entry.mesh.material.emissiveIntensity=1.55+Math.sin(t*1.35)*.25+entry.pulse*1.5;
-        entry.shell.material.opacity=.16+Math.sin(t*1.1)*.04+entry.pulse*.22;
+        entry.mesh.material.emissiveIntensity=1.55+Math.sin(t*1.35)*.25*motion+entry.pulse*1.5;
+        entry.shell.material.opacity=.16+Math.sin(t*1.1)*.04*motion+entry.pulse*.22;
       }else if(id!==this.selected){
         entry.mesh.material.emissiveIntensity=.7+entry.pulse*1.2;
       }
     }
+
+    this.animateLinks(t);
+    this.stars.rotation.y=t*.0025*this.motionScale;
     this.renderer.render(this.scene,this.camera);
   }
 
@@ -325,6 +538,10 @@ export class Neural3DScene{
   destroy(){
     this.renderer.setAnimationLoop(null);
     this.clearWorld();
+    this.packetGeometry.dispose();
+    this.packetHaloGeometry.dispose();
+    this.stars.geometry.dispose();
+    this.stars.material.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
