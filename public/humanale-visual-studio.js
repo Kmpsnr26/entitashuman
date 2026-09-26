@@ -13,6 +13,8 @@ function safeSnapshot(value={}){
  const regions=Array.isArray(value?.regions)?value.regions:[];
  const connections=Array.isArray(value?.connections)?value.connections:[];
  const timeline=Array.isArray(value?.timeline)?value.timeline:[];
+ const skills=Array.isArray(value?.skills)?value.skills:[];
+ const skillCounts=value?.skillCounts&&typeof value.skillCounts==='object'?value.skillCounts:{};
  return {
   timestamp:Number(value?.timestamp)||Date.now(),
   runtime:{
@@ -71,7 +73,31 @@ function safeSnapshot(value={}){
    timestamp:Number(item?.timestamp)||0,
    state:text(item?.state||'').slice(0,30),
    region:text(item?.region||'').slice(0,40)
-  }))
+  })),
+  skills:skills.slice(0,40).map(skill=>({
+   id:text(skill?.id).slice(0,48),
+   label:text(skill?.label).slice(0,80),
+   group:text(skill?.group||'capability').slice(0,30),
+   region:text(skill?.region||'NARA_CORE').slice(0,40),
+   state:text(skill?.state||'setup').slice(0,24),
+   regionStatus:text(skill?.regionStatus||'idle').slice(0,24),
+   activity:Math.max(0,Math.min(1,Number(skill?.activity)||0)),
+   message:text(skill?.message||'').slice(0,160),
+   dependencies:Array.isArray(skill?.dependencies)?skill.dependencies.map(item=>String(item).slice(0,48)).slice(0,12):[],
+   missingDependencies:Array.isArray(skill?.missingDependencies)?skill.missingDependencies.map(item=>String(item).slice(0,48)).slice(0,12):[],
+   permissions:Array.isArray(skill?.permissions)?skill.permissions.map(item=>String(item).slice(0,80)).slice(0,16):[],
+   dependencyOk:skill?.dependencyOk!==false,
+   testScenario:skill?.testScenario?String(skill.testScenario).slice(0,40):null
+  })),
+  skillCounts:{
+   total:Math.max(0,Math.round(Number(skillCounts.total)||skills.length)),
+   ready:Math.max(0,Math.round(Number(skillCounts.ready)||0)),
+   running:Math.max(0,Math.round(Number(skillCounts.running)||0)),
+   blocked:Math.max(0,Math.round(Number(skillCounts.blocked)||0)),
+   error:Math.max(0,Math.round(Number(skillCounts.error)||0)),
+   offline:Math.max(0,Math.round(Number(skillCounts.offline)||0)),
+   setup:Math.max(0,Math.round(Number(skillCounts.setup)||0))
+  }
  };
 }
 
@@ -121,6 +147,7 @@ export function createHumanALEVisualStudio({
  let lastHistoryAt=0;
  let testHistory=[];
  let testRunning=false;
+ let selectedSkillId='';
 
  const render=value=>{
   current=safeSnapshot(value);
@@ -159,6 +186,55 @@ export function createHumanALEVisualStudio({
    text:item.id+' · '+item.status.toUpperCase(),
    dataset:{status:item.status}
   }));
+
+  setText(root,'visualStudioSkillTotal',current.skillCounts.total);
+  setText(root,'visualStudioSkillReady',current.skillCounts.ready);
+  setText(root,'visualStudioSkillRunning',current.skillCounts.running);
+  setText(root,'visualStudioSkillBlocked',current.skillCounts.blocked);
+  setText(root,'visualStudioSkillError',current.skillCounts.error);
+  setText(root,'visualStudioSkillSetup',current.skillCounts.setup);
+  renderList(root,'visualStudioSkills',current.skills,'visual-studio-skill',skill=>({
+   text:skill.label+'\n'+skill.state.toUpperCase()+' · '+skill.region,
+   dataset:{skillId:skill.id,state:skill.state},
+   title:skill.message||skill.label
+  }));
+  if(selectedSkillId&&!current.skills.some(skill=>skill.id===selectedSkillId))selectedSkillId='';
+  if(!selectedSkillId&&current.skills.length)selectedSkillId=current.skills[0].id;
+  const selectedSkill=current.skills.find(skill=>skill.id===selectedSkillId);
+  const skillInspector=root.querySelector?.('#visualStudioSkillInspector');
+  if(skillInspector){
+   skillInspector.replaceChildren();
+   if(selectedSkill){
+    const dl=root.createElement?.('dl')||document.createElement('dl');
+    const entries=[
+     ['Skill',selectedSkill.label+' ('+selectedSkill.id+')'],
+     ['State',selectedSkill.state.toUpperCase()+' · activity '+Math.round(selectedSkill.activity*100)+'%'],
+     ['Owner region',selectedSkill.region+' / '+selectedSkill.regionStatus.toUpperCase()],
+     ['Dependencies',selectedSkill.dependencies.length?selectedSkill.dependencies.join(', '):'none'],
+     ['Dependency health',selectedSkill.dependencyOk?'READY':'BLOCKED: '+selectedSkill.missingDependencies.join(', ')],
+     ['Permissions',selectedSkill.permissions.length?selectedSkill.permissions.join(', '):'none'],
+     ['Message',selectedSkill.message||'—']
+    ];
+    for(const [name,value] of entries){
+     const dt=root.createElement?.('dt')||document.createElement('dt');
+     const dd=root.createElement?.('dd')||document.createElement('dd');
+     dt.textContent=name;dd.textContent=value;dl.append(dt,dd);
+    }
+    skillInspector.append(dl);
+    if(selectedSkill.testScenario){
+     const actions=root.createElement?.('div')||document.createElement('div');
+     actions.className='actions';
+     const button=root.createElement?.('button')||document.createElement('button');
+     button.type='button';button.dataset.skillTest=selectedSkill.id;
+     button.dataset.scenario=selectedSkill.testScenario;
+     button.textContent='Controlled Test · '+selectedSkill.testScenario;
+     actions.append(button);skillInspector.append(actions);
+    }
+   }else{
+    const p=root.createElement?.('p')||document.createElement('p');
+    p.className='fine';p.textContent='Skill snapshot belum tersedia.';skillInspector.append(p);
+   }
+  }
 
   const timelineHost=root.querySelector?.('#visualStudioTimeline');
   if(timelineHost){
@@ -291,6 +367,27 @@ export function createHumanALEVisualStudio({
   if(!region)return;
   if(isPanel&&channel?.postMessage)channel.postMessage({type:'humanale-visual-studio-region',region});
   else onRegionSelect(region);
+ });
+ root.querySelector?.('#visualStudioSkills')?.addEventListener('click',event=>{
+  const button=event.target?.closest?.('[data-skill-id]');
+  if(!button?.dataset?.skillId)return;
+  selectedSkillId=button.dataset.skillId;
+  render(current);
+ });
+ root.querySelector?.('#visualStudioSkillInspector')?.addEventListener('click',async event=>{
+  const button=event.target?.closest?.('[data-skill-test]');
+  const scenario=button?.dataset?.scenario;
+  if(!scenario||testRunning)return;
+  button.disabled=true;
+  const baselineFps=current.performance.fps;
+  setText(root,'visualStudioTestStatus','RUNNING · SKILL '+String(button.dataset.skillTest||'').toUpperCase()+' · '+scenario.toUpperCase());
+  try{
+   const result=await onTestScenario(scenario);
+   render(getSnapshot?.()||current);
+   renderTestTrace(result||{},baselineFps);
+   testHistory=[...testHistory,{scenario:'skill:'+String(button.dataset.skillTest||scenario),ok:Boolean(result?.ok&&result?.restored),durationMs:Math.max(0,Math.round(Number(result?.durationMs)||0)),timestamp:Date.now()}].slice(-12);
+   renderTestHistory();
+  }finally{button.disabled=false;}
  });
 
  root.querySelector?.('#visualStudioHealthScan')?.addEventListener('click',()=>runHealthScan());
