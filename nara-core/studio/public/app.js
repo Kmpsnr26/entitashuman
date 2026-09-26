@@ -25,9 +25,25 @@ function updateViewButtons(){
 function updateNeuralHud(){
   if(!$('neural3dSelected'))return;
   $('neural3dSelected').textContent=snapshot?.selectedRegion||'NARA_CORE';
-  if(neural3d&&$('neural3dRoots')){
-    const stats=neural3d.getStats();
-    $('neural3dRoots').textContent=stats.links+' living roots · '+stats.activeLinks+' active · bounded flow';
+  if(!neural3d)return;
+
+  const stats=neural3d.getStats();
+  $('neural3dRoots').textContent=stats.links+' living roots · '+stats.activeLinks+' active';
+  $('neural3dRoutes').textContent='routes: '+stats.routeCount+' · active '+stats.activeRoutes;
+  $('neural3dPerf').textContent='fps '+stats.fps+' · quality '+stats.quality+' · '+stats.mode;
+  $('neural3dLastRoute').textContent='last route: '+(stats.lastRoute||'—');
+
+  for(const [id,mode] of [['neuralExplorer','explorer'],['neuralFocus','focus'],['neuralCore','core']]){
+    $(id)?.classList.toggle('mode-active',stats.mode===mode);
+  }
+
+  const detail=neural3d.getRegionDetails(snapshot?.selectedRegion||'NARA_CORE');
+  if(detail){
+    $('neuralDetailLabel').textContent=detail.label;
+    $('neuralDetailId').textContent=detail.id;
+    $('neuralDetailStatus').textContent=detail.status;
+    $('neuralDetailGroup').textContent=detail.group;
+    $('neuralDetailNeighbors').textContent='neighbors: '+(detail.neighbors.join(' · ')||'—');
   }
 }
 
@@ -46,7 +62,8 @@ async function ensureNeural3D(){
     neural3d=createNeural3DScene(host,{
       onSelect:region=>dispatch('brain.region.select',{region}).catch(error=>{
         $('consoleLog').textContent=error.message;
-      })
+      }),
+      onMetrics:()=>updateNeuralHud()
     });
     neural3d.setRegions(regions);
     if(snapshot)neural3d.setState(snapshot);
@@ -324,6 +341,11 @@ async function boot(){
 
 $('view2d').onclick=()=>setStudioView('2d');
 $('view3d').onclick=()=>setStudioView('3d');
+$('neuralExplorer').onclick=()=>ensureNeural3D().then(scene=>{scene.setMode('explorer');updateNeuralHud();}).catch(()=>{});
+$('neuralFocus').onclick=()=>ensureNeural3D().then(scene=>{scene.setMode('focus');updateNeuralHud();}).catch(()=>{});
+$('neuralCore').onclick=()=>ensureNeural3D().then(scene=>{scene.setMode('core');updateNeuralHud();}).catch(()=>{});
+$('neuralReset').onclick=()=>ensureNeural3D().then(scene=>{scene.resetView();updateNeuralHud();}).catch(()=>{});
+$('neuralQuality').onchange=event=>ensureNeural3D().then(scene=>{scene.setQuality(event.target.value);updateNeuralHud();}).catch(()=>{});
 $('sendEvent').onclick=()=>dispatch(eventSelect.value,{label:$('eventLabel').value,message:$('eventLabel').value}).catch(e=>$('consoleLog').textContent=e.message);
 document.querySelectorAll('.quick button').forEach(btn=>btn.onclick=()=>dispatch(btn.dataset.event,{label:'NARA Studio test',message:'NARA Studio simulated event'}).catch(e=>$('consoleLog').textContent=e.message));
 $('clearEvents').onclick=()=>{stopReplay();eventBuffer=[];eventPaused=false;$('pauseEvents').textContent='Pause';renderEventItems([]);};
