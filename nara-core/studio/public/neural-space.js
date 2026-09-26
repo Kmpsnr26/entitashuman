@@ -232,7 +232,9 @@ export class Neural3DScene{
     this.world=new THREE.Group();
     this.scene.add(this.world);
     this.stars=makeStarField();
-    this.scene.add(this.stars);
+    this.dust=makeDustField();
+    this.glowTexture=makeGlowTexture();
+    this.scene.add(this.stars,this.dust);
 
     this.scene.add(new THREE.HemisphereLight(0x7deeff,0x031017,1.3));
     const key=new THREE.PointLight(0x65eaff,12,26,2);
@@ -284,6 +286,7 @@ export class Neural3DScene{
       this.pointer.x=event.clientX;
       this.pointer.y=event.clientY;
       this.pointer.button=event.button;
+      el.focus({preventScroll:true});
       el.setPointerCapture?.(event.pointerId);
     });
     el.addEventListener('pointermove',event=>{
@@ -744,6 +747,7 @@ export class Neural3DScene{
     this.routeCount+=1;
     this.lastRoute=source+' → '+target+' · '+envelope.event;
     this.energizeRegion(target,.9);
+    this.emitMetrics();
     return true;
   }
 
