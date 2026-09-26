@@ -81,6 +81,9 @@ export function createCinematicSoundEngine({enabled=()=>true}={}){
     const ctx=ensure();
     if(!ctx)return false;
     if(ctx.state==='suspended')ctx.resume().catch(()=>{});
+    const t=ctx.currentTime;
+    master.gain.cancelScheduledValues(t);
+    master.gain.setTargetAtTime(.055,t,.018);
 
     if(name==='sweep'){
       noiseSweep({from:220,to:1500,duration:.62,offset,peak:.11});
