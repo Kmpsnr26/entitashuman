@@ -8,3 +8,5 @@ export * from './humanale-policy.js';
 export * from './humanale-test-lab.js';
 
 export * from './skill-registry.js';
+
+export * from './workflow-engine.js';
