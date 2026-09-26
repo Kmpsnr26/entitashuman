@@ -289,6 +289,75 @@ function disposeDecorativeGroup(group){
   });
 }
 
+function makeCoreMechanicalSystem(){
+  const root=new THREE.Group();
+  root.userData.coreMechanical=true;
+
+  const ringA=new THREE.Group();
+  const ringB=new THREE.Group();
+  const materialA=new THREE.MeshStandardMaterial({
+    color:0x60eaff,emissive:0x36d9ff,emissiveIntensity:1.25,
+    metalness:.78,roughness:.24,transparent:true,opacity:.78
+  });
+  const materialB=new THREE.MeshStandardMaterial({
+    color:0x866fff,emissive:0x705cff,emissiveIntensity:1.15,
+    metalness:.8,roughness:.22,transparent:true,opacity:.72
+  });
+
+  const torusA=new THREE.Mesh(new THREE.TorusGeometry(1.34,.035,7,64),materialA);
+  const torusB=new THREE.Mesh(new THREE.TorusGeometry(1.54,.032,7,64),materialB);
+  ringA.add(torusA);
+  ringB.add(torusB);
+
+  for(let index=0;index<12;index++){
+    const angle=index/12*Math.PI*2;
+    const marker=new THREE.Mesh(
+      new THREE.BoxGeometry(index%3===0?.22:.13,.055,.075),
+      materialA.clone()
+    );
+    marker.position.set(Math.cos(angle)*1.34,Math.sin(angle)*1.34,0);
+    marker.rotation.z=angle;
+    ringA.add(marker);
+  }
+  for(let index=0;index<14;index++){
+    const angle=index/14*Math.PI*2;
+    const marker=new THREE.Mesh(
+      new THREE.BoxGeometry(index%4===0?.2:.11,.05,.07),
+      materialB.clone()
+    );
+    marker.position.set(Math.cos(angle)*1.54,Math.sin(angle)*1.54,0);
+    marker.rotation.z=angle;
+    ringB.add(marker);
+  }
+
+  ringA.rotation.set(Math.PI*.58,.18,.12);
+  ringB.rotation.set(Math.PI*.18,Math.PI*.56,-.24);
+
+  const shellA=new THREE.Mesh(
+    new THREE.SphereGeometry(1.00,28,20),
+    new THREE.MeshBasicMaterial({
+      color:0x55eaff,transparent:true,opacity:.11,depthWrite:false,
+      blending:THREE.AdditiveBlending,side:THREE.BackSide
+    })
+  );
+  const shellB=new THREE.Mesh(
+    new THREE.SphereGeometry(1.10,24,18),
+    new THREE.MeshBasicMaterial({
+      color:0x806cff,transparent:true,opacity:.075,depthWrite:false,
+      blending:THREE.AdditiveBlending,wireframe:true
+    })
+  );
+
+  root.add(shellA,shellB,ringA,ringB);
+  root.userData.ringA=ringA;
+  root.userData.ringB=ringB;
+  root.userData.shellA=shellA;
+  root.userData.shellB=shellB;
+  root.userData.materialA=materialA;
+  root.userData.materialB=materialB;
+  return root;
+}
+
 function organicCurve(from,to,key){
   const start=from.clone();
   const end=to.clone();
@@ -571,7 +640,8 @@ export class Neural3DScene{
       quality:this.qualityMode==='auto'?'auto/'+this.effectiveQuality:this.effectiveQuality,
       galacticFrame:Boolean(this.galacticFrame?.visible),
       aurora:Boolean(this.aurora?.visible),
-      nebula:Boolean(this.nebula?.visible)
+      nebula:Boolean(this.nebula?.visible),
+      mechanicalCore:Boolean(this.nodes.get('NARA_CORE')?.coreFx)
     };
   }
 
@@ -633,6 +703,7 @@ export class Neural3DScene{
       entry.shell.geometry.dispose();
       entry.shell.material.dispose();
       entry.halo?.material.dispose();
+      if(entry.coreFx)disposeDecorativeGroup(entry.coreFx);
       this.world.remove(entry.group);
     }
     this.nodes.clear();
@@ -759,9 +830,12 @@ export class Neural3DScene{
       halo.scale.set(haloSize,haloSize,1);
       group.add(halo);
 
+      const coreFx=isCore?makeCoreMechanicalSystem():null;
+      if(coreFx)group.add(coreFx);
+
       this.world.add(group);
       this.nodes.set(region.id,{
-        group,mesh,shell,halo,region,baseY:position.y,
+        group,mesh,shell,halo,coreFx,region,baseY:position.y,
         phase:stableUnit(region.id+'node')*Math.PI*2,pulse:0
       });
     }
@@ -1079,8 +1153,28 @@ export class Neural3DScene{
       const pulseScale=1+entry.pulse*.22;
       entry.group.scale.setScalar(breathing*pulseScale);
       if(core){
-        entry.mesh.material.emissiveIntensity=1.55+Math.sin(t*1.35)*.25*motion+entry.pulse*1.5;
+        const hue=(.51+.095*Math.sin(t*.23)+.045*Math.sin(t*.071+1.8)+1)%1;
+        const hueB=(hue+.16+.035*Math.sin(t*.13))%1;
+        entry.mesh.material.color.setHSL(hue,.88,.64);
+        entry.mesh.material.emissive.setHSL(hue,.94,.47);
+        entry.mesh.material.emissiveIntensity=1.72+Math.sin(t*1.35)*.28*motion+entry.pulse*1.55;
+        entry.shell.material.color.setHSL(hueB,.9,.66);
         entry.shell.material.opacity=.16+Math.sin(t*1.1)*.04*motion+entry.pulse*.22;
+        entry.halo.material.color.setHSL((hue+.06)%1,.92,.68);
+        if(entry.coreFx){
+          const fx=entry.coreFx.userData;
+          fx.ringA.rotation.z+=delta*.52*motion;
+          fx.ringB.rotation.z-=delta*.67*motion;
+          fx.shellA.rotation.y+=delta*.18*motion;
+          fx.shellB.rotation.x-=delta*.14*motion;
+          fx.shellA.material.color.setHSL(hue,.95,.62);
+          fx.shellB.material.color.setHSL(hueB,.9,.64);
+          fx.materialA.color.setHSL(hue,.84,.62);
+          fx.materialA.emissive.setHSL(hue,.95,.46);
+          fx.materialB.color.setHSL(hueB,.82,.63);
+          fx.materialB.emissive.setHSL(hueB,.94,.44);
+          entry.coreFx.scale.setScalar(1+entry.pulse*.055+Math.sin(t*.9)*.008*motion);
+        }
       }else if(id!==this.selected){
         entry.mesh.material.emissiveIntensity=.7+entry.pulse*1.2;
       }
