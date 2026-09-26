@@ -14,6 +14,7 @@ export const STUDIO_EVENT_ALLOWLIST=Object.freeze([
   'reason.start','reason.complete',
   'plan.start','plan.complete',
   'memory.read','memory.write','memory.complete',
+  'context.prepare','context.approved','context.used','context.blocked',
   'agent.start','agent.complete','agent.failed',
   'program.start','program.complete',
   'verify.start','verify.complete',
