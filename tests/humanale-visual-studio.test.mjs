@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {createHumanALEVisualStudio,HUMANALE_VISUAL_STUDIO_SNAPSHOT_KEY} from '../public/humanale-visual-studio.js';
+import {createHumanALEVisualStudio,HUMANALE_VISUAL_STUDIO_SNAPSHOT_KEY,HUMANALE_VISUAL_REAL_TEST_EVIDENCE_KEY} from '../public/humanale-visual-studio.js';
 
 const root=new URL('../',import.meta.url);
 
@@ -42,6 +42,7 @@ test('HumanALE Visual Studio normalizes bounded runtime telemetry without a rend
  assert.equal(snap.skills[0].testScenario,'thinking');
  assert.equal(snap.skillCounts.ready,1);
  assert.equal(HUMANALE_VISUAL_STUDIO_SNAPSHOT_KEY,'humanale.visual-studio.snapshot.v1');
+ assert.equal(HUMANALE_VISUAL_REAL_TEST_EVIDENCE_KEY,'humanale.visual-studio.real-test-evidence.v1');
 });
 
 test('HumanALE Visual Studio UI and runtime wiring remain present',async()=>{
@@ -54,7 +55,7 @@ test('HumanALE Visual Studio UI and runtime wiring remain present',async()=>{
  ]);
  assert.match(html,/id="humanaleVisualStudioOpen"/);
  assert.match(html,/id="humanaleVisualStudio"/);
- for(const id of ['visualStudioState','visualStudioRenderer','visualStudioActivity','visualStudioController','visualStudioHearing','visualStudioVision','visualStudioSpeech','visualStudioFps','visualStudioPoints','visualStudioHealth','visualStudioSceneMaterial','visualStudioSceneAccent','visualStudioSceneEnvironment','visualStudioSceneTrack','visualStudioSceneAnimate','visualStudioSceneZoom','visualStudioRegions','visualStudioConnections','visualStudioTimeline','visualStudioPerformanceHistory','visualStudioTestStatus','visualStudioTestTrace','visualStudioHealthScan','visualStudioHealthChecks','visualStudioTestHistory','visualStudioSkillTotal','visualStudioSkillReady','visualStudioSkillRunning','visualStudioSkillBlocked','visualStudioSkillError','visualStudioSkillSetup','visualStudioSkills','visualStudioSkillInspector']){
+ for(const id of ['visualStudioState','visualStudioRenderer','visualStudioActivity','visualStudioController','visualStudioHearing','visualStudioVision','visualStudioSpeech','visualStudioFps','visualStudioPoints','visualStudioHealth','visualStudioSceneMaterial','visualStudioSceneAccent','visualStudioSceneEnvironment','visualStudioSceneTrack','visualStudioSceneAnimate','visualStudioSceneZoom','visualStudioRegions','visualStudioConnections','visualStudioTimeline','visualStudioPerformanceHistory','visualStudioTestStatus','visualStudioTestTrace','visualStudioHealthScan','visualStudioHealthChecks','visualStudioTestHistory','visualStudioSkillTotal','visualStudioSkillReady','visualStudioSkillRunning','visualStudioSkillBlocked','visualStudioSkillError','visualStudioSkillSetup','visualStudioSkills','visualStudioSkillInspector','visualStudioRealTestStatus','visualStudioRealTestPreflight','visualStudioRealTestReset','visualStudioRealTestChecks']){
   assert.match(html,new RegExp('id="'+id+'"'));
  }
  assert.match(app,/createHumanALEVisualStudio/);
@@ -88,6 +89,7 @@ test('HumanALE Visual Studio UI and runtime wiring remain present',async()=>{
  assert.match(style,/\/\* HumanALE Visual Studio v2 \*\//);
  assert.match(style,/\/\* HumanALE Visual Studio v3 \*\//);
  assert.match(style,/\/\* HumanALE Visual Studio v4 \*\//);
+ assert.match(style,/HumanALE Visual Studio v5/);
  assert.match(module,/performanceHistory=.*slice\(-30\)/);
  assert.match(module,/humanale-visual-studio-scene/);
  assert.match(module,/humanale-visual-studio-region/);
@@ -97,8 +99,26 @@ test('HumanALE Visual Studio UI and runtime wiring remain present',async()=>{
  assert.match(module,/selectedSkillId/);
  assert.match(module,/data-skill-test/);
  assert.match(module,/\[data-skill-id\]/);
+ assert.match(module,/evaluateHumanALEVisualRealTestPreflight/);
+ assert.match(module,/data-real-test-check/);
+ assert.match(module,/READY_FOR_REAL_TEST|visualStudioRealTestStatus/);
  assert.match(html,/data-nara-test="thinking"/);
  assert.match(html,/data-nara-test="full"/);
  assert.match(html,/NARA SKILL & CAPABILITY LAB/);
  assert.doesNotMatch(module,/new HumanALEAvatar|new NeuralAvatar|createElement\(['"]canvas/);
+});
+
+
+test('HumanALE Visual Studio v5 exposes fail-closed real-test preflight UI',async()=>{
+ const [html,module,realTest]=await Promise.all([
+  readFile(new URL('public/index.html',root),'utf8'),
+  readFile(new URL('public/humanale-visual-studio.js',root),'utf8'),
+  readFile(new URL('public/humanale-visual-real-test.js',root),'utf8')
+ ]);
+ assert.match(html,/FINAL REAL-TEST PREFLIGHT/);
+ assert.match(html,/visualStudioRealTestChecks/);
+ assert.match(module,/HUMANALE_VISUAL_REAL_TEST_EVIDENCE_KEY/);
+ assert.match(module,/operator-local/);
+ assert.match(realTest,/REAL_TEST_PASS/);
+ assert.match(realTest,/realDevicePending/);
 });

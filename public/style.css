@@ -196,3 +196,15 @@ body.detached-panel .humanale-visual-studio-dialog{width:calc(100% - 18px);max-h
 .visual-studio-skill-inspector .actions{margin-top:8px}
 @media(max-width:760px){.visual-studio-skills{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:460px){.visual-studio-skills{grid-template-columns:1fr}.visual-studio-skill-inspector dl{grid-template-columns:1fr}}
+
+/* HumanALE Visual Studio v5 — real-device preflight */
+.visual-studio-real-test{grid-column:1/-1}
+.visual-studio-real-test-summary{margin:.45rem 0 .65rem;padding:.65rem .75rem;border:1px solid rgba(118,255,218,.18);border-radius:12px;background:rgba(4,18,15,.55)}
+.visual-studio-real-test-checks{display:grid;gap:.5rem;margin-top:.7rem}
+.visual-studio-real-test-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.75rem;align-items:center;padding:.7rem;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(2,12,10,.5)}
+.visual-studio-real-test-label{display:grid;gap:.14rem;min-width:0}
+.visual-studio-real-test-label small{opacity:.72}
+.visual-studio-real-test-row[data-status="pass"]{border-color:rgba(105,255,179,.32)}
+.visual-studio-real-test-row[data-status="fail"],.visual-studio-real-test-row[data-status="blocked"]{border-color:rgba(255,112,112,.42)}
+.visual-studio-real-test-row select{min-width:112px}
+@media(max-width:700px){.visual-studio-real-test-row{grid-template-columns:1fr}.visual-studio-real-test-row select{width:100%}}
