@@ -241,6 +241,7 @@ const humanaleVisualStudio=createHumanALEVisualStudio({
  onOpenAvatarStudio:()=>showDialog('#avatarStudio'),
  onSceneChange:(name,value)=>applyHumanALEVisualScene(name,value),
  onRegionSelect:region=>selectHumanALEVisualRegion(region),
+ onTestScenario:scenario=>runHumanALEVisualTest(scenario),
  onToast:text=>toast(text)
 });
 avatar.onFrame=frame=>{
@@ -252,6 +253,12 @@ avatar.onFrame=frame=>{
  humanaleVisualStudio.render(humanaleVisualStudioSnapshot());
  panelChannel?.postMessage(humanaleVisualStudio.syncPayload());
 };
+async function runHumanALEVisualTest(scenario){
+ if(!desktop?.naraTestScenario)return {error:'Controlled Test Lab hanya tersedia pada HumanALE Desktop.',scenario,trace:[]};
+ const result=await desktop.naraTestScenario(scenario);
+ if(result?.finalState)syncNaraBrainState(result.finalState);
+ return result||{error:'Controlled Test Lab tidak mengembalikan hasil.',scenario,trace:[]};
+}
 function applyHumanALEVisualScene(name,value){
  if(panelOnly){panelChannel?.postMessage({type:'humanale-visual-studio-scene',name,value});return;}
  if(name==='material')setMode(String(value||'mixed'));
