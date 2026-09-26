@@ -4,7 +4,7 @@ import {NARA_REGION_IDS,NARA_REGIONS,isRegionId} from '../nara-core/brain/region
 import {createEventBus} from '../nara-core/brain/event-bus.js';
 import {createBrainState} from '../nara-core/brain/brain-state.js';
 import {createOrchestrator} from '../nara-core/brain/orchestrator.js';
-import {NARA_SKILL_IDS,NARA_SKILLS,isSkillId,createSkillSnapshot,skillTestScenario} from '../nara-core/brain/skill-registry.js';
+import {NARA_SKILL_IDS,NARA_SKILLS,isSkillId,createSkillSnapshot,skillTestScenario,validateSkillDependencyGraph} from '../nara-core/brain/skill-registry.js';
 
 test('NARA brain exposes the required Phase 1 regions with 3D positions',()=>{
   const required=['NARA_CORE','REASONER','PLANNER','MEMORY','BUG_HUNTER','AGENT_MANAGER','TOOLS','TERMINAL','GITHUB','COPILOT','WEB','TEAM','PR','SYNC','ONLINE','SAFETY','OWNER_EMAIL','DRIVE','REPORTING','FOLLOW_UP','PROGRAM','ERROR_MONITOR'];
@@ -156,4 +156,13 @@ test('NARA skill snapshot derives runtime health and blocks unhealthy dependenci
   snapshot=createSkillSnapshot({brainState:nara.snapshot(),agents:[]});
   assert.equal(snapshot.skills['bug-hunter'].state,'running');
   assert.ok(snapshot.counts.total===NARA_SKILL_IDS.length);
+});
+
+
+test('NARA skill dependency graph is acyclic and all dependencies are known',()=>{
+  const result=validateSkillDependencyGraph();
+  assert.equal(result.ok,true,JSON.stringify(result));
+  assert.deepEqual(result.cycle,[]);
+  assert.deepEqual(NARA_SKILLS.program.dependencies,['terminal','safety']);
+  assert.deepEqual(NARA_SKILLS['bug-hunter'].dependencies,['reasoning','terminal']);
 });
