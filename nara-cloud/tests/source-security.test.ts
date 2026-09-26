@@ -117,7 +117,12 @@ test(
 
     assert.match(
       nara,
-      /verifyCsrf/
+      /requireCsrf/
+    );
+
+    assert.match(
+      nara,
+      /requireTrustedOrigin/
     );
 
     assert.match(
