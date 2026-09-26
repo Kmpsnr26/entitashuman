@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('dudidamDesktop',Object.freeze({
  onSummon:callback=>{if(typeof callback!=='function')return()=>{};const handler=()=>callback();ipcRenderer.on('dudidam:summon',handler);return()=>ipcRenderer.removeListener('dudidam:summon',handler);},
  onDismiss:callback=>{if(typeof callback!=='function')return()=>{};const handler=(_event,reason)=>callback(reason);ipcRenderer.on('dudidam:dismiss',handler);return()=>ipcRenderer.removeListener('dudidam:dismiss',handler);},
  onGlobalPointer:callback=>{if(typeof callback!=='function')return()=>{};const handler=(_event,point)=>callback(point);ipcRenderer.on('dudidam:global-pointer',handler);return()=>ipcRenderer.removeListener('dudidam:global-pointer',handler);},
+ onBackdrop:callback=>{if(typeof callback!=='function')return()=>{};const handler=(_event,grid)=>callback(grid);ipcRenderer.on('dudidam:backdrop',handler);return()=>ipcRenderer.removeListener('dudidam:backdrop',handler);},
  terminalCreate:options=>ipcRenderer.invoke('dudidam:terminal-create',options),
  terminalWrite:(sessionId,data)=>ipcRenderer.invoke('dudidam:terminal-write',{sessionId,data}),
  terminalResize:(sessionId,cols,rows)=>ipcRenderer.invoke('dudidam:terminal-resize',{sessionId,cols,rows}),

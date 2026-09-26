@@ -522,3 +522,22 @@ test('Indonesian TTS prefers Piper only when configured and falls back to Window
  assert.match(app,/voiceschanged/);
  assert.match(app,/current\.lang='id-ID'/);
 });
+
+test('desktop avatar is procedural-only and adapts to local backdrop using bounded luminance data',async()=>{
+ const [app,adapter,main,preload,engine]=await Promise.all([
+  readFile(new URL('../public/app.js',import.meta.url),'utf8'),
+  readFile(new URL('../public/humanale-avatar.js',import.meta.url),'utf8'),
+  readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8'),
+  readFile(new URL('../desktop/preload.cjs',import.meta.url),'utf8'),
+  readFile(new URL('../sites/humanale-hologram/dist/avatar.js',import.meta.url),'utf8')
+ ]);
+ assert.doesNotMatch(app,/reference-face\.png|referenceSrc\s*:/);
+ assert.doesNotMatch(adapter,/referenceSrc\s*:/);
+ assert.match(engine,/setBackdrop\(grid\)/);
+ assert.match(main,/sampleAvatarBackdrop\(bounds\)/);
+ assert.match(main,/const columns=16,rows=20/);
+ assert.match(main,/dudidam:backdrop/);
+ assert.match(preload,/onBackdrop/);
+ assert.match(app,/onBackdrop\?\.\(grid=>avatar\.setBackdrop\?\.\(grid\)\)/);
+ assert.doesNotMatch(main,/writeFile\([^\n]*backdrop|fetch\([^\n]*backdrop/i);
+});

@@ -10,8 +10,7 @@ export class HumanALEAvatar extends BaseAvatar{
   super(canvas,{
    bindPointer:false,
    popup:Boolean(options.popup),
-   paused:Boolean(options.panelOnly),
-   referenceSrc:options.panelOnly?'':options.referenceSrc
+   paused:Boolean(options.panelOnly)
   });
   this.track=true;
   this.persona='chatgpt';

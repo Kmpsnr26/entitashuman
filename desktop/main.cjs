@@ -6,7 +6,7 @@ const path=require('node:path');
 const {tmpdir}=require('node:os');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer;
+let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer,backdropTimer;
 let cloudAllowedOrigins=new Set();
 let announceNaraEvent=()=>{};
 let baseWindowSize={width:420,height:480};
@@ -16,6 +16,7 @@ let pendingDismiss='';
 let passthrough=false;
 let passthroughLocked=false;
 let panelViewportOpen=false;
+let backdropSampling=false;
 const summonShortcut='CommandOrControl+Alt+5';
 const ciSmoke=process.argv.includes('--ci-smoke');
 if(process.platform==='win32')app.setAppUserModelId('id.my.aleprinting.dudidam');
@@ -152,6 +153,46 @@ function publishGlobalPointer(){
  const x=Math.max(-1,Math.min(1,(point.x-centerX)/Math.max(1,(right-left)/2)));
  const y=Math.max(-1,Math.min(1,(point.y-centerY)/Math.max(1,(bottom-top)/2)));
  win.webContents.send('dudidam:global-pointer',{x,y});
+}
+
+async function sampleAvatarBackdrop(bounds){
+ const columns=16,rows=20;
+ const sources=await desktopCapturer.getSources({types:['screen'],thumbnailSize:{width:480,height:480},fetchWindowIcons:false});
+ const displays=screen.getAllDisplays();
+ const images=sources.map(source=>{
+  const display=displays.find(item=>String(item.id)===String(source.display_id));
+  if(!display||source.thumbnail.isEmpty())return null;
+  return {bounds:display.bounds,size:source.thumbnail.getSize(),bytes:source.thumbnail.toBitmap()};
+ }).filter(Boolean);
+ if(!images.length)throw new Error('No display pixels available');
+ const values=[];
+ for(let row=0;row<rows;row++)for(let column=0;column<columns;column++){
+  const sx=bounds.x+(column+.5)/columns*bounds.width;
+  const sy=bounds.y+(row+.5)/rows*bounds.height;
+  const image=images.find(item=>sx>=item.bounds.x&&sx<item.bounds.x+item.bounds.width&&sy>=item.bounds.y&&sy<item.bounds.y+item.bounds.height);
+  if(!image){values.push(null);continue;}
+  const px=Math.min(image.size.width-1,Math.max(0,Math.floor((sx-image.bounds.x)/image.bounds.width*image.size.width)));
+  const py=Math.min(image.size.height-1,Math.max(0,Math.floor((sy-image.bounds.y)/image.bounds.height*image.size.height)));
+  let sum=0,count=0;
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+   const ix=Math.max(0,Math.min(image.size.width-1,px+dx));
+   const iy=Math.max(0,Math.min(image.size.height-1,py+dy));
+   const offset=(iy*image.size.width+ix)*4;
+   sum+=(image.bytes[offset+2]*.2126+image.bytes[offset+1]*.7152+image.bytes[offset]*.0722)/255;
+   count++;
+  }
+  values.push(sum/count);
+ }
+ return {columns,rows,values};
+}
+async function publishAvatarBackdrop(){
+ if(backdropSampling||!win||win.isDestroyed()||!win.isVisible()||win.webContents.isLoading())return;
+ backdropSampling=true;
+ try{
+  const grid=await sampleAvatarBackdrop(win.getBounds());
+  if(win&&!win.isDestroyed()&&!win.webContents.isLoading())win.webContents.send('dudidam:backdrop',grid);
+ }catch{}
+ finally{backdropSampling=false;}
 }
 
 if(!app.requestSingleInstanceLock())app.quit();
@@ -421,6 +462,8 @@ else{
   await win.loadURL(origin+'/');
   announceNaraEvent('nara.start');
   pointerTimer=setInterval(publishGlobalPointer,50);
+  backdropTimer=setInterval(publishAvatarBackdrop,1800);
+  publishAvatarBackdrop();
   if(ciSmoke){
    const rendererReady=await win.webContents.executeJavaScript("Boolean(document.querySelector('#avatar')) && Boolean(document.querySelector('#assistantPopup')) && typeof window.dudidamAvatar?.setAvatarState === 'function' && typeof window.dudidamDesktop?.onGlobalPointer === 'function' && typeof window.dudidamDesktop?.avatarViewport === 'function' && typeof window.dudidamDesktop?.openTerminal === 'function' && document.title.includes('HumanALE god egine')");
    if(!rendererReady)throw new Error('Renderer HumanALE god egine tidak siap.');
@@ -459,5 +502,5 @@ else{
   console.log('HumanALE god egine desktop ready: transparent=true; frame=false; alwaysOnTop=true; tray=true; systemAudio=loopback');
  }).catch(error=>{console.error('HumanALE god egine startup failed:',error);app.exit(1);});
  app.on('window-all-closed',()=>{});
-  app.on('before-quit',()=>{quitting=true;globalShortcut.unregisterAll();clearTimeout(saveTimer);clearInterval(pointerTimer);Object.values(bridges||{}).forEach(item=>item?.stop());agentHub?.stop();terminalManager?.killAll?.();indonesianStt?.stop();indonesianTts?.stop();panelWin?.destroy();server?.close();tray?.destroy();});
+  app.on('before-quit',()=>{quitting=true;globalShortcut.unregisterAll();clearTimeout(saveTimer);clearInterval(pointerTimer);clearInterval(backdropTimer);Object.values(bridges||{}).forEach(item=>item?.stop());agentHub?.stop();terminalManager?.killAll?.();indonesianStt?.stop();indonesianTts?.stop();panelWin?.destroy();server?.close();tray?.destroy();});
 }
