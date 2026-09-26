@@ -79,6 +79,11 @@ test('HumanALE Visual Studio UI and runtime wiring remain present',async()=>{
  assert.match(desktop,/HumanALE Visual Studio v3 tidak mengembalikan NARA ke IDLE\/ECO/);
  assert.match(desktop,/HumanALE Visual Studio v3 Health Scan tidak menghasilkan pemeriksaan runtime/);
  assert.match(desktop,/HumanALE Visual Studio v3 menerima skenario test di luar whitelist/);
+ assert.match(desktop,/HumanALE Visual Studio v4 NARA skill snapshot tidak valid/);
+ assert.match(desktop,/HumanALE Visual Studio v4 Skill Lab tidak menerima 16 capability NARA/);
+ assert.match(desktop,/HumanALE Visual Studio v4 inspector dependency\/permission Reasoning tidak siap/);
+ assert.match(desktop,/HumanALE Visual Studio v4 controlled Reasoning skill test gagal/);
+ assert.match(desktop,/HumanALE Visual Studio v4 skill test tidak mengembalikan NARA ke IDLE\/ECO/);
  assert.match(style,/\/\* HumanALE Visual Studio \*\//);
  assert.match(style,/\/\* HumanALE Visual Studio v2 \*\//);
  assert.match(style,/\/\* HumanALE Visual Studio v3 \*\//);
