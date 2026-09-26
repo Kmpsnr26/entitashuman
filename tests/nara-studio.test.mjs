@@ -1221,3 +1221,54 @@ test('R5 audio modules stay local and pass Node syntax checks',async()=>{
     assert.equal(result.status,0,result.stderr||result.stdout||file);
   }
 });
+
+
+test('Revision R6 Windows release-candidate wrapper requires GPU plus R4/R5 gates',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [bat,ps1,docs]=await Promise.all([
+    readFile(new URL('NARA-Neural-GPU-Acceptance.bat',root),'utf8'),
+    readFile(new URL('scripts/nara-neural-gpu-acceptance.ps1',root),'utf8'),
+    readFile(new URL('nara-core/studio/WINDOWS_GPU_ACCEPTANCE.md',root),'utf8')
+  ]);
+
+  assert.match(bat,/NARA R5 Release Candidate - Physical Acceptance/);
+  assert.match(bat,/nara-neural-gpu-acceptance\.ps1/);
+  assert.match(ps1,/\$env:NARA_GPU_MODE = 'hardware'/);
+  assert.match(ps1,/Git HEAD/);
+  assert.match(ps1,/Release-candidate revision gates/);
+  assert.match(ps1,/R4\/R5 gates\s+: PASS/);
+
+  for(const check of [
+    'customSettingsPanel',
+    'r4VisualDefaults',
+    'customSettingsRuntime',
+    'customSettingsPersistence',
+    'r5AudioControls',
+    'r5AudioProfileRuntime',
+    'nodeVoiceNarration',
+    'mechanicalCoreRings',
+    'galacticEnvironment'
+  ]){
+    assert.match(ps1,new RegExp("'"+check+"'"));
+    assert.equal(docs.includes(String.fromCharCode(96)+check+String.fromCharCode(96)),true);
+  }
+
+  assert.match(ps1,/gpu\.modeMatched/);
+  assert.match(ps1,/missingRevisionChecks\.Count -gt 0/);
+  assert.match(ps1,/NARA R5 release candidate lolos physical GPU \+ visual\/audio acceptance/);
+  assert.match(docs,/final perceived voice timbre/i);
+});
+
+test('R6 physical acceptance wrapper does not expose Creator credentials',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [bat,ps1,docs]=await Promise.all([
+    readFile(new URL('NARA-Neural-GPU-Acceptance.bat',root),'utf8'),
+    readFile(new URL('scripts/nara-neural-gpu-acceptance.ps1',root),'utf8'),
+    readFile(new URL('nara-core/studio/WINDOWS_GPU_ACCEPTANCE.md',root),'utf8')
+  ]);
+  const combined=[bat,ps1,docs].join('\n');
+  assert.doesNotMatch(combined,/browser-acceptance-\+process\.pid/);
+  assert.doesNotMatch(ps1,/NARA_CREATOR_PASSWORD\s*=/);
+});
