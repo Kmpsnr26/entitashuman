@@ -1,4 +1,5 @@
 import {getSkill,isSkillId} from './skill-registry.js';
+import {isAutoPermission,isApprovalPermission,isKnownPermission,permissionDecision,shouldInheritDependencyPermission} from './authority-policy.js';
 
 export const NARA_WORKFLOW_LIMITS=Object.freeze({
  maxSteps:12,
@@ -16,17 +17,6 @@ export const NARA_WORKFLOW_STATES=Object.freeze([
 
 export const NARA_WORKFLOW_STEP_STATES=Object.freeze([
  'queued','ready','blocked','running','verifying','complete','failed','cancelled'
-]);
-
-const AUTO_PERMISSIONS=new Set([
- 'sensor:read','state:read','memory:read','diagnostic:read','network:read',
- 'repo:read','report:write','policy:enforce'
-]);
-
-const APPROVAL_PERMISSIONS=new Set([
- 'audio:output','camera:read','memory:write-approved','agent:execute-approved',
- 'terminal:bounded-execute','workspace:write-approved','repo:write-approved',
- 'cloud:write-approved'
 ]);
 
 const bounded=(value,max)=>String(value??'').trim().slice(0,max);
@@ -56,7 +46,7 @@ function skillPermissionClosure(skillId,seen=new Set(),root=true){
  if(!skill)return [];
  const direct=root
   ?[...skill.permissions]
-  :skill.permissions.filter(permission=>!permission.endsWith('-approved'));
+  :skill.permissions.filter(permission=>shouldInheritDependencyPermission(permission));
  const inherited=skill.dependencies.flatMap(dependency=>skillPermissionClosure(dependency,seen,false));
  return [...new Set([...direct,...inherited])];
 }
@@ -109,7 +99,7 @@ export function normalizeWorkflowPlan(value={}){
    skill:skillId,
    dependsOn,
    permissions,
-   approvalRequired:permissions.some(permission=>APPROVAL_PERMISSIONS.has(permission)||permission.endsWith('-approved'))
+   approvalRequired:permissions.some(permission=>isApprovalPermission(permission))
   };
  });
  validateStepGraph(steps);
@@ -126,7 +116,7 @@ function workflowRequiredPermissions(plan){
 }
 
 function initialGrantedPermissions(plan){
- return workflowRequiredPermissions(plan).filter(permission=>AUTO_PERMISSIONS.has(permission));
+ return workflowRequiredPermissions(plan).filter(permission=>isAutoPermission(permission));
 }
 
 function skillBlockers(step,skillSnapshot={}){
@@ -244,10 +234,9 @@ export class NaraWorkflowEngine{
   const list=[...new Set((Array.isArray(values)?values:[]).map(item=>String(item||'').trim()).filter(Boolean))];
   for(const permission of list){
    if(!required.has(permission))throw new Error('Permission tidak dibutuhkan workflow: '+permission);
-   if(this.workflow.mode!=='execute'&&(APPROVAL_PERMISSIONS.has(permission)||permission.endsWith('-approved'))){
-    throw new Error('Workflow observe tidak dapat menerima permission eksekusi: '+permission);
-   }
-   if(!APPROVAL_PERMISSIONS.has(permission)&&!permission.endsWith('-approved')&&!AUTO_PERMISSIONS.has(permission)){
+   const decision=permissionDecision(permission,{mode:this.workflow.mode});
+   if(decision.decision==='block'){
+    if(decision.reason==='OBSERVE_MODE')throw new Error('Workflow observe tidak dapat menerima permission eksekusi: '+permission);
     throw new Error('Permission workflow tidak dikenal: '+permission);
    }
    this.granted.add(permission);
@@ -261,7 +250,7 @@ export class NaraWorkflowEngine{
   const revoked=[];
   for(const value of Array.isArray(values)?values:[]){
    const permission=String(value||'').trim();
-   if(!permission||AUTO_PERMISSIONS.has(permission))continue;
+   if(!permission||isAutoPermission(permission))continue;
    if(this.granted.delete(permission))revoked.push(permission);
   }
   const active=Object.values(this.workflow.steps).find(step=>
