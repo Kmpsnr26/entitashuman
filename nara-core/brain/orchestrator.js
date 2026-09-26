@@ -1,6 +1,8 @@
 import {createEventBus} from './event-bus.js';
 import {createBrainState} from './brain-state.js';
 import {isRegionId} from './regions.js';
+import {createSkillSnapshot} from './skill-registry.js';
+import {createWorkflowEngine} from './workflow-engine.js';
 
 const connectionEvents=Object.freeze({
   GITHUB:['github.connected','github.disconnected'],
@@ -17,6 +19,7 @@ export class NaraOrchestrator{
     this.state=state;
     this.running=false;
     this.unsubscribe=null;
+    this.workflow=createWorkflowEngine({bus:this.bus});
   }
 
   start(){
@@ -58,6 +61,62 @@ export class NaraOrchestrator{
     const events=connectionEvents[region];
     if(!events)throw new Error('Koneksi NARA tidak dikenal: '+region);
     return this.dispatch(connected?events[0]:events[1],{region});
+  }
+
+  skillSnapshot(agents=[]){
+    return createSkillSnapshot({brainState:this.snapshot(),agents});
+  }
+
+  createWorkflow(plan,{agents=[]}={}){
+    return this.workflow.create(plan,this.skillSnapshot(agents));
+  }
+
+  startWorkflow({agents=[]}={}){
+    return this.workflow.start(this.skillSnapshot(agents));
+  }
+
+  grantWorkflowPermissions(permissions,{agents=[]}={}){
+    return this.workflow.grantPermissions(permissions,this.skillSnapshot(agents));
+  }
+
+  revokeWorkflowPermissions(permissions,{agents=[]}={}){
+    return this.workflow.revokePermissions(permissions,this.skillSnapshot(agents));
+  }
+
+  refreshWorkflow({agents=[]}={}){
+    return this.workflow.refresh(this.skillSnapshot(agents));
+  }
+
+  nextWorkflowStep(){
+    return this.workflow.nextReady();
+  }
+
+  startWorkflowStep(id,{agents=[]}={}){
+    return this.workflow.startStep(id,this.skillSnapshot(agents));
+  }
+
+  completeWorkflowStep(id,result=''){
+    return this.workflow.completeStep(id,result);
+  }
+
+  verifyWorkflowStep(id,verification,{agents=[]}={}){
+    return this.workflow.verifyStep(id,verification,this.skillSnapshot(agents));
+  }
+
+  failWorkflowStep(id,reason){
+    return this.workflow.failStep(id,reason);
+  }
+
+  recoverWorkflowStep(id,{agents=[]}={}){
+    return this.workflow.recoverStep(id,this.skillSnapshot(agents));
+  }
+
+  cancelWorkflow(reason){
+    return this.workflow.cancel(reason);
+  }
+
+  workflowSnapshot(){
+    return this.workflow.snapshot();
   }
 
   snapshot(){return this.state.snapshot();}
