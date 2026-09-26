@@ -67,7 +67,7 @@ jobs:
           node-version: 22
 
       - name: Install NARA Cloud dependencies
-        run: npm install
+        run: npm ci
 
       - name: Record resolved dependency versions
         run: npm ls --depth=0
