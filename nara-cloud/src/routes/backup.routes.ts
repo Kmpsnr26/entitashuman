@@ -1,5 +1,6 @@
 import express from "express";
 import rateLimit from "express-rate-limit";
+import { z } from "zod";
 
 import {
   BackupExportError,
@@ -11,6 +12,11 @@ import {
   GoogleDriveBackupError,
   uploadMemoryBackupToGoogleDrive
 } from "../services/google-drive-backup.service.js";
+
+import {
+  encryptMemoryBackup,
+  EncryptedBackupError
+} from "../services/encrypted-backup.service.js";
 
 import {
   audit
@@ -26,6 +32,23 @@ import {
 
 const router =
   express.Router();
+
+const UsbBackupRequestSchema =
+  z.object({
+    passphrase:
+      z.string()
+        .min(16)
+        .max(256)
+        .refine(
+          value =>
+            value.trim()
+              .length >= 16,
+          {
+            message:
+              "passphrase is too weak"
+          }
+        )
+  });
 
 const backupLimiter =
   rateLimit({
@@ -59,6 +82,75 @@ function noStore(
     "Pragma",
     "no-cache"
   );
+}
+
+function usbBackupName(
+  exportedAt: string
+): string {
+  const safeTimestamp =
+    exportedAt
+      .replaceAll(
+        ":",
+        "-"
+      )
+      .replaceAll(
+        ".",
+        "-"
+      );
+
+  return (
+    "nara-memory-backup-" +
+    safeTimestamp +
+    ".nara"
+  );
+}
+
+function publicUsbError(
+  error: unknown
+): {
+  code: string;
+  status: number;
+} | null {
+  if (
+    error instanceof
+      BackupExportError
+  ) {
+    return {
+      code:
+        error.code,
+      status:
+        413
+    };
+  }
+
+  if (
+    !(error instanceof
+      EncryptedBackupError)
+  ) {
+    return null;
+  }
+
+  switch (error.code) {
+    case
+      "USB_BACKUP_TOO_LARGE":
+      return {
+        code:
+          error.code,
+        status:
+          413
+      };
+
+    case
+      "USB_BACKUP_INVALID_ENVELOPE":
+    case
+      "USB_BACKUP_DECRYPT_FAILED":
+      return {
+        code:
+          "USB_BACKUP_FAILED",
+        status:
+          500
+      };
+  }
 }
 
 function publicDriveError(
@@ -218,6 +310,111 @@ router.post(
     } catch (error) {
       const publicFailure =
         publicDriveError(
+          error
+        );
+
+      if (publicFailure) {
+        return res
+          .status(
+            publicFailure.status
+          )
+          .json({
+            error:
+              publicFailure.code
+          });
+      }
+
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/usb",
+  backupLimiter,
+  requireCsrf,
+  async (
+    req,
+    res,
+    next
+  ) => {
+    try {
+      noStore(res);
+
+      const parsed =
+        UsbBackupRequestSchema
+          .safeParse(
+            req.body
+          );
+
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({
+            error:
+              "INVALID_USB_BACKUP_REQUEST"
+          });
+      }
+
+      const snapshot =
+        await createMemoryBackupSnapshot(
+          req.session.userId!
+        );
+
+      const encrypted =
+        await encryptMemoryBackup(
+          snapshot,
+          parsed.data.passphrase
+        );
+
+      const body =
+        JSON.stringify(
+          encrypted
+        );
+
+      await audit({
+        userId:
+          req.session.userId!,
+        eventType:
+          "NARA_USB_BACKUP_CREATED",
+        request:
+          req,
+        metadata: {
+          recordCount:
+            snapshot.memories.length,
+          encryptedBytes:
+            Buffer.byteLength(
+              body,
+              "utf8"
+            ),
+          algorithm:
+            encrypted.algorithm,
+          kdf:
+            encrypted.kdf
+        }
+      });
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.nara.backup+json; charset=utf-8"
+      );
+
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${usbBackupName(snapshot.exportedAt)}"`
+      );
+
+      res.setHeader(
+        "X-Content-Type-Options",
+        "nosniff"
+      );
+
+      return res
+        .status(201)
+        .send(body);
+    } catch (error) {
+      const publicFailure =
+        publicUsbError(
           error
         );
 
