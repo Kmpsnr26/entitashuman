@@ -113,11 +113,14 @@ export function createHumanALEVisualStudio({
  onOpenAvatarStudio=()=>{},
  onSceneChange=()=>{},
  onRegionSelect=()=>{},
+ onTestScenario=async()=>({error:'Controlled test tidak tersedia.'}),
  onToast=()=>{}
 }={}){
  let current=safeSnapshot(getSnapshot?.());
  let performanceHistory=[];
  let lastHistoryAt=0;
+ let testHistory=[];
+ let testRunning=false;
 
  const render=value=>{
   current=safeSnapshot(value);
@@ -196,7 +199,59 @@ export function createHumanALEVisualStudio({
   return current;
  };
 
- const syncPayload=()=>({type:'humanale-visual-studio-sync',snapshot:safeSnapshot(getSnapshot?.()||current)});
+ const renderTestTrace=(result={},baselineFps=0)=>{
+  const host=root.querySelector?.('#visualStudioTestTrace');
+  if(host){
+   host.replaceChildren();
+   for(const item of Array.isArray(result.trace)?result.trace.slice(0,16):[]){
+    const row=root.createElement?.('div')||document.createElement('div');
+    row.className='visual-studio-test-step';
+    row.textContent=item.event+' → '+String(item.state||'').toUpperCase()+' / '+String(item.rendererMode||'').toUpperCase()+' · '+Math.round((Number(item.activity)||0)*100)+'%';
+    host.append(row);
+   }
+  }
+  const finalFps=current.performance.fps;
+  const delta=finalFps-baselineFps;
+  setText(root,'visualStudioTestStatus',result.error?'FAILED · '+result.error:(result.restored?'PASS · runtime restored to IDLE/ECO':'WARN · test selesai tetapi restore belum terkonfirmasi')+' · '+Number(result.durationMs||0)+' ms · FPS Δ '+(delta>=0?'+':'')+delta);
+ };
+ const renderTestHistory=()=>{
+  const host=root.querySelector?.('#visualStudioTestHistory');
+  if(!host)return;
+  host.replaceChildren();
+  for(const item of [...testHistory].reverse()){
+   const row=root.createElement?.('div')||document.createElement('div');
+   row.className='visual-studio-test-history-row';
+   row.dataset.status=item.ok?'pass':'fail';
+   row.textContent=item.scenario.toUpperCase()+' · '+(item.ok?'PASS':'FAIL')+' · '+item.durationMs+' ms · '+new Date(item.timestamp).toLocaleTimeString('id-ID');
+   host.append(row);
+  }
+ };
+ const runHealthScan=()=>{
+  const snapshot=safeSnapshot(getSnapshot?.()||current);
+  const badConnections=snapshot.connections.filter(item=>['error','bug'].includes(item.status));
+  const checks=[
+   {name:'NARA authority',status:snapshot.runtime.controlledBy==='NARA_CORE'?'PASS':'FAIL',detail:snapshot.runtime.controlledBy},
+   {name:'NARA lifecycle',status:snapshot.nara.lifecycle==='active'?'PASS':'WARN',detail:snapshot.nara.lifecycle},
+   {name:'Renderer telemetry',status:snapshot.performance.fps>0&&snapshot.performance.points>0?'PASS':'WARN',detail:snapshot.performance.fps+' FPS / '+snapshot.performance.points+' points'},
+   {name:'Runtime errors',status:snapshot.health.errorCount===0?'PASS':'FAIL',detail:snapshot.health.errorCount+' active'},
+   {name:'Connection errors',status:badConnections.length===0?'PASS':'WARN',detail:badConnections.length?badConnections.map(item=>item.id).join(', '):'none'},
+   {name:'Bounded performance history',status:performanceHistory.length<=30?'PASS':'FAIL',detail:performanceHistory.length+'/30 samples'}
+  ];
+  const host=root.querySelector?.('#visualStudioHealthChecks');
+  if(host){
+   host.replaceChildren();
+   for(const check of checks){
+    const row=root.createElement?.('div')||document.createElement('div');
+    row.className='visual-studio-health-row';
+    row.dataset.status=check.status.toLowerCase();
+    row.textContent=check.status+' · '+check.name+' · '+check.detail;
+    host.append(row);
+   }
+  }
+  return checks;
+ };
+
+  const syncPayload=()=>({type:'humanale-visual-studio-sync',snapshot:safeSnapshot(getSnapshot?.()||current)});
 
  root.querySelector?.('#humanaleVisualStudioOpen')?.addEventListener('click',()=>onOpen());
  root.querySelector?.('#visualStudioRefresh')?.addEventListener('click',()=>{
@@ -238,10 +293,43 @@ export function createHumanALEVisualStudio({
   else onRegionSelect(region);
  });
 
+ root.querySelector?.('#visualStudioHealthScan')?.addEventListener('click',()=>runHealthScan());
+ for(const button of root.querySelectorAll?.('[data-nara-test]')||[]){
+  button.addEventListener('click',async()=>{
+   if(testRunning)return;
+   const scenario=String(button.dataset.naraTest||'');
+   const buttons=[...(root.querySelectorAll?.('[data-nara-test]')||[])];
+   const baselineFps=current.performance.fps;
+   testRunning=true;buttons.forEach(item=>item.disabled=true);
+   setText(root,'visualStudioTestStatus','RUNNING · '+scenario.toUpperCase()+' · NARA Core mengendalikan transisi…');
+   try{
+    const result=await onTestScenario(scenario);
+    render(getSnapshot?.()||current);
+    renderTestTrace(result||{},baselineFps);
+    testHistory=[...testHistory,{
+     scenario:scenario||'unknown',
+     ok:Boolean(result?.ok&&result?.restored),
+     durationMs:Math.max(0,Math.round(Number(result?.durationMs)||0)),
+     timestamp:Date.now()
+    }].slice(-12);
+    renderTestHistory();
+   }catch(error){
+    const result={error:error?.message||'Controlled test gagal.',trace:[],durationMs:0};
+    renderTestTrace(result,baselineFps);
+    testHistory=[...testHistory,{scenario:scenario||'unknown',ok:false,durationMs:0,timestamp:Date.now()}].slice(-12);
+    renderTestHistory();
+   }finally{
+    testRunning=false;buttons.forEach(item=>item.disabled=false);
+   }
+  });
+ }
+
  return Object.freeze({
   render,
   current:()=>safeSnapshot(current),
   syncPayload,
+  runHealthScan,
+  testHistory:()=>testHistory.map(item=>({...item})),
   handleMessage(data={}){
    if(data.type==='humanale-visual-studio-sync'){render(data.snapshot);return true;}
    if(data.type==='humanale-visual-studio-request'&&!isPanel){channel?.postMessage?.(syncPayload());return true;}
