@@ -63,3 +63,39 @@ test('orchestrator drives selection, work lifecycle and connection changes throu
   assert.equal(nara.snapshot().lifecycle,'offline');
   assert.equal(nara.snapshot().regions.NARA_CORE.status,'offline');
 });
+
+
+test('NARA Core owns HumanALE state and renderer policy',()=>{
+  const nara=createOrchestrator();
+  nara.start();
+  assert.equal(nara.snapshot().humanale.controlledBy,'NARA_CORE');
+  assert.equal(nara.snapshot().humanale.state,'idle');
+  assert.equal(nara.snapshot().humanale.rendererMode,'eco');
+
+  nara.dispatch('hearing.start');
+  assert.equal(nara.snapshot().humanale.state,'listening');
+  assert.equal(nara.snapshot().humanale.rendererMode,'active');
+
+  nara.dispatch('hearing.stop');
+  assert.equal(nara.snapshot().humanale.state,'idle');
+  assert.equal(nara.snapshot().humanale.rendererMode,'eco');
+
+  nara.dispatch('reason.start',{label:'Analisis'});
+  assert.equal(nara.snapshot().humanale.state,'thinking');
+  assert.equal(nara.snapshot().humanale.rendererMode,'active');
+
+  nara.dispatch('reason.complete');
+  assert.equal(nara.snapshot().humanale.state,'idle');
+
+  nara.startWork({id:'phase-4',label:'Sinkronisasi HumanALE'});
+  assert.equal(nara.snapshot().humanale.state,'processing');
+  assert.equal(nara.snapshot().humanale.rendererMode,'balanced');
+
+  nara.completeWork();
+  assert.equal(nara.snapshot().humanale.state,'idle');
+  assert.equal(nara.snapshot().humanale.rendererMode,'eco');
+
+  nara.dispatch('error.detected',{message:'Test error'});
+  assert.equal(nara.snapshot().humanale.state,'error');
+  assert.equal(nara.snapshot().humanale.rendererMode,'active');
+});
