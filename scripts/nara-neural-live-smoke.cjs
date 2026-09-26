@@ -5,6 +5,8 @@ const {pathToFileURL}=require('node:url');
 
 app.commandLine.appendSwitch('enable-webgl');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.commandLine.appendSwitch('use-gl','angle');
+app.commandLine.appendSwitch('use-angle','swiftshader');
 
 const ROOT=path.resolve(__dirname,'..');
 const ARTIFACTS=path.join(ROOT,'artifacts');
@@ -103,9 +105,22 @@ async function run(){
 
     process.stdout.write(JSON.stringify(report,null,2)+'\\n');
     if(failed.length)throw new Error('Live browser checks failed: '+failed.map(([name])=>name).join(', '));
+  }catch(error){
+    report.completedAt=new Date().toISOString();
+    report.passed=false;
+    report.error={name:error.name,message:error.message,stack:error.stack};
+    try{
+      report.failureDom=await evaluate(win,"({status:document.getElementById('neural3dStatus')?.textContent,host:document.getElementById('neural3dHost')?.innerText,consoleLog:document.getElementById('consoleLog')?.textContent,connection:document.getElementById('connection')?.textContent})");
+      const image=await win.capturePage();
+      writeFileSync(path.join(ARTIFACTS,'nara-neural-live.png'),image.toPNG());
+    }catch(captureError){
+      report.captureError=captureError.message;
+    }
+    writeFileSync(path.join(ARTIFACTS,'nara-neural-live-report.json'),JSON.stringify(report,null,2));
+    throw error;
   }finally{
-    await studio.stop();
     if(!win.isDestroyed())win.destroy();
+    await studio.stop();
   }
 }
 
