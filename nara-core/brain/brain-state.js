@@ -1,5 +1,6 @@
 import {NARA_REGIONS,isRegionId} from './regions.js';
 import {createHumanALEPolicy,reduceHumanALEPolicy} from './humanale-policy.js';
+import {getSkill} from './skill-registry.js';
 
 const clamp01=value=>Math.max(0,Math.min(1,Number(value)||0));
 const connectionEvents=Object.freeze({
@@ -118,6 +119,39 @@ export class NaraBrainState{
       this.setRegion(targetRegion,{status:'processing',activity:.9,message:'Menggunakan context memori'},event);
     }else if(event==='context.blocked'){
       this.setRegion('MEMORY',{status:'paused',activity:.12,message:'Context memori tidak digunakan'},event);
+    }else if(event==='workflow.planned'){
+      this.setRegion('PLANNER',{status:'complete',activity:.45,message:String(payload.goal||'Workflow NARA direncanakan').slice(0,160)},event);
+      this.setRegion('FOLLOW_UP',{status:'ready',activity:.25,message:'Workflow menunggu eksekusi terkontrol'},event);
+    }else if(event==='workflow.started'){
+      this.setRegion('FOLLOW_UP',{status:'active',activity:.7,message:'Workflow NARA berjalan'},event);
+    }else if(event==='workflow.permission.granted'){
+      this.setRegion('SAFETY',{status:'active',activity:.65,message:'Permission workflow diperbarui'},event);
+    }else if(event==='workflow.permission.revoked'){
+      this.setRegion('SAFETY',{status:'paused',activity:.35,message:'Permission workflow dicabut'},event);
+    }else if(event==='workflow.step.start'){
+      const skill=getSkill(payload.skill);
+      if(skill)this.setRegion(skill.region,{status:'processing',activity:1,message:String(payload.label||skill.label).slice(0,160)},event);
+      this.setRegion('FOLLOW_UP',{status:'active',activity:.8,message:'Memantau step '+String(payload.stepId||'').slice(0,80)},event);
+    }else if(event==='workflow.verify.start'){
+      this.setRegion('FOLLOW_UP',{status:'processing',activity:1,message:'Memverifikasi step workflow'},event);
+      this.setRegion('REPORTING',{status:'active',activity:.55,message:'Mengumpulkan hasil verifikasi workflow'},event);
+    }else if(event==='workflow.verify.complete'){
+      const skill=getSkill(payload.skill);
+      if(skill)this.setRegion(skill.region,{status:'complete',activity:.25,message:'Step workflow terverifikasi'},event);
+      this.setRegion('FOLLOW_UP',{status:'complete',activity:.25,message:'Step workflow terverifikasi'},event);
+    }else if(event==='workflow.step.failed'){
+      const skill=getSkill(payload.skill);
+      if(skill)this.setRegion(skill.region,{status:'error',activity:1,message:String(payload.reason||'Step workflow gagal').slice(0,160)},event);
+      this.setRegion('ERROR_MONITOR',{status:'error',activity:1,message:String(payload.reason||'Workflow gagal').slice(0,160)},event);
+      this.setRegion('BUG_HUNTER',{status:'processing',activity:.9,message:'Menganalisis kegagalan workflow'},event);
+    }else if(event==='workflow.recovery'){
+      this.setRegion('BUG_HUNTER',{status:'active',activity:.85,message:'Menyiapkan recovery workflow'},event);
+      this.setRegion('FOLLOW_UP',{status:'processing',activity:.8,message:'Recovery step workflow'},event);
+    }else if(event==='workflow.complete'){
+      this.setRegion('FOLLOW_UP',{status:'complete',activity:.15,message:'Workflow selesai'},event);
+      this.setRegion('REPORTING',{status:'complete',activity:.35,message:'Workflow selesai dan siap dilaporkan'},event);
+    }else if(event==='workflow.cancelled'){
+      this.setRegion('FOLLOW_UP',{status:'paused',activity:.1,message:'Workflow dibatalkan'},event);
     }else if(event==='observe.start'){
       this.setRegion('NARA_CORE',{status:'processing',activity:1,message:'Mengamati konteks kerja'},event);
     }else if(event==='observe.complete'){
