@@ -453,3 +453,11 @@ test('Windows physical GPU wrappers use UTF-8 console output',async()=>{
   assert.match(ps1,/UTF8Encoding/);
   assert.match(bat,/chcp 65001/);
 });
+
+
+test('Windows GPU wrapper reads the acceptance JSON as UTF-8',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const ps1=await readFile(new URL('scripts/nara-neural-gpu-acceptance.ps1',root),'utf8');
+  assert.match(ps1,/Get-Content \$reportPath -Raw -Encoding UTF8 \| ConvertFrom-Json/);
+});
