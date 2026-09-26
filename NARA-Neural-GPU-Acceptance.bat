@@ -4,7 +4,7 @@ chcp 65001 >nul
 cd /d "%~dp0"
 
 echo ============================================================
-echo  NARA Neural Space 3D - Physical GPU Acceptance
+echo  NARA R5 Release Candidate - Physical Acceptance
 echo ============================================================
 echo.
 
@@ -13,9 +13,9 @@ set "EXIT_CODE=%ERRORLEVEL%"
 
 echo.
 if not "%EXIT_CODE%"=="0" (
-  echo [FAIL] Physical GPU acceptance belum lolos.
+  echo [FAIL] R5 physical GPU / visual / audio acceptance belum lolos.
 ) else (
-  echo [PASS] Physical GPU acceptance selesai dan lolos.
+  echo [PASS] R5 physical GPU / visual / audio acceptance selesai dan lolos.
 )
 echo.
 pause
