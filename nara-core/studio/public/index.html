@@ -106,6 +106,7 @@
 
     <div class="edge-right-tools">
       <button id="edgeAudioToggle" type="button" aria-pressed="true">AUDIO ON</button>
+      <button id="edgeCustomSettings" type="button" aria-expanded="false" aria-controls="customSettingsPanel">⚙ CUSTOM</button>
       <button id="edgeView3d" type="button">3D</button>
       <button id="edgeView2d" type="button">2D</button>
     </div>
@@ -116,6 +117,76 @@
         <button id="edgeMonitorClose" type="button">×</button>
       </div>
       <div id="edgeMonitorBody" class="edge-monitor-body"></div>
+    </aside>
+
+    <aside id="customSettingsPanel" class="custom-settings-panel" hidden aria-label="NARA custom visual settings">
+      <div class="custom-settings-head">
+        <div>
+          <span>CREATOR CONTROL CENTER</span>
+          <strong>CUSTOM VISUAL</strong>
+        </div>
+        <button id="customSettingsClose" type="button" aria-label="Close custom settings">×</button>
+      </div>
+
+      <div class="custom-settings-body">
+        <section class="custom-setting-section">
+          <h3>PRESET</h3>
+          <div class="custom-preset-grid">
+            <button type="button" data-visual-preset="minimal">MINIMAL</button>
+            <button type="button" data-visual-preset="ai-lab">AI LAB</button>
+            <button type="button" data-visual-preset="neural-galaxy">NEURAL GALAXY</button>
+            <button type="button" data-visual-preset="cinematic">CINEMATIC</button>
+            <button type="button" data-visual-preset="creator">CREATOR</button>
+          </div>
+        </section>
+
+        <section class="custom-setting-section">
+          <h3>BRAIN / ENVIRONMENT</h3>
+          <label class="custom-toggle"><span>Brain Frame</span><input type="checkbox" data-visual-setting="brainFrame"></label>
+          <label class="custom-range"><span>Frame Glow <b data-visual-value="frameGlow"></b></span><input type="range" min=".35" max="2" step=".05" data-visual-setting="frameGlow"></label>
+          <label class="custom-toggle"><span>Aurora</span><input type="checkbox" data-visual-setting="aurora"></label>
+          <label class="custom-range"><span>Aurora Intensity <b data-visual-value="auroraIntensity"></b></span><input type="range" min=".2" max="2" step=".05" data-visual-setting="auroraIntensity"></label>
+          <label class="custom-toggle"><span>Nebula</span><input type="checkbox" data-visual-setting="nebula"></label>
+          <label class="custom-toggle"><span>Particles</span><input type="checkbox" data-visual-setting="particles"></label>
+        </section>
+
+        <section class="custom-setting-section">
+          <h3>ROOT / DATA FLOW</h3>
+          <label class="custom-toggle"><span>Living Roots</span><input type="checkbox" data-visual-setting="roots"></label>
+          <label class="custom-range"><span>Root Glow <b data-visual-value="rootGlow"></b></span><input type="range" min=".35" max="2" step=".05" data-visual-setting="rootGlow"></label>
+          <label class="custom-toggle"><span>Data Flow</span><input type="checkbox" data-visual-setting="dataFlow"></label>
+        </section>
+
+        <section class="custom-setting-section">
+          <h3>NARA CORE / EMBLEM</h3>
+          <label class="custom-range"><span>Core Scale <b data-visual-value="coreScale"></b></span><input type="range" min=".72" max="1.35" step=".01" data-visual-setting="coreScale"></label>
+          <label class="custom-range"><span>Core Glow <b data-visual-value="coreGlow"></b></span><input type="range" min=".5" max="2" step=".05" data-visual-setting="coreGlow"></label>
+          <label class="custom-toggle"><span>Guardian Ring A</span><input type="checkbox" data-visual-setting="ringA"></label>
+          <label class="custom-toggle"><span>Guardian Ring B</span><input type="checkbox" data-visual-setting="ringB"></label>
+          <label class="custom-range"><span>Ring A Speed <b data-visual-value="ringSpeedA"></b></span><input type="range" min=".15" max="2.2" step=".05" data-visual-setting="ringSpeedA"></label>
+          <label class="custom-range"><span>Ring B Speed <b data-visual-value="ringSpeedB"></b></span><input type="range" min=".15" max="2.2" step=".05" data-visual-setting="ringSpeedB"></label>
+        </section>
+
+        <section class="custom-setting-section">
+          <h3>INTERFACE / SYSTEM</h3>
+          <label class="custom-range"><span>HUD Opacity <b data-visual-value="hudOpacity"></b></span><input type="range" min=".45" max="1" step=".05" data-visual-setting="hudOpacity"></label>
+          <label class="custom-range"><span>UI Scale <b data-visual-value="uiScale"></b></span><input type="range" min=".82" max="1.18" step=".02" data-visual-setting="uiScale"></label>
+          <label class="custom-toggle"><span>Audio</span><input type="checkbox" data-visual-setting="audio"></label>
+          <label class="custom-select"><span>Quality</span>
+            <select data-visual-setting="quality">
+              <option value="auto">Auto</option>
+              <option value="high">High</option>
+              <option value="balanced">Balanced</option>
+              <option value="low">Low power</option>
+            </select>
+          </label>
+        </section>
+      </div>
+
+      <div class="custom-settings-foot">
+        <span>Visual preferences only · no credentials stored</span>
+        <button id="customSettingsReset" type="button">RESET VISUAL</button>
+      </div>
     </aside>
 
     <div class="edge-bottom">
