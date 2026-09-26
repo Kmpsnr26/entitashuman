@@ -2,6 +2,7 @@ import {initializeCreatorGateway} from './creator-gateway.js';
 import {createEdgeHud} from './edge-hud.js';
 import {createNeuralEntryExperience} from './neural-entry.js';
 import {createNodeInspector} from './node-inspector.js';
+import {createNodeVoice} from './node-voice.js';
 
 const $=id=>document.getElementById(id);
 let snapshot=null,regions={},telemetry=null,skillsSnapshot=null;
@@ -10,11 +11,13 @@ let eventBuffer=[],eventPaused=false,replayTimer=null;
 const connectionIds=['GITHUB','COPILOT','WEB','TEAM','PR','SYNC','ONLINE','OWNER_EMAIL','DRIVE'];
 const eventSelect=$('eventSelect');
 const neuralEntry=createNeuralEntryExperience();
+const nodeVoice=createNodeVoice();
 const nodeInspector=createNodeInspector({
   onNavigate:region=>dispatch('brain.region.select',{region}).catch(error=>{
     $('consoleLog').textContent=error.message;
   }),
-  onFocus:region=>ensureNeural3D().then(scene=>scene.focusRegion(region)).catch(()=>{})
+  onFocus:region=>ensureNeural3D().then(scene=>scene.focusRegion(region)).catch(()=>{}),
+  onMetadata:metadata=>nodeVoice.speak(metadata)
 });
 const edgeHud=createEdgeHud({onView:mode=>{
   if(mode==='3d'&&studioView!=='3d')neuralEntry.play({announce:false,compact:true});
