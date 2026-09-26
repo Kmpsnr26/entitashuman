@@ -42,6 +42,10 @@ import {
   memoryRouter
 } from "../routes/memory.routes.js";
 
+import {
+  backupRouter
+} from "../routes/backup.routes.js";
+
 const app = express();
 
 if (isProduction) {
@@ -75,6 +79,11 @@ app.use(
 app.use(
   "/api/memory",
   memoryRouter
+);
+
+app.use(
+  "/api/backups",
+  backupRouter
 );
 
 function callbackUrl(): string {
