@@ -28,7 +28,10 @@ export function redactSecrets(value=''){
  return text;
 }
 
+const SENSITIVE_ENV_NAME='(?:[A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|APIKEY|AUTHORIZATION|COOKIE)|OPENAI_API_KEY|ANTHROPIC_API_KEY|GITHUB_TOKEN|GH_TOKEN|GEMINI_API_KEY|GOOGLE_API_KEY|XAI_API_KEY|DEEPSEEK_API_KEY)';
+
 const BLOCK=[
+ new RegExp('(?:%'+SENSITIVE_ENV_NAME+'%|\\$env:'+SENSITIVE_ENV_NAME+'\\b)','i'),
  /(?:^|\s)(?:reg\s+(?:save|export)|cmdkey\s+\/list|vaultcmd|mimikatz)(?:\s|$)/i,
  /(?:chrome|edge|firefox).*(?:password|login data|cookies)/i,
  /(?:Set-MpPreference|sc(?:\.exe)?\s+stop\s+(?:WinDefend|Sense)|netsh\s+advfirewall\s+set\s+allprofiles\s+state\s+off)/i,

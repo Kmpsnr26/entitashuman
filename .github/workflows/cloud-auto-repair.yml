@@ -7,7 +7,7 @@ on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review, labeled]
   workflow_run:
-    workflows: ["Verify and package", "Build Android APK", "NARA Cloud Verify"]
+    workflows: ["Verify and package", "Build Android APK", "NARA Cloud Verify", "CodeQL Security"]
     types: [completed]
   schedule:
     - cron: "17 */3 * * *"
@@ -192,6 +192,9 @@ jobs:
               });
               await addLabels(issue.number, ['automation:resolved']);
               await removeLabel(issue.number, 'automation:queued');
+              await removeLabel(issue.number, 'ai-fix-needed');
+              await removeLabel(issue.number, 'automation:fallback');
+              await removeLabel(issue.number, 'automation:delegated');
               await closeFallbackPullRequest(issue.number);
             }
 
@@ -573,6 +576,40 @@ jobs:
             const candidates = JSON.parse(process.env.FALLBACK_ISSUES || '[]');
             const repository = await github.rest.repos.get({ owner, repo });
 
+            function issueRecovered(issue) {
+              const labels = (issue.labels || []).map((label) =>
+                typeof label === 'string' ? label : label.name
+              );
+              return issue.state !== 'open' || labels.includes('automation:resolved');
+            }
+
+            async function closeOpenFallback(issueNumber) {
+              const branch = 'automation/issue-' + issueNumber;
+              const response = await github.rest.pulls.list({
+                owner,
+                repo,
+                state: 'open',
+                head: owner + ':' + branch,
+                per_page: 10
+              });
+              for (const pull of response.data) {
+                const body = pull.body || '';
+                if (!pull.draft || !body.includes('Tracks #' + issueNumber + '.')) continue;
+                await github.rest.pulls.update({
+                  owner,
+                  repo,
+                  pull_number: pull.number,
+                  state: 'closed'
+                });
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: pull.number,
+                  body: 'Closed automatically because the tracked CI issue recovered before fallback work started.'
+                });
+              }
+            }
+
             for (const candidate of candidates) {
               const issueResponse = await github.rest.issues.get({
                 owner,
@@ -580,6 +617,11 @@ jobs:
                 issue_number: candidate.issue_number
               });
               const issue = issueResponse.data;
+              if (issueRecovered(issue)) {
+                await closeOpenFallback(issue.number);
+                core.info('Skipping recovered issue #' + issue.number + ' before fallback creation.');
+                continue;
+              }
               const branch = 'automation/issue-' + issue.number;
               let baseBranch = candidate.branch || repository.data.default_branch;
               let base;
@@ -702,6 +744,31 @@ jobs:
                   ].join('\n')
                 });
                 pull = created.data;
+              }
+
+              const latestIssueResponse = await github.rest.issues.get({
+                owner,
+                repo,
+                issue_number: issue.number
+              });
+              const latestIssue = latestIssueResponse.data;
+              if (issueRecovered(latestIssue)) {
+                if (pull?.state === 'open') {
+                  await github.rest.pulls.update({
+                    owner,
+                    repo,
+                    pull_number: pull.number,
+                    state: 'closed'
+                  });
+                  await github.rest.issues.createComment({
+                    owner,
+                    repo,
+                    issue_number: pull.number,
+                    body: 'Closed automatically because the tracked CI issue recovered while the fallback was being created.'
+                  });
+                }
+                core.info('Recovered issue #' + issue.number + ' detected after fallback creation; cleanup completed.');
+                continue;
               }
 
               await github.rest.issues.addLabels({
