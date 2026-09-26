@@ -2,6 +2,12 @@ name: Verify and package
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publish verified Windows artifacts to the GitHub release"
+        required: false
+        default: false
+        type: boolean
   pull_request:
     branches: [main]
   push:
@@ -72,8 +78,17 @@ jobs:
           if (-not (Test-Path $zip)) { throw "Portable ZIP tidak ditemukan." }
           Write-Host "Installer ready: $($installer.FullName) ($($installer.Length) bytes)"
           Write-Host "Portable package: $zip"
+      - name: Upload verified Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: HumanALE-Windows-${{ github.sha }}
+          path: |
+            release/HumanALE-God-Engine-Setup-*-x64.exe
+            release/HumanALE-God-Engine-Portable-*-x64.zip
+          if-no-files-found: error
+          retention-days: 30
       - name: Publish GitHub release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
