@@ -5,6 +5,7 @@ import {createSkillSnapshot} from './skill-registry.js';
 import {createWorkflowEngine} from './workflow-engine.js';
 import {createAuthorityPolicy} from './authority-policy.js';
 import {evaluateNaraIntegrationReadiness,readinessCertificate} from './integration-readiness.js';
+import {describeHumanALEIntegrationContract,evaluateHumanALEIntegrationRequest} from './humanale-integration-contract.js';
 
 const connectionEvents=Object.freeze({
   GITHUB:['github.connected','github.disconnected'],
@@ -155,6 +156,14 @@ export class NaraOrchestrator{
       workflowSnapshot:this.workflowSnapshot(),
       authoritySnapshot:this.authoritySnapshot()
     });
+  }
+
+  humanaleIntegrationContract(){
+    return describeHumanALEIntegrationContract(this.authoritySnapshot());
+  }
+
+  evaluateHumanALEIntegrationRequest(request={}){
+    return evaluateHumanALEIntegrationRequest(request,this.authoritySnapshot());
   }
 
   snapshot(){return this.state.snapshot();}
