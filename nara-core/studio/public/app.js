@@ -69,7 +69,7 @@ function updateNeuralHud(){
   edgeHud.update({neural:stats});
   $('neural3dRoots').textContent=stats.links+' living roots · '+stats.activeLinks+' active';
   $('neural3dRoutes').textContent='routes: '+stats.routeCount+' · active '+stats.activeRoutes;
-  $('neural3dPerf').textContent='fps '+stats.fps+' · quality '+stats.quality+' · '+stats.mode+' · galaxy '+(stats.galacticFrame?'on':'off')+' · aurora '+(stats.aurora?'on':'off')+' · core rings '+(stats.mechanicalCore?'on':'off');
+  $('neural3dPerf').textContent='fps '+stats.fps+' · quality '+stats.quality+' · '+stats.mode+' · galaxy '+(stats.galacticFrame?'on':'off')+' · aurora '+(stats.aurora?'on':'off')+' · core rings '+(stats.mechanicalCore?'on':'off')+' · binary '+(stats.brainBinary?'on':'off')+' · guardian '+(stats.guardianRingA?'A':'-')+'/'+(stats.guardianRingB?'B':'-');
   $('neural3dLastRoute').textContent='last route: '+(stats.lastRoute||'—');
 
   for(const [id,mode] of [['neuralExplorer','explorer'],['neuralFocus','focus'],['neuralCore','core']]){
@@ -401,7 +401,10 @@ $('neuralExplorer').onclick=()=>ensureNeural3D().then(scene=>{scene.setMode('exp
 $('neuralFocus').onclick=()=>ensureNeural3D().then(scene=>{scene.setMode('focus');updateNeuralHud();}).catch(()=>{});
 $('neuralCore').onclick=()=>ensureNeural3D().then(scene=>{scene.setMode('core');updateNeuralHud();}).catch(()=>{});
 $('neuralReset').onclick=()=>ensureNeural3D().then(scene=>{scene.resetView();updateNeuralHud();}).catch(()=>{});
-$('neuralQuality').onchange=event=>ensureNeural3D().then(scene=>{scene.setQuality(event.target.value);updateNeuralHud();}).catch(()=>{});
+$('neuralQuality').onchange=event=>{
+  customSettings.setSettings({quality:event.target.value});
+  ensureNeural3D().then(scene=>{scene.setQuality(event.target.value);updateNeuralHud();}).catch(()=>{});
+};
 $('sendEvent').onclick=()=>dispatch(eventSelect.value,{label:$('eventLabel').value,message:$('eventLabel').value}).catch(e=>$('consoleLog').textContent=e.message);
 document.querySelectorAll('.quick button').forEach(btn=>btn.onclick=()=>dispatch(btn.dataset.event,{label:'NARA Studio test',message:'NARA Studio simulated event'}).catch(e=>$('consoleLog').textContent=e.message));
 $('clearEvents').onclick=()=>{stopReplay();eventBuffer=[];eventPaused=false;$('pauseEvents').textContent='Pause';renderEventItems([]);};
