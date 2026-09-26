@@ -49,7 +49,7 @@ test('HumanALE Visual Studio UI and runtime wiring remain present',async()=>{
  ]);
  assert.match(html,/id="humanaleVisualStudioOpen"/);
  assert.match(html,/id="humanaleVisualStudio"/);
- for(const id of ['visualStudioState','visualStudioRenderer','visualStudioActivity','visualStudioController','visualStudioHearing','visualStudioVision','visualStudioSpeech','visualStudioFps','visualStudioPoints','visualStudioHealth','visualStudioSceneMaterial','visualStudioSceneAccent','visualStudioSceneEnvironment','visualStudioSceneTrack','visualStudioSceneAnimate','visualStudioSceneZoom','visualStudioRegions','visualStudioConnections','visualStudioTimeline','visualStudioPerformanceHistory']){
+ for(const id of ['visualStudioState','visualStudioRenderer','visualStudioActivity','visualStudioController','visualStudioHearing','visualStudioVision','visualStudioSpeech','visualStudioFps','visualStudioPoints','visualStudioHealth','visualStudioSceneMaterial','visualStudioSceneAccent','visualStudioSceneEnvironment','visualStudioSceneTrack','visualStudioSceneAnimate','visualStudioSceneZoom','visualStudioRegions','visualStudioConnections','visualStudioTimeline','visualStudioPerformanceHistory','visualStudioTestStatus','visualStudioTestTrace','visualStudioHealthScan','visualStudioHealthChecks','visualStudioTestHistory']){
   assert.match(html,new RegExp('id="'+id+'"'));
  }
  assert.match(app,/createHumanALEVisualStudio/);
@@ -60,6 +60,8 @@ test('HumanALE Visual Studio UI and runtime wiring remain present',async()=>{
  assert.match(app,/applyHumanALEVisualScene/);
  assert.match(app,/selectHumanALEVisualRegion/);
  assert.match(app,/humanaleVisualEvents=.*slice\(-24\)/);
+ assert.match(app,/runHumanALEVisualTest/);
+ assert.match(app,/desktop\?\.naraTestScenario/);
  assert.match(desktop,/humanaleVisualStudio/);
  assert.match(desktop,/HumanALE Visual Studio tidak menerima telemetri runtime utama/);
  assert.match(desktop,/HumanALE Visual Studio v2 scene controls tidak diterapkan ke renderer utama/);
@@ -67,8 +69,12 @@ test('HumanALE Visual Studio UI and runtime wiring remain present',async()=>{
  assert.match(desktop,/HumanALE Visual Studio v2 performance history tidak menerima sampel bounded/);
  assert.match(style,/\/\* HumanALE Visual Studio \*\//);
  assert.match(style,/\/\* HumanALE Visual Studio v2 \*\//);
+ assert.match(style,/\/\* HumanALE Visual Studio v3 \*\//);
  assert.match(module,/performanceHistory=.*slice\(-30\)/);
  assert.match(module,/humanale-visual-studio-scene/);
  assert.match(module,/humanale-visual-studio-region/);
+ assert.match(module,/data-nara-test|\[data-nara-test\]/);
+ assert.match(module,/testHistory=.*slice\(-12\)/);
+ assert.match(module,/runHealthScan/);
  assert.doesNotMatch(module,/new HumanALEAvatar|new NeuralAvatar|createElement\(['"]canvas/);
 });
