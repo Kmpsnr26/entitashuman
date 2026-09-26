@@ -36,6 +36,7 @@ async function run(){
 
   const browserErrors=[];
   const rendererGone=[];
+  const network=[];
   const win=new BrowserWindow({
     width:1440,height:960,show:true,backgroundColor:'#02070b',
     webPreferences:{backgroundThrottling:false,contextIsolation:true,nodeIntegration:false,sandbox:true}
@@ -45,13 +46,27 @@ async function run(){
     if(level>=2)browserErrors.push({level,message,line,sourceId});
   });
   win.webContents.on('render-process-gone',(_event,details)=>rendererGone.push(details));
+  win.webContents.session.webRequest.onCompleted(details=>{
+    if(details.url.startsWith(url))network.push({
+      url:details.url,statusCode:details.statusCode,
+      method:details.method,resourceType:details.resourceType
+    });
+  });
+  win.webContents.session.webRequest.onErrorOccurred(details=>{
+    if(details.url.startsWith(url))network.push({
+      url:details.url,error:details.error,
+      method:details.method,resourceType:details.resourceType
+    });
+  });
 
-  const report={startedAt:new Date().toISOString(),url,checks:{},webgl:null,hud:null,browserErrors,rendererGone};
+  const report={startedAt:new Date().toISOString(),url,checks:{},webgl:null,hud:null,browserErrors,rendererGone,network,moduleProbe:null};
 
   try{
     await win.loadURL(url);
     await waitFor(win,"document.getElementById('connection')?.textContent==='LIVE'");
     report.checks.liveConnection=true;
+
+    report.moduleProbe=await evaluate(win,"(async()=>{const urls=['/neural-space.js','/vendor/three/three.module.js'];const result={};for(const url of urls){try{const res=await fetch(url);const text=await res.text();result[url]={ok:res.ok,status:res.status,contentType:res.headers.get('content-type'),length:text.length,prefix:text.slice(0,120)};}catch(error){result[url]={ok:false,error:error.message};}}return result;})()");
 
     await evaluate(win,"document.getElementById('view3d').click(); true");
     await waitFor(win,"Boolean(document.querySelector('.neural3d-canvas'))");
