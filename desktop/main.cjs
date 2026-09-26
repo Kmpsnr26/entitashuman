@@ -6,7 +6,7 @@ const path=require('node:path');
 const {tmpdir}=require('node:os');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer,backdropTimer,naraVisualTestRunning=false,naraSkillCache={at:0,value:null};
+let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer,backdropTimer,naraVisualTestRunning=false,naraSkillCache={at:0,agents:[]};
 let cloudAllowedOrigins=new Set();
 let announceNaraEvent=()=>{};
 let baseWindowSize={width:420,height:480};
@@ -269,12 +269,12 @@ else{
   ipcMain.handle('dudidam:nara-snapshot',e=>trusted(e)?{ok:true,state:nara.snapshot()}:{error:'Akses ditolak.'});
   const readNaraSkillSnapshot=async(force=false)=>{
    const now=Date.now();
-   if(!force&&naraSkillCache.value&&now-naraSkillCache.at<8000)return naraSkillCache.value;
-   let agents=[];
-   try{agents=(await agentHub.status())?.agents||[];}catch{}
-   const value=createSkillSnapshot({brainState:nara.snapshot(),agents});
-   naraSkillCache={at:now,value};
-   return value;
+   if(force||now-naraSkillCache.at>=8000){
+    let agents=[];
+    if(!ciSmoke){try{agents=(await agentHub.status())?.agents||[];}catch{}}
+    naraSkillCache={at:now,agents};
+   }
+   return createSkillSnapshot({brainState:nara.snapshot(),agents:naraSkillCache.agents});
   };
   ipcMain.handle('dudidam:nara-skill-snapshot',async(e,value)=>{
    if(!trusted(e))return {error:'Akses ditolak.'};
