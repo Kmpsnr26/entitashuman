@@ -28,6 +28,8 @@ export class HumanALEAvatar extends BaseAvatar{
   this.earSpectrum={low:0,mid:0,high:0};
   this.flowEnergy=1;
   this.studioProfile=normalizeAvatarStudioProfile(options.studioProfile||AVATAR_STUDIO_DEFAULTS);
+  this.studioLightIntensity=this.studioProfile.lightIntensity;
+  this.studioParticleScale=this.studioProfile.particleScale;
   this.setDensity(this.studioProfile.density*100);
   this._gazePointer={x:0,y:0};
   this._gazeActive=false;
@@ -65,6 +67,8 @@ export class HumanALEAvatar extends BaseAvatar{
 
  setStudioProfile(value={}){
   this.studioProfile=normalizeAvatarStudioProfile(value);
+  this.studioLightIntensity=this.studioProfile.lightIntensity;
+  this.studioParticleScale=this.studioProfile.particleScale;
   this.setDensity(this.studioProfile.density*100);
   return this.getStudioProfile();
  }
@@ -72,6 +76,12 @@ export class HumanALEAvatar extends BaseAvatar{
  resetStudioProfile(){return this.setStudioProfile(AVATAR_STUDIO_DEFAULTS);}
  transformFacePoint(point={}){
   return transformAvatarStudioPoint(point,this.studioProfile,window.FaceRig);
+ }
+ faceVisualTuning(){
+  return {
+   lightIntensity:this.studioLightIntensity||1,
+   particleScale:this.studioParticleScale||1
+  };
  }
 
  set thinking(value){
