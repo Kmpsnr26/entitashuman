@@ -19,6 +19,7 @@ export function redactSecrets(value=''){
  );
  for(const pattern of SECRET_PATTERNS){
   text=text.replace(pattern,(match,prefix)=>{
+   if(match.includes('[REDACTED]'))return match;
    if(typeof prefix==='string'&&/Bearer/i.test(prefix))return prefix+'[REDACTED]';
    if(typeof prefix==='string'&&/^(password|passwd|token|secret|api[_ -]?key)$/i.test(prefix))return prefix+'=[REDACTED]';
    return '[REDACTED]';
