@@ -572,6 +572,16 @@ else{
    await new Promise(resolve=>setTimeout(resolve,1100));
    const visualHistoryReady=await panelWin.webContents.executeJavaScript("document.querySelectorAll('#visualStudioPerformanceHistory i').length>=1");
    if(!visualHistoryReady)throw new Error('HumanALE Visual Studio v2 performance history tidak menerima sampel bounded.');
+   await panelWin.webContents.executeJavaScript("document.querySelector('[data-nara-test=\\"thinking\\"]')?.click()");
+   const visualTestPass=await panelWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+3500;const check=()=>{const status=document.querySelector('#visualStudioTestStatus')?.textContent||'';const trace=document.querySelectorAll('#visualStudioTestTrace .visual-studio-test-step').length;const history=document.querySelectorAll('#visualStudioTestHistory .visual-studio-test-history-row').length;const ready=status.startsWith('PASS')&&trace>=2&&history>=1;if(ready||Date.now()>deadline)resolve(Boolean(ready));else setTimeout(check,80);};check();})");
+   if(!visualTestPass)throw new Error('HumanALE Visual Studio v3 controlled thinking test tidak selesai dan restore dengan benar.');
+   const visualTestRestored=await win.webContents.executeJavaScript("window.dudidamDesktop.naraSnapshot().then(result=>Boolean(result?.ok&&result.state?.humanale?.state==='idle'&&result.state?.humanale?.rendererMode==='eco'&&!result.state?.currentTask&&!result.state?.sensory?.hearing?.active&&!result.state?.sensory?.speech?.active))");
+   if(!visualTestRestored)throw new Error('HumanALE Visual Studio v3 tidak mengembalikan NARA ke IDLE/ECO setelah test.');
+   await panelWin.webContents.executeJavaScript("document.querySelector('#visualStudioHealthScan')?.click()");
+   const visualHealthPass=await panelWin.webContents.executeJavaScript("(()=>{const rows=[...document.querySelectorAll('#visualStudioHealthChecks .visual-studio-health-row')];return rows.length>=6&&rows.some(row=>row.textContent.includes('PASS · NARA authority'));})()");
+   if(!visualHealthPass)throw new Error('HumanALE Visual Studio v3 Health Scan tidak menghasilkan pemeriksaan runtime.');
+   const visualInvalidBlocked=await panelWin.webContents.executeJavaScript("window.dudidamDesktop.naraTestScenario('owner.secret').then(result=>Boolean(result?.error&&String(result.error).includes('tidak dikenal')))");
+   if(!visualInvalidBlocked)throw new Error('HumanALE Visual Studio v3 menerima skenario test di luar whitelist.');
    const avatarBounds=win.getBounds(),panelBounds=panelWin.getBounds(),workArea=screen.getDisplayNearestPoint({x:avatarBounds.x+avatarBounds.width/2,y:avatarBounds.y+avatarBounds.height/2}).workArea;
    if(workArea.width>=avatarBounds.width+panelBounds.width+16&&avatarBounds.x<panelBounds.x+panelBounds.width&&panelBounds.x<avatarBounds.x+avatarBounds.width&&avatarBounds.y<panelBounds.y+panelBounds.height&&panelBounds.y<avatarBounds.y+avatarBounds.height)throw new Error(`Panel menutupi avatar walau layar cukup lebar: ${JSON.stringify({avatarBounds,panelBounds,workArea})}`);
    await panelWin.webContents.executeJavaScript("new BroadcastChannel('dudidam-avatar-panel').postMessage({type:'persona',provider:'copilot'})");
