@@ -7,7 +7,7 @@ on:
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review, labeled]
   workflow_run:
-    workflows: ["Verify and package", "Build Android APK"]
+    workflows: ["Verify and package", "Build Android APK", "NARA Cloud Verify"]
     types: [completed]
   schedule:
     - cron: "17 */3 * * *"

@@ -4,10 +4,20 @@ on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: "Publish verified APK to the rolling Android GitHub release"
+        description: "Build, sign, verify, and publish the production Android APK"
         required: false
         default: false
         type: boolean
+  pull_request:
+    branches: [main]
+    paths:
+      - "public/**"
+      - "sites/humanale-hologram/dist/**"
+      - "capacitor.config.json"
+      - "scripts/prepare-android.mjs"
+      - ".github/workflows/android-apk.yml"
+      - "build.mjs"
+      - "package.json"
   push:
     branches: [main]
     paths:
@@ -20,10 +30,15 @@ on:
       - "package.json"
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   apk:
+    name: Verify and build debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -51,8 +66,8 @@ jobs:
       - name: Build web assets
         run: npm run build
 
-      - name: Install Capacitor Android tooling
-        run: npm install --no-save --package-lock=false @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
+      - name: Install pinned Capacitor Android tooling
+        run: npm install --no-save --package-lock=false @capacitor/core@7.6.9 @capacitor/cli@7.6.9 @capacitor/android@7.6.9
 
       - name: Generate Android project
         run: |
@@ -64,32 +79,135 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
 
-      - name: Validate APK
+      - name: Validate debug APK
         run: |
+          set -euo pipefail
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           test -f "$APK"
           test $(stat -c%s "$APK") -gt 1000000
           mkdir -p release
           SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
-          cp "$APK" "release/HumanALE-Android-$SHORT_SHA.apk"
+          cp "$APK" "release/HumanALE-Android-$SHORT_SHA-debug.apk"
           ls -lh release/*.apk
 
-      - name: Publish rolling Android release
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="android-latest"
-          APK=$(ls release/HumanALE-Android-*.apk | head -n 1)
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --target "$GITHUB_SHA" --title "HumanALE Android APK" --notes "APK Android debug-installable terbaru HumanALE. Dibangun otomatis dari branch main."
-          gh release edit "$TAG" --target "$GITHUB_SHA" --title "HumanALE Android APK" --notes "APK Android debug-installable terbaru HumanALE. Dibangun otomatis dari branch main."
-          gh release upload "$TAG" "$APK#HumanALE-Android.apk" --clobber
-
-      - name: Upload APK artifact (optional)
-        continue-on-error: true
+      - name: Upload verified debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: HumanALE-Android-APK
-          path: release/*.apk
-          if-no-files-found: warn
+          name: HumanALE-Android-Debug-APK
+          path: release/*-debug.apk
+          if-no-files-found: error
           retention-days: 30
+
+  release:
+    name: Build and publish signed Android release
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: write
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Require Android signing secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required Actions secret: $name"
+              missing=1
+            fi
+          done
+          test "$missing" -eq 0
+
+      - name: Install and verify project
+        run: |
+          npm ci
+          npm run verify
+          npm run build
+          npm install --no-save --package-lock=false @capacitor/core@7.6.9 @capacitor/cli@7.6.9 @capacitor/android@7.6.9
+
+      - name: Generate Android release project
+        run: |
+          npx cap add android
+          node scripts/prepare-android.mjs
+          npx cap sync android
+
+      - name: Build unsigned release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Sign and verify production APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > release/android-signing.jks
+          test -s release/android-signing.jks
+          unsigned=$(find android/app/build/outputs/apk/release -maxdepth 1 -type f -name '*release*.apk' | head -n 1)
+          test -n "$unsigned" -a -f "$unsigned"
+          build_tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          zipalign="$build_tools/zipalign"
+          apksigner="$build_tools/apksigner"
+          test -x "$zipalign"
+          test -x "$apksigner"
+          version=$(node -p "require('./package.json').version")
+          aligned="release/HumanALE-Android-$version-aligned.apk"
+          signed="release/HumanALE-Android-$version.apk"
+          trap 'rm -f release/android-signing.jks release/*-aligned.apk' EXIT
+          "$zipalign" -f -p 4 "$unsigned" "$aligned"
+          "$apksigner" sign --ks release/android-signing.jks --ks-key-alias "$ANDROID_KEY_ALIAS" --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEY_PASSWORD --out "$signed" "$aligned"
+          "$apksigner" verify --verbose --print-certs "$signed"
+          test $(stat -c%s "$signed") -gt 1000000
+          ls -lh "$signed"
+
+      - name: Upload signed Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HumanALE-Android-Signed-${{ github.sha }}
+          path: release/HumanALE-Android-*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish signed APK to versioned GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          tag="v$version"
+          apk="release/HumanALE-Android-$version.apk"
+          test -f "$apk"
+          git fetch --tags --force
+          if gh release view "$tag" >/dev/null 2>&1; then
+            tag_sha=$(git rev-list -n 1 "$tag")
+            if [ "$tag_sha" != "$GITHUB_SHA" ]; then
+              echo "::error::Release $tag already targets $tag_sha. Bump package.json before publishing a different commit."
+              exit 1
+            fi
+          else
+            gh release create "$tag" --target "$GITHUB_SHA" --title "HumanALE god egine $tag" --notes "Verified HumanALE release. Windows artifacts may be attached separately after their packaging gate passes."
+          fi
+          gh release upload "$tag" "$apk#HumanALE-Android.apk" --clobber

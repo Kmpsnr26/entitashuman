@@ -82,6 +82,7 @@ test('canonical site wires real NARA state into the existing avatar instead of r
   assert.match(site,/runtime\.dispatch\('speech\.start'/);
   assert.match(site,/runtime\.dispatch\('speech\.stop'/);
   assert.match(avatar,/buildFallback\(\)/);
+  assert.doesNotMatch(avatar,/loadReference|referencePromise|referencePoints|new Image/);
   assert.match(site,/new window\.NeuralAvatar\(canvas\);/);
   assert.doesNotMatch(site,/referenceSrc\s*:|reference-face\.png/);
 });

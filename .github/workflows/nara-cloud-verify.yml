@@ -3,6 +3,18 @@ name: NARA Cloud Verify
 on:
   workflow_dispatch:
 
+  push:
+    branches: [main]
+    paths:
+      - "nara-cloud/**"
+      - "desktop/**"
+      - "public/**"
+      - "tests/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".env.example"
+      - ".github/workflows/nara-cloud-verify.yml"
+
   pull_request:
     paths:
       - "nara-cloud/**"

@@ -541,3 +541,28 @@ test('desktop avatar is procedural-only and adapts to local backdrop using bound
  assert.match(app,/onBackdrop\?\.\(grid=>avatar\.setBackdrop\?\.\(grid\)\)/);
  assert.doesNotMatch(main,/writeFile\([^\n]*backdrop|fetch\([^\n]*backdrop/i);
 });
+
+
+test('release workflows use least privilege, pinned Android tooling, signed publication, and main NARA verification',async()=>{
+ const [windows,android,nara,repair]=await Promise.all([
+  readFile(new URL('../.github/workflows/verify.yml',import.meta.url),'utf8'),
+  readFile(new URL('../.github/workflows/android-apk.yml',import.meta.url),'utf8'),
+  readFile(new URL('../.github/workflows/nara-cloud-verify.yml',import.meta.url),'utf8'),
+  readFile(new URL('../.github/workflows/cloud-auto-repair.yml',import.meta.url),'utf8')
+ ]);
+ assert.match(windows,/release-windows:/);
+ assert.match(windows,/actions\/download-artifact@v4/);
+ assert.match(windows,/release-windows:[\s\S]*permissions:\s*\n\s*contents: write/);
+ assert.match(android,/permissions:\s*\n\s*contents: read/);
+ assert.match(android,/@capacitor\/core@7\.6\.9/);
+ assert.match(android,/@capacitor\/cli@7\.6\.9/);
+ assert.match(android,/@capacitor\/android@7\.6\.9/);
+ assert.match(android,/assembleDebug/);
+ assert.match(android,/assembleRelease/);
+ assert.match(android,/ANDROID_KEYSTORE_BASE64/);
+ assert.match(android,/apksigner/);
+ assert.match(android,/release:[\s\S]*permissions:\s*\n\s*contents: write/);
+ assert.doesNotMatch(android,/Publish rolling Android release/);
+ assert.match(nara,/push:\s*\n\s*branches: \[main\]/);
+ assert.match(repair,/workflows: \["Verify and package", "Build Android APK", "NARA Cloud Verify"\]/);
+});

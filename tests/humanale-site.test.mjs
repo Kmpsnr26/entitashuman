@@ -14,7 +14,9 @@ test('HumanALE Hologram Site contains its complete editable static source', asyn
     await stat(siteFile(`dist/${script}`));
   }
   const siteSource = await readFile(siteFile('dist/site.js'), 'utf8');
-  assert.doesNotMatch(siteSource, /reference-face\.png|referenceSrc\s*:/, 'Site must run the avatar in procedural-only mode');
+  const avatarSource = await readFile(siteFile('dist/avatar.js'), 'utf8');
+  assert.doesNotMatch(siteSource, /reference-face\.png|referenceSrc\s*:|referencePromise/, 'Site must run the avatar in procedural-only mode');
+  assert.doesNotMatch(avatarSource, /referenceSrc|referencePromise|referenceReady|referencePoints|loadReference|new Image/, 'Avatar engine must not contain an image-based face loader');
   await assert.rejects(stat(siteFile('dist/assets/reference-face.png')), error => error?.code === 'ENOENT');
 });
 
