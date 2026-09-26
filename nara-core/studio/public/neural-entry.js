@@ -1,47 +1,16 @@
+import {createCinematicSoundEngine} from './cinematic-sound.js';
+import {createMatrixTransitionField} from './matrix-transition.js';
+
 const PHASES=[
-  ['CREATOR VERIFIED','IDENTITY CHANNEL SECURED'],
-  ['NARA CORE AWAKENING','INITIALIZING NEURAL MATRIX'],
-  ['NEURAL LINKS SYNCHRONIZING','ROUTING LIVE SYSTEM STATE'],
-  ['NEURAL SPACE 3D ONLINE','CREATOR ACCESS ESTABLISHED']
+  ['CREATOR VERIFIED','IDENTITY CHANNEL SECURED','sweep'],
+  ['MATRIX GATE OPENING','ZOOMING INTO NEURAL LATTICE','zoomIn'],
+  ['NARA CORE AWAKENING','CORE ENERGY PROTECTION ONLINE','pulse'],
+  ['NEURAL FLOW PROCESSING','SYNCHRONIZING LIVE ROUTES','process'],
+  ['NEURAL SPACE 3D ONLINE','DATA FLOW STABILIZED','flow']
 ];
 
 function reducedMotion(){
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
-}
-
-function playSyntheticCoreTone(){
-  const AudioContext=window.AudioContext||window.webkitAudioContext;
-  if(!AudioContext)return false;
-  try{
-    const context=new AudioContext();
-    const master=context.createGain();
-    master.gain.setValueAtTime(.0001,context.currentTime);
-    master.gain.exponentialRampToValueAtTime(.075,context.currentTime+.08);
-    master.gain.exponentialRampToValueAtTime(.0001,context.currentTime+1.65);
-    master.connect(context.destination);
-
-    const tones=[
-      {frequency:110,start:0,duration:1.55,type:'sine'},
-      {frequency:220,start:.16,duration:1.18,type:'sine'},
-      {frequency:440,start:.42,duration:.72,type:'triangle'}
-    ];
-    for(const tone of tones){
-      const oscillator=context.createOscillator();
-      const gain=context.createGain();
-      oscillator.type=tone.type;
-      oscillator.frequency.setValueAtTime(tone.frequency,context.currentTime+tone.start);
-      gain.gain.setValueAtTime(.0001,context.currentTime+tone.start);
-      gain.gain.exponentialRampToValueAtTime(.32,context.currentTime+tone.start+.08);
-      gain.gain.exponentialRampToValueAtTime(.0001,context.currentTime+tone.start+tone.duration);
-      oscillator.connect(gain).connect(master);
-      oscillator.start(context.currentTime+tone.start);
-      oscillator.stop(context.currentTime+tone.start+tone.duration+.05);
-    }
-    setTimeout(()=>context.close().catch(()=>{}),1900);
-    return true;
-  }catch{
-    return false;
-  }
 }
 
 function chooseIndonesianVoice(){
@@ -59,9 +28,9 @@ function speakCoreOnline(){
     const voice=chooseIndonesianVoice();
     if(voice)utterance.voice=voice;
     utterance.lang=voice?.lang||'id-ID';
-    utterance.rate=.92;
-    utterance.pitch=.78;
-    utterance.volume=.86;
+    utterance.rate=.88;
+    utterance.pitch=.70;
+    utterance.volume=.88;
     window.speechSynthesis.speak(utterance);
     return true;
   }catch{
@@ -74,9 +43,11 @@ export function createNeuralEntryExperience(){
   const phase=document.getElementById('neuralEntryPhase');
   const detail=document.getElementById('neuralEntryDetail');
   const audioButton=document.getElementById('edgeAudioToggle');
+  const matrix=createMatrixTransitionField(document.getElementById('neuralEntryMatrix'));
   let sequence=0;
   let audioEnabled=true;
   const timers=new Set();
+  const sound=createCinematicSoundEngine({enabled:()=>audioEnabled});
 
   function later(callback,delay){
     const timer=setTimeout(()=>{
@@ -99,7 +70,10 @@ export function createNeuralEntryExperience(){
 
   audioButton?.addEventListener('click',()=>{
     audioEnabled=!audioEnabled;
-    if(!audioEnabled&&'speechSynthesis' in window)window.speechSynthesis.cancel();
+    if(!audioEnabled){
+      if('speechSynthesis' in window)window.speechSynthesis.cancel();
+      sound.stop();
+    }
     updateAudioButton();
   });
   updateAudioButton();
@@ -110,19 +84,15 @@ export function createNeuralEntryExperience(){
     sequence+=1;
     const current=sequence;
     const motionReduced=reducedMotion();
-    const total=motionReduced?900:(compact?1450:2700);
+    const total=motionReduced?1050:(compact?1850:3600);
+    const phaseStep=motionReduced?145:(compact?330:610);
+
     root.hidden=false;
     root.classList.toggle('neural-entry-compact',compact);
     root.classList.toggle('neural-entry-reduced',motionReduced);
-    // Force the initial hidden->visible style to commit before activating the transition.
-    // This keeps the animation deterministic in Electron/Xvfb as well as on desktop GPUs.
     root.getBoundingClientRect();
     root.classList.add('neural-entry-active');
-
-    if(audioEnabled){
-      playSyntheticCoreTone();
-      if(announce)speakCoreOnline();
-    }
+    matrix.start({compact});
 
     const phases=compact?PHASES.slice(2):PHASES;
     phases.forEach((item,index)=>{
@@ -131,18 +101,32 @@ export function createNeuralEntryExperience(){
         phase.textContent=item[0];
         detail.textContent=item[1];
         root.dataset.phase=String(index);
-      },motionReduced?index*120:index*(compact?330:560));
+        root.dataset.effect=item[2];
+        matrix.burst();
+        if(audioEnabled)sound.cue(item[2]);
+      },index*phaseStep);
     });
+
+    if(announce){
+      later(()=>{
+        if(sequence===current&&audioEnabled)speakCoreOnline();
+      },motionReduced?260:(compact?520:980));
+    }
 
     later(()=>{
       if(sequence!==current)return;
+      if(audioEnabled)sound.cue('zoomOut');
+      root.dataset.effect='zoomOut';
       root.classList.add('neural-entry-complete');
-    },Math.max(300,total-430));
+    },Math.max(420,total-620));
+
     later(()=>{
       if(sequence!==current)return;
+      matrix.stop();
       root.hidden=true;
       root.classList.remove('neural-entry-active','neural-entry-complete','neural-entry-compact','neural-entry-reduced');
       delete root.dataset.phase;
+      delete root.dataset.effect;
     },total);
   }
 
@@ -150,6 +134,7 @@ export function createNeuralEntryExperience(){
     play,
     setAudioEnabled(value){
       audioEnabled=Boolean(value);
+      if(!audioEnabled)sound.stop();
       updateAudioButton();
     },
     isAudioEnabled:()=>audioEnabled
