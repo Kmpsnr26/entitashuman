@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('dudidamDesktop',Object.freeze({
  openAgent:id=>ipcRenderer.invoke('dudidam:agent-open',id),
  naraSnapshot:()=>ipcRenderer.invoke('dudidam:nara-snapshot'),
  naraDispatch:(event,payload={})=>ipcRenderer.invoke('dudidam:nara-dispatch',{event,payload}),
+ naraTestScenarios:()=>ipcRenderer.invoke('dudidam:nara-test-scenarios'),
+ naraTestScenario:scenario=>ipcRenderer.invoke('dudidam:nara-test-scenario',{scenario}),
  onNaraState:callback=>{if(typeof callback!=='function')return()=>{};const handler=(_event,state)=>callback(state);ipcRenderer.on('dudidam:nara-state',handler);return()=>ipcRenderer.removeListener('dudidam:nara-state',handler);},
  onNaraVoice:callback=>{if(typeof callback!=='function')return()=>{};const handler=(_event,cue)=>callback(cue);ipcRenderer.on('dudidam:nara-voice',handler);return()=>ipcRenderer.removeListener('dudidam:nara-voice',handler);},
  openTerminal:()=>ipcRenderer.invoke('dudidam:terminal-open'),
