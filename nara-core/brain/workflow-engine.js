@@ -237,9 +237,23 @@ export class NaraWorkflowEngine{
 
  revokePermissions(values=[],skillSnapshot=this.skillSnapshot){
   if(!this.workflow)throw new Error('Workflow NARA belum dibuat.');
-  for(const permission of Array.isArray(values)?values:[])if(!AUTO_PERMISSIONS.has(permission))this.granted.delete(String(permission));
-  this.emit('workflow.permission.revoked',{workflowId:this.workflow.id});
-  return this.refresh(skillSnapshot);
+  const revoked=[];
+  for(const value of Array.isArray(values)?values:[]){
+   const permission=String(value||'').trim();
+   if(!permission||AUTO_PERMISSIONS.has(permission))continue;
+   if(this.granted.delete(permission))revoked.push(permission);
+  }
+  const active=Object.values(this.workflow.steps).find(step=>
+   ['running','verifying'].includes(step.status)&&step.permissions.some(permission=>revoked.includes(permission))
+  );
+  if(active){
+   const permission=active.permissions.find(item=>revoked.includes(item))||'unknown';
+   active.status='failed';active.finishedAt=this.clock();active.blockers=['permission-revoked:'+permission];
+   this.workflow.state='failed';this.workflow.lastEvent='workflow.step.failed';
+   this.emit('workflow.step.failed',{workflowId:this.workflow.id,stepId:active.id,skill:active.skill,reason:'permission-revoked:'+permission});
+  }
+  this.emit('workflow.permission.revoked',{workflowId:this.workflow.id,permissions:revoked});
+  return active?this.snapshot():this.refresh(skillSnapshot);
  }
 
  refresh(skillSnapshot=this.skillSnapshot){
