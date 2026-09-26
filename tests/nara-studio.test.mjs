@@ -355,6 +355,10 @@ test('Stage 5 uses adaptive cinematic resources and measured performance budgets
   assert.match(scene,/this\.glowTexture=makeGlowTexture\(\)/);
   assert.match(scene,/this\.dust=makeDustField\(\)/);
   assert.match(scene,/samplePerformance\(delta\)/);
+  assert.match(scene,/this\.timer=new THREE\.Timer/);
+  assert.match(scene,/this\.timer\.update\(\)/);
+  assert.match(scene,/this\.timer\.getElapsed\(\)/);
+  assert.doesNotMatch(scene,/new THREE\.Clock/);
   assert.match(scene,/state\.fps<38/);
   assert.match(scene,/state\.fps>57/);
   assert.match(scene,/toneMappingExposure/);
