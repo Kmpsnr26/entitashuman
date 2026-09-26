@@ -57,6 +57,10 @@ import {
   backupRouter
 } from "../routes/backup.routes.js";
 
+import {
+  humanaleRouter
+} from "../routes/humanale.routes.js";
+
 const app = express();
 
 if (isProduction) {
@@ -100,6 +104,11 @@ app.use(
 app.use(
   "/api/backups",
   backupRouter
+);
+
+app.use(
+  "/api/humanale",
+  humanaleRouter
 );
 
 function callbackUrl(): string {
