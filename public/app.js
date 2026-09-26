@@ -200,7 +200,7 @@ const apiProviders=['copilot','openai','grok','gemini','claude','deepseek','askc
 const SUMMON_DURATION_MS=4200;
 const DISMISS_DURATION_MS=3000;
 const DEFAULT_AVATAR_SIZE=420;
-let panelZoomFactor=1,latestNaraBrainState=null,selectedBrainRegion='NARA_CORE',humanaleVisualFrame={fps:0,points:0},lastVisualStudioBroadcast=0;
+let panelZoomFactor=1,latestNaraBrainState=null,selectedBrainRegion='NARA_CORE',humanaleVisualFrame={fps:0,points:0},lastVisualStudioBroadcast=0,humanaleVisualEvents=[],lastHumanaleVisualEventId=null;
 let aiReady=false,savedProvider=desktop?localStorage.getItem('dudidam-provider'):'',aiProvider=apiProviders.includes(savedProvider)?savedProvider:'chatgpt',busy=false,voice=true,selectedVoiceURI=desktop?(localStorage.getItem('dudidam-voice-uri')||''):'',listening=false,recognition,cameraStream,cameraPending=false,history=[],toastTimer,bubbleTimer,speechTimer,drag,offset={x:0,y:0},ttsActive=false,ttsEnergy=0,audioEnergy=0,audioMode='',musicUrl='',wakeRecognition,wakeListening=false,wakeEnabled=desktop?localStorage.getItem('dudidam-wake-enabled')==='true':false,wakeRestartTimer,wakeHealthVerified=false,wakeRetryBlocked=false,wakeNetworkFailures=0,summoning=false,dismissing=false,transitionSerial=0,hold5Timer,hold5Fired=false;
 let wakeStartGeneration=0;
 let micProbeGeneration=0,micChecking=false;
@@ -215,14 +215,20 @@ function humanaleVisualStudioSnapshot(){
  const snapshot=latestNaraBrainState||{};
  const policy=snapshot.humanale||avatar.naraPolicy||{};
  const hearing=snapshot.sensory?.hearing||{},vision=snapshot.sensory?.vision||{},speech=snapshot.sensory?.speech||{};
- const errorRegions=Object.values(snapshot.regions||{}).filter(region=>['error','bug'].includes(region?.status)).map(region=>region.id);
+ const regions=Object.values(snapshot.regions||{});
+ const errorRegions=regions.filter(region=>['error','bug'].includes(region?.status)).map(region=>region.id);
+ const connectionIds=['GITHUB','COPILOT','DRIVE','OWNER_EMAIL','WEB','TEAM','ONLINE','TERMINAL','MEMORY'];
  return {
   timestamp:Date.now(),
   runtime:{state:policy.state||avatar.state||'idle',rendererMode:policy.rendererMode||avatar.renderPolicy||'eco',activity:Number(policy.activity)||0,controlledBy:policy.controlledBy||'NARA_CORE',reason:policy.reason||'nara.idle'},
   nara:{lifecycle:snapshot.lifecycle||'idle',selectedRegion:snapshot.selectedRegion||selectedBrainRegion,currentTask:snapshot.currentTask?.label||'',lastEvent:snapshot.lastEvent?.event||''},
   sensors:{hearing:Boolean(hearing.active),hearingEnergy:Number(hearing.energy)||0,vision:Boolean(vision.active),visionActivity:Number(vision.activity)||0,speech:Boolean(speech.active),speechEnergy:Number(speech.energy)||0},
   performance:{fps:Number(humanaleVisualFrame.fps)||Math.round(Number(avatar.fps)||0),points:Number(humanaleVisualFrame.points)||avatar.facePoints?.length||0,material:avatar.mode||'mixed',zoom:Number(avatar.zoomTarget||avatar.zoom)||1,renderTarget:policy.rendererMode||avatar.renderPolicy||'eco'},
-  health:{status:errorRegions.length?'attention':'ready',errorCount:errorRegions.length,errorRegions}
+  health:{status:errorRegions.length?'attention':'ready',errorCount:errorRegions.length,errorRegions},
+  scene:{material:avatar.mode||'mixed',accent:$('#color')?.value||'cyan',environment:$('#environment')?.value||'auto',track:avatar.track!==false,animate:avatar.animate!==false,brainZoom:Number(avatar.zoomTarget||avatar.zoom)||1},
+  regions:regions.map(region=>({id:region.id,status:region.status,activity:region.activity,message:region.message||region.lastEvent||''})),
+  connections:connectionIds.filter(id=>snapshot.regions?.[id]).map(id=>({id,status:snapshot.regions[id].status})),
+  timeline:humanaleVisualEvents
  };
 }
 const humanaleVisualStudio=createHumanALEVisualStudio({
@@ -233,6 +239,8 @@ const humanaleVisualStudio=createHumanALEVisualStudio({
  getSnapshot:humanaleVisualStudioSnapshot,
  onOpen:()=>showDialog('#humanaleVisualStudio'),
  onOpenAvatarStudio:()=>showDialog('#avatarStudio'),
+ onSceneChange:(name,value)=>applyHumanALEVisualScene(name,value),
+ onRegionSelect:region=>selectHumanALEVisualRegion(region),
  onToast:text=>toast(text)
 });
 avatar.onFrame=frame=>{
@@ -244,6 +252,24 @@ avatar.onFrame=frame=>{
  humanaleVisualStudio.render(humanaleVisualStudioSnapshot());
  panelChannel?.postMessage(humanaleVisualStudio.syncPayload());
 };
+function applyHumanALEVisualScene(name,value){
+ if(panelOnly){panelChannel?.postMessage({type:'humanale-visual-studio-scene',name,value});return;}
+ if(name==='material')setMode(String(value||'mixed'));
+ else if(name==='accent'){const next=['cyan','green','violet','gold','spectrum'].includes(value)?value:'cyan';avatar.setAccent?.(next);if($('#color'))$('#color').value=next;}
+ else if(name==='environment'){const next=['auto','dark','light'].includes(value)?value:'auto';avatar.setEnvironment?.(next);if($('#environment'))$('#environment').value=next;}
+ else if(name==='track'){avatar.track=Boolean(value);if($('#track'))$('#track').checked=avatar.track;}
+ else if(name==='animate'){avatar.animate=Boolean(value);if($('#animate'))$('#animate').checked=avatar.animate;}
+ else if(name==='brainZoom')applyBrainZoom(value,false);
+ else return;
+ const payload=humanaleVisualStudio.syncPayload();
+ humanaleVisualStudio.render(payload.snapshot);
+ panelChannel?.postMessage(payload);
+}
+function selectHumanALEVisualRegion(region){
+ if(panelOnly){panelChannel?.postMessage({type:'humanale-visual-studio-region',region});return;}
+ if(!latestNaraBrainState?.regions?.[region])return;
+ naraDispatch('brain.region.select',{region}).then(result=>{if(result?.state)syncNaraBrainState(result.state);});
+}
 function syncNaraHearing(){
  if(panelOnly||!desktop?.naraDispatch)return;
  const now=performance.now();if(now-lastNaraAudioSent<100)return;lastNaraAudioSent=now;
@@ -323,6 +349,11 @@ function applyNaraHumanALEPolicy(policy=naraHumanALEPolicy()){
 function syncNaraBrainState(snapshot){
  if(!snapshot||typeof snapshot!=='object')return;
  latestNaraBrainState=snapshot;selectedBrainRegion=snapshot.selectedRegion||selectedBrainRegion;
+ const event=snapshot.lastEvent;
+ if(event?.id&&event.id!==lastHumanaleVisualEventId){
+  lastHumanaleVisualEventId=event.id;
+  humanaleVisualEvents=[...humanaleVisualEvents,{event:event.event,timestamp:event.timestamp,state:snapshot.humanale?.state||'',region:snapshot.selectedRegion||''}].slice(-24);
+ }
  avatar.setBrainState?.(snapshot);applyNaraHumanALEPolicy(snapshot.humanale);updateBrainNodeInfo(selectedBrainRegion);humanaleVisualStudio.render(humanaleVisualStudioSnapshot());
 }
 function applyBrainZoom(value,forward=true){
