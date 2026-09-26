@@ -6,6 +6,16 @@ export function createCinematicSoundEngine({enabled=()=>true}={}){
   let context=null;
   let master=null;
   let noiseBuffer=null;
+  let profile={masterVolume:.78,transitionFx:.82,droidCharacter:true};
+
+  function clamp(value,min,max,fallback){
+    const number=Number(value);
+    return Number.isFinite(number)?Math.max(min,Math.min(max,number)):fallback;
+  }
+
+  function outputGain(){
+    return .075*profile.masterVolume*profile.transitionFx;
+  }
 
   function ensure(){
     if(context&&context.state!=='closed')return context;
@@ -13,7 +23,7 @@ export function createCinematicSoundEngine({enabled=()=>true}={}){
     if(!AudioContext)return null;
     context=new AudioContext();
     master=context.createGain();
-    master.gain.value=.055;
+    master.gain.value=outputGain();
     master.connect(context.destination);
     return context;
   }
@@ -83,7 +93,7 @@ export function createCinematicSoundEngine({enabled=()=>true}={}){
     if(ctx.state==='suspended')ctx.resume().catch(()=>{});
     const t=ctx.currentTime;
     master.gain.cancelScheduledValues(t);
-    master.gain.setTargetAtTime(.055,t,.018);
+    master.gain.setTargetAtTime(Math.max(.0001,outputGain()),t,.018);
 
     if(name==='sweep'){
       noiseSweep({from:220,to:1500,duration:.62,offset,peak:.11});
@@ -105,6 +115,9 @@ export function createCinematicSoundEngine({enabled=()=>true}={}){
     }else if(name==='flow'){
       noiseSweep({from:320,to:1180,duration:1.1,offset,peak:.085});
       oscillator({type:'sine',from:128,to:186,duration:1.05,offset,peak:.07});
+    }else if(name==='voiceBoot'){
+      oscillator({type:'sine',from:74,to:52,duration:.28,offset,peak:.22});
+      oscillator({type:'triangle',from:148,to:92,duration:.22,offset:.025+offset,peak:.055});
     }else return false;
     return true;
   }
@@ -117,5 +130,19 @@ export function createCinematicSoundEngine({enabled=()=>true}={}){
     }
   }
 
-  return {cue,stop};
+  function setProfile(next={}){
+    profile={
+      masterVolume:clamp(next.masterVolume,0,1,profile.masterVolume),
+      transitionFx:clamp(next.transitionFx,0,1,profile.transitionFx),
+      droidCharacter:typeof next.droidCharacter==='boolean'?next.droidCharacter:profile.droidCharacter
+    };
+    if(master&&context&&context.state!=='closed'){
+      const t=context.currentTime;
+      master.gain.cancelScheduledValues(t);
+      master.gain.setTargetAtTime(Math.max(.0001,outputGain()),t,.018);
+    }
+    return {...profile};
+  }
+
+  return {cue,stop,setProfile,getProfile:()=>({...profile})};
 }
