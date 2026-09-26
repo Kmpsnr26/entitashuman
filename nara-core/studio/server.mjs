@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises';
 import {extname,join,normalize} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createOrchestrator,NARA_REGIONS} from '../brain/index.js';
+import {createStudioTelemetry} from './telemetry.mjs';
 
 const HERE=fileURLToPath(new URL('.',import.meta.url));
 const PUBLIC=join(HERE,'public');
@@ -58,6 +59,7 @@ function sendSse(res,type,data){
 
 export function createNaraStudioServer({host='127.0.0.1',port=4178}={}){
   const nara=createOrchestrator();
+  const telemetry=createStudioTelemetry();
   const clients=new Set();
   let server;
 
@@ -68,7 +70,11 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178}={}){
   };
 
   const stateOff=nara.state.subscribe(state=>broadcast('state',state));
-  const eventOff=nara.bus.onAny(envelope=>broadcast('event',envelope));
+  const eventOff=nara.bus.onAny(envelope=>{
+    telemetry.consume(envelope);
+    broadcast('event',envelope);
+    broadcast('telemetry',telemetry.snapshot());
+  });
   nara.start();
 
   server=http.createServer(async(req,res)=>{
@@ -83,6 +89,7 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178}={}){
           state:nara.snapshot(),
           regions:NARA_REGIONS,
           events:nara.bus.recent({limit:50}),
+          telemetry:telemetry.snapshot(),
           studio:{mode:'live',eventAllowlist:STUDIO_EVENT_ALLOWLIST}
         });
       }
@@ -95,6 +102,7 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178}={}){
         });
         clients.add(res);
         sendSse(res,'state',nara.snapshot());
+        sendSse(res,'telemetry',telemetry.snapshot());
         sendSse(res,'ready',{ok:true});
         const timer=setInterval(()=>res.write(': keepalive\n\n'),15000);
         req.on('close',()=>{clearInterval(timer);clients.delete(res);});
@@ -110,8 +118,8 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178}={}){
       }
 
       if(req.method==='POST'&&url.pathname==='/api/reset'){
-        nara.stop();nara.start();
-        return json(res,200,{ok:true,state:nara.snapshot()});
+        nara.stop();telemetry.reset();nara.start();
+        return json(res,200,{ok:true,state:nara.snapshot(),telemetry:telemetry.snapshot()});
       }
 
       if(req.method!=='GET')return json(res,405,{error:'Method tidak didukung.'});
@@ -134,6 +142,7 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178}={}){
 
   return {
     nara,
+    telemetry,
     server,
     async start(){
       if(server.listening)return server.address();
