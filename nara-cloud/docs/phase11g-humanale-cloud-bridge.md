@@ -251,3 +251,12 @@ Before Phase 11G can become `VERIFIED`:
 15. final diff audit confirming no avatar/reference-face asset modifications
 
 Until those checks execute successfully, Phase 11G remains `VERIFICATION_PENDING`.
+
+
+## Consolidated integration checkpoint
+
+As of 2026-09-26, Phase 11G is the single integration candidate targeting `main`.
+
+Verified direct ancestry in this branch includes HumanALE/NARA phases #35-#40, #42-#47, #51, and #55-#58. PR #41 was an alternate Phase 8 implementation and is superseded by the consolidated cognition, persistent safe memory, BrainState, and Data Spine implementation. Cloud Auto Repair (#53) and parallel agent/CI tooling (#54) are also consolidated into this branch.
+
+Before earlier phase PRs are closed, this consolidated head must pass both the NARA Cloud verification workflow and the repository-wide main-target verification workflow.
