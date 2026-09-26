@@ -16,3 +16,5 @@ export * from './authority-policy.js';
 export * from './integration-readiness.js';
 
 export * from './humanale-integration-contract.js';
+
+export * from './humanale-integration-router.js';
