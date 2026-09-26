@@ -20,6 +20,7 @@ const desktopContextBridge=desktop&&desktopMemory&&window.HumanALEContextBridge?
  :null;
 const MEMORY_SOURCE_KEY='humanale.nara.context-source.v1';
 let cloudMemoryState=Object.freeze({configured:false,authenticated:false,available:false});
+let cloudMemoryChecked=false;
 window.humanALEDesktopMemory=desktopMemory;
 window.humanALEDesktopContextBridge=desktopContextBridge;
 
@@ -42,6 +43,7 @@ async function refreshCloudMemoryStatus(){
  }
  try{
   const result=await desktop.cloudStatus();
+  cloudMemoryChecked=true;
   cloudMemoryState=Object.freeze({
    configured:Boolean(result?.configured),
    authenticated:Boolean(result?.authenticated),
@@ -51,6 +53,7 @@ async function refreshCloudMemoryStatus(){
    error:String(result?.error||'')
   });
  }catch{
+  cloudMemoryChecked=true;
   cloudMemoryState=Object.freeze({configured:true,authenticated:false,available:false,error:'NARA_CLOUD_UNREACHABLE'});
  }
  updateDesktopMemoryContextUi();
@@ -70,14 +73,14 @@ function updateDesktopMemoryContextUi(){
  if(select&&select.value!==snapshot.mode)select.value=snapshot.mode;
  let source=selectedMemorySource();
  const cloudOption=sourceSelect?.querySelector('option[value="cloud"]');
- if(cloudOption)cloudOption.disabled=!cloudMemoryState.configured;
- if(source==='cloud'&&!cloudMemoryState.configured)source=setMemorySource('local');
+ if(cloudOption)cloudOption.disabled=cloudMemoryChecked&&!cloudMemoryState.configured;
+ if(source==='cloud'&&cloudMemoryChecked&&!cloudMemoryState.configured)source=setMemorySource('local');
  if(sourceSelect&&sourceSelect.value!==source)sourceSelect.value=source;
  const modeLabel=snapshot.mode==='off'?'OFF':snapshot.mode==='auto-safe'?'AUTO-SAFE':'TANYA DULU';
  const sourceLabel=source==='cloud'?'NARA CLOUD':'LOKAL';
  status.textContent='Memory context · '+modeLabel+' · sumber '+sourceLabel+' · '+memoryState.count+' memori lokal tersedia.';
- if(cloudActions)cloudActions.hidden=!cloudMemoryState.configured;
- if(cloudStatus)cloudStatus.hidden=!cloudMemoryState.configured;
+ if(cloudActions)cloudActions.hidden=!cloudMemoryChecked||!cloudMemoryState.configured;
+ if(cloudStatus)cloudStatus.hidden=!cloudMemoryChecked||!cloudMemoryState.configured;
  if(cloudLogin)cloudLogin.hidden=!cloudMemoryState.configured||cloudMemoryState.authenticated;
  if(cloudStatus&&!cloudStatus.hidden){
   cloudStatus.textContent=cloudMemoryState.available
