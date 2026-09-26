@@ -44,9 +44,23 @@ The 3D renderer is presentation-only. It does not add shell execution, arbitrary
 
 Three.js is served from the installed local package through a fixed route. CSP remains `script-src 'self'`.
 
-## Stage 2
+## Stage 2 — implemented
 
-Replace static link scaffold with organic Catmull-Rom/tube roots, link activity state, animated energy flow, and selected-neighborhood highlighting.
+Living-root rendering now uses deterministic Catmull-Rom curves with layered TubeGeometry:
+
+- outer neural sheath
+- additive glow envelope
+- bright inner energy filament
+- one reusable bounded packet + halo per link
+- active/status-driven link intensity
+- selected-region neighborhood highlighting
+- event pulses routed across adjacent links
+- flow direction bends toward the region receiving activity
+- reduced-motion support
+- renderer pauses when the 3D view is hidden
+- no unbounded event-particle allocation
+
+Stage 2 deliberately keeps the organic root geometry stable and animates energy through it. This avoids rebuilding dozens of TubeGeometry objects every frame.
 
 ## Stage 3
 
