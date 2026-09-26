@@ -1,5 +1,6 @@
 import {HumanALEAvatar} from './humanale-avatar.js';
 import {createAvatarStudioController} from './avatar-studio.js';
+import {createHumanALEVisualStudio} from './humanale-visual-studio.js';
 import {DudidamPopup} from './dudidam-popup.js';
 import {parseCommand} from './commands.js';
 import {AudioReactor} from './audio-reactor.js';
@@ -199,7 +200,7 @@ const apiProviders=['copilot','openai','grok','gemini','claude','deepseek','askc
 const SUMMON_DURATION_MS=4200;
 const DISMISS_DURATION_MS=3000;
 const DEFAULT_AVATAR_SIZE=420;
-let panelZoomFactor=1,latestNaraBrainState=null,selectedBrainRegion='NARA_CORE';
+let panelZoomFactor=1,latestNaraBrainState=null,selectedBrainRegion='NARA_CORE',humanaleVisualFrame={fps:0,points:0},lastVisualStudioBroadcast=0;
 let aiReady=false,savedProvider=desktop?localStorage.getItem('dudidam-provider'):'',aiProvider=apiProviders.includes(savedProvider)?savedProvider:'chatgpt',busy=false,voice=true,selectedVoiceURI=desktop?(localStorage.getItem('dudidam-voice-uri')||''):'',listening=false,recognition,cameraStream,cameraPending=false,history=[],toastTimer,bubbleTimer,speechTimer,drag,offset={x:0,y:0},ttsActive=false,ttsEnergy=0,audioEnergy=0,audioMode='',musicUrl='',wakeRecognition,wakeListening=false,wakeEnabled=desktop?localStorage.getItem('dudidam-wake-enabled')==='true':false,wakeRestartTimer,wakeHealthVerified=false,wakeRetryBlocked=false,wakeNetworkFailures=0,summoning=false,dismissing=false,transitionSerial=0,hold5Timer,hold5Fired=false;
 let wakeStartGeneration=0;
 let micProbeGeneration=0,micChecking=false;
@@ -210,6 +211,39 @@ let activeSpeechSource='',naraVoiceQueue=[],naraVoiceActive=false,naraVoiceDrain
 let voiceStyle=desktop?localStorage.getItem('dudidam-voice-style')||'baby-robot':'baby-robot',emotionChoice=desktop?localStorage.getItem('dudidam-emotion')||'auto':'auto',lastBandsSent=0;
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 let naraAudioBands={low:0,mid:0,high:0},lastNaraAudioSent=0,lastNaraHearingActive=null;
+function humanaleVisualStudioSnapshot(){
+ const snapshot=latestNaraBrainState||{};
+ const policy=snapshot.humanale||avatar.naraPolicy||{};
+ const hearing=snapshot.sensory?.hearing||{},vision=snapshot.sensory?.vision||{},speech=snapshot.sensory?.speech||{};
+ const errorRegions=Object.values(snapshot.regions||{}).filter(region=>['error','bug'].includes(region?.status)).map(region=>region.id);
+ return {
+  timestamp:Date.now(),
+  runtime:{state:policy.state||avatar.state||'idle',rendererMode:policy.rendererMode||avatar.renderPolicy||'eco',activity:Number(policy.activity)||0,controlledBy:policy.controlledBy||'NARA_CORE',reason:policy.reason||'nara.idle'},
+  nara:{lifecycle:snapshot.lifecycle||'idle',selectedRegion:snapshot.selectedRegion||selectedBrainRegion,currentTask:snapshot.currentTask?.label||'',lastEvent:snapshot.lastEvent?.event||''},
+  sensors:{hearing:Boolean(hearing.active),hearingEnergy:Number(hearing.energy)||0,vision:Boolean(vision.active),visionActivity:Number(vision.activity)||0,speech:Boolean(speech.active),speechEnergy:Number(speech.energy)||0},
+  performance:{fps:Number(humanaleVisualFrame.fps)||Math.round(Number(avatar.fps)||0),points:Number(humanaleVisualFrame.points)||avatar.facePoints?.length||0,material:avatar.mode||'mixed',zoom:Number(avatar.zoomTarget||avatar.zoom)||1,renderTarget:policy.rendererMode||avatar.renderPolicy||'eco'},
+  health:{status:errorRegions.length?'attention':'ready',errorCount:errorRegions.length,errorRegions}
+ };
+}
+const humanaleVisualStudio=createHumanALEVisualStudio({
+ root:document,
+ storage:localStorage,
+ channel:panelChannel,
+ isPanel:panelOnly,
+ getSnapshot:humanaleVisualStudioSnapshot,
+ onOpen:()=>showDialog('#humanaleVisualStudio'),
+ onOpenAvatarStudio:()=>showDialog('#avatarStudio'),
+ onToast:text=>toast(text)
+});
+avatar.onFrame=frame=>{
+ humanaleVisualFrame={fps:Number(frame?.fps)||0,points:Number(frame?.points)||0};
+ if(panelOnly)return;
+ const now=performance.now();
+ if(now-lastVisualStudioBroadcast<400)return;
+ lastVisualStudioBroadcast=now;
+ humanaleVisualStudio.render(humanaleVisualStudioSnapshot());
+ panelChannel?.postMessage(humanaleVisualStudio.syncPayload());
+};
 function syncNaraHearing(){
  if(panelOnly||!desktop?.naraDispatch)return;
  const now=performance.now();if(now-lastNaraAudioSent<100)return;lastNaraAudioSent=now;
@@ -289,7 +323,7 @@ function applyNaraHumanALEPolicy(policy=naraHumanALEPolicy()){
 function syncNaraBrainState(snapshot){
  if(!snapshot||typeof snapshot!=='object')return;
  latestNaraBrainState=snapshot;selectedBrainRegion=snapshot.selectedRegion||selectedBrainRegion;
- avatar.setBrainState?.(snapshot);applyNaraHumanALEPolicy(snapshot.humanale);updateBrainNodeInfo(selectedBrainRegion);
+ avatar.setBrainState?.(snapshot);applyNaraHumanALEPolicy(snapshot.humanale);updateBrainNodeInfo(selectedBrainRegion);humanaleVisualStudio.render(humanaleVisualStudioSnapshot());
 }
 function applyBrainZoom(value,forward=true){
  const zoom=Math.max(1,Math.min(3.8,Number(value)||1));
@@ -886,6 +920,7 @@ function cancelHold5(){clearTimeout(hold5Timer);hold5Timer=null;hold5Fired=false
 window.addEventListener('blur',cancelHold5);
 if(panelChannel)panelChannel.onmessage=event=>{
  const data=event.data||{};
+ if(humanaleVisualStudio.handleMessage(data))return;
  if(avatarStudio.handleMessage(data))return;
  if(data.type==='message'){message(String(data.text||''),data.role==='user'?'user':'assistant',false,false);return;}
  if(data.type==='history'){history=Array.isArray(data.history)?data.history.slice(-10):[];return;}
@@ -895,7 +930,7 @@ if(panelChannel)panelChannel.onmessage=event=>{
  if(data.type==='emotion-choice'&&!panelOnly){emotionChoice=data.value==='auto'||emotions.includes(data.value)?data.value:'auto';$('#emotion').value=emotionChoice;return;}
  if(data.type==='evolution'&&!panelOnly){setEvolutionVisual(data.mode==='complete'?'complete':data.mode==='start'?'start':'stop');return;}
  if(data.type==='wake-status'&&panelOnly){wakeEnabled=Boolean(data.enabled);setWakeStatus(String(data.text||''),Boolean(data.active));return;}
- if(data.type==='panel-ready'&&!panelOnly){setWakeStatus($('#wakeIndicator').textContent,$('#wakeIndicator').dataset.active==='true');setPersona(aiProvider);panelChannel?.postMessage({type:'setting',name:'brainZoom',value:avatar.zoomTarget||1});panelChannel?.postMessage(avatarStudio.syncPayload());return;}
+ if(data.type==='panel-ready'&&!panelOnly){setWakeStatus($('#wakeIndicator').textContent,$('#wakeIndicator').dataset.active==='true');setPersona(aiProvider);panelChannel?.postMessage({type:'setting',name:'brainZoom',value:avatar.zoomTarget||1});panelChannel?.postMessage(avatarStudio.syncPayload());panelChannel?.postMessage(humanaleVisualStudio.syncPayload());return;}
  if(panelOnly)return;
  if(data.type==='avatar-size'){applyAvatarSize(data.size);return;}
  if(data.type==='mode'){setMode(data.mode);return;}
@@ -925,7 +960,7 @@ if(panelOnly){
  desktop.onPanelView?.(async view=>{showDialog('#'+view);if(view==='agentDialog')await loadAgents();});
  panelChannel?.postMessage({type:'panel-ready'});
  const initial=params.get('panel');
- if(['controls','avatarStudio','chatDialog','agentDialog','terminalDialog'].includes(initial))requestAnimationFrame(()=>showDialog('#'+initial));
+ if(['controls','avatarStudio','humanaleVisualStudio','chatDialog','agentDialog','terminalDialog'].includes(initial))requestAnimationFrame(()=>showDialog('#'+initial));
 }
 document.querySelectorAll('dialog').forEach(dialog=>{if(!(dialog.id==='chatDialog'&&document.documentElement.classList.contains('stage-surface')))enableDialogDrag(dialog);});window.addEventListener('resize',()=>{document.querySelectorAll('dialog[open]').forEach(dialog=>{if(!(dialog.id==='chatDialog'&&document.documentElement.classList.contains('stage-surface')))clampDialog(dialog);});avatar.resize?.();});
 window.dudidamAvatar=Object.freeze({
