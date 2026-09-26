@@ -925,3 +925,22 @@ test('node voice module passes Node syntax check',async()=>{
   const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
   assert.equal(result.status,0,result.stderr||result.stdout||file);
 });
+
+
+test('realtime smoke authenticates through configured Creator Gateway before entering Neural Space',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const smoke=await readFile(new URL('scripts/nara-neural-live-smoke.cjs',root),'utf8');
+
+  assert.match(smoke,/const SMOKE_CREATOR=Object\.freeze/);
+  assert.match(smoke,/password:'browser-acceptance-'\+process\.pid/);
+  assert.match(smoke,/creatorAuth:SMOKE_CREATOR/);
+  assert.match(smoke,/creatorLoginForm/);
+  assert.match(smoke,/form\.requestSubmit\(\)/);
+  assert.match(smoke,/creatorLoginAuthenticated/);
+  assert.match(smoke,/creatorSecureSession/);
+  assert.match(smoke,/CREATOR VERIFIED/);
+  assert.match(smoke,/SECURE SESSION/);
+  assert.doesNotMatch(smoke,/report\.SMOKE_CREATOR/);
+  assert.doesNotMatch(smoke,/report\.creatorPassword/);
+});
