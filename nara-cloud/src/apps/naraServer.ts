@@ -38,6 +38,10 @@ import {
   aiRouter
 } from "../routes/ai.routes.js";
 
+import {
+  memoryRouter
+} from "../routes/memory.routes.js";
+
 const app = express();
 
 if (isProduction) {
@@ -66,6 +70,11 @@ app.use(naraSession());
 app.use(
   "/api/ai",
   aiRouter
+);
+
+app.use(
+  "/api/memory",
+  memoryRouter
 );
 
 function callbackUrl(): string {
