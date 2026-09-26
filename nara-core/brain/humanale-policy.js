@@ -52,6 +52,9 @@ export function reduceHumanALEPolicy(previous=createHumanALEPolicy(),event='',pa
   }
   if(name==='speech.stop')return fallbackPolicy({...runtime,sensory:{...runtime?.sensory,speech:{active:false,energy:0}}},name);
 
+  if(name==='hearing.start')return basePolicy('listening',name,.5);
+  if(name==='hearing.stop')return fallbackPolicy({...runtime,sensory:{...runtime?.sensory,hearing:{active:false,energy:0}}},name);
+
   if(name==='audio.energy'){
     const energy=clamp01(payload?.energy);
     if(energy>.01)return basePolicy('listening',name,Math.max(.45,energy));
