@@ -207,7 +207,8 @@ export class Neural3DScene{
     this.phi=1.18;
     this.focusTarget=null;
     this.focusRadius=null;
-    this.clock=new THREE.Clock();
+    this.timer=new THREE.Timer();
+    this.timer.connect(document);
     this.motionScale=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?.35:1;
     this.frameWindow={elapsed:0,frames:0,fps:60,cooldown:0};
 
@@ -876,8 +877,9 @@ export class Neural3DScene{
 
   animate(){
     if(!this.active)return;
-    const delta=Math.min(.05,this.clock.getDelta());
-    const t=this.clock.elapsedTime;
+    this.timer.update();
+    const delta=Math.min(.05,this.timer.getDelta());
+    const t=this.timer.getElapsed();
     this.updateCamera();
 
     for(const [id,entry] of this.nodes){
@@ -942,6 +944,7 @@ export class Neural3DScene{
     this.stars.material.dispose();
     this.dust.geometry.dispose();
     this.dust.material.dispose();
+    this.timer.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
