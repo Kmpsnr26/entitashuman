@@ -15,7 +15,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: cloud-auto-repair-\${{ github.repository }}-\${{ github.event_name }}-\${{ github.event.issue.number || github.event.pull_request.number || github.event.workflow_run.id || 'scheduled' }}
+  group: cloud-auto-repair-${{ github.repository }}-${{ github.event_name }}-${{ github.event.issue.number || github.event.pull_request.number || github.event.workflow_run.id || 'scheduled' }}
   cancel-in-progress: false
 
 jobs:
@@ -29,15 +29,15 @@ jobs:
       issues: write
       pull-requests: read
     outputs:
-      candidates: \${{ steps.triage.outputs.candidates }}
-      fallback_issues: \${{ steps.delegate.outputs.fallback_issues }}
-      delegated_issues: \${{ steps.delegate.outputs.delegated_issues }}
+      candidates: ${{ steps.triage.outputs.candidates }}
+      fallback_issues: ${{ steps.delegate.outputs.fallback_issues }}
+      delegated_issues: ${{ steps.delegate.outputs.delegated_issues }}
     steps:
       - name: Create or update deduplicated issues
         id: triage
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         with:
-          github-token: \${{ github.token }}
+          github-token: ${{ github.token }}
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -385,10 +385,10 @@ jobs:
         id: delegate
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
-          CANDIDATES: \${{ steps.triage.outputs.candidates }}
-          COPILOT_TOKEN_CONFIGURED: \${{ secrets.COPILOT_ASSIGN_TOKEN != '' }}
+          CANDIDATES: ${{ steps.triage.outputs.candidates }}
+          COPILOT_TOKEN_CONFIGURED: ${{ secrets.COPILOT_ASSIGN_TOKEN != '' }}
         with:
-          github-token: \${{ secrets.COPILOT_ASSIGN_TOKEN || github.token }}
+          github-token: ${{ secrets.COPILOT_ASSIGN_TOKEN || github.token }}
           script: |
             const candidates = JSON.parse(process.env.CANDIDATES || '[]');
             const fallback = [];
@@ -476,10 +476,10 @@ jobs:
       - name: Record delegation state
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
-          FALLBACK_ISSUES: \${{ steps.delegate.outputs.fallback_issues }}
-          DELEGATED_ISSUES: \${{ steps.delegate.outputs.delegated_issues }}
+          FALLBACK_ISSUES: ${{ steps.delegate.outputs.fallback_issues }}
+          DELEGATED_ISSUES: ${{ steps.delegate.outputs.delegated_issues }}
         with:
-          github-token: \${{ github.token }}
+          github-token: ${{ github.token }}
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -533,9 +533,9 @@ jobs:
       - name: Create or update one deterministic Draft PR per issue
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
-          FALLBACK_ISSUES: \${{ needs.triage.outputs.fallback_issues }}
+          FALLBACK_ISSUES: ${{ needs.triage.outputs.fallback_issues }}
         with:
-          github-token: \${{ github.token }}
+          github-token: ${{ github.token }}
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
