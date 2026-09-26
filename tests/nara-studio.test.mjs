@@ -461,3 +461,171 @@ test('Windows GPU wrapper reads the acceptance JSON as UTF-8',async()=>{
   const ps1=await readFile(new URL('scripts/nara-neural-gpu-acceptance.ps1',root),'utf8');
   assert.match(ps1,/Get-Content \$reportPath -Raw -Encoding UTF8 \| ConvertFrom-Json/);
 });
+
+
+test('Creator Gateway protects Studio APIs with bounded server-side session',async t=>{
+  const studio=createNaraStudioServer({
+    host:'127.0.0.1',
+    port:0,
+    creatorAuth:{username:'owner',password:'test-creator-secret',ttlMs:60000}
+  });
+  t.after(()=>studio.stop());
+  const address=await studio.start();
+  const base='http://127.0.0.1:'+address.port;
+
+  const locked=await fetch(base+'/api/snapshot');
+  assert.equal(locked.status,401);
+
+  const initial=await fetch(base+'/api/creator/session').then(r=>r.json());
+  assert.equal(initial.configured,true);
+  assert.equal(initial.required,true);
+  assert.equal(initial.authenticated,false);
+  assert.equal(initial.capabilities.find(item=>item.id==='database').state,'locked');
+
+  const wrong=await fetch(base+'/api/creator/login',{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({username:'owner',password:'wrong'})
+  });
+  assert.equal(wrong.status,401);
+  assert.equal(wrong.headers.get('set-cookie'),null);
+
+  const login=await fetch(base+'/api/creator/login',{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({username:'owner',password:'test-creator-secret'})
+  });
+  assert.equal(login.status,200);
+  const cookieHeader=login.headers.get('set-cookie')||'';
+  assert.match(cookieHeader,/nara_creator_session=/);
+  assert.match(cookieHeader,/HttpOnly/i);
+  assert.match(cookieHeader,/SameSite=Strict/i);
+  const loginBody=await login.json();
+  assert.equal(loginBody.authenticated,true);
+  assert.equal('token' in loginBody,false);
+  assert.equal(JSON.stringify(loginBody).includes('test-creator-secret'),false);
+
+  const cookie=cookieHeader.split(';')[0];
+  const sessionRes=await fetch(base+'/api/creator/session',{headers:{cookie}});
+  assert.equal(sessionRes.status,200);
+  const session=await sessionRes.json();
+  assert.equal(session.authenticated,true);
+  assert.equal(session.username,'owner');
+  assert.equal(session.capabilities.find(item=>item.id==='camera').state,'permission_required');
+  assert.equal(session.capabilities.find(item=>item.id==='database').state,'not_configured');
+
+  const snapshot=await fetch(base+'/api/snapshot',{headers:{cookie}});
+  assert.equal(snapshot.status,200);
+
+  const allowed=await fetch(base+'/api/event',{
+    method:'POST',
+    headers:{'content-type':'application/json',cookie},
+    body:JSON.stringify({event:'reason.start',payload:{label:'Creator test'}})
+  });
+  assert.equal(allowed.status,200);
+
+  const denied=await fetch(base+'/api/event',{
+    method:'POST',
+    headers:{'content-type':'application/json',cookie},
+    body:JSON.stringify({event:'terminal.exec',payload:{command:'whoami'}})
+  });
+  assert.equal(denied.status,403);
+
+  const logout=await fetch(base+'/api/creator/logout',{
+    method:'POST',
+    headers:{'content-type':'application/json',cookie},
+    body:'{}'
+  });
+  assert.equal(logout.status,200);
+  assert.match(logout.headers.get('set-cookie')||'',/Max-Age=0/i);
+
+  const relocked=await fetch(base+'/api/snapshot',{headers:{cookie}});
+  assert.equal(relocked.status,401);
+});
+
+test('Creator Gateway rate-limits failed authentication attempts',async t=>{
+  const studio=createNaraStudioServer({
+    host:'127.0.0.1',
+    port:0,
+    creatorAuth:{username:'creator',password:'rate-secret',maxAttempts:2,attemptWindowMs:60000}
+  });
+  t.after(()=>studio.stop());
+  const address=await studio.start();
+  const base='http://127.0.0.1:'+address.port;
+  const attempt=()=>fetch(base+'/api/creator/login',{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({username:'creator',password:'wrong'})
+  });
+
+  assert.equal((await attempt()).status,401);
+  assert.equal((await attempt()).status,401);
+  assert.equal((await attempt()).status,429);
+});
+
+test('required Creator auth without a configured password fails closed',async t=>{
+  const studio=createNaraStudioServer({
+    host:'127.0.0.1',
+    port:0,
+    creatorAuth:{required:true}
+  });
+  t.after(()=>studio.stop());
+  const address=await studio.start();
+  const base='http://127.0.0.1:'+address.port;
+
+  const session=await fetch(base+'/api/creator/session').then(r=>r.json());
+  assert.equal(session.required,true);
+  assert.equal(session.misconfigured,true);
+  assert.equal(session.authenticated,false);
+  assert.equal((await fetch(base+'/api/snapshot')).status,401);
+
+  const login=await fetch(base+'/api/creator/login',{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({username:'creator',password:'anything'})
+  });
+  assert.equal(login.status,503);
+});
+
+test('Creator Gateway UI defers Studio boot and uses browser permission APIs without storing secrets',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [html,app,gateway,styles,server,auth]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/index.html',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/creator-gateway.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/styles.css',root),'utf8'),
+    readFile(new URL('nara-core/studio/server.mjs',root),'utf8'),
+    readFile(new URL('nara-core/studio/creator-auth.mjs',root),'utf8')
+  ]);
+
+  assert.match(html,/id="creatorGateway"/);
+  assert.match(html,/id="creatorLoginForm"/);
+  assert.match(html,/id="creatorPassword"/);
+  assert.match(html,/id="creatorCapabilityRows"/);
+  assert.match(app,/import \{initializeCreatorGateway\} from '\.\/creator-gateway\.js'/);
+  assert.match(app,/startStudioAfterCreatorAccess/);
+  assert.match(gateway,/navigator\.mediaDevices\?\.getUserMedia/);
+  assert.match(gateway,/getUserMedia\(\{video:true,audio:true\}\)/);
+  assert.match(gateway,/for\(const track of stream\.getTracks\(\)\)track\.stop\(\)/);
+  assert.doesNotMatch(gateway,/localStorage|sessionStorage/);
+  assert.match(styles,/Creator Gateway — Stage 1/);
+  assert.match(server,/HttpOnly|sessionCookie/);
+  assert.match(server,/frame-ancestors 'none'/);
+  assert.match(auth,/timingSafeEqual/);
+  assert.match(auth,/randomBytes\(32\)/);
+  assert.match(auth,/not_configured/);
+});
+
+test('Creator Gateway modules pass Node syntax checks',async()=>{
+  const {spawnSync}=await import('node:child_process');
+  const {fileURLToPath}=await import('node:url');
+  const files=[
+    fileURLToPath(new URL('../nara-core/studio/creator-auth.mjs',import.meta.url)),
+    fileURLToPath(new URL('../nara-core/studio/public/creator-gateway.js',import.meta.url))
+  ];
+  for(const file of files){
+    const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
+    assert.equal(result.status,0,result.stderr||result.stdout||file);
+  }
+});
