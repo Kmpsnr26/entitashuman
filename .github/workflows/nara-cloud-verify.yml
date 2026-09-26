@@ -146,6 +146,9 @@ jobs:
       - name: Install HumanALE dependencies
         run: npm ci
 
+      - name: Download Electron binary
+        run: ./node_modules/.bin/install-electron --no
+
       - name: Configure Electron SUID sandbox
         run: |
           sudo chown root:root node_modules/electron/dist/chrome-sandbox
