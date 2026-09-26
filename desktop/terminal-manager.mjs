@@ -5,6 +5,8 @@ import {isAbsolute,join,resolve} from 'node:path';
 import {spawn} from 'node:child_process';
 import {redactSecrets} from './terminal-policy.mjs';
 
+const MAX_TERMINAL_SESSIONS=12;
+
 const SHELLS={
  pwsh:{label:'PowerShell 7',commands:['pwsh.exe','pwsh']},
  powershell:{label:'Windows PowerShell',commands:['powershell.exe','powershell']},
@@ -69,6 +71,7 @@ export class TerminalManager{
   return target;
  }
  async create(options={}){
+  if(this.sessions.size>=MAX_TERMINAL_SESSIONS)throw new Error('Batas '+MAX_TERMINAL_SESSIONS+' sesi terminal tercapai. Tutup sesi yang tidak dipakai sebelum membuka sesi baru.');
   const shell=await this.resolveShell(options.shell||'auto');
   const profile=options.profile?await this.resolveProfile(options.profile):null;
   const cwd=await this.resolveCwd(options.cwd);

@@ -80,6 +80,8 @@ test('terminal startup is restricted to detected CLI profiles and cannot accept 
   readFile(new URL('../desktop/terminal-manager.mjs',import.meta.url),'utf8'),
   readFile(new URL('../public/terminal-ui.js',import.meta.url),'utf8')
  ]);
+ assert.match(manager,/MAX_TERMINAL_SESSIONS=12/);
+ assert.match(manager,/this\.sessions\.size>=MAX_TERMINAL_SESSIONS/);
  assert.match(manager,/async resolveProfile\(profile\)/);
  assert.match(manager,/if\(profile\)terminal\.write\(executableLine/);
  assert.doesNotMatch(manager,/options\.startupCommand/);
