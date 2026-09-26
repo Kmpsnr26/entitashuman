@@ -64,9 +64,6 @@
       this.frame = 0;
       this.running = !this.paused;
       this.frameRequest = null;
-      this.referencePoints = [];
-      this.referenceReady = false;
-      this.referenceState = options.referenceSrc ? 'loading' : 'procedural';
       this.streams = Array.from({ length: 46 }, () => ({
         x: (this.random() > 0.5 ? 1 : -1) * (0.46 + this.random() * 0.21),
         phase: this.random() * TAU, speed: 0.012 + this.random() * 0.008,
@@ -85,8 +82,7 @@
       this.dataSpineState={version:1,lanes:{},packets:[],updatedAt:0};
       this.brainRegionScreen = [];
       this.facePoints = this.buildFallback();
-      this.referencePromise = options.referenceSrc ? this.loadReference(options.referenceSrc) : Promise.resolve(false);
-      if (!options.referenceSrc) this.setVisible(true, { initial: true });
+      this.setVisible(true, { initial: true });
       this.resizeObserver = new ResizeObserver(() => this.resize());
       this.resizeObserver.observe(canvas);
       this.resize();
@@ -119,59 +115,6 @@
         phase: hash() * TAU, type: hash(), keep: hash(), digit: hash() > 0.5 ? 1 : 0,
         feature, baseX: x, baseY: y, ...extra
       };
-    }
-
-    async loadReference(src) {
-      try {
-        const image = new Image();
-        image.decoding = 'async';
-        await new Promise((resolve, reject) => {
-          image.onload = resolve;
-          image.onerror = () => reject(new Error('Gagal memuat peta wajah.'));
-          image.src = src;
-        });
-        const size = 600, step = 3;
-        const map = document.createElement('canvas');
-        map.width = map.height = size;
-        const ctx = map.getContext('2d', { willReadFrequently: true });
-        ctx.drawImage(image, 0, 0, size, size);
-        const pixels = ctx.getImageData(0, 0, size, size).data;
-        const hash = seeded(240926), points = [];
-        for (let py = 0; py < size; py += step) {
-          for (let px = 0; px < size; px += step) {
-            const offset = (py * size + px) * 4;
-            const lum = (pixels[offset] * 0.2126 + pixels[offset + 1] * 0.7152 + pixels[offset + 2] * 0.0722) * pixels[offset + 3] / 255;
-            const {x,y} = R.referenceWarp((px / size - 0.5) * 1.46, (py / size - 0.5) * 1.56);
-            const head = (x / 0.425) ** 2 + ((y + 0.085) / 0.62) ** 2 < 1;
-            if (lum < (head ? 12 : 36)) continue;
-            // Replace only the eye apertures and lips; preserve their surrounding anatomy.
-            let aperture = false;
-            for (const side of [-1, 1]) {
-              const t = (x - side * EYE_X) / EYE_HALF;
-              const a = Math.sqrt(Math.max(0, 1 - t * t));
-              if (Math.abs(t) < 1 && y > EYE_Y - a * (EYE_UPPER + 0.003) && y < EYE_Y + a * (EYE_LOWER + 0.003)) aperture = true;
-            }
-            if (aperture) continue;
-            let intensity = Math.pow(clamp((lum - 8) / 235, 0.02, 1), 0.8);
-            const pt = this.makePoint(x + (hash() - 0.5) * 0.0015, y + (hash() - 0.5) * 0.0015, intensity, hash);
-            pt.outer = !head && y < 0.53;
-            points.push(pt);
-          }
-        }
-        this.addFacialCode(points, hash);
-        if (points.length < 800) throw new Error('Peta wajah tidak lengkap.');
-        points.sort((a, b) => a.z - b.z);
-        this.referencePoints = points;
-        this.referenceReady = true;
-        this.referenceState = 'ready';
-        this.setVisible(true, { initial: true });
-        return true;
-      } catch (error) {
-        console.warn(error);
-        this.referenceState = 'fallback';
-        this.setVisible(true, { initial: true });
-        return false;
-      }
     }
 
     addFacialCode(points, hash) {
@@ -719,7 +662,7 @@
       this.drawConvergingCode(c, time);
       this.onRender?.(c,time);
       c.globalAlpha = 1;
-      if (this.onFrame && this.frame % 20 === 0) this.onFrame({ fps: Math.round(this.fps), palette: this.palette(time).name, points: this.referencePoints.length });
+      if (this.onFrame && this.frame % 20 === 0) this.onFrame({ fps: Math.round(this.fps), palette: this.palette(time).name, points: this.facePoints.length });
       this.frameRequest = requestAnimationFrame((t) => this.render(t));
     }
     drawStreams(c, time) {
@@ -818,7 +761,7 @@
       c.globalAlpha=1;
     }
     drawFace(c, time) {
-      const points = this.referenceReady ? this.referencePoints : this.facePoints;
+      const points = this.facePoints;
       const shell = 1 - smooth(1.28, 2.65, this.zoom);
       if (shell < 0.003) return;
       const cosYaw = Math.cos(this.headPose.yaw), sinYaw = Math.sin(this.headPose.yaw);

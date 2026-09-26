@@ -18,6 +18,7 @@ test('main HumanALE renderer uses the exact procedural NARA avatar engine from t
   assert.match(adapter,/drawAudioSensors/);
   assert.match(avatar,/class NeuralAvatar/);
   assert.match(avatar,/buildFallback\(\)/);
+  assert.doesNotMatch(avatar,/loadReference|referencePromise|referencePoints|referenceSrc|new Image/);
   assert.match(avatar,/setBackdrop\(grid\)/);
   assert.match(avatar,/Math\.PI\/6/);
   assert.match(index,/Wajah holografik NARA dari karakter biner yang bergerak/);

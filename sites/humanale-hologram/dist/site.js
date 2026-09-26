@@ -318,14 +318,12 @@ const unlockNaraVoice=()=>{naraVoiceUnlocked=true;};
 window.addEventListener('pointerdown',unlockNaraVoice,{once:true});
 window.addEventListener('keydown',unlockNaraVoice,{once:true});
 
-avatar.referencePromise.then(() => {
-  showState('WAJAH PROCEDURAL SIAP');
-  dataSpine.start();
-  cognition.start();
-  memory.start();
-  runtime.start();
-  connections.start();
-});
+showState('WAJAH PROCEDURAL SIAP');
+dataSpine.start();
+cognition.start();
+memory.start();
+runtime.start();
+connections.start();
 
 document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
   avatar.setMaterial(button.dataset.mode);

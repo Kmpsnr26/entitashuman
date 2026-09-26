@@ -12,14 +12,7 @@
     const lower = bump(x,y,0,seam+0.017,0.176,0.022);
     return { upper, lower, seam, influence: bump(x,y,0,MOUTH_Y,0.25,0.105) };
   }
-  function referenceWarp(x,y) {
-    for (const side of [-1,1]) {
-      const cx = side * EYE_X, dx = x - cx, dy = y - EYE_Y;
-      const weight = 1 - smooth(0.4, 1.5, (dx/0.17)**2 + (dy/0.115)**2);
-      if (weight > 0) return { x: cx + dx*(1-weight*0.21), y:EYE_Y+dy*(1-weight*0.16) };
-    }
-    return {x,y};
-  }
+
 
   // All anatomy shares the same surface. Luminance never changes depth.
   function depthAt(x, y) {
@@ -78,5 +71,5 @@
       z: finalZ
     };
   }
-  global.FaceRig = { EYE_X, EYE_Y, EYE_HALF, EYE_UPPER, EYE_LOWER, MOUTH_Y, clamp, smooth, bump, mouthWeights, referenceWarp, depthAt, normalAt, spring, deform };
+  global.FaceRig = { EYE_X, EYE_Y, EYE_HALF, EYE_UPPER, EYE_LOWER, MOUTH_Y, clamp, smooth, bump, mouthWeights, depthAt, normalAt, spring, deform };
 })(typeof window === 'undefined' ? globalThis : window);
