@@ -90,6 +90,9 @@ jobs:
       - name: Verify database-backed security flows
         run: npm run test:db
 
+      - name: Run live NARA Owner SSO and runtime E2E
+        run: npm run test:e2e
+
       - name: Verify TypeScript and unit security tests
         run: npm run verify
 
