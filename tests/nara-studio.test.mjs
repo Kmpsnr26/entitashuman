@@ -288,7 +288,8 @@ test('Neural Space renderer scripts pass Node syntax checks',async()=>{
   const {fileURLToPath}=await import('node:url');
   const files=[
     fileURLToPath(new URL('../nara-core/studio/public/neural-space.js',import.meta.url)),
-    fileURLToPath(new URL('../nara-core/studio/public/app.js',import.meta.url))
+    fileURLToPath(new URL('../nara-core/studio/public/app.js',import.meta.url)),
+    fileURLToPath(new URL('../scripts/nara-neural-live-smoke.cjs',import.meta.url))
   ];
   for(const file of files){
     const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
