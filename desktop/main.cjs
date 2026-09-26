@@ -259,7 +259,7 @@ else{
   win.setAlwaysOnTop(true,'floating');
   win.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true});
   const trusted=e=>(e.sender===win?.webContents||e.sender===panelWin?.webContents)&&e.senderFrame?.url?.startsWith(origin+'/');
-  const NARA_RENDERER_EVENTS=new Set(['audio.energy','vision.frame','vision.stop','speech.start','speech.energy','speech.stop','brain.region.select']);
+  const NARA_RENDERER_EVENTS=new Set(['hearing.start','hearing.stop','audio.energy','vision.frame','vision.stop','speech.start','speech.energy','speech.stop','brain.region.select']);
   const publishNaraState=snapshot=>{for(const target of [win,panelWin]){if(target&&!target.isDestroyed()&&!target.webContents.isLoading())target.webContents.send('dudidam:nara-state',snapshot);}};
   const publishNaraVoice=cue=>{if(cue&&win&&!win.isDestroyed()&&!win.webContents.isLoading())win.webContents.send('dudidam:nara-voice',cue);};
   const consumeNaraVoice=envelope=>{const cue=naraVoice?.consume(envelope);if(cue)publishNaraVoice(cue);return cue;};
