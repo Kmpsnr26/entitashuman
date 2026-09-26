@@ -397,8 +397,10 @@ export class Neural3DScene{
   setState(state={}){
     this.state=state||{};
     this.selected=this.state.selectedRegion||null;
-    const selectedRegion=this.regions[this.selected];
-    const selectedNeighbors=new Set(selectedRegion?.connections||[]);
+    const selectedNeighbors=new Set();
+    for(const link of this.adjacency.get(this.selected)||[]){
+      selectedNeighbors.add(link.from===this.selected?link.to:link.from);
+    }
 
     for(const [id,entry] of this.nodes){
       const live=this.state.regions?.[id]||{};
