@@ -67,6 +67,7 @@ async function ensureNeural3D(){
     });
     neural3d.setRegions(regions);
     if(snapshot)neural3d.setState(snapshot);
+    neural3d.setActive(studioView==='3d'&&!document.hidden);
     $('neural3dStatus').textContent='LIVE · ROOT FLOW';
     updateNeuralHud();
     return neural3d;
@@ -85,7 +86,7 @@ function setStudioView(mode){
   $('neural3d').hidden=studioView!=='3d';
   updateViewButtons();
   if(studioView==='3d'){
-    ensureNeural3D().then(scene=>{scene.setActive(true);scene.resize();updateNeuralHud();}).catch(()=>{});
+    ensureNeural3D().then(scene=>{scene.setActive(!document.hidden);scene.resize();updateNeuralHud();}).catch(()=>{});
   }else{
     neural3d?.setActive(false);
     if(snapshot)drawBrain();
@@ -137,7 +138,7 @@ function renderState(state){
     const s=state.regions?.[id]?.status||'idle';
     return '<span class="chip '+statusClass(s)+'">'+escapeHtml(id)+' · '+escapeHtml(s)+'</span>';
   }).join('');
-  drawBrain();
+  if(studioView==='2d')drawBrain();
   if(neural3d){neural3d.setState(state);updateNeuralHud();}
   if(skillsSnapshot)renderSkills(skillsSnapshot);
   renderPerformance();
@@ -354,6 +355,9 @@ $('replayEvents').onclick=()=>replayTimer?stopReplay():startReplay();
 $('eventFilter').addEventListener('input',()=>{if(!eventPaused&&!replayTimer)renderEventView();});
 $('resetStudio').onclick=async()=>{const r=await fetch('/api/reset',{method:'POST'});const data=await r.json();$('consoleLog').textContent=JSON.stringify(data,null,2);};
 window.addEventListener('resize',()=>{if(snapshot&&studioView==='2d')drawBrain();neural3d?.resize();});
+document.addEventListener('visibilitychange',()=>{
+  if(neural3d)neural3d.setActive(studioView==='3d'&&!document.hidden);
+});
 setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString('id-ID');renderPerformance();},1000);
 setStudioView('2d');
 boot().catch(error=>{$('consoleLog').textContent=error.stack||error.message;$('connection').textContent='OFFLINE';});
