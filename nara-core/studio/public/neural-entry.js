@@ -18,7 +18,7 @@ function chooseIndonesianVoice(){
   return voices.find(voice=>/^id(?:-|$)/i.test(voice.lang||''))||voices[0]||null;
 }
 
-function speakCoreOnline(){
+function speakCoreOnline(profile={}){
   if(!('speechSynthesis' in window)||typeof SpeechSynthesisUtterance==='undefined')return false;
   try{
     window.speechSynthesis.cancel();
@@ -28,9 +28,12 @@ function speakCoreOnline(){
     const voice=chooseIndonesianVoice();
     if(voice)utterance.voice=voice;
     utterance.lang=voice?.lang||'id-ID';
-    utterance.rate=.88;
-    utterance.pitch=.70;
-    utterance.volume=.88;
+    const rate=Number(profile.voiceRate);
+    const pitch=Number(profile.voicePitch);
+    const volume=Number(profile.voiceVolume);
+    utterance.rate=Number.isFinite(rate)?Math.max(.72,Math.min(1.15,rate)):.86;
+    utterance.pitch=Number.isFinite(pitch)?Math.max(.5,Math.min(1.2,pitch)):.68;
+    utterance.volume=Number.isFinite(volume)?Math.max(0,Math.min(1,volume)):.9;
     window.speechSynthesis.speak(utterance);
     return true;
   }catch{
@@ -46,8 +49,13 @@ export function createNeuralEntryExperience(){
   const matrix=createMatrixTransitionField(document.getElementById('neuralEntryMatrix'));
   let sequence=0;
   let audioEnabled=true;
+  let audioProfile={
+    masterVolume:.78,transitionFx:.82,voiceVolume:.9,
+    voiceRate:.86,voicePitch:.68,droidCharacter:true
+  };
   const timers=new Set();
   const sound=createCinematicSoundEngine({enabled:()=>audioEnabled});
+  sound.setProfile(audioProfile);
 
   function later(callback,delay){
     const timer=setTimeout(()=>{
@@ -109,7 +117,10 @@ export function createNeuralEntryExperience(){
 
     if(announce){
       later(()=>{
-        if(sequence===current&&audioEnabled)speakCoreOnline();
+        if(sequence===current&&audioEnabled){
+          if(audioProfile.droidCharacter)sound.cue('voiceBoot');
+          later(()=>{if(sequence===current&&audioEnabled)speakCoreOnline(audioProfile);},audioProfile.droidCharacter?115:0);
+        }
       },motionReduced?260:(compact?520:980));
     }
 
@@ -137,6 +148,23 @@ export function createNeuralEntryExperience(){
       if(!audioEnabled)sound.stop();
       updateAudioButton();
     },
+    applyAudioSettings(settings={}){
+      const number=(key,min,max,fallback)=>{
+        const value=Number(settings[key]);
+        return Number.isFinite(value)?Math.max(min,Math.min(max,value)):fallback;
+      };
+      audioProfile={
+        masterVolume:number('masterVolume',0,1,audioProfile.masterVolume),
+        transitionFx:number('transitionFx',0,1,audioProfile.transitionFx),
+        voiceVolume:number('voiceVolume',0,1,audioProfile.voiceVolume),
+        voiceRate:number('voiceRate',.72,1.15,audioProfile.voiceRate),
+        voicePitch:number('voicePitch',.5,1.2,audioProfile.voicePitch),
+        droidCharacter:typeof settings.droidCharacter==='boolean'?settings.droidCharacter:audioProfile.droidCharacter
+      };
+      sound.setProfile(audioProfile);
+      return {...audioProfile};
+    },
+    getAudioSettings:()=>({...audioProfile}),
     isAudioEnabled:()=>audioEnabled
   };
 }
