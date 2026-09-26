@@ -16,7 +16,7 @@ test('Electron main owns and starts the NARA orchestrator with renderer event al
   assert.match(main,/import\('\.\.\/nara-core\/brain\/index\.js'\)/);
   assert.match(main,/nara=createOrchestrator\(\)/);
   assert.match(main,/nara\.start\(\)/);
-  assert.match(main,/NARA_RENDERER_EVENTS=new Set\(\['audio\.energy','vision\.frame','vision\.stop','speech\.start','speech\.energy','speech\.stop','brain\.region\.select'\]\)/);
+  assert.match(main,/NARA_RENDERER_EVENTS=new Set\(\['hearing\.start','hearing\.stop','audio\.energy','vision\.frame','vision\.stop','speech\.start','speech\.energy','speech\.stop','brain\.region\.select'\]\)/);
   assert.match(main,/Event NARA tidak diizinkan dari renderer/);
   assert.match(main,/app\.on\('before-quit'.*nara\?\.stop/s);
 });
@@ -25,6 +25,10 @@ test('HumanALE runtime forwards real audio and camera lifecycle into NARA',async
   const app=await readFile(new URL('public/app.js',root),'utf8');
   assert.match(app,/syncNaraHearing/);
   assert.match(app,/naraDispatch\('audio\.energy'/);
+  assert.match(app,/hearing\.start/);
+  assert.match(app,/hearing\.stop/);
+  assert.match(app,/applyNaraHumanALEPolicy/);
+  assert.match(app,/getNaraHumanALEPolicy/);
   assert.match(app,/naraDispatch\('vision\.frame',\{activity:1,frameId:'camera-live'\}\)/);
   assert.match(app,/naraDispatch\('vision\.stop'\)/);
   assert.match(app,/now-lastNaraAudioSent<100/);
@@ -46,4 +50,19 @@ test('packaged desktop CI smoke executes NARA IPC and rejects untrusted renderer
   assert.match(main,/selectedRegion==='MEMORY'/);
   assert.match(main,/naraDispatch\('owner\.secret',\{value:'blocked'\}\)/);
   assert.match(main,/tidak diizinkan/);
+});
+
+
+test('NARA-owned HumanALE policy drives adaptive renderer mode',async()=>{
+  const [app,avatar,engine]=await Promise.all([
+    readFile(new URL('public/app.js',root),'utf8'),
+    readFile(new URL('public/humanale-avatar.js',root),'utf8'),
+    readFile(new URL('sites/humanale-hologram/dist/avatar.js',root),'utf8')
+  ]);
+  assert.match(app,/policy\?\.controlledBy==='NARA_CORE'/);
+  assert.match(avatar,/applyNaraPolicy/);
+  assert.match(avatar,/setRenderPolicy\?\.\(rendererMode\)/);
+  assert.match(engine,/setRenderPolicy\(value = 'active'\)/);
+  assert.match(engine,/mode === 'eco' \? 1000 \/ 20/);
+  assert.match(engine,/mode === 'balanced' \? 1000 \/ 30 : 1000 \/ 60/);
 });
