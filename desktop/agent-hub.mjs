@@ -108,6 +108,20 @@ export function reviewVerdict(text=''){
  if(/\bVERDICT\s*:\s*PASS\b/.test(value))return 'pass';
  return 'unknown';
 }
+
+export function selectStructuredRoles(available=[]){
+ const allowed=new Set(['codex','github-copilot','cursor','claude']);
+ const list=[...new Set((Array.isArray(available)?available:[]).filter(id=>allowed.has(id)))];
+ if(!list.length)return null;
+ const planner=list.includes('codex')?'codex':list[0];
+ const worker=list.includes('github-copilot')&&planner!=='github-copilot'
+  ?'github-copilot'
+  :(list.find(id=>id!==planner)||planner);
+ const reviewer=list.includes('codex')&&worker!=='codex'
+  ?'codex'
+  :(list.find(id=>id!==worker)||worker);
+ return {planner,worker,reviewer,degraded:reviewer===worker,executors:list};
+}
 function looksLikeCopilotTrustPrompt(text=''){
  const value=String(text).replace(/\s+/g,' ').toLowerCase();
  return value.includes('trust the files in')||
@@ -162,6 +176,9 @@ export class DeveloperAgentHub{
    if(id==='codex'){
     const auth=await codexLoginStatus(executable,cwd);
     if(!auth.ready)continue;
+   }else{
+    const probe=await runProcess(executable,['--version'],{cwd,timeout:8000});
+    if(probe.code!==0||probe.timedOut)continue;
    }
    result.push(id);
   }
@@ -234,9 +251,9 @@ export class DeveloperAgentHub{
   const available=await this.availableStructuredExecutors();
   if(!available.length)throw new Error('HumanALE Orchestrator memerlukan minimal satu executor lokal yang siap: Codex, GitHub Copilot, Cursor, atau Claude Code.');
   const difficulty=classifyTaskDifficulty(prompt);
-  const planner=available.includes('codex')?'codex':available[0];
-  const worker=available.includes('github-copilot')?'github-copilot':available[0];
-  const reviewer=available.includes('codex')?'codex':available.at(-1);
+  const roles=selectStructuredRoles(available);
+  if(!roles)throw new Error('HumanALE Orchestrator tidak menemukan executor terverifikasi.');
+  const {planner,worker,reviewer,degraded}=roles;
   const planPrompt='Kamu adalah Planner HumanALE. Analisis tugas berikut secara read-only. Pecah menjadi langkah berurutan, dependensi, file/area yang mungkin terdampak, risiko, dan kriteria selesai. Jangan edit file. Jangan menjalankan publish/push/merge. Tugas: '+prompt;
   const plan=await this.runDirect(planner,planPrompt,'analyze');
   const workPrompt='Kamu adalah Worker HumanALE. Ikuti rencana Planner berikut dan fokus menyelesaikan tugas pengguna. Jika mode ini read-only, berikan implementasi/rencana konkret tanpa edit. Jika mode kerja, edit hanya yang perlu, jalankan test relevan, dan jangan push/merge/publish. TASK:\n'+prompt+'\n\nPLAN:\n'+plan.text;
@@ -256,7 +273,7 @@ export class DeveloperAgentHub{
    {role:'reviewer',agent:reviewer,text:review.text}
   ];
   const summary=[
-   'HumanALE Orchestrator · '+difficulty.toUpperCase()+' · '+mode.toUpperCase(),
+   'HumanALE Orchestrator · '+difficulty.toUpperCase()+' · '+mode.toUpperCase()+(degraded?' · DEGRADED SINGLE-EXECUTOR':' · INDEPENDENT REVIEW'),
    'Planner: '+planner+' · Worker: '+worker+' · Reviewer: '+reviewer,
    '',
    '[PLAN]',

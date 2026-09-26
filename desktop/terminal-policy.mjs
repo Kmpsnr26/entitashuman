@@ -46,8 +46,10 @@ const SHELL_COMPOSITION=/(?:;|&&|\|\||(?<!\|)\|(?!\|)|(?<!&)\&(?!&)|[<>]|\$\(|`)
 const SAFE=[
  /^\s*git\s+(?:status|diff|log|show|branch(?:\s+--show-current)?|rev-parse)\b/i,
  /^\s*(?:node|npm|npx|python|py|pip|git|gh|claude|codex|agent|gemini)\s+--version\b/i,
- /^\s*(?:Get-ChildItem|Get-Location|Get-Content|Test-Path|Resolve-Path)\b/i,
- /^\s*(?:dir|where|echo|type|cd|pwd)\b/i
+ /^\s*(?:Get-Location|pwd)\s*$/i,
+ /^\s*(?:Get-ChildItem|dir)\s*$/i,
+ /^\s*where(?:\.exe)?\s+[A-Za-z0-9._-]+\s*$/i,
+ /^\s*echo\s+[^<>|;&`$()]*$/i
 ];
 
 export function classifyCommand(command=''){
