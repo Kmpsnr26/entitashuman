@@ -158,7 +158,12 @@ async function failureFrom(
 ): Promise<AiProviderError> {
   const retryable429 =
     response.status ===
-      429;
+      429 &&
+    Boolean(
+      response.headers.get(
+        "retry-after"
+      )
+    );
 
   const retryable =
     response.status === 408 ||
