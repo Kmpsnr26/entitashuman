@@ -36,7 +36,7 @@ export const HUMANALE_TEST_SCENARIOS=Object.freeze({
   id:'processing',
   label:'Processing cycle',
   steps:freezeSteps([
-   {event:'work.start',payload:{id:'visual-studio-test',label:'Visual Studio controlled work test'},waitMs:420},
+   {event:'work.start',payload:{id:'visual-studio-test',label:'Visual Studio controlled work test',source:'visual-studio-test'},waitMs:420},
    {event:'work.complete',payload:{source:'visual-studio-test'},waitMs:180}
   ]),
   cleanup:Object.freeze(['work.complete'])
@@ -60,7 +60,7 @@ export const HUMANALE_TEST_SCENARIOS=Object.freeze({
    {event:'reason.complete',payload:{source:'visual-studio-test'},waitMs:120},
    {event:'speech.start',payload:{energy:.72,source:'visual-studio-test'},waitMs:260},
    {event:'speech.stop',payload:{source:'visual-studio-test'},waitMs:120},
-   {event:'work.start',payload:{id:'visual-studio-full-test',label:'Visual Studio full-cycle work'},waitMs:260},
+   {event:'work.start',payload:{id:'visual-studio-full-test',label:'Visual Studio full-cycle work',source:'visual-studio-test'},waitMs:260},
    {event:'work.complete',payload:{source:'visual-studio-test'},waitMs:120},
    {event:'error.detected',payload:{message:'Visual Studio synthetic diagnostic error',source:'visual-studio-test'},waitMs:260},
    {event:'diagnostic.reset',payload:{source:'visual-studio-test'},waitMs:180}
