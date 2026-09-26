@@ -2,6 +2,7 @@ const STORAGE_KEY='nara.visual.settings.v1';
 
 export const DEFAULT_VISUAL_SETTINGS=Object.freeze({
   brainFrame:true,
+  binary:true,
   frameGlow:1.35,
   aurora:true,
   auroraIntensity:1.25,
@@ -24,29 +25,29 @@ export const DEFAULT_VISUAL_SETTINGS=Object.freeze({
 
 export const VISUAL_PRESETS=Object.freeze({
   minimal:{
-    brainFrame:true,frameGlow:.8,aurora:false,auroraIntensity:.4,nebula:false,particles:false,
+    brainFrame:true,binary:true,frameGlow:.8,aurora:false,auroraIntensity:.4,nebula:false,particles:false,
     roots:true,rootGlow:.72,dataFlow:true,coreScale:.92,coreGlow:.95,ringA:true,ringB:false,
     ringSpeedA:.72,ringSpeedB:.72,hudOpacity:.78,uiScale:.94,audio:true,quality:'balanced'
   },
   'ai-lab':{
-    brainFrame:true,frameGlow:1.25,aurora:true,auroraIntensity:.9,nebula:false,particles:true,
+    brainFrame:true,binary:true,frameGlow:1.25,aurora:true,auroraIntensity:.9,nebula:false,particles:true,
     roots:true,rootGlow:1,dataFlow:true,coreScale:1,coreGlow:1.18,ringA:true,ringB:true,
     ringSpeedA:.9,ringSpeedB:1.05,hudOpacity:.94,uiScale:1,audio:true,quality:'auto'
   },
   'neural-galaxy':{
-    brainFrame:true,frameGlow:1.65,aurora:true,auroraIntensity:1.55,nebula:true,particles:true,
+    brainFrame:true,binary:true,frameGlow:1.65,aurora:true,auroraIntensity:1.55,nebula:true,particles:true,
     roots:true,rootGlow:1.35,dataFlow:true,coreScale:1.04,coreGlow:1.5,ringA:true,ringB:true,
     ringSpeedA:1.08,ringSpeedB:1.2,hudOpacity:.86,uiScale:1,audio:true,quality:'high'
   },
   cinematic:{
-    brainFrame:true,frameGlow:1.5,aurora:true,auroraIntensity:1.35,nebula:true,particles:true,
+    brainFrame:true,binary:true,frameGlow:1.5,aurora:true,auroraIntensity:1.35,nebula:true,particles:true,
     roots:true,rootGlow:1.2,dataFlow:true,coreScale:1.08,coreGlow:1.42,ringA:true,ringB:true,
     ringSpeedA:.82,ringSpeedB:1.08,hudOpacity:.82,uiScale:1.04,audio:true,quality:'high'
   },
   creator:{...DEFAULT_VISUAL_SETTINGS}
 });
 
-const BOOL_KEYS=new Set(['brainFrame','aurora','nebula','particles','roots','dataFlow','ringA','ringB','audio']);
+const BOOL_KEYS=new Set(['brainFrame','binary','aurora','nebula','particles','roots','dataFlow','ringA','ringB','audio']);
 const NUMBER_RANGES=Object.freeze({
   frameGlow:[.35,2],
   auroraIntensity:[.2,2],
