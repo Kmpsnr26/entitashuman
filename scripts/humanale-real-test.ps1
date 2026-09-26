@@ -4,6 +4,16 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$candidate = "unknown"
+$branch = "unknown"
+try {
+  $candidate = (& git -C $repoRoot rev-parse HEAD 2>$null).Trim()
+  $branch = (& git -C $repoRoot branch --show-current 2>$null).Trim()
+} catch {
+  # Keep fail-safe metadata values when Git is unavailable.
+}
+
 $checks = @(
   @{ id="visual-motion"; label="Blink, gaze, lips, ears, neural/core motion" },
   @{ id="voice-id"; label="Microphone + STT/TTS Indonesia + Wake ALE" },
@@ -23,13 +33,13 @@ function Read-Status([string]$label) {
       "F" { return "fail" }
       "B" { return "blocked" }
       "S" { return "pending" }
-      default { Write-Host "Input tidak valid." -ForegroundColor Yellow }
+      default { Write-Host "Input tidak valid. Ketik satu huruf saja: P, F, B, atau S." -ForegroundColor Yellow }
     }
   }
 }
 
 Write-Host "HumanALE Visual Studio - REAL DEVICE TEST RUNNER" -ForegroundColor Green
-Write-Host "Candidate: d71733f8c22f67475ff289ebfd6d0d8ee9ba4eda"
+Write-Host "Candidate: $candidate"`nWrite-Host "Branch: $branch"
 Write-Host "Catatan: runner ini hanya mencatat bukti operator. Ia tidak mengubah Nara Core atau membuka integrasi final."
 
 $results = @{}
@@ -51,7 +61,7 @@ foreach ($check in $checks) {
 
 $payload = @{
   protocol = "humanale-visual-real-test/1"
-  candidate = "d71733f8c22f67475ff289ebfd6d0d8ee9ba4eda"
+  candidate = $candidate`n  branch = $branch
   generatedAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
   fullyValidated = $allPass
   state = $(if ($allPass) { "REAL_TEST_PASS" } else { "REAL_TEST_INCOMPLETE" })
