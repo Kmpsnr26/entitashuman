@@ -8,6 +8,16 @@ on:
         required: false
         default: false
         type: boolean
+  pull_request:
+    branches: [main]
+    paths:
+      - "public/**"
+      - "sites/humanale-hologram/dist/**"
+      - "capacitor.config.json"
+      - "scripts/prepare-android.mjs"
+      - ".github/workflows/android-apk.yml"
+      - "build.mjs"
+      - "package.json"
   push:
     branches: [main]
     paths:

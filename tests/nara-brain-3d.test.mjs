@@ -67,7 +67,10 @@ test('avatar renderer binds live BrainState to deep-zoom semantic nodes without 
   assert.match(avatar,/graph\.semanticLinks/);
   assert.match(avatar,/selectedRegion/);
   assert.match(avatar,/smooth\(2\.15,2\.85,this\.zoom\)/);
-  assert.match(faceRig,/referenceWarp/);
+  assert.match(faceRig,/function depthAt\(x, y\)/);
+  assert.match(faceRig,/function normalAt\(x, y\)/);
+  assert.match(faceRig,/function deform\(x, y, z, pose, neck, breath = 0\)/);
+  assert.doesNotMatch(faceRig,/referenceWarp|referenceSrc|new Image/);
   assert.match(adapter,/class HumanALEAvatar extends BaseAvatar/);
   assert.doesNotMatch(adapter,/buildFallback\(|loadReference\(/);
 });
