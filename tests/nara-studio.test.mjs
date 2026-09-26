@@ -702,3 +702,40 @@ test('Neural entry module passes Node syntax check',async()=>{
   const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
   assert.equal(result.status,0,result.stderr||result.stdout||file);
 });
+
+
+test('Stage 4 uses bounded galactic brain and aurora geometry with adaptive quality',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const scene=await readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8');
+
+  assert.match(scene,/function makeGalacticBrainFrame\(\)/);
+  assert.match(scene,/function makeAuroraRibbon\(/);
+  assert.match(scene,/function makeAuroraField\(\)/);
+  assert.match(scene,/function makeNebulaField\(/);
+  assert.match(scene,/function disposeDecorativeGroup\(/);
+  assert.match(scene,/for\(let band=0;band<6;band\+\+\)/);
+  assert.match(scene,/const segments=36/);
+  assert.match(scene,/high:\{pixel:1\.8,scale:1,fog:\.028,dust:true,aurora:true,nebula:true/);
+  assert.match(scene,/low:\{pixel:1,scale:\.55,fog:\.036,dust:false,aurora:false,nebula:false/);
+  assert.match(scene,/recenterHomeView\(\)/);
+  assert.match(scene,/new THREE\.Box3\(\)/);
+  assert.match(scene,/galacticFrame:Boolean\(this\.galacticFrame\?\.visible\)/);
+  assert.match(scene,/aurora:Boolean\(this\.aurora\?\.visible\)/);
+  assert.match(scene,/disposeDecorativeGroup\(this\.galacticFrame\)/);
+  assert.match(scene,/disposeDecorativeGroup\(this\.aurora\)/);
+  assert.doesNotMatch(scene,/EffectComposer|UnrealBloomPass|ShaderMaterial/);
+  assert.doesNotMatch(scene,/https?:\/\//);
+});
+
+test('Stage 4 reduces idle root clutter while preserving active route emphasis',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const scene=await readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8');
+
+  assert.match(scene,/link\.targetIntensity=link\.selected\?1:link\.active\?\.72:\.032/);
+  assert.match(scene,/link\.sheath\.material\.opacity=\(\.028\+energy\*\.145/);
+  assert.match(scene,/const visible=energy>\.20\|\|link\.selected\|\|link\.active/);
+  assert.match(scene,/new THREE\.SphereGeometry\(\.98,36,26\)/);
+  assert.match(scene,/const haloSize=isCore\?3\.85:2\.05/);
+});
