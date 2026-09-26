@@ -62,6 +62,9 @@
       this.last = performance.now();
       this.fps = 60;
       this.frame = 0;
+      this.renderPolicy = 'active';
+      this.renderInterval = 1000 / 60;
+      this.lastPaint = 0;
       this.running = !this.paused;
       this.frameRequest = null;
       this.streams = Array.from({ length: 46 }, () => ({
@@ -240,7 +243,14 @@
       this.running = !this.paused && !document.hidden;
       cancelAnimationFrame(this.frameRequest);
       this.frameRequest = null;
-      if (this.running) { this.last = performance.now(); this.frameRequest = requestAnimationFrame(t=>this.render(t)); }
+      if (this.running) { this.last = performance.now(); this.lastPaint = 0; this.frameRequest = requestAnimationFrame(t=>this.render(t)); }
+    }
+    setRenderPolicy(value = 'active') {
+      const mode = ['eco','balanced','active'].includes(value) ? value : 'active';
+      this.renderPolicy = mode;
+      this.renderInterval = mode === 'eco' ? 1000 / 20 : mode === 'balanced' ? 1000 / 30 : 1000 / 60;
+      this.lastPaint = 0;
+      return mode;
     }
     destroy() {
       this.disposed = true; this.running = false;
@@ -662,7 +672,12 @@
     }
     render(time) {
       if (!this.running || this.disposed) return;
-      const elapsed = Math.min(50, Math.max(1, time - this.last));
+      if (this.lastPaint && time - this.lastPaint < this.renderInterval) {
+        this.frameRequest = requestAnimationFrame((t) => this.render(t));
+        return;
+      }
+      this.lastPaint = time;
+      const elapsed = Math.min(80, Math.max(1, time - this.last));
       this.last = time;
       this.fps = lerp(this.fps, 1000 / elapsed, 0.07);
       this.frame++;
