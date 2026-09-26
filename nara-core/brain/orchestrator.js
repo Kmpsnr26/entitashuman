@@ -108,7 +108,8 @@ export class NaraOrchestrator{
   }
 
   recoverWorkflowStep(id,{agents=[]}={}){
-    return this.workflow.recoverStep(id,this.skillSnapshot(agents));
+    this.workflow.recoverStep(id,this.skillSnapshot(agents));
+    return this.workflow.refresh(this.skillSnapshot(agents));
   }
 
   cancelWorkflow(reason){
