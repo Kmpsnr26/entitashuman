@@ -127,6 +127,15 @@ export class NaraSkillRegistry{
     return this.pulse(id,options);
   }
 
+  reset(){
+    for(const item of this.skills.values()){
+      item.status=item.enabled?'ready':'disabled';
+      item.runs=0;item.successes=0;item.failures=0;item.activeSince=0;
+      item.lastDurationMs=null;item.lastLabel='';item.lastEvent='';item.updatedAt=0;
+    }
+    return this.snapshot();
+  }
+
   snapshot(){
     const skills=this.list();
     return {
