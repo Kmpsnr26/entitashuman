@@ -73,7 +73,8 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
     maxAttempts:creatorOptions.maxAttempts,
     attemptWindowMs:creatorOptions.attemptWindowMs
   });
-  const creatorRequired=creatorOptions.required??creator.configured;
+  const creatorMisconfigured=creatorOptions.required===true&&!creator.configured;
+  const creatorRequired=creator.configured&&(creatorOptions.required??true);
   const nara=createOrchestrator();
   const telemetry=createStudioTelemetry();
   const skills=createSkillRegistry();
@@ -101,7 +102,7 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
       const url=new URL(req.url||'/',`http://${req.headers.host||host}`);
       res.setHeader('x-content-type-options','nosniff');
       res.setHeader('referrer-policy','no-referrer');
-      res.setHeader('content-security-policy',"default-src 'self'; connect-src 'self'; style-src 'self'; script-src 'self'");
+      res.setHeader('content-security-policy',"default-src 'self'; connect-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
 
       if(req.method==='GET'&&THREE_VENDOR.has(url.pathname)){
         try{
@@ -116,11 +117,13 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
       if(req.method==='GET'&&url.pathname==='/api/creator/session'){
         return json(res,200,{
           ...creator.publicSession(req),
-          required:creatorRequired
+          required:creatorRequired,
+          misconfigured:creatorMisconfigured
         });
       }
 
       if(req.method==='POST'&&url.pathname==='/api/creator/login'){
+        if(creatorMisconfigured)return json(res,503,{ok:false,error:'Creator auth diwajibkan tetapi NARA_CREATOR_PASSWORD belum dikonfigurasi.'});
         const data=await bodyJson(req);
         const result=creator.login(req,{
           username:String(data.username||'').slice(0,120),
@@ -216,6 +219,7 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
     skills,
     creator,
     creatorRequired,
+    creatorMisconfigured,
     server,
     async start(){
       if(server.listening)return server.address();
