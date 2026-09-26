@@ -101,6 +101,7 @@ async function run(){
     await win.loadURL(url);
     await waitFor(win,"Boolean(document.getElementById('creatorGateway'))");
     await waitFor(win,"Boolean(document.getElementById('creatorLoginForm')&&!document.getElementById('creatorLoginForm')?.hidden)");
+    report.checks.creatorBrainCanvasVisible=await evaluate(win,"(()=>{const canvas=document.getElementById('creatorBrainCanvas');if(!canvas)return false;const rect=canvas.getBoundingClientRect();return rect.width>300&&rect.height>300&&canvas.width>0&&canvas.height>0;})()");
     report.checks.creatorLoginAuthenticated=await evaluate(win,`(async()=>{
       const username=document.getElementById('creatorUsername');
       const password=document.getElementById('creatorPassword');
