@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createNaraStudioServer,STUDIO_EVENT_ALLOWLIST} from '../nara-core/studio/server.mjs';
+import {createNaraStudioServer,STUDIO_EVENT_ALLOWLIST,buildCreatorRegionMetadata} from '../nara-core/studio/server.mjs';
 import {createStudioTelemetry} from '../nara-core/studio/telemetry.mjs';
 
 test('NARA Studio runs headless core and exposes realtime snapshot',async t=>{
@@ -748,4 +748,116 @@ test('Stage 4 fullscreen polish hides legacy Neural cards and keeps controls edg
   assert.match(styles,/\.creator-session-active \.neural3d-detail,\s*\n\.creator-session-active \.neural3d-hud\{display:none\}/);
   assert.match(styles,/\.creator-session-active \.neural3d-toolbar\{/);
   assert.match(styles,/left:50%;right:auto;top:58px;transform:translateX\(-50%\)/);
+});
+
+
+test('Creator node metadata is an explicit safe projection without secrets or private reasoning',()=>{
+  const metadata=buildCreatorRegionMetadata({
+    id:'MEMORY',
+    host:'127.0.0.1',
+    port:4178,
+    state:{
+      lifecycle:'active',
+      regions:{
+        MEMORY:{status:'active',lastEvent:'memory.read'},
+        NARA_CORE:{status:'ready'}
+      }
+    },
+    telemetry:{
+      performance:{totalEvents:12,eventsPerSecond:1.2},
+      diagnostics:{status:'verified',counters:{errors:1,bugs:1,fixed:1,verified:1}},
+      memory:{counters:{read:4,write:2,context_used:3,context_blocked:1}}
+    },
+    skills:{skills:[{id:'memory.read',label:'Memory Read',region:'MEMORY',status:'complete',runs:4,successes:4,failures:0,lastEvent:'memory.read',lastDurationMs:12}]}
+  });
+
+  assert.equal(metadata.id,'MEMORY');
+  assert.equal(metadata.network.scope,'loopback');
+  assert.equal(metadata.network.address,'127.0.0.1');
+  assert.equal(metadata.network.port,4178);
+  assert.equal(metadata.network.discovery,'disabled');
+  assert.equal(metadata.database.state,'not_configured');
+  assert.equal(metadata.database.credentials,'not_exposed');
+  assert.equal(metadata.security.permissionBypass,false);
+  assert.equal(metadata.security.arbitraryNetworkDiscovery,false);
+  assert.equal(metadata.security.rawSecretsExposed,false);
+  assert.equal(metadata.security.privateReasoningExposed,false);
+  assert.equal('message' in metadata,false);
+  assert.equal('environment' in metadata,false);
+  assert.equal('token' in metadata,false);
+  assert.equal('password' in metadata,false);
+  assert.equal(metadata.skills[0].runs,4);
+});
+
+test('Creator region metadata endpoint is auth-protected and rejects unknown regions',async t=>{
+  const secret='node-inspector-test-secret';
+  const studio=createNaraStudioServer({
+    host:'127.0.0.1',
+    port:0,
+    creatorAuth:{username:'owner',password:secret,ttlMs:60000}
+  });
+  t.after(()=>studio.stop());
+  const address=await studio.start();
+  const base='http://127.0.0.1:'+address.port;
+
+  assert.equal((await fetch(base+'/api/creator/region/MEMORY')).status,401);
+
+  const login=await fetch(base+'/api/creator/login',{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({username:'owner',password:secret})
+  });
+  assert.equal(login.status,200);
+  const cookie=(login.headers.get('set-cookie')||'').split(';')[0];
+
+  const response=await fetch(base+'/api/creator/region/MEMORY',{headers:{cookie}});
+  assert.equal(response.status,200);
+  const data=await response.json();
+  assert.equal(data.ok,true);
+  assert.equal(data.region.id,'MEMORY');
+  assert.equal(data.region.network.address,'127.0.0.1');
+  assert.equal(data.region.network.port,address.port);
+  assert.equal(data.region.server.secrets,'redacted');
+  assert.equal(data.region.database.credentials,'not_exposed');
+  assert.equal(JSON.stringify(data).includes(secret),false);
+
+  const missing=await fetch(base+'/api/creator/region/NOT_A_REGION',{headers:{cookie}});
+  assert.equal(missing.status,404);
+});
+
+test('Stage 5 node inspector renders server metadata with textContent and no HTML injection surface',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [html,app,inspector,styles,server]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/index.html',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/node-inspector.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/styles.css',root),'utf8'),
+    readFile(new URL('nara-core/studio/server.mjs',root),'utf8')
+  ]);
+
+  assert.match(html,/id="neuralNodeInspector"/);
+  assert.match(html,/id="nodeInspectorBody"/);
+  assert.match(app,/createNodeInspector/);
+  assert.match(app,/await nodeInspector\.open\(region\)/);
+  assert.match(app,/await nodeInspector\.open\(region\.id\)/);
+  assert.match(inspector,/\/api\/creator\/region\//);
+  assert.match(inspector,/textContent=/);
+  assert.match(inspector,/replaceChildren/);
+  assert.doesNotMatch(inspector,/innerHTML/);
+  assert.doesNotMatch(inspector,/localStorage|sessionStorage/);
+  assert.match(inspector,/NETWORK \/ SERVER/);
+  assert.match(inspector,/DATABASE/);
+  assert.match(inspector,/SECURITY BOUNDARY/);
+  assert.match(styles,/Neural Node Inspector — Stage 5/);
+  assert.match(server,/buildCreatorRegionMetadata/);
+  assert.doesNotMatch(server,/process\.env\[[^\]]+\].*metadata/);
+});
+
+test('node inspector module passes Node syntax check',async()=>{
+  const {spawnSync}=await import('node:child_process');
+  const {fileURLToPath}=await import('node:url');
+  const file=fileURLToPath(new URL('../nara-core/studio/public/node-inspector.js',import.meta.url));
+  const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr||result.stdout||file);
 });
