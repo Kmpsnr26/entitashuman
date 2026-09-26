@@ -6,7 +6,7 @@ const path=require('node:path');
 const {tmpdir}=require('node:os');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer,backdropTimer,naraVisualTestRunning=false;
+let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer,backdropTimer,naraVisualTestRunning=false,naraSkillCache={at:0,value:null};
 let cloudAllowedOrigins=new Set();
 let announceNaraEvent=()=>{};
 let baseWindowSize={width:420,height:480};
@@ -200,7 +200,7 @@ else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
   const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
-  const [{createOrchestrator,getHumanALETestScenario,listHumanALETestScenarios},{createVoiceFeedback}]=await Promise.all([import('../nara-core/brain/index.js'),import('../nara-core/voice/index.js')]);
+  const [{createOrchestrator,getHumanALETestScenario,listHumanALETestScenarios,createSkillSnapshot},{createVoiceFeedback}]=await Promise.all([import('../nara-core/brain/index.js'),import('../nara-core/voice/index.js')]);
   naraVoice=createVoiceFeedback();
   nara=createOrchestrator();
   nara.start();
@@ -267,6 +267,20 @@ else{
   nara.bus.onAny(envelope=>consumeNaraVoice(envelope));
   announceNaraEvent=(event,payload={})=>consumeNaraVoice({event,payload,timestamp:Date.now()});
   ipcMain.handle('dudidam:nara-snapshot',e=>trusted(e)?{ok:true,state:nara.snapshot()}:{error:'Akses ditolak.'});
+  const readNaraSkillSnapshot=async(force=false)=>{
+   const now=Date.now();
+   if(!force&&naraSkillCache.value&&now-naraSkillCache.at<8000)return naraSkillCache.value;
+   let agents=[];
+   try{agents=(await agentHub.status())?.agents||[];}catch{}
+   const value=createSkillSnapshot({brainState:nara.snapshot(),agents});
+   naraSkillCache={at:now,value};
+   return value;
+  };
+  ipcMain.handle('dudidam:nara-skill-snapshot',async(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   try{return {ok:true,skills:await readNaraSkillSnapshot(Boolean(value?.force))};}
+   catch(error){return {error:error.message};}
+  });
   ipcMain.handle('dudidam:nara-dispatch',(e,value)=>{
    if(!trusted(e))return {error:'Akses ditolak.'};
    const event=String(value?.event||'');
