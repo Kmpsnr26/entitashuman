@@ -166,6 +166,7 @@ async function run(){
     report.checks.canvasCreated=true;
     await sleep(500);
     report.checks.galacticEnvironment=await evaluate(win,"(()=>{const perf=document.getElementById('neural3dPerf')?.textContent||'';return perf.includes('galaxy on')&&perf.includes('aurora on');})()");
+    report.checks.mechanicalCoreRings=await evaluate(win,"(document.getElementById('neural3dPerf')?.textContent||'').includes('core rings on')");
 
     report.webgl=await evaluate(win,"(()=>{const canvas=document.querySelector('.neural3d-canvas');const gl=canvas?.getContext('webgl2')||canvas?.getContext('webgl');if(!gl)return {available:false};const ext=gl.getExtension('WEBGL_debug_renderer_info');return {available:true,version:gl.getParameter(gl.VERSION),shadingLanguage:gl.getParameter(gl.SHADING_LANGUAGE_VERSION),vendor:ext?gl.getParameter(ext.UNMASKED_VENDOR_WEBGL):gl.getParameter(gl.VENDOR),renderer:ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),width:canvas.width,height:canvas.height};})()");
     if(!report.webgl.available)throw new Error('WebGL context unavailable');
