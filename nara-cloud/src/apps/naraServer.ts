@@ -17,14 +17,25 @@ import {
 } from "../security/ticket.js";
 
 import {
-  createCsrfToken,
-  verifyCsrf
+  createCsrfToken
 } from "../security/csrf.js";
 
 import {
   requirePageAuth,
   requireApiAuth
 } from "../middleware/requireAuth.js";
+
+import {
+  requireCsrf
+} from "../middleware/requireCsrf.js";
+
+import {
+  requireTrustedOrigin
+} from "../middleware/requireTrustedOrigin.js";
+
+import {
+  apiNoStore
+} from "../middleware/apiNoStore.js";
 
 import {
   findOwnerById
@@ -72,6 +83,11 @@ app.use(
 app.use(naraSession());
 
 app.use(
+  "/api",
+  apiNoStore
+);
+
+app.use(
   "/api/ai",
   aiRouter
 );
@@ -107,33 +123,6 @@ function setNoStore(
     "Referrer-Policy",
     "no-referrer"
   );
-}
-
-function validOrigin(
-  request: express.Request
-): boolean {
-  if (!isProduction) {
-    return true;
-  }
-
-  const origin = request.get("origin");
-
-  if (origin) {
-    return origin === env.PUBLIC_NARA_ORIGIN;
-  }
-
-  const referer = request.get("referer");
-
-  if (!referer) {
-    return false;
-  }
-
-  try {
-    return new URL(referer).origin ===
-      env.PUBLIC_NARA_ORIGIN;
-  } catch {
-    return false;
-  }
 }
 
 function escapeHtml(
@@ -396,37 +385,11 @@ app.get(
 app.post(
   "/logout",
   requireApiAuth,
+  requireTrustedOrigin,
+  requireCsrf,
   async (req, res, next) => {
     try {
       setNoStore(res);
-
-      if (!validOrigin(req)) {
-        return res
-          .status(403)
-          .json({
-            error:
-              "INVALID_ORIGIN"
-          });
-      }
-
-      const received =
-        req.get(
-          "x-csrf-token"
-        );
-
-      if (
-        !verifyCsrf(
-          req.session.csrfToken,
-          received
-        )
-      ) {
-        return res
-          .status(403)
-          .json({
-            error:
-              "INVALID_CSRF_TOKEN"
-          });
-      }
 
       const userId =
         req.session.userId;
