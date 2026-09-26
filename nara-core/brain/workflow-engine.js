@@ -201,6 +201,7 @@ export class NaraWorkflowEngine{
 
  emit(event,payload={}){
   this.record(event,payload);
+  if(this.workflow)this.workflow.lastEvent=event;
   if(this.bus?.emit)this.bus.emit(event,payload,{source:'nara-workflow'});
  }
 
@@ -308,10 +309,8 @@ export class NaraWorkflowEngine{
   if(this.workflow.state!=='planned'&&this.workflow.state!=='blocked')throw new Error('Workflow NARA tidak dapat dimulai dari state '+this.workflow.state+'.');
   if(!this.workflow.startedAt)this.workflow.startedAt=this.clock();
   this.workflow.state='running';
-  this.workflow.lastEvent='workflow.started';
-  this.refresh(skillSnapshot);
   this.emit('workflow.started',{workflowId:this.workflow.id,goal:this.workflow.goal});
-  return this.snapshot();
+  return this.refresh(skillSnapshot);
  }
 
  nextReady(){
