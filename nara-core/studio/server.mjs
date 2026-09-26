@@ -8,6 +8,7 @@ import {createSkillRegistry} from '../skills/index.js';
 
 const HERE=fileURLToPath(new URL('.',import.meta.url));
 const PUBLIC=join(HERE,'public');
+const THREE_MODULE=join(HERE,'../../node_modules/three/build/three.module.js');
 const MAX_BODY=16*1024;
 
 export const STUDIO_EVENT_ALLOWLIST=Object.freeze([
@@ -88,6 +89,16 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178}={}){
       res.setHeader('x-content-type-options','nosniff');
       res.setHeader('referrer-policy','no-referrer');
       res.setHeader('content-security-policy',"default-src 'self'; connect-src 'self'; style-src 'self'; script-src 'self'");
+
+      if(req.method==='GET'&&url.pathname==='/vendor/three/three.module.js'){
+        try{
+          const content=await readFile(THREE_MODULE);
+          res.writeHead(200,{'content-type':'text/javascript; charset=utf-8','cache-control':'no-store'});
+          return res.end(content);
+        }catch{
+          return json(res,503,{error:'Three.js belum tersedia. Jalankan npm install.'});
+        }
+      }
 
       if(req.method==='GET'&&url.pathname==='/api/snapshot'){
         return json(res,200,{
