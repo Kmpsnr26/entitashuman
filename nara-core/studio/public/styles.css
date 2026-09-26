@@ -220,3 +220,57 @@ button,select,input{background:#0c2732;color:#c9f5ff;border:1px solid #245365;bo
 @media(prefers-reduced-motion:reduce){
   .creator-gateway-aura{animation:none!important}
 }
+
+
+/* Revision R2 — Smooth Matrix Gate */
+.neural-entry-transition{
+  transition:opacity .46s cubic-bezier(.2,.8,.25,1),filter .72s cubic-bezier(.2,.8,.25,1);
+}
+.neural-entry-matrix{position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:.62;mix-blend-mode:screen;filter:saturate(1.12)}
+.neural-entry-space{z-index:1;animation-duration:7.2s}
+.neural-entry-warp{
+  position:absolute;z-index:2;left:50%;top:50%;width:min(74vw,940px);aspect-ratio:1;transform:translate(-50%,-50%) scale(.28);
+  border-radius:50%;opacity:0;
+  background:
+    repeating-radial-gradient(circle,#74f4ff16 0 1px,transparent 2px 22px),
+    conic-gradient(from 0deg,#22dfff00,#22dfff20,#756cff1d,#4df4c719,#22dfff00);
+  filter:blur(.2px);
+  animation:matrixWarp 3.5s cubic-bezier(.16,.78,.18,1) forwards;
+}
+.neural-entry-sweep{position:absolute;z-index:5;pointer-events:none;opacity:0}
+.sweep-one{left:-15%;right:-15%;height:2px;top:34%;background:linear-gradient(90deg,transparent,#7df6ff,#fff,#7df6ff,transparent);box-shadow:0 0 24px #6deeff,0 0 60px #5bdfff55;animation:matrixSweepHorizontal 1.75s cubic-bezier(.2,.8,.25,1) infinite}
+.sweep-two{top:-20%;bottom:-20%;width:1px;left:50%;background:linear-gradient(transparent,#7cecff,#fff,#7cecff,transparent);box-shadow:0 0 20px #7cecff,0 0 50px #725fff55;animation:matrixSweepVertical 2.2s cubic-bezier(.2,.75,.25,1) infinite}
+.neural-entry-copy{z-index:8;transition:transform .48s ease,opacity .4s ease}
+.neural-entry-ring{z-index:4}
+.neural-entry-scan{z-index:6;animation-duration:1.72s}
+.neural-entry-active .neural-entry-warp{opacity:.64}
+.neural-entry-active .neural-entry-sweep{opacity:.56}
+.neural-entry-transition[data-effect="zoomIn"] .neural-entry-warp{filter:brightness(1.35) blur(.1px)}
+.neural-entry-transition[data-effect="pulse"] .ring-c{animation-duration:1.05s;filter:brightness(1.35)}
+.neural-entry-transition[data-effect="process"] .neural-entry-copy{transform:translate(-50%,-50%) scale(.975)}
+.neural-entry-transition[data-effect="flow"] .neural-entry-space{filter:blur(12px) brightness(1.25)}
+.neural-entry-transition[data-effect="zoomOut"] .neural-entry-warp{transform:translate(-50%,-50%) scale(1.18);opacity:.08;transition:transform .62s ease,opacity .62s ease}
+.neural-entry-transition.neural-entry-complete{opacity:0;filter:brightness(1.45) blur(5px)}
+@keyframes matrixWarp{
+  0%{transform:translate(-50%,-50%) scale(.22) rotate(-10deg);opacity:0}
+  24%{opacity:.58}
+  72%{transform:translate(-50%,-50%) scale(.92) rotate(4deg);opacity:.68}
+  100%{transform:translate(-50%,-50%) scale(1.08) rotate(7deg);opacity:.36}
+}
+@keyframes matrixSweepHorizontal{
+  0%{transform:translateY(-24vh) scaleX(.42);opacity:0}
+  18%{opacity:.55}
+  72%{opacity:.42}
+  100%{transform:translateY(48vh) scaleX(1);opacity:0}
+}
+@keyframes matrixSweepVertical{
+  0%{transform:translateX(-42vw) scaleY(.38);opacity:0}
+  18%{opacity:.4}
+  76%{opacity:.34}
+  100%{transform:translateX(42vw) scaleY(1);opacity:0}
+}
+@media(prefers-reduced-motion:reduce){
+  .neural-entry-warp,.neural-entry-sweep{animation:none!important}
+  .neural-entry-warp{transform:translate(-50%,-50%) scale(.88);opacity:.26}
+  .neural-entry-sweep{display:none}
+}
