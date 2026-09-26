@@ -50,7 +50,7 @@ function updateNeuralHud(){
   edgeHud.update({neural:stats});
   $('neural3dRoots').textContent=stats.links+' living roots · '+stats.activeLinks+' active';
   $('neural3dRoutes').textContent='routes: '+stats.routeCount+' · active '+stats.activeRoutes;
-  $('neural3dPerf').textContent='fps '+stats.fps+' · quality '+stats.quality+' · '+stats.mode+' · galaxy '+(stats.galacticFrame?'on':'off')+' · aurora '+(stats.aurora?'on':'off');
+  $('neural3dPerf').textContent='fps '+stats.fps+' · quality '+stats.quality+' · '+stats.mode+' · galaxy '+(stats.galacticFrame?'on':'off')+' · aurora '+(stats.aurora?'on':'off')+' · core rings '+(stats.mechanicalCore?'on':'off');
   $('neural3dLastRoute').textContent='last route: '+(stats.lastRoute||'—');
 
   for(const [id,mode] of [['neuralExplorer','explorer'],['neuralFocus','focus'],['neuralCore','core']]){
