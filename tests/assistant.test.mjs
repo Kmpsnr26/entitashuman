@@ -581,3 +581,16 @@ test('cloud auto-repair closes stale fallback draft PRs after CI recovery',async
  assert.match(workflow,/if \(issue\.state === 'closed'\) \{[\s\S]*await closeFallbackPullRequest\(issue\.number\);[\s\S]*return;/);
  assert.match(workflow,/await closeFallbackPullRequest\(issue\.number\)/);
 });
+
+
+test('explicit CodeQL workflow stays least-privilege and analyzes JavaScript/TypeScript',async()=>{
+ const codeql=await readFile(new URL('../.github/workflows/codeql.yml',import.meta.url),'utf8');
+ assert.match(codeql,/name: CodeQL Security/);
+ assert.match(codeql,/security-events: write/);
+ assert.match(codeql,/contents: read/);
+ assert.match(codeql,/github\/codeql-action\/init@v3/);
+ assert.match(codeql,/languages: javascript-typescript/);
+ assert.match(codeql,/queries: security-extended/);
+ assert.match(codeql,/github\/codeql-action\/analyze@v3/);
+ assert.doesNotMatch(codeql,/contents: write|pull-requests: write|issues: write/);
+});
