@@ -12,3 +12,5 @@ export * from './skill-registry.js';
 export * from './workflow-engine.js';
 
 export * from './authority-policy.js';
+
+export * from './diagnostic-kernel.js';
