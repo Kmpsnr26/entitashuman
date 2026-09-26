@@ -62,14 +62,42 @@ Living-root rendering now uses deterministic Catmull-Rom curves with layered Tub
 
 Stage 2 deliberately keeps the organic root geometry stable and animates energy through it. This avoids rebuilding dozens of TubeGeometry objects every frame.
 
-## Stage 3
+## Stage 3 — implemented
 
-Map live SSE events to source/target routes and spawn bounded data packets. Keep packet count capped and visual-only.
+Realtime events now map to semantic source/target pairs. The renderer computes the shortest route through the live NARA graph and animates a packet over each root segment.
 
-## Stage 4
+- explicit routes for work/reason/plan/memory/context/agent/program/verify/error/bug/sync/terminal events
+- graph shortest-path routing for indirect connections
+- fixed 24-slot route packet pool
+- oldest-slot reuse under burst load
+- event-specific route colors
+- route pulse propagation across every traversed root
+- visual-only: no event redispatch and no renderer-owned network connection
 
-Add cinematic focus/core modes, smooth camera transitions, detail overlay, keyboard accessibility, and low-power quality presets.
+## Stage 4 — implemented
 
-## Stage 5
+Navigation and inspection are now first-class Studio controls.
 
-Add bloom/post-processing only after performance budgets are measured on representative desktop hardware.
+- Explorer, Focus and Core modes
+- smooth target/radius camera transitions
+- Reset view
+- selected-region detail overlay and neighborhood list
+- keyboard navigation: arrows, +/- zoom, F focus, C core, E explorer, Escape reset
+- focusable accessible WebGL canvas
+- Auto / High / Balanced / Low Power quality presets
+- 3D rendering pauses while the 2D view is active
+
+## Stage 5 — implemented with adaptive cinematic glow
+
+Cinematic polish is implemented without adding an external post-processing dependency.
+
+- additive radial glow sprites around nodes/core
+- ambient neural dust and deep star field
+- soft fog and CSS vignette/depth framing
+- traffic-reactive tone-mapping exposure
+- measured rolling FPS budget
+- Auto quality degrades below ~38 FPS and can upgrade above ~57 FPS with cooldowns
+- low-power mode disables ambient dust and reduces pixel ratio/glow intensity
+- reduced-motion preference remains respected
+
+A heavy EffectComposer/UnrealBloomPass was intentionally not introduced. The current additive glow system produces the soft-bloom character while keeping the dependency/CSP surface small and allowing the measured quality controller to protect interactive performance.
