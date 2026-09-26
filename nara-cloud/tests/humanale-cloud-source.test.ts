@@ -53,7 +53,7 @@ test(
 
     assert.match(
       routes,
-      /HUMANALE_CONTEXT_APPROVAL_REQUIRED/
+      /HUMANALE_CONTEXT_PREVIEW_REQUIRED/
     );
 
     assert.match(
@@ -223,3 +223,126 @@ test(
     );
   }
 );
+
+test(
+  "desktop HumanALE consumes cloud context through narrow session IPC without exposing cookies",
+  async () => {
+    const [
+      main,
+      preload,
+      app,
+      client
+    ] =
+      await Promise.all([
+        readFile(
+          new URL(
+            "desktop/main.cjs",
+            repositoryRoot
+          ),
+          "utf8"
+        ),
+        readFile(
+          new URL(
+            "desktop/preload.cjs",
+            repositoryRoot
+          ),
+          "utf8"
+        ),
+        readFile(
+          new URL(
+            "public/app.js",
+            repositoryRoot
+          ),
+          "utf8"
+        ),
+        readFile(
+          new URL(
+            "desktop/nara-cloud-context.mjs",
+            repositoryRoot
+          ),
+          "utf8"
+        )
+      ]);
+
+    assert.match(
+      main,
+      /NARA_CLOUD_ORIGIN/
+    );
+
+    assert.match(
+      main,
+      /session\.defaultSession\.fetch/
+    );
+
+    assert.match(
+      main,
+      /dudidam:cloud-status/
+    );
+
+    assert.match(
+      main,
+      /dudidam:cloud-login/
+    );
+
+    assert.match(
+      main,
+      /dudidam:cloud-context/
+    );
+
+    assert.match(
+      preload,
+      /cloudStatus/
+    );
+
+    assert.match(
+      preload,
+      /cloudLogin/
+    );
+
+    assert.match(
+      preload,
+      /cloudContext/
+    );
+
+    assert.doesNotMatch(
+      preload,
+      /cookie|csrfToken|session\.defaultSession|Authorization/
+    );
+
+    assert.match(
+      app,
+      /MEMORY_SOURCE_KEY/
+    );
+
+    assert.match(
+      app,
+      /stored==='cloud'\?'cloud':'local'/
+    );
+
+    assert.match(
+      app,
+      /prepareEffectiveMemoryContext/
+    );
+
+    assert.match(
+      app,
+      /entryIds:preview\.entryIds/
+    );
+
+    assert.match(
+      client,
+      /X-CSRF-Token/
+    );
+
+    assert.match(
+      client,
+      /credentials:[\s\S]*"include"/
+    );
+
+    assert.doesNotMatch(
+      client,
+      /Authorization|Bearer\s|API_KEY|clientSecret|refreshToken/
+    );
+  }
+);
+
