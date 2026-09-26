@@ -5,7 +5,6 @@ const {pathToFileURL}=require('node:url');
 
 app.commandLine.appendSwitch('enable-webgl');
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
-app.commandLine.appendSwitch('disable-gpu-sandbox');
 
 const ROOT=path.resolve(__dirname,'..');
 const ARTIFACTS=path.join(ROOT,'artifacts');
