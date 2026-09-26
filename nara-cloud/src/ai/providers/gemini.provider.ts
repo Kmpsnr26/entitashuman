@@ -382,8 +382,7 @@ export class GeminiProvider
     }
 
     const data =
-      (await response.json())
-        as GeminiResponse;
+      (await response.json()) as GeminiResponse;
 
     const text =
       textFrom(data);
