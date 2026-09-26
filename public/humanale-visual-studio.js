@@ -140,6 +140,7 @@ export function createHumanALEVisualStudio({
  onSceneChange=()=>{},
  onRegionSelect=()=>{},
  onTestScenario=async()=>({error:'Controlled test tidak tersedia.'}),
+ onRefresh=async()=>{},
  onToast=()=>{}
 }={}){
  let current=safeSnapshot(getSnapshot?.());
@@ -330,9 +331,10 @@ export function createHumanALEVisualStudio({
   const syncPayload=()=>({type:'humanale-visual-studio-sync',snapshot:safeSnapshot(getSnapshot?.()||current)});
 
  root.querySelector?.('#humanaleVisualStudioOpen')?.addEventListener('click',()=>onOpen());
- root.querySelector?.('#visualStudioRefresh')?.addEventListener('click',()=>{
-  if(isPanel&&channel?.postMessage)channel.postMessage({type:'humanale-visual-studio-request'});
-  else render(getSnapshot?.());
+ root.querySelector?.('#visualStudioRefresh')?.addEventListener('click',async()=>{
+  if(isPanel&&channel?.postMessage){channel.postMessage({type:'humanale-visual-studio-request',force:true});return;}
+  try{await onRefresh(true);}catch{}
+  render(getSnapshot?.());
  });
  root.querySelector?.('#visualStudioAvatarStudio')?.addEventListener('click',()=>{
   if(isPanel&&channel?.postMessage)channel.postMessage({type:'humanale-visual-studio-open-avatar'});
@@ -378,7 +380,8 @@ export function createHumanALEVisualStudio({
   const button=event.target?.closest?.('[data-skill-test]');
   const scenario=button?.dataset?.scenario;
   if(!scenario||testRunning)return;
-  button.disabled=true;
+  const buttons=[...(root.querySelectorAll?.('[data-nara-test],[data-skill-test]')||[])];
+  testRunning=true;buttons.forEach(item=>item.disabled=true);
   const baselineFps=current.performance.fps;
   setText(root,'visualStudioTestStatus','RUNNING · SKILL '+String(button.dataset.skillTest||'').toUpperCase()+' · '+scenario.toUpperCase());
   try{
@@ -387,7 +390,11 @@ export function createHumanALEVisualStudio({
    renderTestTrace(result||{},baselineFps);
    testHistory=[...testHistory,{scenario:'skill:'+String(button.dataset.skillTest||scenario),ok:Boolean(result?.ok&&result?.restored),durationMs:Math.max(0,Math.round(Number(result?.durationMs)||0)),timestamp:Date.now()}].slice(-12);
    renderTestHistory();
-  }finally{button.disabled=false;}
+  }catch(error){
+   renderTestTrace({error:error?.message||'Skill test gagal.',trace:[],durationMs:0},baselineFps);
+  }finally{
+   testRunning=false;buttons.forEach(item=>item.disabled=false);
+  }
  });
 
  root.querySelector?.('#visualStudioHealthScan')?.addEventListener('click',()=>runHealthScan());
@@ -429,7 +436,10 @@ export function createHumanALEVisualStudio({
   testHistory:()=>testHistory.map(item=>({...item})),
   handleMessage(data={}){
    if(data.type==='humanale-visual-studio-sync'){render(data.snapshot);return true;}
-   if(data.type==='humanale-visual-studio-request'&&!isPanel){channel?.postMessage?.(syncPayload());return true;}
+   if(data.type==='humanale-visual-studio-request'&&!isPanel){
+    Promise.resolve(onRefresh(Boolean(data.force))).catch(()=>{}).finally(()=>channel?.postMessage?.(syncPayload()));
+    return true;
+   }
    if(data.type==='humanale-visual-studio-open-avatar'&&!isPanel){onOpenAvatarStudio();return true;}
    if(data.type==='humanale-visual-studio-scene'&&!isPanel){onSceneChange(data.name,data.value);return true;}
    if(data.type==='humanale-visual-studio-region'&&!isPanel){onRegionSelect(data.region);return true;}
