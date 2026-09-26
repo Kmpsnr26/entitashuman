@@ -105,11 +105,11 @@ function resizeForAvatar(value=420){
 }
 async function openPanel(view='controls'){
  if(!win||win.isDestroyed())return;
- const allowed=['controls','avatarStudio','chatDialog','agentDialog','terminalDialog'];
+ const allowed=['controls','avatarStudio','humanaleVisualStudio','chatDialog','agentDialog','terminalDialog'];
  const target=allowed.includes(view)?view:'controls';
  const bounds=win.getBounds(),display=screen.getDisplayNearestPoint({x:bounds.x+bounds.width/2,y:bounds.y+bounds.height/2}),area=display.workArea;
- const terminalView=target==='terminalDialog',studioView=target==='avatarStudio';
- const width=Math.min(terminalView?900:studioView?520:460,area.width),height=Math.min(terminalView?720:studioView?760:680,area.height);
+ const terminalView=target==='terminalDialog',studioView=target==='avatarStudio',visualStudioView=target==='humanaleVisualStudio';
+ const width=Math.min(terminalView?900:visualStudioView?920:studioView?520:460,area.width),height=Math.min(terminalView?720:visualStudioView?740:studioView?760:680,area.height);
  if(panelWin&&!panelWin.isDestroyed()){
   const current=panelWin.getBounds();
   const x=Math.max(area.x,Math.min(area.x+area.width-width,current.x));
@@ -501,6 +501,9 @@ else{
    await new Promise(resolve=>setTimeout(resolve,120));
    const avatarStudioMaterial=await win.webContents.executeJavaScript("window.dudidamAvatar?.getAvatarStudioMaterial?.()==='matrix'");
    if(!avatarStudioMaterial)throw new Error('Avatar Live Studio material tidak sinkron ke avatar utama.');
+   await openPanel('humanaleVisualStudio');
+   const visualStudioReady=await panelWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+3000;const check=()=>{const dialog=document.querySelector('#humanaleVisualStudio');const controller=document.querySelector('#visualStudioController')?.textContent;const renderer=document.querySelector('#visualStudioRenderer')?.textContent;const fps=document.querySelector('#visualStudioFps')?.textContent;const ready=Boolean(dialog?.open&&controller==='NARA_CORE'&&renderer&&fps&&document.querySelector('#visualStudioHealth'));if(ready||Date.now()>deadline)resolve(ready);else setTimeout(check,60);};check();})");
+   if(!visualStudioReady)throw new Error('HumanALE Visual Studio tidak menerima telemetri runtime utama.');
    const avatarBounds=win.getBounds(),panelBounds=panelWin.getBounds(),workArea=screen.getDisplayNearestPoint({x:avatarBounds.x+avatarBounds.width/2,y:avatarBounds.y+avatarBounds.height/2}).workArea;
    if(workArea.width>=avatarBounds.width+panelBounds.width+16&&avatarBounds.x<panelBounds.x+panelBounds.width&&panelBounds.x<avatarBounds.x+avatarBounds.width&&avatarBounds.y<panelBounds.y+panelBounds.height&&panelBounds.y<avatarBounds.y+avatarBounds.height)throw new Error(`Panel menutupi avatar walau layar cukup lebar: ${JSON.stringify({avatarBounds,panelBounds,workArea})}`);
    await panelWin.webContents.executeJavaScript("new BroadcastChannel('dudidam-avatar-panel').postMessage({type:'persona',provider:'copilot'})");
