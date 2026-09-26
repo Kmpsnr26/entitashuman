@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NARA Core Live Studio</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header>
+    <div><span class="dot"></span><strong>NARA CORE LIVE STUDIO</strong><small>Realtime Brain Laboratory</small></div>
+    <div class="status"><span id="connection">CONNECTING</span><span id="clock"></span></div>
+  </header>
+
+  <main>
+    <section class="panel brain-panel">
+      <div class="panel-title"><h2>Brain Map</h2><span id="brainSummary">22 regions</span></div>
+      <div id="brainMap" class="brain-map"><svg id="brainLines"></svg><div id="brainNodes"></div></div>
+    </section>
+
+    <section class="panel state-panel">
+      <div class="panel-title"><h2>Live State</h2><span id="lifecycle">idle</span></div>
+      <dl class="state-grid">
+        <div><dt>Selected</dt><dd id="selectedRegion">—</dd></div>
+        <div><dt>Current task</dt><dd id="currentTask">—</dd></div>
+        <div><dt>Last event</dt><dd id="lastEvent">—</dd></div>
+        <div><dt>Safety</dt><dd id="safetyState">—</dd></div>
+      </dl>
+      <h3>Sensory telemetry</h3>
+      <div class="meters">
+        <label>Hearing <progress id="hearing" max="1" value="0"></progress></label>
+        <label>Vision <progress id="vision" max="1" value="0"></progress></label>
+        <label>Speech <progress id="speech" max="1" value="0"></progress></label>
+      </div>
+      <h3>Connections</h3>
+      <div id="connections" class="chips"></div>
+    </section>
+
+    <section class="panel event-panel">
+      <div class="panel-title"><h2>Event Stream</h2><button id="clearEvents">Clear view</button></div>
+      <div id="events" class="events"></div>
+    </section>
+
+    <section class="panel console-panel">
+      <div class="panel-title"><h2>Safe Test Console</h2><span>allowlisted events only</span></div>
+      <div class="console-controls">
+        <select id="eventSelect"></select>
+        <input id="eventLabel" maxlength="160" placeholder="Label / message opsional">
+        <button id="sendEvent">Dispatch</button>
+        <button id="resetStudio" class="secondary">Reset state</button>
+      </div>
+      <div class="quick">
+        <button data-event="reason.start">Reason Start</button>
+        <button data-event="reason.complete">Reason Done</button>
+        <button data-event="plan.start">Plan Start</button>
+        <button data-event="plan.complete">Plan Done</button>
+        <button data-event="memory.read">Memory Read</button>
+        <button data-event="agent.start">Agent Start</button>
+        <button data-event="error.detected">Simulate Error</button>
+        <button data-event="bug.fixed">Bug Fixed</button>
+      </div>
+      <pre id="consoleLog">Studio ready.</pre>
+    </section>
+  </main>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
