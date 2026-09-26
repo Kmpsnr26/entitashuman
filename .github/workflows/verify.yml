@@ -76,7 +76,7 @@ jobs:
           Write-Host "Installer ready: $($installer.FullName) ($($installer.Length) bytes)"
           Write-Host "Portable package: $zip"
       - name: Upload verified Windows artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: HumanALE-Windows-${{ github.sha }}
           path: |
@@ -98,7 +98,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Download verified Windows artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: HumanALE-Windows-${{ github.sha }}
           path: release
