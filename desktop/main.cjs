@@ -487,6 +487,10 @@ else{
    await new Promise(resolve=>setTimeout(resolve,180));
    const avatarStudioLive=await win.webContents.executeJavaScript("(()=>{const profile=window.dudidamAvatar?.getAvatarStudioProfile?.();return Boolean(profile&&Math.abs(Number(profile.headWidth)-1.1)<0.001);})()");
    if(!avatarStudioLive)throw new Error('Avatar Live Studio tidak menerapkan perubahan realtime ke avatar utama.');
+   await panelWin.webContents.executeJavaScript("(()=>{const select=document.querySelector('#avatarStudioMaterial');select.value='matrix';select.dispatchEvent(new Event('change',{bubbles:true}));})()");
+   await new Promise(resolve=>setTimeout(resolve,120));
+   const avatarStudioMaterial=await win.webContents.executeJavaScript("window.dudidamAvatar?.getAvatarStudioMaterial?.()==='matrix'");
+   if(!avatarStudioMaterial)throw new Error('Avatar Live Studio material tidak sinkron ke avatar utama.');
    const avatarBounds=win.getBounds(),panelBounds=panelWin.getBounds(),workArea=screen.getDisplayNearestPoint({x:avatarBounds.x+avatarBounds.width/2,y:avatarBounds.y+avatarBounds.height/2}).workArea;
    if(workArea.width>=avatarBounds.width+panelBounds.width+16&&avatarBounds.x<panelBounds.x+panelBounds.width&&panelBounds.x<avatarBounds.x+avatarBounds.width&&avatarBounds.y<panelBounds.y+panelBounds.height&&panelBounds.y<avatarBounds.y+avatarBounds.height)throw new Error(`Panel menutupi avatar walau layar cukup lebar: ${JSON.stringify({avatarBounds,panelBounds,workArea})}`);
    await panelWin.webContents.executeJavaScript("new BroadcastChannel('dudidam-avatar-panel').postMessage({type:'persona',provider:'copilot'})");
