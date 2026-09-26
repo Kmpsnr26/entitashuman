@@ -350,8 +350,7 @@ export class OpenAiCompatibleProvider
     }
 
     const data =
-      (await response.json())
-        as CompatibleResponse;
+      (await response.json()) as CompatibleResponse;
 
     const text =
       data.choices?.[0]
