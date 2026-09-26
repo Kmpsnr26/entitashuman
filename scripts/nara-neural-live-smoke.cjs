@@ -18,6 +18,16 @@ const ROOT=path.resolve(__dirname,'..');
 const ARTIFACTS=path.join(ROOT,'artifacts');
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
+function isSoftwareRenderer(renderer=''){
+  return /swiftshader|llvmpipe|software rasterizer|microsoft basic render|\bwarp\b/i.test(String(renderer));
+}
+
+function gpuModeMatches(mode,{hardwareAcceleration=false,renderer=''}={}){
+  const softwareRenderer=isSoftwareRenderer(renderer);
+  if(mode==='software')return softwareRenderer;
+  return Boolean(hardwareAcceleration&&!softwareRenderer);
+}
+
 async function waitFor(win,expression,{timeout=15000,interval=150}={}){
   const started=Date.now();
   let lastError=null;
@@ -73,25 +83,10 @@ async function run(){
     });
   });
 
-  let gpuInfo=null;
-  let gpuInfoError=null;
-  try{gpuInfo=await app.getGPUInfo('basic');}
-  catch(error){gpuInfoError=error.message;}
-  const featureStatus=app.getGPUFeatureStatus();
-  const hardwareAcceleration=app.isHardwareAccelerationEnabled();
-  const gpuDevices=Array.isArray(gpuInfo?.gpuDevice)?gpuInfo.gpuDevice.map(device=>({
-    active:Boolean(device.active),
-    vendorId:device.vendorId,
-    deviceId:device.deviceId,
-    vendorString:device.vendorString,
-    deviceString:device.deviceString,
-    driverVendor:device.driverVendor,
-    driverVersion:device.driverVersion
-  })):[];
   const report={
     startedAt:new Date().toISOString(),url,checks:{},webgl:null,hud:null,
     browserErrors,rendererGone,network,moduleProbe:null,
-    gpu:{requestedMode:GPU_MODE,hardwareAcceleration,featureStatus,devices:gpuDevices,infoError:gpuInfoError}
+    gpu:{requestedMode:GPU_MODE}
   };
 
   try{
@@ -109,15 +104,38 @@ async function run(){
     report.webgl=await evaluate(win,"(()=>{const canvas=document.querySelector('.neural3d-canvas');const gl=canvas?.getContext('webgl2')||canvas?.getContext('webgl');if(!gl)return {available:false};const ext=gl.getExtension('WEBGL_debug_renderer_info');return {available:true,version:gl.getParameter(gl.VERSION),shadingLanguage:gl.getParameter(gl.SHADING_LANGUAGE_VERSION),vendor:ext?gl.getParameter(ext.UNMASKED_VENDOR_WEBGL):gl.getParameter(gl.VENDOR),renderer:ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),width:canvas.width,height:canvas.height};})()");
     if(!report.webgl.available)throw new Error('WebGL context unavailable');
     report.checks.webglContext=true;
-    const rendererName=String(report.webgl.renderer||'');
-    const softwareRenderer=/swiftshader|llvmpipe|software rasterizer|microsoft basic render|\bwarp\b/i.test(rendererName);
-    const webglFeature=String(featureStatus.webgl2||featureStatus.webgl||'');
-    const featureLooksHardware=!/(software|disabled|unavailable)/i.test(webglFeature);
-    report.gpu.softwareRenderer=softwareRenderer;
-    report.gpu.webglFeature=webglFeature;
-    report.gpu.modeMatched=SOFTWARE_GPU
-      ?softwareRenderer
-      :Boolean(hardwareAcceleration&&!softwareRenderer&&featureLooksHardware);
+    // GPUFeatureStatus is only reliable after Chromium's GPU process has initialized.
+    // The live WebGL renderer is therefore the primary mode gate; feature status is advisory evidence.
+    await sleep(180);
+    let gpuInfo=null;
+    let gpuInfoError=null;
+    try{gpuInfo=await app.getGPUInfo('basic');}
+    catch(error){gpuInfoError=error.message;}
+    const featureStatus=app.getGPUFeatureStatus();
+    const hardwareAcceleration=app.isHardwareAccelerationEnabled();
+    const gpuDevices=Array.isArray(gpuInfo?.gpuDevice)?gpuInfo.gpuDevice.map(device=>({
+      active:Boolean(device.active),
+      vendorId:device.vendorId,
+      deviceId:device.deviceId,
+      vendorString:device.vendorString,
+      deviceString:device.deviceString,
+      driverVendor:device.driverVendor,
+      driverVersion:device.driverVersion
+    })):[];
+    const softwareRenderer=isSoftwareRenderer(report.webgl.renderer);
+    report.gpu={
+      requestedMode:GPU_MODE,
+      hardwareAcceleration,
+      featureStatus,
+      webglFeature:String(featureStatus.webgl2||featureStatus.webgl||''),
+      devices:gpuDevices,
+      infoError:gpuInfoError,
+      softwareRenderer,
+      modeMatched:gpuModeMatches(GPU_MODE,{
+        hardwareAcceleration,
+        renderer:report.webgl.renderer
+      })
+    };
     report.checks.gpuModeMatched=report.gpu.modeMatched;
 
     await evaluate(win,"(async()=>{const events=[['work.start',{id:'live-smoke',label:'Real browser smoke'}],['reason.start',{label:'Inspect realtime route'}],['reason.complete',{}],['plan.start',{label:'Build visual route'}],['plan.complete',{}],['memory.read',{label:'Read live context'}],['agent.start',{label:'Browser worker'}],['program.start',{label:'Renderer program'}],['error.detected',{message:'Live smoke simulated error'}],['bug.detected',{message:'Live smoke route check'}],['bug.fixed',{message:'Live smoke fixed'}],['verify.start',{}],['verify.complete',{}],['work.complete',{id:'live-smoke'}]];for(const [event,payload] of events){const res=await fetch('/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event,payload})});if(!res.ok)throw new Error(event+' -> '+res.status);await new Promise(resolve=>setTimeout(resolve,90));}return true;})()");
