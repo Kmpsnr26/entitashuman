@@ -122,8 +122,31 @@ test('NARA skill snapshot derives runtime health and blocks unhealthy dependenci
   let snapshot=createSkillSnapshot({brainState:nara.snapshot(),agents:[]});
   assert.equal(snapshot.controlledBy,'NARA_CORE');
   assert.equal(snapshot.skills.hearing.state,'ready');
+  assert.equal(snapshot.skills.voice.state,'ready');
+  assert.equal(snapshot.skills.vision.state,'ready');
   assert.equal(snapshot.skills.terminal.state,'ready');
   assert.equal(snapshot.skills.agents.state,'setup');
+
+  nara.dispatch('hearing.start');
+  snapshot=createSkillSnapshot({brainState:nara.snapshot(),agents:[]});
+  assert.equal(snapshot.skills.hearing.state,'running');
+  assert.equal(snapshot.skills.voice.state,'ready');
+  nara.dispatch('hearing.stop');
+
+  nara.dispatch('speech.start',{energy:.6});
+  snapshot=createSkillSnapshot({brainState:nara.snapshot(),agents:[]});
+  assert.equal(snapshot.skills.voice.state,'running');
+  nara.dispatch('speech.stop');
+
+  nara.dispatch('vision.frame',{activity:.8,frameId:'skill-test'});
+  snapshot=createSkillSnapshot({brainState:nara.snapshot(),agents:[]});
+  assert.equal(snapshot.skills.vision.state,'running');
+  nara.dispatch('vision.stop');
+
+  snapshot=createSkillSnapshot({brainState:nara.snapshot(),agents:[]});
+  assert.equal(snapshot.skills.hearing.state,'ready');
+  assert.equal(snapshot.skills.voice.state,'ready');
+  assert.equal(snapshot.skills.vision.state,'ready');
 
   nara.dispatch('github.disconnected');
   snapshot=createSkillSnapshot({brainState:nara.snapshot(),agents:[]});
