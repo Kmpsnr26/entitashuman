@@ -12,7 +12,7 @@ test('HumanALE controlled test lab exposes only bounded named scenarios',()=>{
  const list=listHumanALETestScenarios();
  assert.deepEqual(list.map(item=>item.id),['listening','thinking','speaking','processing','error','full']);
  assert.equal(getHumanALETestScenario('owner.secret'),null);
- assert.equal(getHumanALETestScenario('__proto__'),null);
+ for(const key of ['__proto__','constructor','prototype'])assert.equal(getHumanALETestScenario(key),null);
  for(const scenario of Object.values(HUMANALE_TEST_SCENARIOS)){
   assert.ok(scenario.steps.length>=2&&scenario.steps.length<=10);
   assert.ok(scenario.steps.reduce((sum,step)=>sum+step.waitMs,0)<=3000);
