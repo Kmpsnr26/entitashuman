@@ -20,6 +20,12 @@ export const DEFAULT_VISUAL_SETTINGS=Object.freeze({
   hudOpacity:.92,
   uiScale:1,
   audio:true,
+  masterVolume:.78,
+  transitionFx:.82,
+  voiceVolume:.9,
+  voiceRate:.86,
+  voicePitch:.68,
+  droidCharacter:true,
   quality:'auto'
 });
 
@@ -27,27 +33,27 @@ export const VISUAL_PRESETS=Object.freeze({
   minimal:{
     brainFrame:true,binary:true,frameGlow:.8,aurora:false,auroraIntensity:.4,nebula:false,particles:false,
     roots:true,rootGlow:.72,dataFlow:true,coreScale:.92,coreGlow:.95,ringA:true,ringB:false,
-    ringSpeedA:.72,ringSpeedB:.72,hudOpacity:.78,uiScale:.94,audio:true,quality:'balanced'
+    ringSpeedA:.72,ringSpeedB:.72,hudOpacity:.78,uiScale:.94,audio:true,masterVolume:.62,transitionFx:.55,voiceVolume:.82,voiceRate:.88,voicePitch:.72,droidCharacter:true,quality:'balanced'
   },
   'ai-lab':{
     brainFrame:true,binary:true,frameGlow:1.25,aurora:true,auroraIntensity:.9,nebula:false,particles:true,
     roots:true,rootGlow:1,dataFlow:true,coreScale:1,coreGlow:1.18,ringA:true,ringB:true,
-    ringSpeedA:.9,ringSpeedB:1.05,hudOpacity:.94,uiScale:1,audio:true,quality:'auto'
+    ringSpeedA:.9,ringSpeedB:1.05,hudOpacity:.94,uiScale:1,audio:true,masterVolume:.76,transitionFx:.72,voiceVolume:.9,voiceRate:.86,voicePitch:.68,droidCharacter:true,quality:'auto'
   },
   'neural-galaxy':{
     brainFrame:true,binary:true,frameGlow:1.65,aurora:true,auroraIntensity:1.55,nebula:true,particles:true,
     roots:true,rootGlow:1.35,dataFlow:true,coreScale:1.04,coreGlow:1.5,ringA:true,ringB:true,
-    ringSpeedA:1.08,ringSpeedB:1.2,hudOpacity:.86,uiScale:1,audio:true,quality:'high'
+    ringSpeedA:1.08,ringSpeedB:1.2,hudOpacity:.86,uiScale:1,audio:true,masterVolume:.8,transitionFx:.86,voiceVolume:.92,voiceRate:.84,voicePitch:.64,droidCharacter:true,quality:'high'
   },
   cinematic:{
     brainFrame:true,binary:true,frameGlow:1.5,aurora:true,auroraIntensity:1.35,nebula:true,particles:true,
     roots:true,rootGlow:1.2,dataFlow:true,coreScale:1.08,coreGlow:1.42,ringA:true,ringB:true,
-    ringSpeedA:.82,ringSpeedB:1.08,hudOpacity:.82,uiScale:1.04,audio:true,quality:'high'
+    ringSpeedA:.82,ringSpeedB:1.08,hudOpacity:.82,uiScale:1.04,audio:true,masterVolume:.84,transitionFx:.92,voiceVolume:.94,voiceRate:.82,voicePitch:.62,droidCharacter:true,quality:'high'
   },
   creator:{...DEFAULT_VISUAL_SETTINGS}
 });
 
-const BOOL_KEYS=new Set(['brainFrame','binary','aurora','nebula','particles','roots','dataFlow','ringA','ringB','audio']);
+const BOOL_KEYS=new Set(['brainFrame','binary','aurora','nebula','particles','roots','dataFlow','ringA','ringB','audio','droidCharacter']);
 const NUMBER_RANGES=Object.freeze({
   frameGlow:[.35,2],
   auroraIntensity:[.2,2],
@@ -57,7 +63,12 @@ const NUMBER_RANGES=Object.freeze({
   ringSpeedA:[.15,2.2],
   ringSpeedB:[.15,2.2],
   hudOpacity:[.45,1],
-  uiScale:[.82,1.18]
+  uiScale:[.82,1.18],
+  masterVolume:[0,1],
+  transitionFx:[0,1],
+  voiceVolume:[0,1],
+  voiceRate:[.72,1.15],
+  voicePitch:[.5,1.2]
 });
 const QUALITY=new Set(['auto','high','balanced','low']);
 
@@ -102,13 +113,15 @@ function formatValue(key,value){
   if(['frameGlow','auroraIntensity','rootGlow','coreGlow'].includes(key))return Number(value).toFixed(2)+'×';
   if(key==='coreScale'||key==='uiScale')return Number(value).toFixed(2)+'×';
   if(key==='ringSpeedA'||key==='ringSpeedB')return Number(value).toFixed(2)+'×';
-  if(key==='hudOpacity')return Math.round(Number(value)*100)+'%';
+  if(key==='hudOpacity'||key==='masterVolume'||key==='transitionFx'||key==='voiceVolume')return Math.round(Number(value)*100)+'%';
+  if(key==='voiceRate'||key==='voicePitch')return Number(value).toFixed(2)+'×';
   return String(value);
 }
 
 export function createCustomSettingsPanel({
   onChange=()=>{},
   onAudioChange=()=>{},
+  onAudioProfileChange=()=>{},
   onQualityChange=()=>{}
 }={}){
   const panel=document.getElementById('customSettingsPanel');
@@ -137,6 +150,7 @@ export function createCustomSettingsPanel({
     applyCss(settings);
     onChange({...settings});
     onAudioChange(Boolean(settings.audio));
+    onAudioProfileChange({...settings});
     onQualityChange(settings.quality);
     syncControls();
   }
