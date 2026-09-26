@@ -1,4 +1,7 @@
+import {evaluateHumanALEVisualRealTestPreflight} from './humanale-visual-real-test.js';
+
 export const HUMANALE_VISUAL_STUDIO_SNAPSHOT_KEY='humanale.visual-studio.snapshot.v1';
+export const HUMANALE_VISUAL_REAL_TEST_EVIDENCE_KEY='humanale.visual-studio.real-test-evidence.v1';
 
 const text=value=>value===null||value===undefined||value===''?'—':String(value);
 const percent=value=>Math.round(Math.max(0,Math.min(1,Number(value)||0))*100)+'%';
@@ -149,6 +152,8 @@ export function createHumanALEVisualStudio({
  let testHistory=[];
  let testRunning=false;
  let selectedSkillId='';
+ let realTestEvidence={};
+ try{realTestEvidence=JSON.parse(storage?.getItem?.(HUMANALE_VISUAL_REAL_TEST_EVIDENCE_KEY)||'{}')||{};}catch{realTestEvidence={};}
 
  const render=value=>{
   current=safeSnapshot(value);
@@ -273,6 +278,7 @@ export function createHumanALEVisualStudio({
    dialog.dataset.rendererMode=current.runtime.rendererMode;
    dialog.dataset.health=current.health.errorCount?'error':'ready';
   }
+  renderRealTestPreflight();
   return current;
  };
 
@@ -328,7 +334,35 @@ export function createHumanALEVisualStudio({
   return checks;
  };
 
-  const syncPayload=()=>({type:'humanale-visual-studio-sync',snapshot:safeSnapshot(getSnapshot?.()||current)});
+ const renderRealTestPreflight=()=>{
+  const result=evaluateHumanALEVisualRealTestPreflight({snapshot:current,testHistory,evidence:realTestEvidence});
+  setText(root,'visualStudioRealTestStatus',result.state+' · '+result.counts.pass+'/'+result.counts.total+' PASS · real-device pending '+result.counts.realDevicePending);
+  const dialog=root.querySelector?.('#humanaleVisualStudio');
+  if(dialog)dialog.dataset.realTest=result.state.toLowerCase();
+  const host=root.querySelector?.('#visualStudioRealTestChecks');
+  if(host){
+   host.replaceChildren();
+   for(const check of result.checks){
+    const row=root.createElement?.('div')||document.createElement('div');
+    row.className='visual-studio-real-test-row';row.dataset.status=check.status;row.dataset.kind=check.kind;
+    const label=root.createElement?.('div')||document.createElement('div');
+    label.className='visual-studio-real-test-label';
+    const title=root.createElement?.('strong')||document.createElement('strong');title.textContent=check.label;
+    const meta=root.createElement?.('small')||document.createElement('small');meta.textContent=check.kind==='automated'?'AUTOMATED · '+check.status.toUpperCase():'REAL DEVICE · '+check.status.toUpperCase();
+    const note=root.createElement?.('small')||document.createElement('small');note.textContent=check.note||'Belum ada bukti.';
+    label.append(title,meta,note);row.append(label);
+    if(check.kind==='real-device'){
+     const select=root.createElement?.('select')||document.createElement('select');select.dataset.realTestCheck=check.id;select.setAttribute('aria-label','Status '+check.label);
+     for(const value of ['pending','pass','fail','blocked']){const option=root.createElement?.('option')||document.createElement('option');option.value=value;option.textContent=value.toUpperCase();option.selected=value===check.status;select.append(option);}
+     row.append(select);
+    }
+    host.append(row);
+   }
+  }
+  return result;
+ };
+
+   const syncPayload=()=>({type:'humanale-visual-studio-sync',snapshot:safeSnapshot(getSnapshot?.()||current)});
 
  root.querySelector?.('#humanaleVisualStudioOpen')?.addEventListener('click',()=>onOpen());
  root.querySelector?.('#visualStudioRefresh')?.addEventListener('click',async()=>{
@@ -398,6 +432,15 @@ export function createHumanALEVisualStudio({
  });
 
  root.querySelector?.('#visualStudioHealthScan')?.addEventListener('click',()=>runHealthScan());
+ root.querySelector?.('#visualStudioRealTestPreflight')?.addEventListener('click',()=>renderRealTestPreflight());
+ root.querySelector?.('#visualStudioRealTestReset')?.addEventListener('click',()=>{realTestEvidence={};try{storage?.removeItem?.(HUMANALE_VISUAL_REAL_TEST_EVIDENCE_KEY);}catch{}renderRealTestPreflight();});
+ root.querySelector?.('#visualStudioRealTestChecks')?.addEventListener('change',event=>{
+  const select=event.target?.closest?.('[data-real-test-check]');
+  const id=select?.dataset?.realTestCheck;if(!id)return;
+  realTestEvidence={...realTestEvidence,[id]:{status:String(select.value||'pending'),source:'operator-local',note:'Dicatat dari HumanALE Visual Studio pada perangkat uji.',timestamp:Date.now()}};
+  try{storage?.setItem?.(HUMANALE_VISUAL_REAL_TEST_EVIDENCE_KEY,JSON.stringify(realTestEvidence));}catch{}
+  renderRealTestPreflight();
+ });
  for(const button of root.querySelectorAll?.('[data-nara-test]')||[]){
   button.addEventListener('click',async()=>{
    if(testRunning)return;
@@ -433,6 +476,8 @@ export function createHumanALEVisualStudio({
   current:()=>safeSnapshot(current),
   syncPayload,
   runHealthScan,
+  realTestPreflight:()=>renderRealTestPreflight(),
+  realTestEvidence:()=>JSON.parse(JSON.stringify(realTestEvidence)),
   testHistory:()=>testHistory.map(item=>({...item})),
   handleMessage(data={}){
    if(data.type==='humanale-visual-studio-sync'){render(data.snapshot);return true;}
