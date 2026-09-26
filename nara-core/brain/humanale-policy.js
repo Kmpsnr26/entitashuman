@@ -5,7 +5,7 @@ export const HUMANALE_STATES=Object.freeze(['idle','listening','thinking','speak
 
 const PROCESSING_START_EVENTS=new Set([
   'observe.start','context.prepare','context.used','plan.start','agent.start',
-  'memory.write','program.start','verify.start','work.start','sync.start','terminal.open'
+  'memory.write','program.start','verify.start','work.start','sync.start'
 ]);
 const COMPLETE_EVENTS=new Set([
   'observe.complete','reason.complete','plan.complete','agent.complete','memory.complete',
@@ -67,8 +67,7 @@ export function reduceHumanALEPolicy(previous=createHumanALEPolicy(),event='',pa
 
   if(name==='brain.region.select'){
     const current=previous?.state&&previous.state!=='idle'?previous:fallbackPolicy(runtime,name);
-    if(current.state!=='idle')return Object.freeze({...current,reason:name});
-    return Object.freeze({...basePolicy('idle',name,.18),rendererMode:'balanced'});
+    return Object.freeze({...current,reason:name});
   }
 
   if(name==='work.complete'){
