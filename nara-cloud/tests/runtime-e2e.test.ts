@@ -418,6 +418,40 @@ test(
     const loginCsrf =
       csrfMatch[1]!;
 
+    const rejectedCsrfLogin =
+      await fetch(
+        AUTH_ORIGIN +
+        "/ownernara/login",
+        {
+          method:
+            "POST",
+          redirect:
+            "manual",
+          headers: {
+            Cookie:
+              ownerCookie,
+            "Content-Type":
+              "application/x-www-form-urlencoded"
+          },
+          body:
+            new URLSearchParams({
+              email:
+                OWNER_EMAIL,
+              password:
+                OWNER_PASSWORD,
+              csrf_token:
+                "invalid-csrf-token-value",
+              return_to:
+                CALLBACK
+            })
+        }
+      );
+
+    assert.equal(
+      rejectedCsrfLogin.status,
+      403
+    );
+
     const login =
       await fetch(
         AUTH_ORIGIN +
@@ -507,6 +541,20 @@ test(
         callback
       );
 
+    const replayedCallback =
+      await fetch(
+        callbackUrl,
+        {
+          redirect:
+            "manual"
+        }
+      );
+
+    assert.equal(
+      replayedCallback.status,
+      401
+    );
+
     const home =
       await fetch(
         NARA_ORIGIN +
@@ -576,6 +624,83 @@ test(
     const csrf =
       meBody.csrfToken as
         string;
+
+    const missingCsrf =
+      await fetch(
+        NARA_ORIGIN +
+        "/api/memory/",
+        {
+          method:
+            "POST",
+          headers: {
+            Cookie:
+              naraCookie,
+            Origin:
+              NARA_ORIGIN,
+            "Content-Type":
+              "application/json"
+          },
+          body:
+            JSON.stringify({
+              scope:
+                "long_term",
+              title:
+                "Must be rejected",
+              content:
+                "No CSRF token."
+            })
+        }
+      );
+
+    assert.equal(
+      missingCsrf.status,
+      403
+    );
+
+    assert.equal(
+      (
+        await json(
+          missingCsrf
+        )
+      ).error,
+      "INVALID_CSRF_TOKEN"
+    );
+
+    const wrongContentType =
+      await fetch(
+        NARA_ORIGIN +
+        "/api/memory/",
+        {
+          method:
+            "POST",
+          headers: {
+            Cookie:
+              naraCookie,
+            Origin:
+              NARA_ORIGIN,
+            "Content-Type":
+              "text/plain",
+            "X-CSRF-Token":
+              csrf
+          },
+          body:
+            "not-json"
+        }
+      );
+
+    assert.equal(
+      wrongContentType.status,
+      415
+    );
+
+    assert.equal(
+      (
+        await json(
+          wrongContentType
+        )
+      ).error,
+      "JSON_CONTENT_TYPE_REQUIRED"
+    );
 
     const created =
       await postJson(
@@ -702,6 +827,71 @@ test(
     assert.ok(
       previewBody.preview.chars <=
         1_600
+    );
+
+    const approvalWithoutPreview =
+      await postJson(
+        "/api/humanale/context",
+        naraCookie,
+        csrf,
+        {
+          target:
+            "planner",
+          mode:
+            "ask",
+          approved:
+            true,
+          scope:
+            "long_term"
+        }
+      );
+
+    assert.equal(
+      approvalWithoutPreview.status,
+      400
+    );
+
+    assert.equal(
+      (
+        await json(
+          approvalWithoutPreview
+        )
+      ).error,
+      "HUMANALE_CONTEXT_PREVIEW_REQUIRED"
+    );
+
+    const staleApproval =
+      await postJson(
+        "/api/humanale/context",
+        naraCookie,
+        csrf,
+        {
+          target:
+            "planner",
+          mode:
+            "ask",
+          approved:
+            true,
+          scope:
+            "long_term",
+          entryIds: [
+            randomUUID()
+          ]
+        }
+      );
+
+    assert.equal(
+      staleApproval.status,
+      409
+    );
+
+    assert.equal(
+      (
+        await json(
+          staleApproval
+        )
+      ).error,
+      "HUMANALE_CONTEXT_STALE"
     );
 
     const approvedResponse =
