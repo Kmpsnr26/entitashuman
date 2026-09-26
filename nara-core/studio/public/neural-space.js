@@ -57,6 +57,7 @@ const LINK_IDLE=0x123845;
 const LINK_LIVE=0x42ddff;
 const LINK_SELECTED=0xa9f7ff;
 const ROUTE_POOL_SIZE=24;
+const QUALITY_ORDER=['low','balanced','high'];
 
 function statusColor(status,group){
   return STATUS_COLORS[status]??GROUP_COLORS[group]??0x42ddff;
@@ -141,10 +142,11 @@ function organicCurve(from,to,key){
 }
 
 export class Neural3DScene{
-  constructor(container,{onSelect=()=>{}}={}){
+  constructor(container,{onSelect=()=>{},onMetrics=()=>{}}={}){
     if(!container)throw new Error('Container Neural Space 3D tidak ditemukan.');
     this.container=container;
     this.onSelect=onSelect;
+    this.onMetrics=onMetrics;
     this.regions={};
     this.regionSignature='';
     this.state=null;
@@ -157,15 +159,22 @@ export class Neural3DScene{
     this.lastRoute='—';
     this.selected=null;
     this.active=true;
+    this.mode='explorer';
+    this.qualityMode='auto';
+    this.effectiveQuality='balanced';
+    this.qualityScale=.8;
     this.pointer={down:false,moved:false,x:0,y:0,button:0};
     this.target=new THREE.Vector3(0,-.3,0);
+    this.homeTarget=this.target.clone();
     this.radius=14;
+    this.homeRadius=14;
     this.theta=.45;
     this.phi=1.18;
     this.focusTarget=null;
     this.focusRadius=null;
     this.clock=new THREE.Clock();
     this.motionScale=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?.35:1;
+    this.frameWindow={elapsed:0,frames:0,fps:60,cooldown:0};
 
     this.scene=new THREE.Scene();
     this.scene.background=new THREE.Color(0x02070b);
@@ -180,6 +189,9 @@ export class Neural3DScene{
     this.renderer.toneMapping=THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure=1.15;
     this.renderer.domElement.className='neural3d-canvas';
+    this.renderer.domElement.tabIndex=0;
+    this.renderer.domElement.setAttribute('role','application');
+    this.renderer.domElement.setAttribute('aria-label','NARA Neural Space 3D. Arrow keys rotate, plus/minus zoom, F focus, C core, E explorer, Escape reset.');
     this.container.appendChild(this.renderer.domElement);
 
     this.world=new THREE.Group();
@@ -201,6 +213,7 @@ export class Neural3DScene{
     this.raycaster=new THREE.Raycaster();
     this.ndc=new THREE.Vector2();
     this.bindControls();
+    this.setQuality('auto');
     this.resize();
     this.updateCamera(true);
     this.renderer.setAnimationLoop(()=>this.animate());
@@ -266,13 +279,77 @@ export class Neural3DScene{
     });
     el.addEventListener('wheel',event=>{
       event.preventDefault();
-      this.radius=Math.max(4.5,Math.min(32,this.radius*(1+Math.sign(event.deltaY)*.09)));
+      this.radius=Math.max(4.2,Math.min(34,this.radius*(1+Math.sign(event.deltaY)*.09)));
       this.focusRadius=null;
     },{passive:false});
+    el.addEventListener('keydown',event=>this.handleKey(event));
+  }
+
+  handleKey(event){
+    const key=event.key.toLowerCase();
+    let handled=true;
+    if(key==='arrowleft')this.theta-=.12;
+    else if(key==='arrowright')this.theta+=.12;
+    else if(key==='arrowup')this.phi=Math.max(.2,this.phi-.09);
+    else if(key==='arrowdown')this.phi=Math.min(Math.PI-.2,this.phi+.09);
+    else if(key==='+'||key==='=')this.radius=Math.max(4.2,this.radius*.9);
+    else if(key==='-'||key==='_')this.radius=Math.min(34,this.radius*1.1);
+    else if(key==='f')this.setMode('focus');
+    else if(key==='c')this.setMode('core');
+    else if(key==='e')this.setMode('explorer');
+    else if(key==='escape')this.resetView();
+    else handled=false;
+    if(handled)event.preventDefault();
   }
 
   setActive(active){
     this.active=Boolean(active);
+  }
+
+  setMode(mode){
+    const next=['explorer','focus','core'].includes(mode)?mode:'explorer';
+    this.mode=next;
+    if(next==='core')this.focusRegion('NARA_CORE','core');
+    else if(next==='focus')this.focusRegion(this.selected||'NARA_CORE','focus');
+    else this.resetView(false);
+    this.emitMetrics();
+  }
+
+  resetView(updateMode=true){
+    if(updateMode)this.mode='explorer';
+    this.focusTarget=this.homeTarget.clone();
+    this.focusRadius=this.homeRadius;
+    this.theta=.45;
+    this.phi=1.18;
+    this.emitMetrics();
+  }
+
+  setQuality(mode='auto'){
+    this.qualityMode=['auto','high','balanced','low'].includes(mode)?mode:'auto';
+    let effective=this.qualityMode;
+    if(effective==='auto'){
+      const cores=navigator.hardwareConcurrency||4;
+      effective=cores>=8&&window.devicePixelRatio<=2?'high':cores>=4?'balanced':'low';
+    }
+    this.applyQuality(effective);
+  }
+
+  applyQuality(level){
+    this.effectiveQuality=QUALITY_ORDER.includes(level)?level:'balanced';
+    const config={
+      high:{pixel:1.8,scale:1,fog:.030},
+      balanced:{pixel:1.35,scale:.8,fog:.033},
+      low:{pixel:1,scale:.55,fog:.037}
+    }[this.effectiveQuality];
+    this.qualityScale=config.scale;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,config.pixel));
+    this.scene.fog.density=config.fog;
+    this.resize();
+    this.emitMetrics();
+  }
+
+  emitMetrics(){
+    this.onMetrics(this.getStats());
   }
 
   getStats(){
@@ -283,7 +360,23 @@ export class Neural3DScene{
       selectedLinks:this.links.filter(link=>link.selected).length,
       activeRoutes:this.routePackets.filter(packet=>packet.active).length,
       routeCount:this.routeCount,
-      lastRoute:this.lastRoute
+      lastRoute:this.lastRoute,
+      fps:Math.round(this.frameWindow.fps||0),
+      mode:this.mode,
+      quality:this.qualityMode==='auto'?'auto/'+this.effectiveQuality:this.effectiveQuality
+    };
+  }
+
+  getRegionDetails(id=this.selected||'NARA_CORE'){
+    const region=this.regions[id];
+    if(!region)return null;
+    const neighbors=(this.adjacency.get(id)||[]).map(link=>link.from===id?link.to:link.from);
+    return {
+      id:region.id,
+      label:region.label,
+      group:region.group,
+      status:this.state?.regions?.[id]?.status||region.defaultStatus,
+      neighbors:[...new Set(neighbors)]
     };
   }
 
@@ -616,11 +709,13 @@ export class Neural3DScene{
     }
   }
 
-  focusRegion(id){
+  focusRegion(id,mode='focus'){
     const entry=this.nodes.get(id);
     if(!entry)return;
+    this.mode=mode;
     this.focusTarget=entry.group.position.clone();
-    this.focusRadius=id==='NARA_CORE'?6.4:5.2;
+    this.focusRadius=id==='NARA_CORE'?5.9:4.8;
+    this.emitMetrics();
   }
 
   pick(event,dispatch=true){
@@ -704,6 +799,29 @@ export class Neural3DScene{
     }
   }
 
+  samplePerformance(delta){
+    const state=this.frameWindow;
+    state.elapsed+=delta;
+    state.frames+=1;
+    state.cooldown=Math.max(0,state.cooldown-delta);
+    if(state.elapsed<1.25)return;
+    state.fps=state.frames/state.elapsed;
+    state.elapsed=0;
+    state.frames=0;
+
+    if(this.qualityMode==='auto'&&state.cooldown<=0){
+      const index=QUALITY_ORDER.indexOf(this.effectiveQuality);
+      if(state.fps<38&&index>0){
+        this.applyQuality(QUALITY_ORDER[index-1]);
+        state.cooldown=5;
+      }else if(state.fps>57&&index<QUALITY_ORDER.length-1){
+        this.applyQuality(QUALITY_ORDER[index+1]);
+        state.cooldown=8;
+      }
+    }
+    this.emitMetrics();
+  }
+
   animate(){
     if(!this.active)return;
     const delta=Math.min(.05,this.clock.getDelta());
@@ -733,6 +851,7 @@ export class Neural3DScene{
     this.animateRoutes(delta,t);
     this.stars.rotation.y=t*.0025*this.motionScale;
     this.renderer.render(this.scene,this.camera);
+    this.samplePerformance(delta);
   }
 
   resize(){
