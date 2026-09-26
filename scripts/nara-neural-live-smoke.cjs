@@ -3,11 +3,16 @@ const {mkdirSync,writeFileSync}=require('node:fs');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 
+const GPU_MODE=String(process.env.NARA_GPU_MODE||'hardware').toLowerCase()==='software'?'software':'hardware';
+const SOFTWARE_GPU=GPU_MODE==='software';
+
 app.commandLine.appendSwitch('enable-webgl');
-app.commandLine.appendSwitch('ignore-gpu-blocklist');
-app.commandLine.appendSwitch('use-gl','angle');
-app.commandLine.appendSwitch('use-angle','swiftshader');
-app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+if(SOFTWARE_GPU){
+  app.commandLine.appendSwitch('ignore-gpu-blocklist');
+  app.commandLine.appendSwitch('use-gl','angle');
+  app.commandLine.appendSwitch('use-angle','swiftshader');
+  app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+}
 
 const ROOT=path.resolve(__dirname,'..');
 const ARTIFACTS=path.join(ROOT,'artifacts');
@@ -43,8 +48,16 @@ async function run(){
     webPreferences:{backgroundThrottling:false,contextIsolation:true,nodeIntegration:false,sandbox:true}
   });
 
-  win.webContents.on('console-message',(_event,level,message,line,sourceId)=>{
-    if(level>=2)browserErrors.push({level,message,line,sourceId});
+  win.webContents.on('console-message',details=>{
+    const level=String(details.level||'info');
+    if(level==='warning'||level==='error'){
+      browserErrors.push({
+        level,
+        message:details.message,
+        line:details.lineNumber,
+        sourceId:details.sourceId
+      });
+    }
   });
   win.webContents.on('render-process-gone',(_event,details)=>rendererGone.push(details));
   win.webContents.session.webRequest.onCompleted(details=>{
@@ -60,7 +73,26 @@ async function run(){
     });
   });
 
-  const report={startedAt:new Date().toISOString(),url,checks:{},webgl:null,hud:null,browserErrors,rendererGone,network,moduleProbe:null};
+  let gpuInfo=null;
+  let gpuInfoError=null;
+  try{gpuInfo=await app.getGPUInfo('basic');}
+  catch(error){gpuInfoError=error.message;}
+  const featureStatus=app.getGPUFeatureStatus();
+  const hardwareAcceleration=app.isHardwareAccelerationEnabled();
+  const gpuDevices=Array.isArray(gpuInfo?.gpuDevice)?gpuInfo.gpuDevice.map(device=>({
+    active:Boolean(device.active),
+    vendorId:device.vendorId,
+    deviceId:device.deviceId,
+    vendorString:device.vendorString,
+    deviceString:device.deviceString,
+    driverVendor:device.driverVendor,
+    driverVersion:device.driverVersion
+  })):[];
+  const report={
+    startedAt:new Date().toISOString(),url,checks:{},webgl:null,hud:null,
+    browserErrors,rendererGone,network,moduleProbe:null,
+    gpu:{requestedMode:GPU_MODE,hardwareAcceleration,featureStatus,devices:gpuDevices,infoError:gpuInfoError}
+  };
 
   try{
     await win.loadURL(url);
@@ -77,6 +109,16 @@ async function run(){
     report.webgl=await evaluate(win,"(()=>{const canvas=document.querySelector('.neural3d-canvas');const gl=canvas?.getContext('webgl2')||canvas?.getContext('webgl');if(!gl)return {available:false};const ext=gl.getExtension('WEBGL_debug_renderer_info');return {available:true,version:gl.getParameter(gl.VERSION),shadingLanguage:gl.getParameter(gl.SHADING_LANGUAGE_VERSION),vendor:ext?gl.getParameter(ext.UNMASKED_VENDOR_WEBGL):gl.getParameter(gl.VENDOR),renderer:ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),width:canvas.width,height:canvas.height};})()");
     if(!report.webgl.available)throw new Error('WebGL context unavailable');
     report.checks.webglContext=true;
+    const rendererName=String(report.webgl.renderer||'');
+    const softwareRenderer=/swiftshader|llvmpipe|software rasterizer|microsoft basic render|\bwarp\b/i.test(rendererName);
+    const webglFeature=String(featureStatus.webgl2||featureStatus.webgl||'');
+    const featureLooksHardware=!/(software|disabled|unavailable)/i.test(webglFeature);
+    report.gpu.softwareRenderer=softwareRenderer;
+    report.gpu.webglFeature=webglFeature;
+    report.gpu.modeMatched=SOFTWARE_GPU
+      ?softwareRenderer
+      :Boolean(hardwareAcceleration&&!softwareRenderer&&featureLooksHardware);
+    report.checks.gpuModeMatched=report.gpu.modeMatched;
 
     await evaluate(win,"(async()=>{const events=[['work.start',{id:'live-smoke',label:'Real browser smoke'}],['reason.start',{label:'Inspect realtime route'}],['reason.complete',{}],['plan.start',{label:'Build visual route'}],['plan.complete',{}],['memory.read',{label:'Read live context'}],['agent.start',{label:'Browser worker'}],['program.start',{label:'Renderer program'}],['error.detected',{message:'Live smoke simulated error'}],['bug.detected',{message:'Live smoke route check'}],['bug.fixed',{message:'Live smoke fixed'}],['verify.start',{}],['verify.complete',{}],['work.complete',{id:'live-smoke'}]];for(const [event,payload] of events){const res=await fetch('/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event,payload})});if(!res.ok)throw new Error(event+' -> '+res.status);await new Promise(resolve=>setTimeout(resolve,90));}return true;})()");
     await waitFor(win,"Number((document.getElementById('neural3dRoutes')?.textContent.match(/routes:\\s*(\\d+)/)||[])[1]||0)>=8");
