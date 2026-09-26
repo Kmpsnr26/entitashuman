@@ -24,6 +24,10 @@ test('terminal policy separates SAFE CONFIRM and BLOCK commands',()=>{
  assert.equal(classifyCommand('Resolve-Path C:\\Users').category,'CONFIRM');
  assert.equal(classifyCommand('Get-ChildItem').category,'SAFE');
  assert.equal(classifyCommand('Get-ChildItem C:\\Users').category,'CONFIRM');
+ assert.equal(classifyCommand('echo %OPENAI_API_KEY%').category,'BLOCK');
+ assert.equal(classifyCommand('echo %MY_SERVICE_TOKEN%').category,'BLOCK');
+ assert.equal(classifyCommand('echo $env:ANTHROPIC_API_KEY').category,'BLOCK');
+ assert.equal(classifyCommand('echo %USERPROFILE%').category,'SAFE');
 });
 
 test('terminal redaction removes common credentials before AI or logs',()=>{
