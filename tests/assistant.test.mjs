@@ -562,6 +562,10 @@ test('release workflows use least privilege, pinned Android tooling, signed publ
  assert.match(android,/ANDROID_KEYSTORE_BASE64/);
  assert.match(android,/apksigner/);
  assert.match(android,/release:[\s\S]*permissions:\s*\n\s*contents: write/);
+ assert.doesNotMatch(android,/release:[\s\S]{0,500}?env:\s*\n\s*ANDROID_KEYSTORE_BASE64/);
+ assert.match(android,/Require Android signing secrets[\s\S]*?env:\s*\n\s*ANDROID_KEYSTORE_BASE64/);
+ assert.match(android,/Sign and verify production APK[\s\S]*?env:\s*\n\s*ANDROID_KEYSTORE_BASE64/);
+ assert.match(android,/Publish signed APK to versioned GitHub release[\s\S]*?GH_TOKEN/);
  assert.doesNotMatch(android,/Publish rolling Android release/);
  assert.match(nara,/push:\s*\n\s*branches: \[main\]/);
  assert.match(repair,/workflows: \["Verify and package", "Build Android APK", "NARA Cloud Verify"\]/);
