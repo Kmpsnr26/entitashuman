@@ -232,6 +232,12 @@ test('NARA Studio serves Three.js from a fixed same-origin vendor route',async t
   assert.match(res.headers.get('content-type')||'',/text\/javascript/);
   const source=await res.text();
   assert.match(source,/WebGLRenderer/);
+
+  const core=await fetch(base+'/vendor/three/three.core.js');
+  assert.equal(core.status,200);
+  assert.match(core.headers.get('content-type')||'',/text\/javascript/);
+  const coreSource=await core.text();
+  assert.match(coreSource,/class Vector3/);
 });
 
 test('Neural Space 3D keeps existing Studio security boundaries',async()=>{
@@ -355,4 +361,17 @@ test('Stage 5 uses adaptive cinematic resources and measured performance budgets
   assert.match(styles,/neural3d-vignette/);
   assert.doesNotMatch(scene,/EffectComposer/);
   assert.doesNotMatch(scene,/https?:\/\//);
+});
+
+
+test('Three vendor surface stays fixed to required ESM build modules',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const server=await readFile(new URL('nara-core/studio/server.mjs',root),'utf8');
+
+  assert.match(server,/THREE_VENDOR=Object\.freeze\(new Map/);
+  assert.match(server,/\/vendor\/three\/three\.module\.js/);
+  assert.match(server,/\/vendor\/three\/three\.core\.js/);
+  assert.doesNotMatch(server,/node_modules\/three\/\*\*/);
+  assert.doesNotMatch(server,/url\.pathname\.startsWith\('\/vendor\/three\/'\)/);
 });
