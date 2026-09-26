@@ -467,8 +467,18 @@ else{
   if(ciSmoke){
    const rendererReady=await win.webContents.executeJavaScript("Boolean(document.querySelector('#avatar')) && Boolean(document.querySelector('#assistantPopup')) && typeof window.dudidamAvatar?.setAvatarState === 'function' && typeof window.dudidamDesktop?.onGlobalPointer === 'function' && typeof window.dudidamDesktop?.avatarViewport === 'function' && typeof window.dudidamDesktop?.openTerminal === 'function' && document.title.includes('HumanALE god egine')");
    if(!rendererReady)throw new Error('Renderer HumanALE god egine tidak siap.');
-   const naraRuntimeReady=await win.webContents.executeJavaScript("window.dudidamDesktop.naraSnapshot().then(result=>Boolean(result?.ok&&result.state?.lifecycle==='active'&&result.state?.regions?.NARA_CORE?.status==='active'))");
-   if(!naraRuntimeReady)throw new Error('NARA Core tidak aktif di runtime desktop terpaket.');
+   const naraRuntimeReady=await win.webContents.executeJavaScript("window.dudidamDesktop.naraSnapshot().then(result=>Boolean(result?.ok&&result.state?.lifecycle==='active'&&result.state?.regions?.NARA_CORE?.status==='active'&&result.state?.humanale?.controlledBy==='NARA_CORE'&&result.state?.humanale?.state==='idle'&&result.state?.humanale?.rendererMode==='eco'))");
+   if(!naraRuntimeReady)throw new Error('NARA Core atau policy HumanALE idle/eco tidak aktif di runtime desktop terpaket.');
+   await new Promise(resolve=>setTimeout(resolve,120));
+   const humanaleIdlePolicy=await win.webContents.executeJavaScript("(()=>{const p=window.dudidamAvatar?.getNaraHumanALEPolicy?.();return Boolean(p&&p.controlledBy==='NARA_CORE'&&p.state==='idle'&&p.rendererMode==='eco');})()");
+   if(!humanaleIdlePolicy)throw new Error('HumanALE tidak menerima policy idle/eco dari NARA Core.');
+   const hearingPolicy=await win.webContents.executeJavaScript("window.dudidamDesktop.naraDispatch('hearing.start',{}).then(result=>Boolean(result?.ok&&result.state?.humanale?.state==='listening'&&result.state?.humanale?.rendererMode==='active'))");
+   if(!hearingPolicy)throw new Error('NARA Core gagal mengubah HumanALE ke listening/active.');
+   await new Promise(resolve=>setTimeout(resolve,120));
+   const humanaleListeningPolicy=await win.webContents.executeJavaScript("(()=>{const p=window.dudidamAvatar?.getNaraHumanALEPolicy?.();return Boolean(p&&p.state==='listening'&&p.rendererMode==='active');})()");
+   if(!humanaleListeningPolicy)throw new Error('HumanALE tidak mengikuti policy listening/active dari NARA Core.');
+   const hearingStopped=await win.webContents.executeJavaScript("window.dudidamDesktop.naraDispatch('hearing.stop',{}).then(result=>Boolean(result?.ok&&result.state?.humanale?.state==='idle'&&result.state?.humanale?.rendererMode==='eco'))");
+   if(!hearingStopped)throw new Error('NARA Core gagal mengembalikan HumanALE ke idle/eco.');
    const naraRegionReady=await win.webContents.executeJavaScript("window.dudidamDesktop.naraDispatch('brain.region.select',{region:'MEMORY'}).then(result=>Boolean(result?.ok&&result.state?.selectedRegion==='MEMORY'&&result.state?.regions?.MEMORY?.status==='active'))");
    if(!naraRegionReady)throw new Error('NARA IPC gagal memilih region MEMORY.');
    const naraBlocked=await win.webContents.executeJavaScript("window.dudidamDesktop.naraDispatch('owner.secret',{value:'blocked'}).then(result=>Boolean(result?.error&&String(result.error).includes('tidak diizinkan')))");
