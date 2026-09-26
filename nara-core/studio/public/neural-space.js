@@ -207,6 +207,15 @@ export class Neural3DScene{
     this.active=Boolean(active);
   }
 
+  getStats(){
+    return {
+      nodes:this.nodes.size,
+      links:this.links.length,
+      activeLinks:this.links.filter(link=>link.active).length,
+      selectedLinks:this.links.filter(link=>link.selected).length
+    };
+  }
+
   updateCamera(force=false){
     if(this.focusTarget){
       this.target.lerp(this.focusTarget,force?1:.085);
