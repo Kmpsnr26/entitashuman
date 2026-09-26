@@ -39,7 +39,8 @@ function Read-Status([string]$label) {
 }
 
 Write-Host "HumanALE Visual Studio - REAL DEVICE TEST RUNNER" -ForegroundColor Green
-Write-Host "Candidate: $candidate"`nWrite-Host "Branch: $branch"
+Write-Host "Candidate: $candidate"
+Write-Host "Branch: $branch"
 Write-Host "Catatan: runner ini hanya mencatat bukti operator. Ia tidak mengubah Nara Core atau membuka integrasi final."
 
 $results = @{}
@@ -61,7 +62,8 @@ foreach ($check in $checks) {
 
 $payload = @{
   protocol = "humanale-visual-real-test/1"
-  candidate = $candidate`n  branch = $branch
+  candidate = $candidate
+  branch = $branch
   generatedAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
   fullyValidated = $allPass
   state = $(if ($allPass) { "REAL_TEST_PASS" } else { "REAL_TEST_INCOMPLETE" })
