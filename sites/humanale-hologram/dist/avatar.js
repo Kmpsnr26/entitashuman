@@ -155,6 +155,26 @@
         const y = MOUTH_Y + (hash() - 0.5) * 0.012;
         add(x, y, 0.08, 'mouth-cavity', { z: depthAt(x, y) - 0.048, size: 0.62 });
       }
+      // Discrete binary ear shells: no continuous path or image asset.
+      for (const side of [-1, 1]) {
+        const cx = side * 0.418, cy = 0.015;
+        for (let ring = 0; ring < 2; ring++) {
+          const rx = 0.038 - ring * 0.012, ry = 0.105 - ring * 0.026;
+          for (let i = 0; i < 28; i++) {
+            const angle = i / 28 * TAU;
+            const x = cx + Math.cos(angle) * rx;
+            const y = cy + Math.sin(angle) * ry;
+            const rim = 0.5 + Math.cos(angle) * 0.5;
+            add(x, y, 0.18 + rim * 0.11, 'ear-shell', {
+              earSide: side,
+              z: 0.105 + rim * 0.026 - ring * 0.008,
+              size: ring ? 0.58 : 0.68,
+              binary: true,
+              normal: { x: side * 0.34, y: Math.sin(angle) * 0.18, z: 0.92 }
+            });
+          }
+        }
+      }
     }
 
     buildFallback() {
@@ -760,6 +780,9 @@
       }
       c.globalAlpha=1;
     }
+    transformFacePoint(point) {
+      return point;
+    }
     drawFace(c, time) {
       const points = this.facePoints;
       const shell = 1 - smooth(1.28, 2.65, this.zoom);
@@ -830,6 +853,14 @@
             x += dx / d * magnet; y += dy / d * magnet;
           }
         }
+        const tuned = this.transformFacePoint({
+          x, y, z, feature,
+          baseX: pt.baseX, baseY: pt.baseY,
+          eyeSide: pt.eyeSide, earSide: pt.earSide
+        }) || { x, y, z };
+        x = Number.isFinite(tuned.x) ? tuned.x : x;
+        y = Number.isFinite(tuned.y) ? tuned.y : y;
+        z = Number.isFinite(tuned.z) ? tuned.z : z;
         const p = this.project(x, y, z, time, true);
         const light = this.lightAt(p.x, p.y);
         const glyph = this.glyphCache[light ? 'light' : 'dark'];

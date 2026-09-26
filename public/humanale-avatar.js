@@ -70,10 +70,8 @@ export class HumanALEAvatar extends BaseAvatar{
  }
  getStudioProfile(){return {...this.studioProfile};}
  resetStudioProfile(){return this.setStudioProfile(AVATAR_STUDIO_DEFAULTS);}
- project(x,y,z=0,time=0,rotateHead=false){
-  if(!rotateHead)return super.project(x,y,z,time,rotateHead);
-  const point=transformAvatarStudioPoint({x,y,z},this.studioProfile,window.FaceRig);
-  return super.project(point.x,point.y,point.z,time,rotateHead);
+ transformFacePoint(point={}){
+  return transformAvatarStudioPoint(point,this.studioProfile,window.FaceRig);
  }
 
  set thinking(value){

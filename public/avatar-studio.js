@@ -11,6 +11,14 @@ const FIELDS=Object.freeze([
  'cheekVolume',
  'jawWidth',
  'eyeSpacing',
+ 'foreheadWidth',
+ 'foreheadHeight',
+ 'chinLength',
+ 'chinWidth',
+ 'noseDepth',
+ 'mouthWidth',
+ 'lipVolume',
+ 'earSize',
  'depth',
  'density'
 ]);
