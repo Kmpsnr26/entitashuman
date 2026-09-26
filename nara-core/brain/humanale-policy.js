@@ -71,6 +71,9 @@ export function reduceHumanALEPolicy(previous=createHumanALEPolicy(),event='',pa
     return Object.freeze({...basePolicy('idle',name,.18),rendererMode:'balanced'});
   }
 
+  if(name==='work.complete'){
+    return fallbackPolicy({...runtime,currentTask:null},name);
+  }
   if(COMPLETE_EVENTS.has(name)){
     return fallbackPolicy(runtime,name);
   }
