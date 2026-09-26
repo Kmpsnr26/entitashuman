@@ -194,6 +194,7 @@ export class Neural3DScene{
     this.lastRoute='—';
     this.selected=null;
     this.active=true;
+    this.animationLoop=()=>this.animate();
     this.mode='explorer';
     this.qualityMode='auto';
     this.effectiveQuality='balanced';
@@ -254,7 +255,7 @@ export class Neural3DScene{
     this.setQuality('auto');
     this.resize();
     this.updateCamera(true);
-    this.renderer.setAnimationLoop(()=>this.animate());
+    this.renderer.setAnimationLoop(this.animationLoop);
   }
 
   initRoutePool(){
@@ -342,7 +343,16 @@ export class Neural3DScene{
   }
 
   setActive(active){
-    this.active=Boolean(active);
+    const next=Boolean(active);
+    if(this.active===next)return;
+    this.active=next;
+    if(next){
+      this.timer.reset();
+      this.renderer.setAnimationLoop(this.animationLoop);
+    }else{
+      this.renderer.setAnimationLoop(null);
+    }
+    this.emitMetrics();
   }
 
   setMode(mode){
