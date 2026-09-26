@@ -165,7 +165,11 @@ jobs:
               const branch = run.head_branch || context.payload.repository.default_branch;
               const key = 'workflow:' + run.workflow_id + ':' + branch;
               const issue = await findManagedIssue(key);
-              if (!issue || issue.state === 'closed') return;
+              if (!issue) return;
+              if (issue.state === 'closed') {
+                await closeFallbackPullRequest(issue.number);
+                return;
+              }
 
               const recovery = [
                 '',
