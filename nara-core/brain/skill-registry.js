@@ -52,15 +52,16 @@ function normalizeAgentMap(agents=[]){
 
 function deriveState(skill,region,brain,agents){
  const raw=String(region?.status||'idle');
+
+ if(skill.id==='hearing')return brain?.sensory?.hearing?.active?'running':'ready';
+ if(skill.id==='voice')return brain?.sensory?.speech?.active?'running':'ready';
+ if(skill.id==='vision')return brain?.sensory?.vision?.active?'running':'ready';
+
  if(ERROR_STATUS.has(raw))return 'error';
  if(BLOCKED_STATUS.has(raw))return 'blocked';
  if(OFFLINE_STATUS.has(raw))return 'offline';
  if(ACTIVE_STATUS.has(raw))return 'running';
  if(READY_STATUS.has(raw))return 'ready';
-
- if(skill.id==='hearing')return brain?.sensory?.hearing?.active?'running':'ready';
- if(skill.id==='voice')return brain?.sensory?.speech?.active?'running':'ready';
- if(skill.id==='vision')return brain?.sensory?.vision?.active?'running':'ready';
 
  if(skill.id==='agents'){
   const usable=['codex','github-copilot','cursor','claude'].some(id=>agents[id]?.canRun);
