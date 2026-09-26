@@ -6,6 +6,7 @@ import {createWorkflowEngine} from './workflow-engine.js';
 import {createAuthorityPolicy} from './authority-policy.js';
 import {evaluateNaraIntegrationReadiness,readinessCertificate} from './integration-readiness.js';
 import {describeHumanALEIntegrationContract,evaluateHumanALEIntegrationRequest} from './humanale-integration-contract.js';
+import {describeHumanALEIntegrationDryRun,previewHumanALEIntegrationRoute} from './humanale-integration-router.js';
 
 const connectionEvents=Object.freeze({
   GITHUB:['github.connected','github.disconnected'],
@@ -164,6 +165,14 @@ export class NaraOrchestrator{
 
   evaluateHumanALEIntegrationRequest(request={}){
     return evaluateHumanALEIntegrationRequest(request,this.authoritySnapshot());
+  }
+
+  humanaleIntegrationDryRun(){
+    return describeHumanALEIntegrationDryRun(this.authoritySnapshot());
+  }
+
+  previewHumanALEIntegrationRoute(request={}){
+    return previewHumanALEIntegrationRoute(request,this.authoritySnapshot());
   }
 
   snapshot(){return this.state.snapshot();}
