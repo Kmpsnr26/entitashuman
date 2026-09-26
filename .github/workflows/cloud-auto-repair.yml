@@ -145,7 +145,9 @@ jobs:
               });
               for (const pr of response.data) {
                 const body = pr.body || '';
-                if (!pr.draft || !body.includes('<!-- cloud-fallback-request: issue-' + issueNumber + ' -->')) continue;
+                const marker = '<!-- cloud-fallback-request: issue-' + issueNumber + ' -->';
+                const tracks = 'Tracks #' + issueNumber + '.';
+                if (!pr.draft || (!body.includes(marker) && !body.includes(tracks))) continue;
                 await github.rest.pulls.update({
                   owner,
                   repo,
@@ -740,7 +742,9 @@ jobs:
                     '- [ ] Run \`npm run verify\`.',
                     '- [ ] Review security-sensitive changes manually.',
                     '',
-                    'This PR must not be merged automatically.'
+                    'This PR must not be merged automatically.',
+                    '',
+                    '<!-- cloud-fallback-request: issue-' + issue.number + ' -->'
                   ].join('\n')
                 });
                 pull = created.data;
