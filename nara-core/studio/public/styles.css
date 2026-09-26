@@ -160,3 +160,63 @@ button,select,input{background:#0c2732;color:#c9f5ff;border:1px solid #245365;bo
 .node-voice-transcript p{margin:0;font:8px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;color:#85aab3}
 #nodeInspectorSpeak.speaking{border-color:#62efc0;color:#b9ffe5;box-shadow:0 0 18px #34eeb33d}
 .nara-node-speaking .neural-node-inspector{box-shadow:-34px 0 90px #0008,-12px 0 48px #40efc11a}
+
+
+/* Revision R1 — Creator Neural Binary Gate */
+.creator-gateway{
+  display:block;
+  background:
+    radial-gradient(circle at 36% 48%,#062b3a 0,#03141d 28%,#01080d 58%,#000 100%);
+}
+.creator-brain-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:0;opacity:.96;filter:saturate(1.12) contrast(1.04)}
+.creator-gateway-grid{z-index:1;opacity:.14;inset:-34%;transform:perspective(720px) rotateX(72deg) translateY(42%)}
+.creator-gateway-aura{z-index:1;left:8%;top:50%;transform:translateY(-50%);width:min(58vw,760px);opacity:.48;animation:creatorAuraR1 18s linear infinite}
+.creator-brain-caption{position:absolute;z-index:2;left:5.5vw;bottom:7vh;display:grid;gap:5px;pointer-events:none;text-shadow:0 0 18px #25dfff55}
+.creator-brain-caption span{font:8px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.24em;color:#4aa8b9}
+.creator-brain-caption strong{font:11px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.17em;color:#99effa}
+.creator-brain-caption small{font:8px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.08em;color:#426d77}
+.creator-gateway-card{
+  position:absolute;z-index:4;right:6vw;top:50%;transform:translateY(-50%);
+  width:min(430px,38vw);margin:0;padding:28px 28px 25px;
+  border:1px solid #286173;border-radius:16px;
+  background:linear-gradient(145deg,#031119e8,#020a10e0);
+  box-shadow:0 36px 120px #000d,0 0 80px #00cfff13,inset 0 0 50px #00dfff08;
+}
+.creator-core-mark{width:68px;height:68px;margin:0 auto 15px;opacity:.88}
+.creator-login-form{gap:14px}
+.creator-login-form label{position:relative;gap:7px;color:#6e9aa5}
+.creator-login-form label:before{content:"";position:absolute;left:-8px;top:21px;bottom:0;width:1px;background:linear-gradient(transparent,#43dff1aa,transparent)}
+.creator-login-form input{
+  min-height:44px;padding:12px 13px;border-radius:7px;
+  background:linear-gradient(90deg,#02090e,#041720);
+  border:1px solid #23586a;color:#d7fbff;
+  box-shadow:inset 0 0 16px #00dfff08;
+  transition:border-color .18s ease,box-shadow .18s ease,background .18s ease;
+}
+.creator-login-form input:focus{
+  border-color:#5be7f8;outline:none;background:#051b24;
+  box-shadow:0 0 0 1px #59e7f844,0 0 26px #16dfff1f,inset 0 0 18px #00dfff0b;
+}
+.creator-login-form button,.creator-access-panel>button{
+  min-height:42px;border-radius:7px;
+  background:linear-gradient(90deg,#082a35,#0a3a45,#082a35);
+}
+.creator-login-form button:hover,.creator-access-panel>button:hover{border-color:#7af4ff;box-shadow:0 0 24px #25dfff2d}
+.creator-login-form output{padding-top:2px}
+@keyframes creatorAuraR1{
+  0%{transform:translateY(-50%) rotate(0deg) scale(.98)}
+  50%{transform:translateY(-50%) rotate(180deg) scale(1.04)}
+  100%{transform:translateY(-50%) rotate(360deg) scale(.98)}
+}
+@media(max-width:900px){
+  .creator-gateway-card{right:4vw;width:min(470px,48vw)}
+  .creator-brain-caption{left:4vw}
+}
+@media(max-width:680px){
+  .creator-brain-canvas{opacity:.64}
+  .creator-gateway-card{left:50%;right:auto;top:50%;width:min(92vw,460px);transform:translate(-50%,-50%)}
+  .creator-brain-caption{left:5vw;bottom:3vh;opacity:.65}
+}
+@media(prefers-reduced-motion:reduce){
+  .creator-gateway-aura{animation:none!important}
+}
