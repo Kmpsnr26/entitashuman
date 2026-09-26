@@ -145,6 +145,8 @@ export class NaraBrainState{
       this.setRegion('ERROR_MONITOR',{status:'error',activity:1,message:String(payload.reason||'Workflow gagal').slice(0,160)},event);
       this.setRegion('BUG_HUNTER',{status:'processing',activity:.9,message:'Menganalisis kegagalan workflow'},event);
     }else if(event==='workflow.recovery'){
+      const skill=getSkill(payload.skill);
+      if(skill)this.setRegion(skill.region,{status:'ready',activity:.35,message:'Skill siap untuk retry workflow'},event);
       this.setRegion('BUG_HUNTER',{status:'active',activity:.85,message:'Menyiapkan recovery workflow'},event);
       this.setRegion('FOLLOW_UP',{status:'processing',activity:.8,message:'Recovery step workflow'},event);
     }else if(event==='workflow.complete'){
