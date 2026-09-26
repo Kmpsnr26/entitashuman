@@ -944,3 +944,40 @@ test('realtime smoke authenticates through configured Creator Gateway before ent
   assert.doesNotMatch(smoke,/report\.SMOKE_CREATOR/);
   assert.doesNotMatch(smoke,/report\.creatorPassword/);
 });
+
+
+test('Revision R1 Creator login uses animated neural binary brain with reduced-motion support',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [html,gateway,brain,styles]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/index.html',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/creator-gateway.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/creator-brain.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/styles.css',root),'utf8')
+  ]);
+
+  assert.match(html,/id="creatorBrainCanvas"/);
+  assert.match(html,/NEURAL IDENTITY MATRIX/);
+  assert.match(gateway,/import \{createCreatorBrainBackdrop\} from '\.\/creator-brain\.js'/);
+  assert.match(gateway,/brain\.setState\('verifying'\)/);
+  assert.match(gateway,/brain\.setState\('verified'\)/);
+  assert.match(gateway,/brain\.setState\('error'\)/);
+  assert.match(brain,/function brainMask\(/);
+  assert.match(brain,/createNodes\(random/);
+  assert.match(brain,/createLinks\(nodes\)/);
+  assert.match(brain,/createBits\(random/);
+  assert.match(brain,/fillText\(bit\.value/);
+  assert.match(brain,/prefers-reduced-motion/);
+  assert.doesNotMatch(brain,/fetch\(|EventSource|https?:\/\//);
+  assert.match(styles,/Revision R1 — Creator Neural Binary Gate/);
+  assert.match(styles,/\.creator-brain-canvas/);
+  assert.match(styles,/\.creator-gateway-card/);
+});
+
+test('Creator brain module passes Node syntax check',async()=>{
+  const {spawnSync}=await import('node:child_process');
+  const {fileURLToPath}=await import('node:url');
+  const file=fileURLToPath(new URL('../nara-core/studio/public/creator-brain.js',import.meta.url));
+  const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
+  assert.equal(result.status,0,result.stderr||result.stdout||file);
+});
