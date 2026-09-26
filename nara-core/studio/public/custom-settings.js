@@ -3,9 +3,9 @@ const STORAGE_KEY='nara.visual.settings.v1';
 export const DEFAULT_VISUAL_SETTINGS=Object.freeze({
   brainFrame:true,
   binary:true,
-  frameGlow:1.35,
+  frameGlow:1.45,
   aurora:true,
-  auroraIntensity:1.25,
+  auroraIntensity:1.35,
   nebula:true,
   particles:true,
   roots:true,
