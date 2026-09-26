@@ -1008,7 +1008,8 @@ test('Revision R2 sequences sweep zoom process pulse and flow with bounded local
   assert.match(entry,/matrix\.burst\(\)/);
   assert.match(entry,/sound\.cue\(item\[2\]\)/);
   assert.match(matrix,/prefers-reduced-motion/);
-  assert.match(sound,/master\.gain\.value=\.055/);
+  assert.match(sound,/master\.gain\.value=outputGain\(\)/);
+  assert.match(sound,/function outputGain\(\)/);
   assert.doesNotMatch(sound,/fetch\(|EventSource|https?:\/\//);
   assert.doesNotMatch(matrix,/fetch\(|EventSource|https?:\/\//);
   assert.match(styles,/Revision R2 — Smooth Matrix Gate/);
@@ -1075,7 +1076,7 @@ test('Revision R4 Creator control center stores visual preferences only and driv
   assert.match(html,/data-visual-setting="ringSpeedA"/);
   assert.match(html,/data-visual-setting="ringSpeedB"/);
   assert.match(html,/data-visual-preset="neural-galaxy"/);
-  assert.match(html,/Visual preferences only · no credentials stored/);
+  assert.match(html,/Visual \/ audio preferences only · no credentials stored/);
 
   assert.match(app,/createCustomSettingsPanel/);
   assert.match(app,/applyVisualSettings\?\.\(customSettings\.getSettings\(\)\)/);
@@ -1152,4 +1153,71 @@ test('R4 guardian torus thickness remains bounded while brighter in dark scenes'
   assert.match(scene,/new THREE\.TorusGeometry\(1\.54,\.050,8,64\)/);
   assert.match(scene,/frameGlow:1\.45/);
   assert.match(scene,/auroraIntensity:1\.35/);
+});
+
+
+test('Revision R5 adds bounded droid voice character and Creator audio controls',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [html,app,settings,entry,sound,voice]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/index.html',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/custom-settings.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/neural-entry.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/cinematic-sound.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/node-voice.js',root),'utf8')
+  ]);
+
+  for(const key of ['masterVolume','transitionFx','voiceVolume','voiceRate','voicePitch','droidCharacter']){
+    assert.match(html,new RegExp('data-visual-setting="'+key+'"'));
+    assert.match(settings,new RegExp(key));
+  }
+
+  assert.match(settings,/masterVolume:\[0,1\]/);
+  assert.match(settings,/transitionFx:\[0,1\]/);
+  assert.match(settings,/voiceVolume:\[0,1\]/);
+  assert.match(settings,/voiceRate:\[\.72,1\.15\]/);
+  assert.match(settings,/voicePitch:\[\.5,1\.2\]/);
+  assert.match(settings,/droidCharacter:true/);
+
+  assert.match(app,/onAudioProfileChange:settings=>/);
+  assert.match(app,/neuralEntry\.applyAudioSettings\?\.\(settings\)/);
+  assert.match(app,/nodeVoice\.applyVoiceSettings\?\.\(settings\)/);
+
+  assert.match(sound,/name==='voiceBoot'/);
+  assert.match(sound,/from:74,to:52/);
+  assert.match(sound,/\.075\*profile\.masterVolume\*profile\.transitionFx/);
+  assert.match(sound,/setProfile\(next=\{\}\)/);
+
+  assert.match(entry,/voiceRate:\.86/);
+  assert.match(entry,/voicePitch:\.68/);
+  assert.match(entry,/sound\.cue\('voiceBoot'\)/);
+  assert.match(entry,/applyAudioSettings\(settings=\{\}\)/);
+
+  assert.match(voice,/createCinematicSoundEngine/);
+  assert.match(voice,/voiceProfile\.voiceRate/);
+  assert.match(voice,/voiceProfile\.voicePitch/);
+  assert.match(voice,/voiceProfile\.voiceVolume/);
+  assert.match(voice,/droidSound\.cue\('voiceBoot'\)/);
+  assert.match(voice,/applyVoiceSettings\(settings=\{\}\)/);
+});
+
+test('R5 audio modules stay local and pass Node syntax checks',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const {spawnSync}=await import('node:child_process');
+  const {fileURLToPath}=await import('node:url');
+  const root=new URL('../',import.meta.url);
+
+  for(const relative of [
+    '../nara-core/studio/public/custom-settings.js',
+    '../nara-core/studio/public/cinematic-sound.js',
+    '../nara-core/studio/public/neural-entry.js',
+    '../nara-core/studio/public/node-voice.js'
+  ]){
+    const file=fileURLToPath(new URL(relative,import.meta.url));
+    const source=await readFile(file,'utf8');
+    assert.doesNotMatch(source,/https?:\/\/|fetch\(|EventSource/);
+    const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
+    assert.equal(result.status,0,result.stderr||result.stdout||file);
+  }
 });
