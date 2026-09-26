@@ -103,6 +103,24 @@ async function run(){
     report.checks.legacyPanelsHidden=await evaluate(win,"getComputedStyle(document.querySelector('.state-panel')).display==='none'");
     report.checks.edgeMonitorDrawer=await evaluate(win,"(()=>{const button=document.querySelector('[data-edge-monitor=connection]');const drawer=document.getElementById('edgeMonitorDrawer');button?.click();const visible=Boolean(drawer&&!drawer.hidden);document.getElementById('edgeMonitorClose')?.click();return visible;})()");
 
+    await evaluate(win,"document.getElementById('edgeView2d')?.click(); true");
+    await waitFor(win,"document.getElementById('brainMap')?.hidden===false");
+    await waitFor(win,"Boolean(document.querySelector('.brain-node[data-region=MEMORY]'))");
+    await evaluate(win,"document.querySelector('.brain-node[data-region=MEMORY]')?.click(); true");
+    await waitFor(win,"document.getElementById('neuralNodeInspector')?.hidden===false");
+    await waitFor(win,"document.getElementById('nodeInspectorTitle')?.textContent==='Memory'");
+    report.checks.nodeInspectorVisible=true;
+    report.nodeInspector=await evaluate(win,"({title:document.getElementById('nodeInspectorTitle')?.textContent,status:document.getElementById('nodeInspectorStatus')?.textContent,text:document.getElementById('nodeInspectorBody')?.textContent})");
+    report.checks.nodeInspectorSafeMetadata=Boolean(
+      String(report.nodeInspector.text||'').includes('NETWORK / SERVER')&&
+      String(report.nodeInspector.text||'').includes('127.0.0.1')&&
+      String(report.nodeInspector.text||'').includes('DATABASE')&&
+      String(report.nodeInspector.text||'').includes('not_configured')&&
+      String(report.nodeInspector.text||'').includes('RAW SECRETS')&&
+      !/password|api[_ -]?key|bearer\s+[a-z0-9._-]+/i.test(String(report.nodeInspector.text||''))
+    );
+    await evaluate(win,"document.getElementById('edgeView3d')?.click(); true");
+
     report.moduleProbe=await evaluate(win,"(async()=>{const urls=['/neural-space.js','/vendor/three/three.module.js'];const result={};for(const url of urls){try{const res=await fetch(url);const text=await res.text();result[url]={ok:res.ok,status:res.status,contentType:res.headers.get('content-type'),length:text.length,prefix:text.slice(0,120)};}catch(error){result[url]={ok:false,error:error.message};}}return result;})()");
 
     await evaluate(win,"document.getElementById('view3d').click(); true");
