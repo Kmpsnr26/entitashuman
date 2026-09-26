@@ -12,10 +12,12 @@ test('creator boundary keeps NARA workflow control out of HumanALE renderer and 
   readFile(new URL('desktop/main.cjs',root),'utf8')
  ]);
  for(const source of [preload,app,visualStudio]){
-  assert.doesNotMatch(source,/createWorkflow|startWorkflowStep|grantWorkflowPermissions|recoverWorkflowStep|workflowSnapshot|workflowQueue|workflowReport/);
+  assert.doesNotMatch(source,/createWorkflow|startWorkflowStep|grantWorkflowPermissions|recoverWorkflowStep|workflowSnapshot|workflowQueue|workflowReport|authoritySnapshot|advanceAuthorityPhase|evaluateBridge/);
  }
  assert.doesNotMatch(preload,/dudidam:nara-workflow/);
+ assert.doesNotMatch(preload,/dudidam:nara-authority/);
  assert.doesNotMatch(main,/ipcMain\.handle\(['"]dudidam:nara-workflow/);
+ assert.doesNotMatch(main,/ipcMain\.handle\(['"]dudidam:nara-authority/);
 });
 
 test('NARA workflow implementation remains inside NARA Core',async()=>{
@@ -32,4 +34,5 @@ test('NARA workflow implementation remains inside NARA Core',async()=>{
  assert.match(engine,/controlledBy:'NARA_CORE'/);
  assert.match(engine,/executionBoundary:'NARA_CORE_ONLY'/);
  assert.match(index,/workflow-engine\.js/);
+ assert.match(index,/authority-policy\.js/);
 });
