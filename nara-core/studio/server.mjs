@@ -116,7 +116,7 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178}={}){
 
       if(req.method!=='GET')return json(res,405,{error:'Method tidak didukung.'});
 
-      let pathname=url.pathname==='/'?'/index.html':url.pathname;
+      let pathname=url.pathname==='/'?'index.html':url.pathname.replace(/^\\/+/, '');
       pathname=normalize(pathname).replace(/^([.][.][/\\])+/, '');
       const full=join(PUBLIC,pathname);
       if(!full.startsWith(PUBLIC))return json(res,403,{error:'Path ditolak.'});
