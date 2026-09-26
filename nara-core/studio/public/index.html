@@ -41,6 +41,19 @@
     </section>
   </div>
 
+  <div id="neuralEntryTransition" class="neural-entry-transition" hidden aria-live="polite">
+    <div class="neural-entry-space" aria-hidden="true"></div>
+    <div class="neural-entry-ring ring-a" aria-hidden="true"></div>
+    <div class="neural-entry-ring ring-b" aria-hidden="true"></div>
+    <div class="neural-entry-ring ring-c" aria-hidden="true"></div>
+    <div class="neural-entry-scan" aria-hidden="true"></div>
+    <div class="neural-entry-copy">
+      <span id="neuralEntryPhase">CREATOR VERIFIED</span>
+      <strong>NARA CORE</strong>
+      <small id="neuralEntryDetail">IDENTITY CHANNEL SECURED</small>
+    </div>
+  </div>
+
   <div id="edgeHud" class="edge-hud" hidden>
     <div class="edge-top">
       <div class="edge-brand"><span class="dot"></span><strong>NARA CORE</strong><small id="edgeLifecycle">idle</small></div>
@@ -58,6 +71,7 @@
     </nav>
 
     <div class="edge-right-tools">
+      <button id="edgeAudioToggle" type="button" aria-pressed="true">AUDIO ON</button>
       <button id="edgeView3d" type="button">3D</button>
       <button id="edgeView2d" type="button">2D</button>
     </div>
