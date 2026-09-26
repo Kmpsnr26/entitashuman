@@ -64,6 +64,9 @@ export function evaluateNaraIntegrationReadiness({
 
  if(['development','validation'].includes(phase)){
   add('authority.pre-final-lock',integrationLocked,'integrationLocked='+integrationLocked,'authority:bridge-unlocked-too-early');
+  const bridge=authoritySnapshot?.bridge||{};
+  const prematureOpen=Object.entries(bridge).filter(([,decision])=>decision?.decision!=='block').map(([name])=>name);
+  add('authority.bridge-locked',prematureOpen.length===0,prematureOpen.join(', ')||'all blocked','authority:bridge-open-too-early');
  }else{
   add('authority.final-approved',authoritySnapshot?.finalIntegrationApproved===true,'approved='+Boolean(authoritySnapshot?.finalIntegrationApproved),'authority:final-not-approved');
  }
@@ -127,7 +130,7 @@ export function readinessCertificate(input={}){
   phase:result.phase,
   readyForCreatorConfirmation:result.readyForCreatorConfirmation,
   finalIntegrationApproved:result.finalIntegrationApproved,
-  passed:result.counts.failed===0,
+  passed:result.readyForCreatorConfirmation||result.finalIntegrationApproved,
   blockers:result.blockers,
   warnings:result.warnings
  });
