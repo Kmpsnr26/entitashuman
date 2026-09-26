@@ -367,7 +367,7 @@ test(
 
         assert.equal(
           error.retryable,
-          true
+          false
         );
 
         assert.equal(
