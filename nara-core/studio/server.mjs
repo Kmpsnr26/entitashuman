@@ -125,7 +125,7 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178}={}){
       }
 
       if(req.method==='POST'&&url.pathname==='/api/reset'){
-        nara.stop();telemetry.reset();nara.start();
+        nara.stop();telemetry.reset();skills.reset();nara.start();
         return json(res,200,{ok:true,state:nara.snapshot(),telemetry:telemetry.snapshot(),skills:skills.snapshot()});
       }
 
