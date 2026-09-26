@@ -10,6 +10,8 @@ on:
       - "desktop/**"
       - "public/**"
       - "tests/**"
+      - "nara-core/studio/**"
+      - "scripts/nara-neural-live-smoke.cjs"
       - "package.json"
       - "package-lock.json"
       - ".env.example"
@@ -121,3 +123,42 @@ jobs:
 
       - name: Audit high severity dependencies
         run: npm audit --audit-level=high
+
+
+  neural-live-browser:
+    name: Neural Space realtime WebGL
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      ELECTRON_ENABLE_LOGGING: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install HumanALE dependencies
+        run: npm ci
+
+      - name: Verify Xvfb
+        run: command -v xvfb-run
+
+      - name: Run realtime Electron WebGL smoke
+        run: xvfb-run -a --server-args="-screen 0 1440x960x24" npm run smoke:neural-live
+
+      - name: Upload live browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nara-neural-live-browser
+          path: |
+            artifacts/nara-neural-live.png
+            artifacts/nara-neural-live-report.json
+          if-no-files-found: warn
+          retention-days: 7
