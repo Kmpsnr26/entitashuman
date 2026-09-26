@@ -1,8 +1,6 @@
-// Reuse the exact NARA face engine and reference image from the local avatar.
+// Use the NARA face engine in procedural-only mode. No PNG/JPG face map is loaded.
 const canvas = document.querySelector('#avatar');
-const avatar = new window.NeuralAvatar(canvas, {
-  referenceSrc: new URL('./assets/reference-face.png', import.meta.url).href
-});
+const avatar = new window.NeuralAvatar(canvas);
 // The Site stage stays dark even when the visitor's OS theme is light.
 avatar.setEnvironment('dark');
 window.humanALEAvatar = avatar;
@@ -320,8 +318,8 @@ const unlockNaraVoice=()=>{naraVoiceUnlocked=true;};
 window.addEventListener('pointerdown',unlockNaraVoice,{once:true});
 window.addEventListener('keydown',unlockNaraVoice,{once:true});
 
-avatar.referencePromise.then(loaded => {
-  showState(loaded ? 'WAJAH NARA SIAP' : 'PETA WAJAH GAGAL DIMUAT');
+avatar.referencePromise.then(() => {
+  showState('WAJAH PROCEDURAL SIAP');
   dataSpine.start();
   cognition.start();
   memory.start();

@@ -7,14 +7,15 @@ const siteFile = path => new URL(`../sites/humanale-hologram/${path}`, import.me
 test('HumanALE Hologram Site contains its complete editable static source', async () => {
   const hosting = JSON.parse(await readFile(siteFile('.openai/hosting.json'), 'utf8'));
   const html = await readFile(siteFile('dist/index.html'), 'utf8');
-  const asset = await stat(siteFile('dist/assets/reference-face.png'));
 
   assert.equal(hosting.static.directory, 'dist');
   for (const script of ['face-rig.js', 'neural-core.js', 'avatar.js', 'site.js']) {
     assert.ok(html.includes(script), `${script} must load on the Site`);
     await stat(siteFile(`dist/${script}`));
   }
-  assert.ok(asset.size > 100_000, 'reference face asset is incomplete');
+  const siteSource = await readFile(siteFile('dist/site.js'), 'utf8');
+  assert.doesNotMatch(siteSource, /reference-face\.png|referenceSrc\s*:/, 'Site must run the avatar in procedural-only mode');
+  await assert.rejects(stat(siteFile('dist/assets/reference-face.png')), error => error?.code === 'ENOENT');
 });
 
 test('Site renderer presents complete frames without rapid whole-face flashing', async () => {
@@ -38,8 +39,9 @@ test('main web, desktop and Android builds share the Site avatar source', async 
   ]);
 
   for (const source of [build, server, desktopPackage, desktopMain]) assert.match(source, /humanale-hologram|humanale/, 'avatar assets must be routed or copied');
-  for (const source of [build, desktopPackage]) assert.match(source, /reference-face\.png/, 'reference face must be packaged');
-  assert.match(installer, /sites\/humanale-hologram\/dist\/assets\/reference-face\.png/);
+  for (const source of [build, desktopPackage, installer]) {
+    assert.doesNotMatch(source, /reference-face\.png/, 'procedural avatar builds must not package a face PNG');
+  }
   assert.match(android, /sites\/humanale-hologram\/dist\/\*\*/);
   for (const feature of ['setState','setListening','setTalking','setAudioLevel','setEarSpectrum','drawAudioSensors']) {
     assert.match(adapter, new RegExp(feature + '\\('), feature);
