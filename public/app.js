@@ -18,17 +18,76 @@ const desktopMemory=desktop&&window.HumanALEMemory?.create
 const desktopContextBridge=desktop&&desktopMemory&&window.HumanALEContextBridge?.create
  ?window.HumanALEContextBridge.create({runtime:desktopMemoryRuntime,memory:desktopMemory,storage:localStorage,maxEntries:6,maxChars:1600})
  :null;
+const MEMORY_SOURCE_KEY='humanale.nara.context-source.v1';
+let cloudMemoryState=Object.freeze({configured:false,authenticated:false,available:false});
 window.humanALEDesktopMemory=desktopMemory;
 window.humanALEDesktopContextBridge=desktopContextBridge;
 
+function selectedMemorySource(){
+ const stored=localStorage.getItem(MEMORY_SOURCE_KEY);
+ return stored==='cloud'?'cloud':'local';
+}
+function setMemorySource(value){
+ const source=value==='cloud'?'cloud':'local';
+ localStorage.setItem(MEMORY_SOURCE_KEY,source);
+ const select=$('#memoryContextSource');
+ if(select&&select.value!==source)select.value=source;
+ return source;
+}
+async function refreshCloudMemoryStatus(){
+ if(!desktop?.cloudStatus){
+  cloudMemoryState=Object.freeze({configured:false,authenticated:false,available:false});
+  updateDesktopMemoryContextUi();
+  return cloudMemoryState;
+ }
+ try{
+  const result=await desktop.cloudStatus();
+  cloudMemoryState=Object.freeze({
+   configured:Boolean(result?.configured),
+   authenticated:Boolean(result?.authenticated),
+   available:Boolean(result?.available),
+   loginRequired:Boolean(result?.loginRequired),
+   displayName:String(result?.displayName||''),
+   error:String(result?.error||'')
+  });
+ }catch{
+  cloudMemoryState=Object.freeze({configured:true,authenticated:false,available:false,error:'NARA_CLOUD_UNREACHABLE'});
+ }
+ updateDesktopMemoryContextUi();
+ return cloudMemoryState;
+}
 function updateDesktopMemoryContextUi(){
  const row=$('#memoryContextRow'),select=$('#memoryContextMode'),status=$('#memoryContextStatus');
- if(!desktop||!desktopContextBridge||!desktopMemory){if(row)row.hidden=true;if(status)status.hidden=true;return;}
- row.hidden=false;status.hidden=false;
+ const sourceRow=$('#memorySourceRow'),sourceSelect=$('#memoryContextSource');
+ const cloudActions=$('#cloudMemoryActions'),cloudStatus=$('#cloudMemoryStatus'),cloudLogin=$('#cloudMemoryLogin');
+ if(!desktop||!desktopContextBridge||!desktopMemory){
+  if(row)row.hidden=true;if(status)status.hidden=true;if(sourceRow)sourceRow.hidden=true;
+  if(cloudActions)cloudActions.hidden=true;if(cloudStatus)cloudStatus.hidden=true;
+  return;
+ }
+ row.hidden=false;status.hidden=false;sourceRow.hidden=false;
  const snapshot=desktopContextBridge.snapshot(),memoryState=desktopMemory.snapshot();
  if(select&&select.value!==snapshot.mode)select.value=snapshot.mode;
+ let source=selectedMemorySource();
+ const cloudOption=sourceSelect?.querySelector('option[value="cloud"]');
+ if(cloudOption)cloudOption.disabled=!cloudMemoryState.configured;
+ if(source==='cloud'&&!cloudMemoryState.configured)source=setMemorySource('local');
+ if(sourceSelect&&sourceSelect.value!==source)sourceSelect.value=source;
  const modeLabel=snapshot.mode==='off'?'OFF':snapshot.mode==='auto-safe'?'AUTO-SAFE':'TANYA DULU';
- status.textContent='Memory context · '+modeLabel+' · '+memoryState.count+' memori lokal tersedia.';
+ const sourceLabel=source==='cloud'?'NARA CLOUD':'LOKAL';
+ status.textContent='Memory context · '+modeLabel+' · sumber '+sourceLabel+' · '+memoryState.count+' memori lokal tersedia.';
+ if(cloudActions)cloudActions.hidden=!cloudMemoryState.configured;
+ if(cloudStatus)cloudStatus.hidden=!cloudMemoryState.configured;
+ if(cloudLogin)cloudLogin.hidden=!cloudMemoryState.configured||cloudMemoryState.authenticated;
+ if(cloudStatus&&!cloudStatus.hidden){
+  cloudStatus.textContent=cloudMemoryState.available
+   ?'NARA Cloud terhubung'+(cloudMemoryState.displayName?' · '+cloudMemoryState.displayName:'')+'.'
+   :cloudMemoryState.loginRequired
+    ?'NARA Cloud perlu login Owner.'
+    :cloudMemoryState.error
+     ?'NARA Cloud belum tersedia · '+cloudMemoryState.error
+     :'NARA Cloud belum terhubung.';
+ }
 }
 async function prepareDesktopMemoryContext(task,target='reasoner'){
  if(!desktopContextBridge||!desktopMemory)return null;
@@ -40,15 +99,48 @@ async function prepareDesktopMemoryContext(task,target='reasoner'){
  if(preview.requiresApproval){
   const excerpt=preview.text.length>900?preview.text.slice(0,899)+'…':preview.text;
   const approved=window.confirm(
-   'NARA menemukan '+preview.count+' memori relevan ('+preview.chars+' karakter).\n\n'+
-   excerpt+'\n\nGunakan context ini untuk '+target+'?'
+   'NARA menemukan '+preview.count+' memori lokal relevan ('+preview.chars+' karakter).\n\n'+
+   excerpt+'\n\nGunakan context lokal ini untuk '+target+'?'
   );
-  if(!approved){desktopContextBridge.reject(preview.id);updateDesktopMemoryContextUi();toast('Memory context tidak digunakan.');return null;}
+  if(!approved){desktopContextBridge.reject(preview.id);updateDesktopMemoryContextUi();toast('Memory context lokal tidak digunakan.');return null;}
   desktopContextBridge.approve(preview.id);
  }
  const packet=desktopContextBridge.transport(preview.id);
  updateDesktopMemoryContextUi();
  return packet;
+}
+async function prepareCloudMemoryContext(target='reasoner'){
+ if(!desktop?.cloudContext)return null;
+ const mode=desktopContextBridge?.snapshot()?.mode||'off';
+ if(mode==='off')return null;
+ if(!cloudMemoryState.available)await refreshCloudMemoryStatus();
+ if(!cloudMemoryState.available){
+  toast(cloudMemoryState.loginRequired?'Login NARA Cloud diperlukan.':'NARA Cloud belum tersedia.');
+  return null;
+ }
+ const first=await desktop.cloudContext({target,mode,approved:false});
+ if(first?.error){toast('NARA Cloud: '+first.error);await refreshCloudMemoryStatus();return null;}
+ if(first?.context)return first.context;
+ const preview=first?.preview;
+ if(!preview)return null;
+ const excerpt=preview.text.length>900?preview.text.slice(0,899)+'…':preview.text;
+ const approved=window.confirm(
+  'NARA Cloud menemukan '+preview.count+' memori ('+preview.chars+' karakter).\n\n'+
+  excerpt+'\n\nGunakan context cloud ini untuk '+target+'?'
+ );
+ if(!approved){toast('Memory context cloud tidak digunakan.');return null;}
+ const confirmed=await desktop.cloudContext({target,mode,approved:true,entryIds:preview.entryIds});
+ if(confirmed?.error){toast('NARA Cloud: '+confirmed.error);return null;}
+ return confirmed?.context||null;
+}
+async function prepareEffectiveMemoryContext(task,target='reasoner'){
+ if(!desktopContextBridge||!desktopMemory)return null;
+ desktopMemory.load?.();
+ const storedMode=localStorage.getItem(window.HumanALEContextBridge?.key||'humanale.nara.context-mode.v1');
+ if(storedMode&&storedMode!==desktopContextBridge.snapshot().mode)desktopContextBridge.setMode(storedMode);
+ if(desktopContextBridge.snapshot().mode==='off')return null;
+ if(selectedMemorySource()==='cloud')return prepareCloudMemoryContext(target);
+ return prepareDesktopMemoryContext(task,target);
 }
 if(!document.documentElement.classList.contains('stage-surface'))document.querySelector('#chatDialog')?.removeAttribute('open');
 const assistantPopup=new DudidamPopup($('#assistantPopup'),{
@@ -375,7 +467,7 @@ async function submit(text,image){text=text.trim();if(!text||busy)return;message
  }
  if(!aiReady){const missing={copilot:'GitHub Copilot CLI belum tersedia. Pasang dan login Copilot, lalu tekan Periksa lagi.',openai:'OpenAI API belum aktif. Atur OPENAI_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',grok:'Grok belum aktif. Atur XAI_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',gemini:'Gemini belum aktif. Atur GEMINI_API_KEY atau GOOGLE_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',claude:'Claude belum aktif. Atur ANTHROPIC_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',deepseek:'DeepSeek belum aktif. Atur DEEPSEEK_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',askcodi:'AskCodi belum aktif. Atur ASKCODI_API_KEY dan ASKCODI_MODEL, buka ulang HumanALE god egine, lalu tekan Periksa lagi.'}[aiProvider]||'Silakan pilih Login ChatGPT pada kontrol avatar, selesaikan login di browser, lalu Periksa lagi.';message(missing,'assistant',false);return;}
  busy=true;stopSpeech();$('#send').disabled=true;$('#look').disabled=true;state('Berpikir…');const providerName={copilot:'GitHub Copilot',openai:'OpenAI API',grok:'Grok',gemini:'Gemini',claude:'Claude',deepseek:'DeepSeek',askcodi:'AskCodi'}[aiProvider]||'ChatGPT';$('#liveText').textContent=providerName+' sedang merespons…';
- try{const memoryContext=await prepareDesktopMemoryContext(text,'reasoner');const result=await desktop.ask({provider:aiProvider,message:text,history:history.slice(-10),image,memoryContext});if(result.error)throw new Error(result.error);history.push({role:'user',content:text},{role:'assistant',content:result.text});history=history.slice(-10);panelChannel?.postMessage({type:'history',history});message(result.text);}
+ try{const memoryContext=await prepareEffectiveMemoryContext(text,'reasoner');const result=await desktop.ask({provider:aiProvider,message:text,history:history.slice(-10),image,memoryContext});if(result.error)throw new Error(result.error);history.push({role:'user',content:text},{role:'assistant',content:result.text});history=history.slice(-10);panelChannel?.postMessage({type:'history',history});message(result.text);}
  catch(e){message(e.message||('Koneksi '+providerName+' gagal. Coba lagi.'),'assistant',false);}finally{busy=false;avatar.thinking=false;$('#send').disabled=false;$('#look').disabled=false;$('#liveText').textContent='';if(!avatar.speaking&&!listening)state();}
 }
 async function checkAI(){
@@ -430,7 +522,7 @@ async function runDeveloperAgent(event){
  let workSucceeded=false;
  if(mode==='work')setEvolutionVisual('start');
  try{
-  const memoryContext=await prepareDesktopMemoryContext(prompt,mode==='work'?'agent':'planner');
+  const memoryContext=await prepareEffectiveMemoryContext(prompt,mode==='work'?'agent':'planner');
   const result=await desktop.runAgent({id,prompt,mode,memoryContext});
   if(result?.error)throw new Error(result.error);
   $('#agentOutput').textContent=result?.text||'Agent selesai tanpa output.';
@@ -485,7 +577,7 @@ async function runCopilotProjectWork(text){
  const copilot=(status.agents||[]).find(item=>item.id==='github-copilot');
  if(!copilot?.canRun)throw new Error('GitHub Copilot Work mode belum siap. Pastikan Copilot CLI terpasang dan login, lalu Periksa koneksi di Developer agents.');
  const prompt=buildProjectWorkPrompt(text);
- const memoryContext=await prepareDesktopMemoryContext(text,'agent');
+ const memoryContext=await prepareEffectiveMemoryContext(text,'agent');
  try{
   const result=await desktop.runAgent({id:'github-copilot',mode:'work',prompt,memoryContext});
   if(!result?.error)desktopMemory?.remember({
