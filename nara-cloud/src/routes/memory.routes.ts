@@ -17,6 +17,14 @@ import {
   requireCsrf
 } from "../middleware/requireCsrf.js";
 
+import {
+  requireTrustedOrigin
+} from "../middleware/requireTrustedOrigin.js";
+
+import {
+  requireJsonContentType
+} from "../middleware/requireJsonContentType.js";
+
 const router =
   express.Router();
 
@@ -255,6 +263,8 @@ router.get(
 
 router.post(
   "/",
+  requireTrustedOrigin,
+  requireJsonContentType,
   requireCsrf,
   async (
     req,
@@ -312,6 +322,7 @@ router.post(
 
 router.delete(
   "/:id",
+  requireTrustedOrigin,
   requireCsrf,
   async (
     req,
