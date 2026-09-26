@@ -247,3 +247,37 @@ test('Neural Space 3D keeps existing Studio security boundaries',async()=>{
   assert.doesNotMatch(scene,/EventSource/);
   assert.doesNotMatch(scene,/terminal\.exec/);
 });
+
+
+test('living neural roots use bounded reusable flow packets and organic tubes',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const scene=await readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8');
+
+  assert.match(scene,/new THREE\.CatmullRomCurve3/);
+  assert.match(scene,/new THREE\.TubeGeometry/);
+  assert.match(scene,/function organicCurve\(/);
+  assert.match(scene,/animateLinks\(t\)/);
+  assert.match(scene,/this\.adjacency=new Map\(\)/);
+  assert.match(scene,/this\.packetGeometry=new THREE\.SphereGeometry/);
+  assert.match(scene,/setActive\(active\)/);
+  assert.doesNotMatch(scene,/this\.packets\.push/);
+  assert.doesNotMatch(scene,/setInterval\(/);
+});
+
+test('Neural Space Stage 2 highlights selected neighborhood and pauses when hidden',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [scene,app,html]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/index.html',root),'utf8')
+  ]);
+
+  assert.match(scene,/selectedNeighbors/);
+  assert.match(scene,/link\.targetIntensity=link\.selected/);
+  assert.match(scene,/energizeRegion\(id,amount=1\)/);
+  assert.match(app,/scene\.setActive\(true\)/);
+  assert.match(app,/neural3d\?\.setActive\(false\)/);
+  assert.match(html,/id="neural3dRoots"/);
+});
