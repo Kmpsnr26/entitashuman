@@ -568,7 +568,7 @@ test('release workflows use least privilege, pinned Android tooling, signed publ
  assert.match(android,/Publish signed APK to versioned GitHub release[\s\S]*?GH_TOKEN/);
  assert.doesNotMatch(android,/Publish rolling Android release/);
  assert.match(nara,/push:\s*\n\s*branches: \[main\]/);
- assert.match(repair,/workflows: \\["Verify and package", "Build Android APK", "NARA Cloud Verify", "CodeQL Security"\\]/);
+ assert.match(repair,/workflows: \["Verify and package", "Build Android APK", "NARA Cloud Verify", "CodeQL Security"\]/);
 });
 
 test('cloud auto-repair closes stale fallback draft PRs after CI recovery',async()=>{
