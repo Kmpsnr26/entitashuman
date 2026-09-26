@@ -152,6 +152,7 @@ export class NaraStudioTelemetry{
       diagnostics:{...this.diagnostics,counters:{...this.diagnostics.counters},current:this.diagnostics.current?{...this.diagnostics.current}:null,history:this.diagnostics.history.map(item=>({...item}))},
       performance:{
         ...this.performance,
+        startedAt:this.startedAt,
         uptimeMs:Math.max(0,Date.now()-this.startedAt),
         events10s,
         eventsPerSecond:Number((events10s/10).toFixed(2))
