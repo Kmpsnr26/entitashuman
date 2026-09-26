@@ -110,7 +110,15 @@ async function run(){
     await waitFor(win,"document.getElementById('neuralNodeInspector')?.hidden===false");
     await waitFor(win,"document.getElementById('nodeInspectorTitle')?.textContent==='Memory'");
     report.checks.nodeInspectorVisible=true;
-    report.nodeInspector=await evaluate(win,"({title:document.getElementById('nodeInspectorTitle')?.textContent,status:document.getElementById('nodeInspectorStatus')?.textContent,text:document.getElementById('nodeInspectorBody')?.textContent})");
+    await waitFor(win,"document.getElementById('nodeInspectorVoiceText')?.textContent.includes('Memory')");
+    report.nodeInspector=await evaluate(win,"({title:document.getElementById('nodeInspectorTitle')?.textContent,status:document.getElementById('nodeInspectorStatus')?.textContent,text:document.getElementById('nodeInspectorBody')?.textContent,voice:document.getElementById('nodeInspectorVoiceText')?.textContent})");
+    report.checks.nodeVoiceNarration=Boolean(
+      String(report.nodeInspector.voice||'').includes('Memory')&&
+      String(report.nodeInspector.voice||'').includes('Database')&&
+      String(report.nodeInspector.voice||'').includes('Credential, secret, dan private reasoning tidak ditampilkan')&&
+      !/DO_NOT_SPEAK|password|api[_ -]?key|bearer\s+[a-z0-9._-]+/i.test(String(report.nodeInspector.voice||''))
+    );
+    report.checks.nodeVoiceReplayPresent=await evaluate(win,"Boolean(document.getElementById('nodeInspectorSpeak'))");
     report.checks.nodeInspectorSafeMetadata=Boolean(
       String(report.nodeInspector.text||'').includes('NETWORK / SERVER')&&
       String(report.nodeInspector.text||'').includes('127.0.0.1')&&
