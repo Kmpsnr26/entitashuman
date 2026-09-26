@@ -120,6 +120,14 @@ export class NaraOrchestrator{
     return this.workflow.snapshot();
   }
 
+  workflowQueue(){
+    return this.workflow.queue();
+  }
+
+  workflowReport(){
+    return this.workflow.report();
+  }
+
   snapshot(){return this.state.snapshot();}
 }
 
