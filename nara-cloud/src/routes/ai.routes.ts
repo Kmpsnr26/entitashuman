@@ -43,6 +43,14 @@ import {
 } from "../middleware/requireCsrf.js";
 
 import {
+  requireTrustedOrigin
+} from "../middleware/requireTrustedOrigin.js";
+
+import {
+  requireJsonContentType
+} from "../middleware/requireJsonContentType.js";
+
+import {
   recordAiUsage
 } from "../services/ai-usage.service.js";
 
@@ -286,6 +294,8 @@ router.get(
 router.post(
   "/chat",
   aiLimiter,
+  requireTrustedOrigin,
+  requireJsonContentType,
   requireCsrf,
   async (
     req,
@@ -374,6 +384,8 @@ router.post(
 router.post(
   "/stream",
   aiLimiter,
+  requireTrustedOrigin,
+  requireJsonContentType,
   requireCsrf,
   async (
     req,
