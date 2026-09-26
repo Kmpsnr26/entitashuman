@@ -124,6 +124,7 @@ async function run(){
     report.checks.creatorGatewayPassed=await evaluate(win,"(()=>{const button=document.getElementById('creatorEnter');if(!button)return false;button.click();return true;})()");
     await sleep(120);
     report.checks.cinematicEntryTriggered=await evaluate(win,"(()=>{const entry=document.getElementById('neuralEntryTransition');return Boolean(entry&&!entry.hidden&&entry.classList.contains('neural-entry-active'));})()");
+    report.checks.matrixTransitionVisible=await evaluate(win,"(()=>{const canvas=document.getElementById('neuralEntryMatrix');if(!canvas)return false;const rect=canvas.getBoundingClientRect();return rect.width>300&&rect.height>300&&canvas.width>0&&canvas.height>0;})()");
     report.checks.audioControlPresent=await evaluate(win,"Boolean(document.getElementById('edgeAudioToggle'))");
     await waitFor(win,"document.getElementById('connection')?.textContent==='LIVE'",{timeout:18000});
     report.checks.liveConnection=true;
