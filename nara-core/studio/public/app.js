@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-let snapshot=null,regions={},telemetry=null;
+let snapshot=null,regions={},telemetry=null,skillsSnapshot=null;
 const connectionIds=['GITHUB','COPILOT','WEB','TEAM','PR','SYNC','ONLINE','OWNER_EMAIL','DRIVE'];
 const eventSelect=$('eventSelect');
 
@@ -53,6 +53,7 @@ function renderState(state){
     return '<span class="chip '+statusClass(s)+'">'+escapeHtml(id)+' · '+escapeHtml(s)+'</span>';
   }).join('');
   drawBrain();
+  if(skillsSnapshot)renderSkills(skillsSnapshot);
 }
 
 function appendEvent(envelope){
@@ -131,6 +132,39 @@ function renderTelemetry(data){
   ).join('')||'<div class="trace-empty">Belum ada aktivitas memory.</div>';
 }
 
+
+function renderSkills(data){
+  skillsSnapshot=data||{};
+  const skills=Array.isArray(skillsSnapshot.skills)?skillsSnapshot.skills:[];
+  $('skillSummary').textContent=(skillsSnapshot.total||skills.length)+' skills';
+  $('skillEnabled').textContent=String(skillsSnapshot.enabled||0);
+  $('skillRunning').textContent=String(skillsSnapshot.running||0);
+  $('skillFailed').textContent=String(skillsSnapshot.failed||0);
+  $('skillRows').innerHTML=skills.map(skill=>
+    '<div class="skill-row">'+
+    '<strong>'+escapeHtml(skill.label)+'</strong>'+
+    '<span>'+escapeHtml(skill.region||'—')+'</span>'+
+    '<span class="skill-status '+statusClass(skill.status)+'">'+escapeHtml(skill.status)+'</span>'+
+    '<span>'+escapeHtml(skill.runs)+'</span>'+
+    '<span>'+escapeHtml(skill.lastEvent||'—')+'</span>'+
+    '</div>'
+  ).join('')||'<div class="trace-empty">Belum ada skill terdaftar.</div>';
+
+  const agent=skills.find(skill=>skill.id==='agent.manage')||{};
+  const region=snapshot?.regions?.AGENT_MANAGER||{};
+  const status=agent.status||region.status||'ready';
+  $('agentStatus').textContent=status;
+  $('agentCoreStatus').textContent=region.status||status;
+  $('agentLabel').textContent=agent.lastLabel||region.message||'—';
+  $('agentRuns').textContent=String(agent.runs||0);
+  $('agentSuccess').textContent=String(agent.successes||0);
+  $('agentFailures').textContent=String(agent.failures||0);
+  $('agentDuration').textContent=formatDuration(agent.lastDurationMs);
+  $('agentLastEvent').textContent=agent.lastEvent||region.lastEvent||'—';
+  const core=document.querySelector('.agent-core');
+  if(core)core.className='agent-core '+statusClass(status);
+}
+
 async function dispatch(event,payload={}){
   $('consoleLog').textContent='Dispatching '+event+' ...';
   const res=await fetch('/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event,payload})});
@@ -147,12 +181,14 @@ async function boot(){
   eventSelect.innerHTML=(data.studio?.eventAllowlist||[]).map(e=>'<option>'+escapeHtml(e)+'</option>').join('');
   renderState(data.state);
   renderTelemetry(data.telemetry);
+  renderSkills(data.skills);
   for(const event of data.events||[])appendEvent(event);
 
   const stream=new EventSource('/api/stream');
   stream.addEventListener('ready',()=>{$('connection').textContent='LIVE';$('connection').className='live';});
   stream.addEventListener('state',e=>renderState(JSON.parse(e.data)));
   stream.addEventListener('telemetry',e=>renderTelemetry(JSON.parse(e.data)));
+  stream.addEventListener('skills',e=>renderSkills(JSON.parse(e.data)));
   stream.addEventListener('event',e=>appendEvent(JSON.parse(e.data)));
   stream.onerror=()=>{$('connection').textContent='RECONNECTING';$('connection').className='warn';};
 }
