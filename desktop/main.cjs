@@ -236,6 +236,7 @@ else{
     password:bootstrapOwnerPassword
    });
   }
+  delete process.env.NARA_CREATOR_PASSWORD;
   ownerGate=createHumanALEOwnerGate({store:ownerStore});
   const experience=createExperienceModel();
   let restoredExperience=null;
