@@ -6,7 +6,7 @@ const path=require('node:path');
 const {tmpdir}=require('node:os');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,systemObserver,dataFlowMeter,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer;
+let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,systemObserver,dataFlowMeter,experienceStore,experienceSaveTimer,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer;
 let cloudAllowedOrigins=new Set();
 let announceNaraEvent=()=>{};
 let baseWindowSize={width:420,height:480};
@@ -24,6 +24,7 @@ if(ciSmoke)app.setPath('userData',mkdtempSync(path.join(tmpdir(),'dudidam-ci-smo
 app.on('before-quit',()=>{
  try{stopSystemObserver?.();}catch{}
  try{if(dataFlowTimer)clearInterval(dataFlowTimer);}catch{}
+ try{if(experienceSaveTimer)clearTimeout(experienceSaveTimer);}catch{}
  try{nara?.stop();}catch{}
 });
 
@@ -204,12 +205,30 @@ else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
   const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
-  const [{createOrchestrator},{createVoiceFeedback}]=await Promise.all([import('../nara-core/brain/index.js'),import('../nara-core/voice/index.js')]);
+  const [{createOrchestrator,createExperienceModel},{createVoiceFeedback},{createExperienceStore}]=await Promise.all([
+   import('../nara-core/brain/index.js'),
+   import('../nara-core/voice/index.js'),
+   import('../nara-core/persistence/experience-store.mjs')
+  ]);
   naraVoice=createVoiceFeedback();
   systemObserver=createSystemObserver({intervalMs:5000});
   dataFlowMeter=createDataFlowMeter();
-  nara=createOrchestrator({deviceProfile:systemObserver.deviceProfile()});
+  experienceStore=createExperienceStore({filePath:path.join(app.getPath('userData'),'nara-experience.json')});
+  const experience=createExperienceModel();
+  let restoredExperience=null;
+  try{
+   restoredExperience=await experienceStore.load();
+   if(restoredExperience)experience.hydrate(restoredExperience);
+  }catch(error){
+   console.error('[NARA EXPERIENCE RESTORE]',error.message);
+  }
+  nara=createOrchestrator({deviceProfile:systemObserver.deviceProfile(),experience});
   nara.start();
+  if(restoredExperience){
+   try{nara.dispatch('experience.restored',{
+    strategies:experience.snapshot().strategies.length
+   },{source:'experience-store'});}catch{}
+  }
   nara.configureDevice(systemObserver.deviceProfile());
   stopSystemObserver=systemObserver.start(snapshot=>{
     try{nara.dispatch('system.telemetry',snapshot,{source:'system-observer'});}catch{}
@@ -294,7 +313,28 @@ else{
   };
   const consumeNaraVoice=envelope=>{const cue=naraVoice?.consume(envelope);if(cue)publishNaraVoice(cue);return cue;};
   nara.state.subscribe(snapshot=>publishNaraState(snapshot));
-  nara.bus.onAny(envelope=>consumeNaraVoice(envelope));
+  const scheduleExperienceSave=()=>{
+   if(experienceSaveTimer)clearTimeout(experienceSaveTimer);
+   experienceSaveTimer=setTimeout(async()=>{
+    experienceSaveTimer=null;
+    try{
+     const saved=await experienceStore.save(nara.experience.snapshot());
+     nara.dispatch('experience.persisted',{
+      strategies:saved.strategies.length,
+      history:saved.history.length
+     },{source:'experience-store'});
+    }catch(error){
+     console.error('[NARA EXPERIENCE SAVE]',error.message);
+    }
+   },250);
+   experienceSaveTimer.unref?.();
+  };
+  nara.bus.onAny(envelope=>{
+   consumeNaraVoice(envelope);
+   if(envelope.event==='autopilot.task.complete'||envelope.event==='autopilot.task.failed'){
+    scheduleExperienceSave();
+   }
+  });
   announceNaraEvent=(event,payload={})=>consumeNaraVoice({event,payload,timestamp:Date.now()});
   ipcMain.handle('dudidam:nara-snapshot',e=>{
    if(!trusted(e))return {error:'Akses ditolak.'};
