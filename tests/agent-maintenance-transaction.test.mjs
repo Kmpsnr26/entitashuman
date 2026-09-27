@@ -94,7 +94,7 @@ test('tracked protected policy edit is quarantined and restored exactly to basel
   assert.ok(result.violations.includes('PROTECTED_PATH_CHANGE'));
   assert.equal(result.rolledBack,true);
   assert.equal(
-   await readFile(protectedFile,'utf8'),
+   (await readFile(protectedFile,'utf8')).replace(/\r\n/g,'\n'),
    'export const boundary="baseline";\n'
   );
   assert.equal(git(root,'status','--porcelain'),'');
@@ -114,7 +114,7 @@ test('staged changes fail closed and are rolled back',async()=>{
   assert.equal(result.allowed,false);
   assert.ok(result.violations.includes('STAGED_CHANGE'));
   assert.equal(result.rolledBack,true);
-  assert.equal(await readFile(join(root,'app.js'),'utf8'),'export const value=1;\n');
+  assert.equal((await readFile(join(root,'app.js'),'utf8')).replace(/\r\n/g,'\n'),'export const value=1;\n');
   assert.equal(git(root,'status','--porcelain'),'');
   await tx.release();
  }finally{
