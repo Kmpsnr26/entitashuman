@@ -22,6 +22,8 @@ test('AI maintenance policy is repair-only and denies all owner/release authorit
  assert.ok(snapshot.readDeniedAreas.includes('.env*'));
  assert.ok(snapshot.protectedAreas.includes('desktop/agent-hub.mjs'));
  assert.ok(snapshot.protectedAreas.includes('desktop/agent-maintenance-transaction.mjs'));
+ assert.ok(snapshot.protectedAreas.includes('desktop/agent-autopilot-*.mjs'));
+ assert.ok(snapshot.protectedAreas.includes('desktop/agent-trusted-*-broker.mjs'));
  assert.ok(snapshot.protectedAreas.includes('nara-cloud/src/services/owner.service.ts'));
  assert.ok(snapshot.protectedAreas.includes('nara-core/permissions/**'));
  assert.ok(AI_MAINTENANCE_READ_DENIED_AREAS.includes('**/*.pfx'));
@@ -31,6 +33,9 @@ test('AI maintenance policy is repair-only and denies all owner/release authorit
  assert.ok(AI_MAINTENANCE_PROTECTED_AREAS.includes('.gitignore'));
  assert.ok(AI_MAINTENANCE_PROTECTED_AREAS.includes('electron-builder.yml'));
  assert.ok(AI_MAINTENANCE_READ_DENIED_AREAS.includes('.npmrc'));
+ assert.ok(AI_MAINTENANCE_READ_DENIED_AREAS.includes('**/.git-credentials'));
+ assert.ok(AI_MAINTENANCE_READ_DENIED_AREAS.includes('**/.netrc'));
+ assert.ok(AI_MAINTENANCE_READ_DENIED_AREAS.includes('**/auth.json'));
 
  for(const capability of [
   'program.read','program.edit','program.test','program.build','program.debug',
