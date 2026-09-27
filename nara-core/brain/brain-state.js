@@ -183,6 +183,12 @@ export class NaraBrainState{
       this.setRegion('SYNC',{status:'syncing',activity:1,message:'Sinkronisasi berjalan'},event);
     }else if(event==='sync.complete'){
       this.setRegion('SYNC',{status:'complete',activity:.2,message:'Sinkronisasi selesai'},event);
+    }else if(event==='capability.requested'){
+      this.setRegion('SAFETY',{status:'processing',activity:.85,message:'Memeriksa permintaan capability'},event);
+    }else if(event==='capability.approved'){
+      this.setRegion('SAFETY',{status:'complete',activity:.3,message:'Capability disetujui creator'},event);
+    }else if(event==='capability.denied'||event==='capability.revoked'){
+      this.setRegion('SAFETY',{status:'paused',activity:.25,message:'Capability ditolak atau dicabut'},event);
     }else if(event==='report.created'){
       this.setRegion('REPORTING',{status:'complete',activity:.2,message:'Laporan dibuat'},event);
     }else if(event==='audio.energy'){
