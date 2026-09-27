@@ -106,7 +106,7 @@
 
     <div class="edge-right-tools">
       <button id="edgeAudioToggle" type="button" aria-pressed="true">AUDIO ON</button>
-      <button id="edgeCustomSettings" type="button" aria-expanded="false" aria-controls="customSettingsPanel">⚙ CUSTOM</button>
+      <button id="edgeCustomSettings" type="button" data-ui-sound-managed="true" aria-expanded="false" aria-controls="customSettingsPanel">⚙ CUSTOM</button>
       <button id="edgeView3d" type="button">3D</button>
       <button id="edgeView2d" type="button">2D</button>
     </div>
@@ -125,18 +125,18 @@
           <span>CREATOR CONTROL CENTER</span>
           <strong>CUSTOM VISUAL</strong>
         </div>
-        <button id="customSettingsClose" type="button" aria-label="Close custom settings">×</button>
+        <button id="customSettingsClose" type="button" data-ui-sound-managed="true" aria-label="Close custom settings">×</button>
       </div>
 
       <div class="custom-settings-body">
         <section class="custom-setting-section">
           <h3>PRESET</h3>
           <div class="custom-preset-grid">
-            <button type="button" data-visual-preset="minimal">MINIMAL</button>
-            <button type="button" data-visual-preset="ai-lab">AI LAB</button>
-            <button type="button" data-visual-preset="neural-galaxy">NEURAL GALAXY</button>
-            <button type="button" data-visual-preset="cinematic">CINEMATIC</button>
-            <button type="button" data-visual-preset="creator">CREATOR</button>
+            <button type="button" data-ui-sound-managed="true" data-visual-preset="minimal">MINIMAL</button>
+            <button type="button" data-ui-sound-managed="true" data-visual-preset="ai-lab">AI LAB</button>
+            <button type="button" data-ui-sound-managed="true" data-visual-preset="neural-galaxy">NEURAL GALAXY</button>
+            <button type="button" data-ui-sound-managed="true" data-visual-preset="cinematic">CINEMATIC</button>
+            <button type="button" data-ui-sound-managed="true" data-visual-preset="creator">CREATOR</button>
           </div>
         </section>
 
@@ -212,7 +212,7 @@
 
       <div class="custom-settings-foot">
         <span>Visual / audio preferences only · no credentials stored</span>
-        <button id="customSettingsReset" type="button">RESET VISUAL</button>
+        <button id="customSettingsReset" type="button" data-ui-sound-managed="true">RESET VISUAL</button>
       </div>
     </aside>
 
