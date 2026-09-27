@@ -1272,3 +1272,91 @@ test('R6 physical acceptance wrapper does not expose Creator credentials',async(
   assert.doesNotMatch(combined,/browser-acceptance-\+process\.pid/);
   assert.doesNotMatch(ps1,/NARA_CREATOR_PASSWORD\s*=/);
 });
+
+
+test('Revision R7 adds selectable NARA voice identity and local UI sound engine',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [html,app,settings,identity,uiSound,entry,nodeVoice,sound,styles]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/index.html',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/custom-settings.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/voice-identity.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/ui-sound.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/neural-entry.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/node-voice.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/cinematic-sound.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/styles.css',root),'utf8')
+  ]);
+
+  for(const key of ['uiSfx','coreFx','voiceProfile','voiceURI']){
+    assert.match(settings,new RegExp(key));
+  }
+  assert.match(html,/id="naraVoiceSelect"/);
+  assert.match(html,/id="naraVoicePreview"/);
+  assert.match(html,/NARA Deep/);
+  assert.match(html,/NARA Calm/);
+  assert.match(html,/NARA Droid/);
+  assert.match(html,/NARA Natural/);
+  assert.match(html,/UI SFX/);
+  assert.match(html,/Core FX/);
+
+  assert.match(identity,/VOICE_PROFILES/);
+  assert.match(identity,/deep:Object\.freeze/);
+  assert.match(identity,/calm:Object\.freeze/);
+  assert.match(identity,/droid:Object\.freeze/);
+  assert.match(identity,/natural:Object\.freeze/);
+  assert.match(identity,/voice\.voiceURI===requested/);
+  assert.match(identity,/^\s*if\(!\('speechSynthesis' in window\)\)return \[\];/m);
+  assert.match(identity,/nara:voice-speaking/);
+
+  assert.match(app,/createUiSoundEngine/);
+  assert.match(app,/uiSound\.setProfile\(customSettings\.getSettings\(\)\)/);
+  assert.match(app,/onVoicePreview:settings=>nodeVoice\.preview/);
+  assert.match(app,/onUiCue:cue=>uiSound\?\.cue\(cue\)/);
+
+  for(const cue of ['hover','click','panelOpen','panelClose','confirm','warning','error','process','neuralPulse']){
+    assert.match(uiSound,new RegExp("name==='"+cue+"'"));
+  }
+  assert.match(uiSound,/ducked\?\.28:1/);
+  assert.match(uiSound,/nara:voice-speaking/);
+
+  assert.match(entry,/chooseNaraVoice\(profile\)/);
+  assert.match(nodeVoice,/chooseNaraVoice\(voiceProfile\)/);
+  assert.match(nodeVoice,/preview\(settings=\{\}\)/);
+  assert.match(sound,/coreFx:clamp/);
+  assert.match(sound,/levelForCue/);
+  assert.match(sound,/ducked\?\.34:1/);
+  assert.match(styles,/Revision R7 — Voice Identity \+ UI Sound/);
+});
+
+test('R7 audio identity modules remain local and syntax-valid',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const {spawnSync}=await import('node:child_process');
+  const {fileURLToPath}=await import('node:url');
+  for(const relative of [
+    '../nara-core/studio/public/voice-identity.js',
+    '../nara-core/studio/public/ui-sound.js',
+    '../nara-core/studio/public/custom-settings.js',
+    '../nara-core/studio/public/cinematic-sound.js',
+    '../nara-core/studio/public/neural-entry.js',
+    '../nara-core/studio/public/node-voice.js'
+  ]){
+    const file=fileURLToPath(new URL(relative,import.meta.url));
+    const source=await readFile(file,'utf8');
+    assert.doesNotMatch(source,/https?:\/\/|fetch\(|EventSource/);
+    const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
+    assert.equal(result.status,0,result.stderr||result.stdout||file);
+  }
+});
+
+test('R7 voice preference storage stays bounded and credential-free',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const settings=await readFile(new URL('nara-core/studio/public/custom-settings.js',root),'utf8');
+  assert.match(settings,/uiSfx:\[0,1\]/);
+  assert.match(settings,/coreFx:\[0,1\]/);
+  assert.match(settings,/VOICE_PROFILE_NAMES/);
+  assert.match(settings,/input\.voiceURI\.length<=240/);
+  assert.doesNotMatch(settings,/password|api[_-]?key|access[_-]?token|bearer/i);
+});
