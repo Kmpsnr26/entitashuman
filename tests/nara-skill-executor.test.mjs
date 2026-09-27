@@ -220,3 +220,36 @@ test('Skill Executor history and snapshot contain metadata only',async()=>{
   assert.equal(serialized.includes('NOT_IN_HISTORY_EITHER'),false);
   assert.equal(executor.recent({limit:1})[0].status,SKILL_EXECUTION_STATUS.COMPLETED);
 });
+
+
+test('same skill cannot run concurrently and active skill cannot be unregistered',async()=>{
+  let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const executor=createSkillExecutor({
+    limits:{maxConcurrent:2,defaultTimeoutMs:1000,maxTimeoutMs:1000}
+  });
+  executor.register({
+    id:'reason',
+    handler:async()=>{await gate;return {ok:true};}
+  });
+
+  const first=executor.execute({
+    skillId:'reason',
+    decision:allow('reason','busy-1')
+  });
+  await new Promise(resolve=>setTimeout(resolve,0));
+
+  assert.equal(executor.describe('reason').active,true);
+  assert.throws(()=>executor.unregister('reason'),/active skill/);
+
+  const second=await executor.execute({
+    skillId:'reason',
+    decision:allow('reason','busy-2')
+  });
+  assert.equal(second.status,SKILL_EXECUTION_STATUS.DEFERRED);
+  assert.equal(second.reason,SKILL_EXECUTION_REASON.SKILL_BUSY);
+
+  release();
+  assert.equal((await first).status,SKILL_EXECUTION_STATUS.COMPLETED);
+  assert.equal(executor.describe('reason').active,false);
+});
