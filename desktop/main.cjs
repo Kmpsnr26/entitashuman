@@ -3,10 +3,11 @@ const http=require('node:http');
 const {readFile,writeFile}=require('node:fs/promises');
 const {mkdtempSync,existsSync}=require('node:fs');
 const path=require('node:path');
-const {tmpdir}=require('node:os');
+const {tmpdir,homedir}=require('node:os');
+const {randomUUID}=require('node:crypto');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,naraAgentCoordinator,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,humanaleRuntime,systemObserver,dataFlowMeter,experienceStore,experienceSaveTimer,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer;
+let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,naraAgentCoordinator,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,humanaleRuntime,ownerStore,ownerGate,systemObserver,dataFlowMeter,experienceStore,experienceSaveTimer,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer;
 let cloudAllowedOrigins=new Set();
 let announceNaraEvent=()=>{};
 let baseWindowSize={width:420,height:480};
@@ -143,7 +144,11 @@ async function openPanel(view='controls'){
  panelWin.webContents.on('will-navigate',(event,url)=>{if(!url.startsWith(origin+'/'))event.preventDefault();});
  panelWin.webContents.on('will-attach-webview',event=>event.preventDefault());
  panelWin.on('closed',()=>{panelWin=null;});
- try{await panelWin.loadURL(origin+'/?panel='+encodeURIComponent(target));panelWin?.show();panelWin?.focus();}
+ try{
+  await panelWin.loadURL(origin+'/?panel='+encodeURIComponent(target));
+  if(ownerGate?.isUnlocked(String(win?.webContents?.id||'')))ownerGate.unlock(String(panelWin.webContents.id));
+  panelWin?.show();panelWin?.focus();
+ }
  catch(error){console.error('HumanALE god egine panel failed:',error);throw error;}
 }
 function safeCloudNavigation(value){
@@ -207,17 +212,31 @@ else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
   const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
-  const [{createOrchestrator,createExperienceModel},{createVoiceFeedback},{createExperienceStore},{createHumanALERuntimeHost},{createNaraAgentCoordinator}]=await Promise.all([
+  const [{createOrchestrator,createExperienceModel},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createNaraAgentCoordinator},{createHumanALEOwnerGate}]=await Promise.all([
    import('../nara-core/brain/index.js'),
    import('../nara-core/voice/index.js'),
    import('../nara-core/persistence/experience-store.mjs'),
+   import('../nara-core/security/owner-store.mjs'),
    import('./humanale-runtime-host.mjs'),
-   import('./nara-agent-coordinator.mjs')
+   import('./nara-agent-coordinator.mjs'),
+   import('./humanale-owner-gate.mjs')
   ]);
   naraVoice=createVoiceFeedback();
   systemObserver=createSystemObserver({intervalMs:5000});
   dataFlowMeter=createDataFlowMeter();
   experienceStore=createExperienceStore({filePath:path.join(app.getPath('userData'),'nara-experience.json')});
+  const ownerStorePath=ciSmoke
+   ?path.join(app.getPath('userData'),'nara-owner.json')
+   :(process.env.NARA_OWNER_STORE||path.join(homedir(),'.nara','owner.json'));
+  ownerStore=createOwnerStore({filePath:ownerStorePath});
+  const bootstrapOwnerPassword=String(process.env.NARA_CREATOR_PASSWORD||'');
+  if(!ownerStore.configured()&&bootstrapOwnerPassword){
+   ownerStore.provision({
+    username:process.env.NARA_CREATOR_USERNAME||'creator',
+    password:bootstrapOwnerPassword
+   });
+  }
+  ownerGate=createHumanALEOwnerGate({store:ownerStore});
   const experience=createExperienceModel();
   let restoredExperience=null;
   try{
@@ -306,6 +325,17 @@ else{
   win.setAlwaysOnTop(true,'floating');
   win.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true});
   const trusted=e=>(e.sender===win?.webContents||e.sender===panelWin?.webContents)&&e.senderFrame?.url?.startsWith(origin+'/');
+  const ownerActor=e=>String(e?.sender?.id||'');
+  const ownerTrusted=e=>trusted(e)&&ownerGate?.isUnlocked(ownerActor(e));
+  if(ciSmoke&&!ownerStore.configured()){
+   const ciPassword='CI-'+randomUUID()+'-Nara!';
+   const provisioned=ownerGate.provision(String(win.webContents.id),{
+    username:'ci-owner',
+    password:ciPassword,
+    confirmPassword:ciPassword
+   });
+   if(!provisioned.ok)throw new Error('CI Creator provisioning gagal: '+provisioned.error);
+  }
   const scheduleExperienceSave=()=>{
    if(experienceSaveTimer)clearTimeout(experienceSaveTimer);
    experienceSaveTimer=setTimeout(async()=>{
@@ -326,13 +356,19 @@ else{
    nara,
    voiceFeedback:naraVoice,
    dataFlowMeter,
-   getTargets:()=>[win,panelWin],
-   isTrustedEvent:trusted,
+   getTargets:()=>[win,panelWin].filter(target=>target&&ownerGate?.isUnlocked(String(target.webContents.id))),
+   isTrustedEvent:ownerTrusted,
    onExperienceDirty:scheduleExperienceSave
   });
   humanaleRuntime.bindIpc(ipcMain);
   humanaleRuntime.start();
   announceNaraEvent=(event,payload={})=>humanaleRuntime.announce(event,payload);
+
+  ipcMain.handle('dudidam:owner-status',e=>trusted(e)?ownerGate.status(ownerActor(e)):{error:'Akses ditolak.'});
+  ipcMain.handle('dudidam:owner-provision',(e,value)=>trusted(e)?ownerGate.provision(ownerActor(e),value):{error:'Akses ditolak.'});
+  ipcMain.handle('dudidam:owner-login',(e,value)=>trusted(e)?ownerGate.login(ownerActor(e),value):{error:'Akses ditolak.'});
+  ipcMain.handle('dudidam:owner-logout',e=>trusted(e)?ownerGate.logout(ownerActor(e)):{error:'Akses ditolak.'});
+  ipcMain.handle('dudidam:owner-change-login',(e,value)=>trusted(e)?ownerGate.changeCredentials(ownerActor(e),value):{error:'Akses ditolak.'});
 
   const openCloudLogin=()=>{
    if(!cloudMemory?.configured())return {error:'NARA_CLOUD_NOT_CONFIGURED'};
