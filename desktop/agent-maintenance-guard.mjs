@@ -89,7 +89,7 @@ export function sanitizeMaintenanceEnvironment(baseEnv={},{
  const identityKeys=new Set(AI_MAINTENANCE_IDENTITY_ENV_KEYS);
  for(const [rawKey,rawValue] of Object.entries(baseEnv||{})){
   const key=String(rawKey);
-  if(AI_MAINTENANCE_SENSITIVE_ENV_PATTERN.test(key)||identityKeys.has(key.toUpperCase())){
+  if(AI_MAINTENANCE_SENSITIVE_ENV_PATTERN.test(key)||(isolated&&identityKeys.has(key.toUpperCase()))){
    removed.push(key);
    continue;
   }
