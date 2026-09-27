@@ -35,6 +35,9 @@ test('V3.2 coordinator turns a HumanALE agent request into Goal → Task → Aut
   assert.equal(goal.status,'complete');
   assert.equal(goal.progress,1);
   assert.equal(task.status,'complete');
+  assert.equal(goal.label.includes('Periksa integrasi runtime'),false);
+  assert.equal(task.label.includes('Periksa integrasi runtime'),false);
+  assert.match(goal.label,/Agent humanale-orchestrator/);
   assert.ok(snapshot.engine.experience.strategies.some(item=>item.id==='humanale.agent.analyze'&&item.successes===1));
   assert.equal(coordinator.snapshot().pending,0);
   nara.stop();
@@ -114,5 +117,28 @@ test('V3.2 validates request before mutating Goal Manager or scheduler',async()=
   const snapshot=nara.snapshot();
   assert.equal(snapshot.engine.goals.total,0);
   assert.equal(snapshot.engine.autopilot.scheduler.total,0);
+  nara.stop();
+});
+
+
+test('V3.2 keeps raw prompt out of persisted Goal, Task and Experience snapshots',async()=>{
+  const secretPrompt='PRIVATE-PROMPT-DO-NOT-PERSIST-9f3b7a';
+  const nara=createOrchestrator();
+  nara.start();
+  const coordinator=createNaraAgentCoordinator({
+    nara,
+    agentHub:{run:async()=>({text:'ok'})}
+  });
+
+  const result=await coordinator.run({
+    id:'codex',
+    prompt:secretPrompt,
+    mode:'analyze'
+  });
+  assert.equal(result.text,'ok');
+
+  const serialized=JSON.stringify(nara.snapshot());
+  assert.equal(serialized.includes(secretPrompt),false);
+  assert.equal(coordinator.snapshot().pending,0);
   nara.stop();
 });
