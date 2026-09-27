@@ -175,3 +175,22 @@ test('v1 exposes no realtime scheduler or git publication authority',()=>{
  assert.equal(typeof auto.merge,'undefined');
  assert.equal(typeof auto.publish,'undefined');
 });
+
+
+test('final report redacts credential-like text from broker summaries and errors',async()=>{
+ const b=broker({
+  async verify(){
+   b.calls.push('verify');
+   throw new Error('OPENAI_API_KEY=sk-proj-supersecretvalue and token=abcdef123456789');
+  }
+ });
+ const auto=createAIAutopilotTransaction({
+  broker:b,
+  limits:{maxAttempts:1}
+ });
+ const result=await auto.runOnce({requestId:'auto-redaction'});
+ const serialized=JSON.stringify(result);
+ assert.equal(serialized.includes('sk-proj-supersecretvalue'),false);
+ assert.equal(serialized.includes('abcdef123456789'),false);
+ assert.match(serialized,/REDACTED/);
+});
