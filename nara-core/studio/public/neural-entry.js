@@ -1,5 +1,6 @@
 import {createCinematicSoundEngine} from './cinematic-sound.js';
 import {createMatrixTransitionField} from './matrix-transition.js';
+import {chooseNaraVoice,broadcastVoiceSpeaking} from './voice-identity.js';
 
 const PHASES=[
   ['CREATOR VERIFIED','IDENTITY CHANNEL SECURED','sweep'],
@@ -13,11 +14,6 @@ function reducedMotion(){
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches===true;
 }
 
-function chooseIndonesianVoice(){
-  const voices=window.speechSynthesis?.getVoices?.()||[];
-  return voices.find(voice=>/^id(?:-|$)/i.test(voice.lang||''))||voices[0]||null;
-}
-
 function speakCoreOnline(profile={}){
   if(!('speechSynthesis' in window)||typeof SpeechSynthesisUtterance==='undefined')return false;
   try{
@@ -25,7 +21,7 @@ function speakCoreOnline(profile={}){
     const utterance=new SpeechSynthesisUtterance(
       'NARA Core online. Akses pencipta terverifikasi. Neural Space tiga dimensi diaktifkan.'
     );
-    const voice=chooseIndonesianVoice();
+    const voice=chooseNaraVoice(profile);
     if(voice)utterance.voice=voice;
     utterance.lang=voice?.lang||'id-ID';
     const rate=Number(profile.voiceRate);
@@ -34,6 +30,9 @@ function speakCoreOnline(profile={}){
     utterance.rate=Number.isFinite(rate)?Math.max(.72,Math.min(1.15,rate)):.86;
     utterance.pitch=Number.isFinite(pitch)?Math.max(.5,Math.min(1.2,pitch)):.68;
     utterance.volume=Number.isFinite(volume)?Math.max(0,Math.min(1,volume)):.9;
+    utterance.onstart=()=>broadcastVoiceSpeaking(true);
+    utterance.onend=()=>broadcastVoiceSpeaking(false);
+    utterance.onerror=()=>broadcastVoiceSpeaking(false);
     window.speechSynthesis.speak(utterance);
     return true;
   }catch{
@@ -50,8 +49,8 @@ export function createNeuralEntryExperience(){
   let sequence=0;
   let audioEnabled=true;
   let audioProfile={
-    masterVolume:.78,transitionFx:.82,voiceVolume:.9,
-    voiceRate:.86,voicePitch:.68,droidCharacter:true
+    masterVolume:.78,transitionFx:.82,coreFx:.86,voiceVolume:.9,
+    voiceRate:.86,voicePitch:.68,voiceProfile:'deep',voiceURI:'auto',droidCharacter:true
   };
   const timers=new Set();
   const sound=createCinematicSoundEngine({enabled:()=>audioEnabled});
@@ -156,9 +155,12 @@ export function createNeuralEntryExperience(){
       audioProfile={
         masterVolume:number('masterVolume',0,1,audioProfile.masterVolume),
         transitionFx:number('transitionFx',0,1,audioProfile.transitionFx),
+        coreFx:number('coreFx',0,1,audioProfile.coreFx),
         voiceVolume:number('voiceVolume',0,1,audioProfile.voiceVolume),
         voiceRate:number('voiceRate',.72,1.15,audioProfile.voiceRate),
         voicePitch:number('voicePitch',.5,1.2,audioProfile.voicePitch),
+        voiceProfile:typeof settings.voiceProfile==='string'?settings.voiceProfile:audioProfile.voiceProfile,
+        voiceURI:typeof settings.voiceURI==='string'?settings.voiceURI:audioProfile.voiceURI,
         droidCharacter:typeof settings.droidCharacter==='boolean'?settings.droidCharacter:audioProfile.droidCharacter
       };
       sound.setProfile(audioProfile);
