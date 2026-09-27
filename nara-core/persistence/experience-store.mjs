@@ -1,4 +1,4 @@
-import {mkdir,readFile,rename,stat,writeFile} from 'node:fs/promises';
+import {mkdir,readFile,rename,rm,stat,writeFile} from 'node:fs/promises';
 import {dirname} from 'node:path';
 
 const MAX_BYTES=512*1024;
@@ -37,7 +37,13 @@ export class NaraExperienceStore{
     await mkdir(dirname(this.filePath),{recursive:true});
     const temp=this.filePath+'.tmp';
     await writeFile(temp,raw,{encoding:'utf8',mode:0o600});
-    await rename(temp,this.filePath);
+    try{
+      await rename(temp,this.filePath);
+    }catch(error){
+      if(!['EEXIST','EPERM'].includes(error?.code))throw error;
+      await rm(this.filePath,{force:true});
+      await rename(temp,this.filePath);
+    }
     return payload;
   }
 }
