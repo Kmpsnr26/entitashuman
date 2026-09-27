@@ -1,8 +1,9 @@
 import {spawn} from 'node:child_process';
 import {createHash,randomUUID} from 'node:crypto';
 import {
- mkdir,open,readFile,realpath,readdir,lstat,readlink,rename,rm,stat
+ mkdir,mkdtemp,open,readFile,realpath,readdir,lstat,readlink,rename,rm,stat
 } from 'node:fs/promises';
+import {tmpdir} from 'node:os';
 import {dirname,join,resolve} from 'node:path';
 import {
  AI_MAINTENANCE_PROTECTED_AREAS,
@@ -111,6 +112,35 @@ async function gitMetadataFingerprint(cwd){
   'attributes:'+await fileFingerprint(toPath(attributesRaw))
  ];
  return sha256(parts.join('\n'));
+}
+
+async function scanRepositorySymlinks(root,{limit=20}={}){
+ const hits=[];
+ async function walk(dir,relative=''){
+  if(hits.length>=limit)return;
+  let entries;
+  try{entries=await readdir(dir,{withFileTypes:true});}catch{return;}
+  for(const entry of entries){
+   if(hits.length>=limit)return;
+   if(entry.name==='.git')continue;
+   const rel=relative?relative+'/'+entry.name:entry.name;
+   let normalized;
+   try{normalized=normalizeMaintenanceRepoPath(rel);}catch{continue;}
+   const absolute=join(dir,entry.name);
+   try{
+    const info=await lstat(absolute);
+    if(info.isSymbolicLink()){
+     hits.push(normalized);
+     continue;
+    }
+    if(info.isDirectory()&&!SECRET_SCAN_SKIP_DIRS.has(entry.name)){
+     await walk(absolute,normalized);
+    }
+   }catch{}
+  }
+ }
+ await walk(root);
+ return hits;
 }
 
 async function scanSecretFiles(root,{limit=20}={}){
@@ -257,6 +287,16 @@ async function beginTransaction(cwd){
    throw error;
   }
 
+  const baselineSymlinks=await scanRepositorySymlinks(gitRoot);
+  if(baselineSymlinks.length){
+   const error=new Error('AI maintenance diblokir karena repository mengandung symbolic link: '+baselineSymlinks.join(', '));
+   error.code='AI_MAINTENANCE_BASELINE_SYMLINK_PRESENT';
+   error.paths=baselineSymlinks;
+   throw error;
+  }
+
+  const isolatedHome=await mkdtemp(join(tmpdir(),'humanale-ai-home-'));
+
   transaction={
    id:'maintenance-'+randomUUID(),
    version:AI_MAINTENANCE_TRANSACTION_VERSION,
@@ -266,6 +306,7 @@ async function beginTransaction(cwd){
    baseBranch,
    gitMetadataHash:await gitMetadataFingerprint(gitRoot),
    startedAt:Date.now(),
+   isolatedHome,
    ...lock,
    released:false
   };
@@ -441,6 +482,7 @@ export class MaintenanceTransaction{
  async release(){
   if(this.released)return;
   await releaseLock(this);
+  if(this.isolatedHome)await rm(this.isolatedHome,{recursive:true,force:true});
   this.released=true;
  }
 }
