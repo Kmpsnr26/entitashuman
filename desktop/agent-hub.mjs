@@ -9,6 +9,8 @@ import {
  buildMaintenanceWorkPrompt,
  maintenancePolicySnapshot
 } from './agent-maintenance-policy.mjs';
+import {sanitizeMaintenanceEnvironment} from './agent-maintenance-guard.mjs';
+import {beginMaintenanceTransaction} from './agent-maintenance-transaction.mjs';
 
 const maintenanceBoundaryLegacyMarker='Jangan git push, git merge, publish';
 
@@ -131,6 +133,15 @@ export function selectStructuredRoles(available=[]){
   :(list.find(id=>id!==worker)||worker);
  return {planner,worker,reviewer,degraded:reviewer===worker,executors:list};
 }
+function maintenanceChangeSetError(report){
+ const error=new Error(
+  'Perubahan AI maintenance diblokir: '+(report?.violations||[]).join(', ')
+ );
+ error.code='AI_MAINTENANCE_CHANGESET_BLOCKED';
+ error.report=report;
+ return error;
+}
+
 function looksLikeCopilotTrustPrompt(text=''){
  const value=String(text).replace(/\s+/g,' ').toLowerCase();
  return value.includes('trust the files in')||
@@ -139,7 +150,7 @@ function looksLikeCopilotTrustPrompt(text=''){
   value.includes('confirm that you trust');
 }
 export class DeveloperAgentHub{
- constructor(){this.child=null;this.pending=false;this.projectRoot='';}
+ constructor(){this.child=null;this.pending=false;this.projectRoot='';this.maintenanceTransaction=null;}
  setProjectRoot(value=''){this.projectRoot=String(value||'').trim();}
  getProjectRoot(){return (this.projectRoot||process.env.HUMANALE_PROJECT_ROOT||process.env.DUDIDAM_PROJECT_ROOT||process.cwd()).trim();}
  async projectRootReady(){
@@ -206,6 +217,7 @@ export class DeveloperAgentHub{
   if(!executable)throw new Error(agent.name+' belum ditemukan di PATH atau environment path khusus.');
   const cwd=this.getProjectRoot();
   if(mode==='work'&&!await this.projectRootReady())throw new Error('Folder proyek belum dipilih atau bukan checkout Git. Buka Developer agents → Pilih folder proyek, lalu pilih folder repo entitashuman.');
+  if(mode==='work'&&!this.maintenanceTransaction)throw new Error('Mode kerja agent wajib berjalan di dalam AI maintenance transaction.');
   if(id==='codex'){
    const auth=await codexLoginStatus(executable,cwd);
    if(!auth.ready){
@@ -226,8 +238,9 @@ export class DeveloperAgentHub{
    :id==='claude'?['-p',prompt,'--model','claude-fable-5','--permission-mode','plan','--tools','Read,Glob,Grep','--output-format','text','--no-session-persistence']
    :['-p',prompt,'--mode=ask','--output-format','text'];
   const timeoutMs=agentTimeoutMs(mode);
-  return await new Promise((resolve,reject)=>{
-   const child=spawn(executable,args,{cwd,windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,NO_COLOR:'1'}});
+  const directResult=await new Promise((resolve,reject)=>{
+   const maintenanceEnv=sanitizeMaintenanceEnvironment(process.env).env;
+   const child=spawn(executable,args,{cwd,windowsHide:true,stdio:['ignore','pipe','pipe'],env:maintenanceEnv});
    this.child=child;let stdout='',stderr='',settled=false;
    const finish=(error,value)=>{if(settled)return;settled=true;clearTimeout(timer);if(this.child===child)this.child=null;error?reject(error):resolve(value);};
    const timer=setTimeout(()=>{child.kill();finish(new Error(agent.name+' belum selesai dalam '+Math.round(timeoutMs/1000)+' detik.'));},timeoutMs);
@@ -259,6 +272,19 @@ export class DeveloperAgentHub{
     return code===0?finish(null,{id,name:agent.name,mode,text:stdout.trim()||'Agent selesai tanpa output teks.'}):finish(new Error((stderr||stdout||agent.name+' gagal dijalankan.').trim()));
    });
   });
+  if(mode==='work'){
+   const inspection=await this.maintenanceTransaction.inspect();
+   if(!inspection.allowed)throw maintenanceChangeSetError(inspection);
+   return {
+    ...directResult,
+    maintenance:Object.freeze({
+     transactionId:inspection.transactionId,
+     changedFiles:inspection.paths.length,
+     totalBytes:inspection.totalBytes
+    })
+   };
+  }
+  return directResult;
  }
  async runStructured(prompt,mode){
   if(mode==='work'&&!await this.projectRootReady())throw new Error('Folder proyek belum dipilih atau bukan checkout Git.');
@@ -316,22 +342,58 @@ export class DeveloperAgentHub{
   const id=String(value?.id||''),mode=value?.mode==='work'?'work':'analyze';
   let prompt=String(value?.prompt||'').trim();
   if(!prompt||prompt.length>4000)throw new Error('Prompt agent harus berisi 1–4000 karakter.');
-  if(mode==='work'){
-   assertMaintenanceTaskAllowed(prompt,{mode});
-   const cwd=this.getProjectRoot();
-   if(!await this.projectRootReady())throw new Error('AI maintenance memerlukan checkout Git proyek yang dipilih secara eksplisit.');
-   const worktree=await runProcess('git',['status','--porcelain'],{cwd,timeout:8000});
-   if(worktree.code!==0||worktree.timedOut)throw new Error('Status Git tidak dapat diverifikasi. AI maintenance dihentikan fail-closed.');
-   if(worktree.stdout.trim())throw new Error('AI maintenance hanya boleh dimulai dari Git worktree bersih. Commit/stash perubahan manusia terlebih dahulu.');
-  }
-  const memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['planner','agent']});
-  const contextBlock=memoryContextBlock(memoryContext);
-  if(contextBlock)prompt=contextBlock+'\n\nTugas pengguna:\n'+prompt;
+
   this.pending=true;
+  let transaction=null;
   try{
-   if(id==='humanale-orchestrator')return await this.runStructured(prompt,mode);
-   return await this.runDirect(id,prompt,mode);
-  }finally{this.pending=false;}
+   if(mode==='work'){
+    assertMaintenanceTaskAllowed(prompt,{mode});
+    const cwd=this.getProjectRoot();
+    if(!await this.projectRootReady())throw new Error('AI maintenance memerlukan checkout Git proyek yang dipilih secara eksplisit.');
+    transaction=await beginMaintenanceTransaction(cwd);
+    this.maintenanceTransaction=transaction;
+   }
+
+   const memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['planner','agent']});
+   const contextBlock=memoryContextBlock(memoryContext);
+   if(contextBlock)prompt=contextBlock+'\n\nTugas pengguna:\n'+prompt;
+
+   const result=id==='humanale-orchestrator'
+    ?await this.runStructured(prompt,mode)
+    :await this.runDirect(id,prompt,mode);
+
+   if(transaction){
+    const finalInspection=await transaction.inspect();
+    if(!finalInspection.allowed)throw maintenanceChangeSetError(finalInspection);
+   }
+   return result;
+  }catch(error){
+   if(transaction&&!transaction.released){
+    try{
+     const rollback=await transaction.rollback('PIPELINE_FAILED');
+     if(rollback?.rolledBack)error.maintenanceRollback=rollback;
+    }catch(rollbackError){
+     if(rollbackError?.code==='AI_MAINTENANCE_MANUAL_RECOVERY_REQUIRED'){
+      const wrapped=new Error(
+       String(error?.message||error)+
+       ' Repository identity berubah; rollback otomatis dihentikan dan recovery manual diperlukan.'
+      );
+      wrapped.code='AI_MAINTENANCE_MANUAL_RECOVERY_REQUIRED';
+      wrapped.cause=error;
+      wrapped.rollback=rollbackError;
+      throw wrapped;
+     }
+     error.maintenanceRollbackError=String(rollbackError?.message||rollbackError);
+    }
+   }
+   throw error;
+  }finally{
+   if(transaction&&!transaction.released){
+    try{await transaction.release();}catch{}
+   }
+   if(this.maintenanceTransaction===transaction)this.maintenanceTransaction=null;
+   this.pending=false;
+  }
  }
  stop(){this.child?.kill();}
 }
