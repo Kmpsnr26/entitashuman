@@ -294,7 +294,17 @@ jobs:
               });
             }
 
+            // cloud-auto-repair-test:start issue-recovery-state
+            function issueRecovered(issue) {
+              const labels = (issue.labels || []).map((label) =>
+                typeof label === 'string' ? label : label.name
+              );
+              return issue.state !== 'open' || labels.includes('automation:resolved');
+            }
+            // cloud-auto-repair-test:end issue-recovery-state
+
             async function queueExistingIssue(issue) {
+              if (issueRecovered(issue)) return;
               const labels = (issue.labels || []).map((label) =>
                 typeof label === 'string' ? label : label.name
               );
@@ -642,12 +652,14 @@ jobs:
             const candidates = JSON.parse(process.env.FALLBACK_ISSUES || '[]');
             const repository = await github.rest.repos.get({ owner, repo });
 
+            // cloud-auto-repair-test:start issue-recovery-state
             function issueRecovered(issue) {
               const labels = (issue.labels || []).map((label) =>
                 typeof label === 'string' ? label : label.name
               );
               return issue.state !== 'open' || labels.includes('automation:resolved');
             }
+            // cloud-auto-repair-test:end issue-recovery-state
 
             // cloud-auto-repair-test:start fallback-identity
             function fallbackBranchFor(issueNumber) {

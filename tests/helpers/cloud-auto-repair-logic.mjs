@@ -22,6 +22,13 @@ export function isFallbackPullRequest(pull, issueNumber) {
   );
 }
 
+export function issueRecovered(issue) {
+  const labels = (issue.labels || []).map((label) =>
+    typeof label === 'string' ? label : label.name
+  );
+  return issue.state !== 'open' || labels.includes('automation:resolved');
+}
+
 export function selectLatestFailedRuns(runs, options) {
   const {
     cutoff,
