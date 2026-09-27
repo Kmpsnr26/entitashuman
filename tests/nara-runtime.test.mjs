@@ -14,9 +14,15 @@ test('Electron preload exposes only the narrow NARA runtime bridge',async()=>{
 test('Electron main owns and starts the NARA orchestrator with renderer event allowlist',async()=>{
   const main=await readFile(new URL('desktop/main.cjs',root),'utf8');
   assert.match(main,/import\('\.\.\/nara-core\/brain\/index\.js'\)/);
-  assert.match(main,/nara=createOrchestrator\(\{deviceProfile:systemObserver\.deviceProfile\(\)\}\)/);
+  assert.match(main,/nara=createOrchestrator\(\{deviceProfile:systemObserver\.deviceProfile\(\),experience\}\)/);
   assert.match(main,/createSystemObserver/);
   assert.match(main,/createDataFlowMeter/);
+  assert.match(main,/createExperienceModel/);
+  assert.match(main,/createExperienceStore/);
+  assert.match(main,/nara-experience\.json/);
+  assert.match(main,/experience\.hydrate\(restoredExperience\)/);
+  assert.match(main,/experienceStore\.save\(nara\.experience\.snapshot\(\)\)/);
+  assert.match(main,/experience\.persisted/);
   assert.match(main,/nara\.configureDevice\(systemObserver\.deviceProfile\(\)\)/);
   assert.match(main,/nara\.dispatch\('system\.telemetry'/);
   assert.match(main,/nara\.dispatch\('dataflow\.sample'/);
