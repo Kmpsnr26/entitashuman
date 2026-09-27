@@ -54,3 +54,11 @@ test('structured HumanALE orchestrator keeps planning, work and review bounded',
  assert.match(app,/\['humanale-orchestrator','github-copilot','codex','cursor','claude'\]\.includes\(id\)/);
  assert.match(html,/Planner → Worker → Reviewer/);
 });
+
+
+test('AI maintenance work mode blocks direct memory context handoff to Worker',async()=>{
+ const hub=await readFile(new URL('../desktop/agent-hub.mjs',import.meta.url),'utf8');
+ assert.match(hub,/AI_MAINTENANCE_WORK_MEMORY_BLOCKED/);
+ assert.match(hub,/Mode kerja AI maintenance tidak menerima memory context langsung/);
+ assert.match(hub,/mode==='work'&&value\?\.memoryContext!=null/);
+});
