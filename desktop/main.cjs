@@ -364,11 +364,29 @@ else{
   humanaleRuntime.start();
   announceNaraEvent=(event,payload={})=>humanaleRuntime.announce(event,payload);
 
+  const publishOwnerState=()=>{
+   for(const target of [win,panelWin]){
+    if(!target||target.isDestroyed()||target.webContents.isLoading())continue;
+    target.webContents.send('dudidam:owner-state',ownerGate.status(String(target.webContents.id)));
+   }
+  };
   ipcMain.handle('dudidam:owner-status',e=>trusted(e)?ownerGate.status(ownerActor(e)):{error:'Akses ditolak.'});
-  ipcMain.handle('dudidam:owner-provision',(e,value)=>trusted(e)?ownerGate.provision(ownerActor(e),value):{error:'Akses ditolak.'});
-  ipcMain.handle('dudidam:owner-login',(e,value)=>trusted(e)?ownerGate.login(ownerActor(e),value):{error:'Akses ditolak.'});
-  ipcMain.handle('dudidam:owner-logout',e=>trusted(e)?ownerGate.logout(ownerActor(e)):{error:'Akses ditolak.'});
-  ipcMain.handle('dudidam:owner-change-login',(e,value)=>trusted(e)?ownerGate.changeCredentials(ownerActor(e),value):{error:'Akses ditolak.'});
+  ipcMain.handle('dudidam:owner-provision',(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   const result=ownerGate.provision(ownerActor(e),value);publishOwnerState();return result;
+  });
+  ipcMain.handle('dudidam:owner-login',(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   const result=ownerGate.login(ownerActor(e),value);publishOwnerState();return result;
+  });
+  ipcMain.handle('dudidam:owner-logout',e=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   const result=ownerGate.logout(ownerActor(e));publishOwnerState();return result;
+  });
+  ipcMain.handle('dudidam:owner-change-login',(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   const result=ownerGate.changeCredentials(ownerActor(e),value);publishOwnerState();return result;
+  });
 
   const openCloudLogin=()=>{
    if(!cloudMemory?.configured())return {error:'NARA_CLOUD_NOT_CONFIGURED'};
