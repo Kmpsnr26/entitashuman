@@ -301,3 +301,36 @@ test('global workflow concurrency is bounded',async()=>{
   release();
   await first;
 });
+
+
+test('workflow never passes execution output into Learning Engine metadata adapter',async()=>{
+  let learnedExecution=null;
+  let verificationExecution=null;
+  const c=components();
+  c.learningEngine={
+    observeExecution(execution){learnedExecution=execution;return {accepted:true};},
+    ingest(){return {accepted:true};}
+  };
+  c.verificationEngine={
+    async verify({execution,artifact}){
+      verificationExecution=execution;
+      assert.deepEqual(artifact,{answer:42});
+      return {verificationId:'verify-narrow',skillId:execution.skillId,verdict:'PASS',reason:null,durationMs:1,endedAt:2,checks:[{ok:true}]};
+    },
+    toLearningSignal(report){
+      return {id:'learn-narrow',kind:'verification',skillId:report.skillId,outcome:'success',authority:'verifier',timestamp:2,weight:1,tags:['verification']};
+    }
+  };
+  const workflow=createWorkflowOrchestrator(c);
+  const report=await workflow.run({
+    workflowId:'wf-narrow-handoff',
+    decisionRequest:{action:'skill.execute'},
+    skillId:'reason',
+    input:{private:'INPUT_PRIVATE'},
+    verifierIds:['shape']
+  });
+  assert.equal(report.status,WORKFLOW_STATUS.COMPLETED);
+  assert.equal(Object.hasOwn(learnedExecution,'output'),false);
+  assert.equal(Object.hasOwn(verificationExecution,'output'),false);
+  assert.equal(JSON.stringify(learnedExecution).includes('42'),false);
+});
