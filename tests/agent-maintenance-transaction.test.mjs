@@ -168,7 +168,7 @@ test('explicit rollback quarantines and removes otherwise safe partial worker ch
   const rollback=await tx.rollback('WORKER_FAILED');
   assert.equal(rollback.rolledBack,true);
   assert.equal(rollback.quarantineCreated,true);
-  assert.equal(await readFile(join(root,'app.js'),'utf8'),'export const value=1;\n');
+  assert.equal((await readFile(join(root,'app.js'),'utf8')).replace(/\r\n/g,'\n'),'export const value=1;\n');
   assert.equal(git(root,'status','--porcelain'),'');
   await tx.release();
  }finally{
