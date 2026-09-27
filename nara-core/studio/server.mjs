@@ -253,7 +253,10 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
       }
 
       if(req.method==='POST'&&url.pathname==='/api/creator/login'){
-        if(creatorMisconfigured)return json(res,503,{ok:false,error:'Creator auth diwajibkan tetapi NARA_CREATOR_PASSWORD belum dikonfigurasi.'});
+        if(creatorMisconfigured)return json(res,503,{
+          ok:false,
+          error:ownerStoreError||'Creator auth diwajibkan tetapi owner store/password belum dikonfigurasi.'
+        });
         const data=await bodyJson(req);
         const result=creator.login(req,{
           username:String(data.username||'').slice(0,120),
@@ -408,6 +411,7 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===normalize(process.argv[1]))
     host:process.env.NARA_STUDIO_HOST||'127.0.0.1',
     port:Number(process.env.NARA_STUDIO_PORT)||4178,
     creatorAuth:{
+      required:true,
       ownerStorePath:process.env.NARA_OWNER_STORE||join(homedir(),'.nara','owner.json')
     }
   });
