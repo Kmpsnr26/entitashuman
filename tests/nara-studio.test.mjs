@@ -543,6 +543,100 @@ test('Creator Gateway protects Studio APIs with bounded server-side session',asy
   assert.equal(relocked.status,401);
 });
 
+test('persistent Creator owner survives restart and only authenticated owner can change login',async t=>{
+  const {mkdtempSync,readFileSync,rmSync}=await import('node:fs');
+  const {join}=await import('node:path');
+  const {tmpdir}=await import('node:os');
+  const dir=mkdtempSync(join(tmpdir(),'nara-studio-owner-'));
+  const ownerStorePath=join(dir,'owner.json');
+  t.after(()=>rmSync(dir,{recursive:true,force:true}));
+
+  const first=createNaraStudioServer({
+    host:'127.0.0.1',
+    port:0,
+    creatorAuth:{
+      username:'owner',
+      password:'OwnerSecret123!',
+      ownerStorePath,
+      required:true,
+      ttlMs:60000
+    }
+  });
+  const firstAddress=await first.start();
+  const firstBase='http://127.0.0.1:'+firstAddress.port;
+
+  const before=await fetch(firstBase+'/api/creator/session').then(r=>r.json());
+  assert.equal(before.persistentOwner,true);
+  assert.equal(before.owner.username,'owner');
+  const ownerId=before.owner.ownerId;
+  assert.equal(readFileSync(ownerStorePath,'utf8').includes('OwnerSecret123!'),false);
+
+  const login=await fetch(firstBase+'/api/creator/login',{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({username:'owner',password:'OwnerSecret123!'})
+  });
+  assert.equal(login.status,200);
+  const cookie=(login.headers.get('set-cookie')||'').split(';')[0];
+
+  const wrongChange=await fetch(firstBase+'/api/creator/change-login',{
+    method:'POST',
+    headers:{'content-type':'application/json',cookie},
+    body:JSON.stringify({
+      currentPassword:'wrong-password',
+      newUsername:'owner2',
+      newPassword:'OwnerSecret456!'
+    })
+  });
+  assert.equal(wrongChange.status,400);
+
+  const changed=await fetch(firstBase+'/api/creator/change-login',{
+    method:'POST',
+    headers:{'content-type':'application/json',cookie},
+    body:JSON.stringify({
+      currentPassword:'OwnerSecret123!',
+      newUsername:'owner2',
+      newPassword:'OwnerSecret456!'
+    })
+  });
+  assert.equal(changed.status,200);
+  const changedBody=await changed.json();
+  assert.equal(changedBody.reloginRequired,true);
+  assert.equal(changedBody.owner.ownerId,ownerId);
+  assert.equal(changedBody.owner.username,'owner2');
+  assert.equal(readFileSync(ownerStorePath,'utf8').includes('OwnerSecret456!'),false);
+  assert.equal((await fetch(firstBase+'/api/snapshot',{headers:{cookie}})).status,401);
+  await first.stop();
+
+  const restarted=createNaraStudioServer({
+    host:'127.0.0.1',
+    port:0,
+    creatorAuth:{ownerStorePath,required:true,ttlMs:60000}
+  });
+  t.after(()=>restarted.stop());
+  const secondAddress=await restarted.start();
+  const secondBase='http://127.0.0.1:'+secondAddress.port;
+
+  const session=await fetch(secondBase+'/api/creator/session').then(r=>r.json());
+  assert.equal(session.persistentOwner,true);
+  assert.equal(session.owner.ownerId,ownerId);
+  assert.equal(session.owner.username,'owner2');
+
+  const oldLogin=await fetch(secondBase+'/api/creator/login',{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({username:'owner',password:'OwnerSecret123!'})
+  });
+  assert.equal(oldLogin.status,401);
+
+  const newLogin=await fetch(secondBase+'/api/creator/login',{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({username:'owner2',password:'OwnerSecret456!'})
+  });
+  assert.equal(newLogin.status,200);
+});
+
 test('Creator Gateway rate-limits failed authentication attempts',async t=>{
   const studio=createNaraStudioServer({
     host:'127.0.0.1',
