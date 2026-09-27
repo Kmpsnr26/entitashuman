@@ -242,3 +242,25 @@ test('verification history and Event Bus never retain artifact content',async()=
   assert.match(serialized,/verification\.start/);
   assert.match(serialized,/verification\.complete/);
 });
+
+
+test('verifier-provided summaries cannot copy artifact content into reports',async()=>{
+  const engine=createVerificationEngine();
+  engine.register({
+    id:'summary-guard',
+    handler:artifact=>({
+      ok:true,
+      code:'SAFE_CODE',
+      summary:artifact.private
+    })
+  });
+  const report=await engine.verify({
+    verificationId:'verify-summary-guard',
+    execution:execution(),
+    artifact:{private:'ARTIFACT_TEXT_MUST_NOT_BE_STORED'},
+    verifierIds:['summary-guard']
+  });
+  assert.equal(report.verdict,VERIFICATION_VERDICTS.PASS);
+  assert.equal(report.checks[0].summary,'Verification passed.');
+  assert.equal(JSON.stringify(report).includes('ARTIFACT_TEXT_MUST_NOT_BE_STORED'),false);
+});
