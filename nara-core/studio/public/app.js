@@ -1,5 +1,6 @@
 const $=id=>document.getElementById(id);
 let snapshot=null,regions={},telemetry=null,skillsSnapshot=null;
+let neural3d=null,neural3dLoading=null,studioView='2d';
 let eventBuffer=[],eventPaused=false,replayTimer=null;
 const connectionIds=['GITHUB','COPILOT','WEB','TEAM','PR','SYNC','ONLINE','OWNER_EMAIL','DRIVE'];
 const eventSelect=$('eventSelect');
@@ -13,6 +14,83 @@ function formatDuration(ms){
   if(ms<60000)return (ms/1000).toFixed(ms<10000?2:1)+' s';
   const min=Math.floor(ms/60000),sec=Math.floor((ms%60000)/1000);
   return min+'m '+sec+'s';
+}
+
+function updateViewButtons(){
+  const is3d=studioView==='3d';
+  $('view2d')?.classList.toggle('view-active',!is3d);
+  $('view3d')?.classList.toggle('view-active',is3d);
+}
+
+function updateNeuralHud(){
+  if(!$('neural3dSelected'))return;
+  $('neural3dSelected').textContent=snapshot?.selectedRegion||'NARA_CORE';
+  if(!neural3d)return;
+
+  const stats=neural3d.getStats();
+  $('neural3dRoots').textContent=stats.links+' living roots · '+stats.activeLinks+' active';
+  $('neural3dRoutes').textContent='routes: '+stats.routeCount+' · active '+stats.activeRoutes;
+  $('neural3dPerf').textContent='fps '+stats.fps+' · quality '+stats.quality+' · '+stats.mode;
+  $('neural3dLastRoute').textContent='last route: '+(stats.lastRoute||'—');
+
+  for(const [id,mode] of [['neuralExplorer','explorer'],['neuralFocus','focus'],['neuralCore','core']]){
+    $(id)?.classList.toggle('mode-active',stats.mode===mode);
+  }
+
+  const detail=neural3d.getRegionDetails(snapshot?.selectedRegion||'NARA_CORE');
+  if(detail){
+    $('neuralDetailLabel').textContent=detail.label;
+    $('neuralDetailId').textContent=detail.id;
+    $('neuralDetailStatus').textContent=detail.status;
+    $('neuralDetailGroup').textContent=detail.group;
+    $('neuralDetailNeighbors').textContent='neighbors: '+(detail.neighbors.join(' · ')||'—');
+  }
+}
+
+async function ensureNeural3D(){
+  if(neural3d){
+    neural3d.setRegions(regions);
+    if(snapshot)neural3d.setState(snapshot);
+    neural3d.resize();
+    return neural3d;
+  }
+  if(neural3dLoading)return neural3dLoading;
+  $('neural3dStatus').textContent='LOADING';
+  neural3dLoading=import('./neural-space.js').then(({createNeural3DScene})=>{
+    const host=$('neural3dHost');
+    host.innerHTML='';
+    neural3d=createNeural3DScene(host,{
+      onSelect:region=>dispatch('brain.region.select',{region}).catch(error=>{
+        $('consoleLog').textContent=error.message;
+      }),
+      onMetrics:()=>updateNeuralHud()
+    });
+    neural3d.setRegions(regions);
+    if(snapshot)neural3d.setState(snapshot);
+    neural3d.setActive(studioView==='3d'&&!document.hidden);
+    $('neural3dStatus').textContent='LIVE · ROOT FLOW';
+    updateNeuralHud();
+    return neural3d;
+  }).catch(error=>{
+    $('neural3dStatus').textContent='3D UNAVAILABLE';
+    $('neural3dHost').innerHTML='<div class="neural3d-error">Neural Space 3D gagal dimuat. Mode 2D tetap tersedia.<br>'+escapeHtml(error.message)+'</div>';
+    $('consoleLog').textContent=error.stack||error.message;
+    throw error;
+  }).finally(()=>{neural3dLoading=null;});
+  return neural3dLoading;
+}
+
+function setStudioView(mode){
+  studioView=mode==='3d'?'3d':'2d';
+  $('brainMap').hidden=studioView!=='2d';
+  $('neural3d').hidden=studioView!=='3d';
+  updateViewButtons();
+  if(studioView==='3d'){
+    ensureNeural3D().then(scene=>{scene.setActive(!document.hidden);scene.resize();updateNeuralHud();}).catch(()=>{});
+  }else{
+    neural3d?.setActive(false);
+    if(snapshot)drawBrain();
+  }
 }
 
 function drawBrain(){
@@ -60,7 +138,8 @@ function renderState(state){
     const s=state.regions?.[id]?.status||'idle';
     return '<span class="chip '+statusClass(s)+'">'+escapeHtml(id)+' · '+escapeHtml(s)+'</span>';
   }).join('');
-  drawBrain();
+  if(studioView==='2d')drawBrain();
+  if(neural3d){neural3d.setState(state);updateNeuralHud();}
   if(skillsSnapshot)renderSkills(skillsSnapshot);
   renderPerformance();
 }
@@ -88,6 +167,7 @@ function renderEventView(){
 }
 
 function appendEvent(envelope){
+  neural3d?.handleEvent(envelope);
   eventBuffer.push(envelope);
   if(eventBuffer.length>250)eventBuffer.splice(0,eventBuffer.length-250);
   renderEventView();
@@ -260,6 +340,13 @@ async function boot(){
   stream.onerror=()=>{$('connection').textContent='RECONNECTING';$('connection').className='warn';};
 }
 
+$('view2d').onclick=()=>setStudioView('2d');
+$('view3d').onclick=()=>setStudioView('3d');
+$('neuralExplorer').onclick=()=>ensureNeural3D().then(scene=>{scene.setMode('explorer');updateNeuralHud();}).catch(()=>{});
+$('neuralFocus').onclick=()=>ensureNeural3D().then(scene=>{scene.setMode('focus');updateNeuralHud();}).catch(()=>{});
+$('neuralCore').onclick=()=>ensureNeural3D().then(scene=>{scene.setMode('core');updateNeuralHud();}).catch(()=>{});
+$('neuralReset').onclick=()=>ensureNeural3D().then(scene=>{scene.resetView();updateNeuralHud();}).catch(()=>{});
+$('neuralQuality').onchange=event=>ensureNeural3D().then(scene=>{scene.setQuality(event.target.value);updateNeuralHud();}).catch(()=>{});
 $('sendEvent').onclick=()=>dispatch(eventSelect.value,{label:$('eventLabel').value,message:$('eventLabel').value}).catch(e=>$('consoleLog').textContent=e.message);
 document.querySelectorAll('.quick button').forEach(btn=>btn.onclick=()=>dispatch(btn.dataset.event,{label:'NARA Studio test',message:'NARA Studio simulated event'}).catch(e=>$('consoleLog').textContent=e.message));
 $('clearEvents').onclick=()=>{stopReplay();eventBuffer=[];eventPaused=false;$('pauseEvents').textContent='Pause';renderEventItems([]);};
@@ -267,6 +354,10 @@ $('pauseEvents').onclick=()=>{stopReplay();eventPaused=!eventPaused;$('pauseEven
 $('replayEvents').onclick=()=>replayTimer?stopReplay():startReplay();
 $('eventFilter').addEventListener('input',()=>{if(!eventPaused&&!replayTimer)renderEventView();});
 $('resetStudio').onclick=async()=>{const r=await fetch('/api/reset',{method:'POST'});const data=await r.json();$('consoleLog').textContent=JSON.stringify(data,null,2);};
-window.addEventListener('resize',()=>snapshot&&drawBrain());
+window.addEventListener('resize',()=>{if(snapshot&&studioView==='2d')drawBrain();neural3d?.resize();});
+document.addEventListener('visibilitychange',()=>{
+  if(neural3d)neural3d.setActive(studioView==='3d'&&!document.hidden);
+});
 setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString('id-ID');renderPerformance();},1000);
+setStudioView('2d');
 boot().catch(error=>{$('consoleLog').textContent=error.stack||error.message;$('connection').textContent='OFFLINE';});

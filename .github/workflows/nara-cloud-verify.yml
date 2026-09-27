@@ -10,6 +10,8 @@ on:
       - "desktop/**"
       - "public/**"
       - "tests/**"
+      - "nara-core/studio/**"
+      - "scripts/nara-neural-live-smoke.cjs"
       - "package.json"
       - "package-lock.json"
       - ".env.example"
@@ -21,6 +23,10 @@ on:
       - "desktop/**"
       - "public/**"
       - "tests/**"
+      - "nara-core/studio/**"
+      - "scripts/nara-neural-live-smoke.cjs"
+      - "scripts/nara-neural-gpu-acceptance.ps1"
+      - "NARA-Neural-GPU-Acceptance.bat"
       - "package.json"
       - "package-lock.json"
       - ".env.example"
@@ -113,6 +119,14 @@ jobs:
       - name: Install HumanALE dependencies
         run: npm ci
 
+      - name: Validate physical GPU acceptance wrappers
+        shell: pwsh
+        run: |
+          $source = Get-Content scripts/nara-neural-gpu-acceptance.ps1 -Raw
+          [scriptblock]::Create($source) | Out-Null
+          if (-not (Test-Path NARA-Neural-GPU-Acceptance.bat)) { throw "BAT wrapper missing" }
+          if (-not (Select-String -Path NARA-Neural-GPU-Acceptance.bat -Pattern "nara-neural-gpu-acceptance.ps1" -Quiet)) { throw "BAT wrapper target missing" }
+
       - name: Verify HumanALE tests and web build
         run: npm run verify
 
@@ -121,3 +135,52 @@ jobs:
 
       - name: Audit high severity dependencies
         run: npm audit --audit-level=high
+
+
+  neural-live-browser:
+    name: Neural Space realtime WebGL
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NARA_GPU_MODE: "software"
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      ELECTRON_ENABLE_LOGGING: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install HumanALE dependencies
+        run: npm ci
+
+      - name: Download Electron binary
+        run: ./node_modules/.bin/install-electron --no
+
+      - name: Configure Electron SUID sandbox
+        run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+          stat -c '%U %G %a %n' node_modules/electron/dist/chrome-sandbox
+
+      - name: Verify Xvfb
+        run: command -v xvfb-run
+
+      - name: Run realtime Electron WebGL smoke
+        run: xvfb-run -a --server-args="-screen 0 1440x960x24" npm run smoke:neural-live
+
+      - name: Upload live browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nara-neural-live-browser
+          path: |
+            artifacts/nara-neural-live.png
+            artifacts/nara-neural-live-report.json
+          if-no-files-found: warn
+          retention-days: 7

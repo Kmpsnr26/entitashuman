@@ -198,3 +198,266 @@ test('NARA Studio reset clears skill runtime counters',async t=>{
   assert.equal(studio.skills.get('agent.manage').runs,0);
   assert.equal(studio.skills.get('agent.manage').status,'ready');
 });
+
+
+test('NARA Studio exposes experimental 3D Neural Space without removing 2D fallback',async t=>{
+  const studio=createNaraStudioServer({host:'127.0.0.1',port:0});
+  t.after(()=>studio.stop());
+  const address=await studio.start();
+  const base='http://127.0.0.1:'+address.port;
+
+  const html=await fetch(base+'/').then(r=>r.text());
+  assert.match(html,/2D Brain Map/);
+  assert.match(html,/3D Neural Explorer/);
+  assert.match(html,/id="brainMap"/);
+  assert.match(html,/id="neural3dHost"/);
+
+  const app=await fetch(base+'/app.js').then(r=>r.text());
+  assert.match(app,/import\('\.\/neural-space\.js'\)/);
+  assert.match(app,/function setStudioView\(mode\)/);
+
+  const scene=await fetch(base+'/neural-space.js');
+  assert.equal(scene.status,200);
+  assert.match(await scene.text(),/class Neural3DScene/);
+});
+
+test('NARA Studio serves Three.js from a fixed same-origin vendor route',async t=>{
+  const studio=createNaraStudioServer({host:'127.0.0.1',port:0});
+  t.after(()=>studio.stop());
+  const address=await studio.start();
+  const base='http://127.0.0.1:'+address.port;
+
+  const res=await fetch(base+'/vendor/three/three.module.js');
+  assert.equal(res.status,200);
+  assert.match(res.headers.get('content-type')||'',/text\/javascript/);
+  const source=await res.text();
+  assert.match(source,/WebGLRenderer/);
+
+  const core=await fetch(base+'/vendor/three/three.core.js');
+  assert.equal(core.status,200);
+  assert.match(core.headers.get('content-type')||'',/text\/javascript/);
+  const coreSource=await core.text();
+  assert.match(coreSource,/class Vector3/);
+});
+
+test('Neural Space 3D keeps existing Studio security boundaries',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [server,scene]=await Promise.all([
+    readFile(new URL('nara-core/studio/server.mjs',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8')
+  ]);
+  assert.match(server,/script-src 'self'/);
+  assert.match(server,/\/vendor\/three\/three\.module\.js/);
+  assert.doesNotMatch(scene,/fetch\(/);
+  assert.doesNotMatch(scene,/EventSource/);
+  assert.doesNotMatch(scene,/terminal\.exec/);
+});
+
+
+test('living neural roots use bounded reusable flow packets and organic tubes',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const scene=await readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8');
+
+  assert.match(scene,/new THREE\.CatmullRomCurve3/);
+  assert.match(scene,/new THREE\.TubeGeometry/);
+  assert.match(scene,/function organicCurve\(/);
+  assert.match(scene,/animateLinks\(t\)/);
+  assert.match(scene,/this\.adjacency=new Map\(\)/);
+  assert.match(scene,/this\.packetGeometry=new THREE\.SphereGeometry/);
+  assert.match(scene,/setActive\(active\)/);
+  assert.doesNotMatch(scene,/this\.packets\.push/);
+  assert.doesNotMatch(scene,/setInterval\(/);
+});
+
+test('Neural Space Stage 2 highlights selected neighborhood and pauses when hidden',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [scene,app,html]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/index.html',root),'utf8')
+  ]);
+
+  assert.match(scene,/selectedNeighbors/);
+  assert.match(scene,/link\.targetIntensity=link\.selected/);
+  assert.match(scene,/energizeRegion\(id,amount=1\)/);
+  assert.match(app,/scene\.setActive\(!document\.hidden\)/);
+  assert.match(app,/neural3d\?\.setActive\(false\)/);
+  assert.match(app,/studioView==='3d'&&!document\.hidden/);
+  assert.match(html,/id="neural3dRoots"/);
+});
+
+
+test('Neural Space renderer scripts pass Node syntax checks',async()=>{
+  const {spawnSync}=await import('node:child_process');
+  const {fileURLToPath}=await import('node:url');
+  const files=[
+    fileURLToPath(new URL('../nara-core/studio/public/neural-space.js',import.meta.url)),
+    fileURLToPath(new URL('../nara-core/studio/public/app.js',import.meta.url)),
+    fileURLToPath(new URL('../scripts/nara-neural-live-smoke.cjs',import.meta.url))
+  ];
+  for(const file of files){
+    const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
+    assert.equal(result.status,0,result.stderr||result.stdout||file);
+  }
+});
+
+test('Stage 3 routes semantic events through a bounded shortest-path packet pool',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const scene=await readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8');
+
+  assert.match(scene,/const EVENT_ROUTES=Object\.freeze/);
+  assert.match(scene,/ROUTE_POOL_SIZE=24/);
+  assert.match(scene,/shortestPath\(source,target\)/);
+  assert.match(scene,/routeSegments\(nodes\)/);
+  assert.match(scene,/acquireRoutePacket\(\)/);
+  assert.match(scene,/spawnRoute\(envelope=\{\}\)/);
+  assert.match(scene,/for\(let i=0;i<ROUTE_POOL_SIZE;i\+\+\)/);
+  assert.match(scene,/'reason\.start':\['NARA_CORE','REASONER'\]/);
+  assert.match(scene,/'bug\.detected':\['ERROR_MONITOR','BUG_HUNTER'\]/);
+  assert.match(scene,/'verify\.complete':\['FOLLOW_UP','REPORTING'\]/);
+});
+
+test('Stage 4 provides focus core explorer modes accessibility and quality controls',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [scene,app,html]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/index.html',root),'utf8')
+  ]);
+
+  assert.match(scene,/setMode\(mode\)/);
+  assert.match(scene,/resetView\(updateMode=true\)/);
+  assert.match(scene,/setQuality\(mode='auto'\)/);
+  assert.match(scene,/handleKey\(event\)/);
+  assert.match(scene,/tabIndex=0/);
+  assert.match(scene,/getRegionDetails\(id=/);
+  assert.match(app,/neural3d\.setMode|scene\.setMode/);
+  assert.match(html,/id="neuralExplorer"/);
+  assert.match(html,/id="neuralFocus"/);
+  assert.match(html,/id="neuralCore"/);
+  assert.match(html,/id="neuralQuality"/);
+});
+
+test('Stage 5 uses adaptive cinematic resources and measured performance budgets',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [scene,styles]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/styles.css',root),'utf8')
+  ]);
+
+  assert.match(scene,/function makeGlowTexture\(\)/);
+  assert.match(scene,/function makeDustField\(/);
+  assert.match(scene,/this\.glowTexture=makeGlowTexture\(\)/);
+  assert.match(scene,/this\.dust=makeDustField\(\)/);
+  assert.match(scene,/samplePerformance\(delta\)/);
+  assert.match(scene,/this\.timer=new THREE\.Timer/);
+  assert.match(scene,/this\.timer\.update\(\)/);
+  assert.match(scene,/this\.timer\.getElapsed\(\)/);
+  assert.doesNotMatch(scene,/new THREE\.Clock/);
+  assert.match(scene,/state\.fps<38/);
+  assert.match(scene,/state\.fps>57/);
+  assert.match(scene,/toneMappingExposure/);
+  assert.match(styles,/neural3d-vignette/);
+  assert.doesNotMatch(scene,/EffectComposer/);
+  assert.doesNotMatch(scene,/https?:\/\//);
+});
+
+
+test('Three vendor surface stays fixed to required ESM build modules',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const server=await readFile(new URL('nara-core/studio/server.mjs',root),'utf8');
+
+  assert.match(server,/THREE_VENDOR=Object\.freeze\(new Map/);
+  assert.match(server,/\/vendor\/three\/three\.module\.js/);
+  assert.match(server,/\/vendor\/three\/three\.core\.js/);
+  assert.doesNotMatch(server,/node_modules\/three\/\*\*/);
+  assert.doesNotMatch(server,/url\.pathname\.startsWith\('\/vendor\/three\/'\)/);
+});
+
+
+test('Neural renderer lifecycle really pauses hidden work and skips hidden 2D redraws',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [scene,app]=await Promise.all([
+    readFile(new URL('nara-core/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('nara-core/studio/public/app.js',root),'utf8')
+  ]);
+
+  assert.match(scene,/this\.animationLoop=\(\)=>this\.animate\(\)/);
+  assert.match(scene,/this\.renderer\.setAnimationLoop\(null\)/);
+  assert.match(scene,/this\.timer\.reset\(\)/);
+  assert.match(scene,/this\.renderer\.setAnimationLoop\(this\.animationLoop\)/);
+  assert.match(app,/if\(studioView==='2d'\)drawBrain\(\)/);
+  assert.match(app,/document\.addEventListener\('visibilitychange'/);
+  assert.match(app,/studioView==='3d'&&!document\.hidden/);
+});
+
+test('Neural live harness separates reproducible CI software GPU from physical GPU acceptance',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [smoke,workflow,pkg,ps1,bat]=await Promise.all([
+    readFile(new URL('scripts/nara-neural-live-smoke.cjs',root),'utf8'),
+    readFile(new URL('.github/workflows/nara-cloud-verify.yml',root),'utf8'),
+    readFile(new URL('package.json',root),'utf8'),
+    readFile(new URL('scripts/nara-neural-gpu-acceptance.ps1',root),'utf8'),
+    readFile(new URL('NARA-Neural-GPU-Acceptance.bat',root),'utf8')
+  ]);
+
+  assert.match(smoke,/NARA_GPU_MODE\|\|'hardware'/);
+  assert.match(smoke,/GPU_MODE==='software'/);
+  assert.match(smoke,/app\.getGPUInfo\('basic'\)/);
+  assert.match(smoke,/app\.getGPUFeatureStatus\(\)/);
+  assert.match(smoke,/app\.isHardwareAccelerationEnabled\(\)/);
+  assert.match(smoke,/swiftshader\|llvmpipe\|software rasterizer/);
+  assert.match(smoke,/report\.checks\.gpuModeMatched/);
+  assert.match(workflow,/NARA_GPU_MODE: "software"/);
+  assert.match(workflow,/nara-core\/studio\/\*\*/);
+  assert.match(workflow,/scripts\/nara-neural-live-smoke\.cjs/);
+  assert.match(pkg,/"smoke:neural-gpu": "electron scripts\/nara-neural-live-smoke\.cjs"/);
+  assert.match(ps1,/NARA_GPU_MODE = 'hardware'/);
+  assert.match(ps1,/gpu\.modeMatched/);
+  assert.match(bat,/nara-neural-gpu-acceptance\.ps1/i);
+});
+
+
+test('physical GPU gate trusts the live renderer and treats feature status as advisory',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const smoke=await readFile(new URL('scripts/nara-neural-live-smoke.cjs',root),'utf8');
+
+  assert.match(smoke,/function isSoftwareRenderer\(renderer=''/);
+  assert.match(smoke,/function gpuModeMatches\(mode,/);
+  assert.match(smoke,/if\(mode==='software'\)return softwareRenderer/);
+  assert.match(smoke,/return Boolean\(hardwareAcceleration&&!softwareRenderer\)/);
+  assert.match(smoke,/GPUFeatureStatus is only reliable after Chromium's GPU process has initialized/);
+  assert.match(smoke,/const featureStatus=app\.getGPUFeatureStatus\(\)/);
+  assert.match(smoke,/modeMatched:gpuModeMatches\(GPU_MODE/);
+  assert.doesNotMatch(smoke,/hardwareAcceleration&&!softwareRenderer&&featureLooksHardware/);
+});
+
+test('Windows physical GPU wrappers use UTF-8 console output',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const [ps1,bat]=await Promise.all([
+    readFile(new URL('scripts/nara-neural-gpu-acceptance.ps1',root),'utf8'),
+    readFile(new URL('NARA-Neural-GPU-Acceptance.bat',root),'utf8')
+  ]);
+  assert.match(ps1,/\[Console\]::OutputEncoding/);
+  assert.match(ps1,/UTF8Encoding/);
+  assert.match(bat,/chcp 65001/);
+});
+
+
+test('Windows GPU wrapper reads the acceptance JSON as UTF-8',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const ps1=await readFile(new URL('scripts/nara-neural-gpu-acceptance.ps1',root),'utf8');
+  assert.match(ps1,/Get-Content \$reportPath -Raw -Encoding UTF8 \| ConvertFrom-Json/);
+});
