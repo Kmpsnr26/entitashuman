@@ -98,6 +98,13 @@ export function isMaintenanceProtectedPath(path,protectedAreas=[]){
  return (protectedAreas||[]).some(pattern=>globToRegExp(pattern).test(normalized));
 }
 
+export function isMaintenanceReadDeniedPath(path,readDeniedAreas=[]){
+ const normalized=normalizeMaintenanceRepoPath(path);
+ const basename=normalized.split('/').at(-1)?.toLowerCase()||'';
+ if(['.env.example','.env.sample','.env.template'].includes(basename))return false;
+ return (readDeniedAreas||[]).some(pattern=>globToRegExp(pattern).test(normalized));
+}
+
 export function extractAddedPatchLines(patch=''){
  const added=[];
  for(const rawLine of String(patch??'').split(/\r?\n/)){
