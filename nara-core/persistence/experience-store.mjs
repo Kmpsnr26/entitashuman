@@ -1,4 +1,5 @@
 import {mkdir,readFile,rename,rm,stat,writeFile} from 'node:fs/promises';
+import {mkdirSync,renameSync,rmSync,writeFileSync} from 'node:fs';
 import {dirname} from 'node:path';
 
 const MAX_BYTES=512*1024;
@@ -26,7 +27,7 @@ export class NaraExperienceStore{
     }
   }
 
-  async save(snapshot){
+  payload(snapshot){
     const payload={
       version:1,
       strategies:Array.isArray(snapshot?.strategies)?snapshot.strategies.slice(0,500):[],
@@ -34,6 +35,11 @@ export class NaraExperienceStore{
     };
     const raw=JSON.stringify(payload,null,2);
     if(Buffer.byteLength(raw,'utf8')>this.maxBytes)throw new Error('Experience store NARA melebihi batas aman.');
+    return {payload,raw};
+  }
+
+  async save(snapshot){
+    const {payload,raw}=this.payload(snapshot);
     await mkdir(dirname(this.filePath),{recursive:true});
     const temp=this.filePath+'.tmp';
     await writeFile(temp,raw,{encoding:'utf8',mode:0o600});
@@ -43,6 +49,21 @@ export class NaraExperienceStore{
       if(!['EEXIST','EPERM'].includes(error?.code))throw error;
       await rm(this.filePath,{force:true});
       await rename(temp,this.filePath);
+    }
+    return payload;
+  }
+
+  saveSync(snapshot){
+    const {payload,raw}=this.payload(snapshot);
+    mkdirSync(dirname(this.filePath),{recursive:true});
+    const temp=this.filePath+'.tmp';
+    writeFileSync(temp,raw,{encoding:'utf8',mode:0o600});
+    try{
+      renameSync(temp,this.filePath);
+    }catch(error){
+      if(!['EEXIST','EPERM'].includes(error?.code))throw error;
+      rmSync(this.filePath,{force:true});
+      renameSync(temp,this.filePath);
     }
     return payload;
   }
