@@ -171,8 +171,13 @@ test('isolated maintenance environment replaces user profile locations and disab
  assert.equal(result.env.GCM_INTERACTIVE,'Never');
  assert.equal(result.env.NORMAL_FLAG,'ok');
  assert.equal(Object.hasOwn(result.env,'GH_TOKEN'),false);
- assert.equal(Object.hasOwn(result.env,'APPDATA'),false);
- assert.equal(Object.hasOwn(result.env,'LOCALAPPDATA'),false);
+ if(process.platform==='win32'){
+  assert.equal(result.env.APPDATA,'/tmp/humanale-ai-home-test/AppData/Roaming');
+  assert.equal(result.env.LOCALAPPDATA,'/tmp/humanale-ai-home-test/AppData/Local');
+ }else{
+  assert.equal(Object.hasOwn(result.env,'APPDATA'),false);
+  assert.equal(Object.hasOwn(result.env,'LOCALAPPDATA'),false);
+ }
  assert.ok(result.removed.includes('HOME'));
  assert.ok(result.removed.includes('USERPROFILE'));
  assert.ok(result.removed.includes('APPDATA'));
