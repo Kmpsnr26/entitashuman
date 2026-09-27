@@ -224,9 +224,22 @@ export class NaraOrchestrator{
     return changes;
   }
 
+  reviewMetacognition(){
+    const metrics=this.snapshot().engine.metacognition;
+    if(this.running)this.bus.emit('metacognition.review',{
+      confidence:metrics.confidence,
+      uncertainty:metrics.uncertainty,
+      workload:metrics.workload,
+      recommendation:metrics.recommendation,
+      flags:[...metrics.flags]
+    },{source:'metacognition'});
+    return metrics;
+  }
+
   async runAutopilotOnce(){
     const result=await this.autopilot.runNext();
     this.reconcileGoals();
+    this.reviewMetacognition();
     return result;
   }
 
