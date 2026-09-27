@@ -199,7 +199,7 @@ test('desktop IPC validates context before provider or agent use and records con
   assert.match(main,/nara\.dispatch\('context\.used'/);
   assert.match(main,/nara\.dispatch\('context\.blocked'/);
   assert.match(main,/agentHub\.run\(\{\.\.\.value,memoryContext\}\)/);
-  const allowlist=(main.match(/const NARA_RENDERER_EVENTS=new Set\(\[([\s\S]*?)\]\);/)||[])[1]||'';
+  const allowlist=(runtimeHost.match(/DEFAULT_RENDERER_EVENTS=Object\.freeze\(\[([\s\S]*?)\]\)/)||[])[1]||'';
   assert.doesNotMatch(allowlist,/context\.used|context\.approved|memory\.write/);
 });
 
