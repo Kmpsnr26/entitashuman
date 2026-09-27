@@ -192,7 +192,10 @@ test('agent hub treats memory as reference data while preserving existing sandbo
 });
 
 test('desktop IPC validates context before provider or agent use and records context.used',async()=>{
-  const main=await read('desktop/main.cjs');
+  const [main,runtimeHost]=await Promise.all([
+    read('desktop/main.cjs'),
+    read('desktop/humanale-runtime-host.mjs')
+  ]);
   assert.match(main,/import\('\.\/memory-context\.mjs'\)/);
   assert.match(main,/validateMemoryContext\(value\?\.memoryContext,\{allowedTargets:\['reasoner'\]\}\)/);
   assert.match(main,/validateMemoryContext\(value\?\.memoryContext,\{allowedTargets:\['planner','agent'\]\}\)/);
