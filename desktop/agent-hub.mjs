@@ -2,6 +2,13 @@ import {spawn} from 'node:child_process';
 import {access} from 'node:fs/promises';
 import {join} from 'node:path';
 import {validateMemoryContext,memoryContextBlock} from './memory-context.mjs';
+import {
+ AI_MAINTENANCE_ALLOWED_CAPABILITIES,
+ AI_MAINTENANCE_DENIED_CAPABILITIES,
+ assertMaintenanceTaskAllowed,
+ buildMaintenanceWorkPrompt,
+ maintenancePolicySnapshot
+} from './agent-maintenance-policy.mjs';
 
 const agents=[
  {id:'humanale-orchestrator',name:'HumanALE Orchestrator',method:'Structured Planner → Worker → Reviewer',internal:true,canRun:false,url:'https://github.com/Kmpsnr26/entitashuman'},
@@ -165,7 +172,12 @@ export class DeveloperAgentHub{
     ?'Pipeline terstruktur siap: Planner membaca, Worker mengerjakan dengan izin terbatas, Reviewer memeriksa ulang. Executor: '+structuredExecutors.map(row=>row.name).join(', ')+'.'
     :'Pasang/login minimal satu executor: GitHub Copilot, OpenAI Codex, Cursor, atau Claude Code.';
   }
-  return {projectRoot,projectRootReady,agents:rows};
+  return {
+   projectRoot,
+   projectRootReady,
+   maintenancePolicy:maintenancePolicySnapshot(),
+   agents:rows
+  };
  }
  async availableStructuredExecutors(){
   const cwd=this.getProjectRoot(),result=[];
@@ -199,7 +211,7 @@ export class DeveloperAgentHub{
     throw new Error('Codex CLI terpasang tetapi belum login. Jalankan codex login di terminal lalu coba lagi.');
    }
   }
-  const safeWorkPrompt='Kerjakan hanya di folder proyek ini. Jangan git push, git merge, publish, mengganti branch, mengubah kredensial, atau mengakses data di luar proyek. Boleh membaca dan mengedit file di folder proyek menggunakan tool yang diizinkan. Buat perubahan sekecil yang diperlukan, jalankan test yang relevan bila tersedia, lalu jelaskan file yang diubah dan hasil test. Tugas: '+prompt;
+  const safeWorkPrompt=mode==='work'?buildMaintenanceWorkPrompt(prompt):prompt;
   const args=id==='continue'?['-p',prompt,'--readonly']
    :id==='cody'?['chat','-m',prompt]
    :id==='github-copilot'&&mode==='work'?['-p',safeWorkPrompt,'-s','--available-tools=view,grep,glob,edit,create,apply_patch','--allow-tool=write','--disable-builtin-mcps','--no-ask-user','--no-auto-update','--disallow-temp-dir']
@@ -302,6 +314,14 @@ export class DeveloperAgentHub{
   const id=String(value?.id||''),mode=value?.mode==='work'?'work':'analyze';
   let prompt=String(value?.prompt||'').trim();
   if(!prompt||prompt.length>4000)throw new Error('Prompt agent harus berisi 1–4000 karakter.');
+  if(mode==='work'){
+   assertMaintenanceTaskAllowed(prompt,{mode});
+   const cwd=this.getProjectRoot();
+   if(!await this.projectRootReady())throw new Error('AI maintenance memerlukan checkout Git proyek yang dipilih secara eksplisit.');
+   const worktree=await runProcess('git',['status','--porcelain'],{cwd,timeout:8000});
+   if(worktree.code!==0||worktree.timedOut)throw new Error('Status Git tidak dapat diverifikasi. AI maintenance dihentikan fail-closed.');
+   if(worktree.stdout.trim())throw new Error('AI maintenance hanya boleh dimulai dari Git worktree bersih. Commit/stash perubahan manusia terlebih dahulu.');
+  }
   const memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['planner','agent']});
   const contextBlock=memoryContextBlock(memoryContext);
   if(contextBlock)prompt=contextBlock+'\n\nTugas pengguna:\n'+prompt;
@@ -313,3 +333,8 @@ export class DeveloperAgentHub{
  }
  stop(){this.child?.kill();}
 }
+
+export const agentMaintenanceCapabilities=Object.freeze({
+ allowed:AI_MAINTENANCE_ALLOWED_CAPABILITIES,
+ denied:AI_MAINTENANCE_DENIED_CAPABILITIES
+});
