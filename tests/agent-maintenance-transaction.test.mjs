@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
-import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
+import {mkdir,mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {
@@ -20,6 +20,8 @@ async function repoFixture(){
  git(root,'config','user.email','humanale-test@example.invalid');
  await writeFile(join(root,'.gitignore'),'.env\n*.pfx\n','utf8');
  await writeFile(join(root,'app.js'),'export const value=1;\n','utf8');
+ await mkdir(join(root,'desktop'),{recursive:true});
+ await writeFile(join(root,'desktop','agent-maintenance-policy.mjs'),'export const boundary="baseline";\n','utf8');
  await writeFile(join(root,'policy.txt'),'owner boundary\n','utf8');
  git(root,'add','.');
  git(root,'commit','-m','baseline');
@@ -45,18 +47,6 @@ test('transaction accepts a small unprotected working-tree edit',async()=>{
   const result=await tx.inspect();
   assert.equal(result.allowed,true);
   assert.equal(result.rolledBack,false);
-  await tx.release();
- }finally{
-  await rm(root,{recursive:true,force:true});
- }
-});
-
-test('transaction blocks and rolls back protected path edits',async()=>{
- const {root}=await repoFixture();
- try{
-  const tx=await beginMaintenanceTransaction(root);
-  tx.constructor.prototype.inspect;
-  await writeFile(join(root,'desktop-placeholder'),'x','utf8');
   await tx.release();
  }finally{
   await rm(root,{recursive:true,force:true});
@@ -92,26 +82,21 @@ test('ignored secret file blocks transaction before any agent can run',async()=>
  }
 });
 
-test('protected maintenance policy edit is quarantined and rolled back in a real repo',async()=>{
+test('tracked protected policy edit is quarantined and restored exactly to baseline',async()=>{
  const {root}=await repoFixture();
  try{
-  await rm(join(root,'policy.txt'));
-  await writeFile(join(root,'desktop-agent.txt'),'baseline\n','utf8');
-  git(root,'add','.');
-  git(root,'commit','-m','fixture update');
   const tx=await beginMaintenanceTransaction(root);
-
-  const protectedPath='desktop/agent-maintenance-policy.mjs';
-  const protectedFile=join(root,...protectedPath.split('/'));
-  const {mkdir}=await import('node:fs/promises');
-  await mkdir(join(root,'desktop'),{recursive:true});
-  await writeFile(protectedFile,'malicious\n','utf8');
+  const protectedFile=join(root,'desktop','agent-maintenance-policy.mjs');
+  await writeFile(protectedFile,'export const boundary="weakened";\n','utf8');
 
   const result=await tx.inspect();
   assert.equal(result.allowed,false);
   assert.ok(result.violations.includes('PROTECTED_PATH_CHANGE'));
   assert.equal(result.rolledBack,true);
-  await assert.rejects(()=>readFile(protectedFile,'utf8'),error=>error?.code==='ENOENT');
+  assert.equal(
+   await readFile(protectedFile,'utf8'),
+   'export const boundary="baseline";\n'
+  );
   assert.equal(git(root,'status','--porcelain'),'');
   await tx.release();
  }finally{
