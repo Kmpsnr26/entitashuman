@@ -62,15 +62,70 @@ const FORBIDDEN_WORK_INTENTS=Object.freeze([
  })
 ]);
 
+export const AI_MAINTENANCE_READ_DENIED_AREAS=Object.freeze([
+ '.env',
+ '**/.env',
+ '.env.local',
+ '**/.env.local',
+ '.env.production',
+ '**/.env.production',
+ '**/*.pem',
+ '**/*.key',
+ '**/*.p12',
+ '**/*.pfx',
+ '**/*.jks',
+ '**/*.keystore',
+ '**/credentials.json',
+ '**/credentials.*.json',
+ '**/secrets.json',
+ '**/secrets.*.json'
+]);
+
 export const AI_MAINTENANCE_PROTECTED_AREAS=Object.freeze([
  '.git/**',
- '.env*',
- 'nara-cloud/.env*',
+ '.env',
+ '**/.env',
+ '.env.local',
+ '**/.env.local',
+ '.env.production',
+ '**/.env.production',
+ '**/*.pem',
+ '**/*.key',
+ '**/*.p12',
+ '**/*.pfx',
+ '**/*.jks',
+ '**/*.keystore',
+ '.github/workflows/**',
+ 'desktop/agent-maintenance-policy.mjs',
+ 'desktop/agent-maintenance-guard.mjs',
+ 'desktop/agent-hub.mjs',
+ 'desktop/terminal-policy.mjs',
+ 'desktop/main.cjs',
+ 'desktop/bridge.mjs',
+ 'desktop/copilot.mjs',
+ 'desktop/openai-api.mjs',
+ 'desktop/claude.mjs',
+ 'desktop/grok.mjs',
+ 'desktop/gemini.mjs',
+ 'desktop/deepseek.mjs',
+ 'desktop/askcodi.mjs',
  'nara-cloud/src/scripts/createOwner.ts',
+ 'nara-cloud/src/services/owner.service.ts',
+ 'nara-cloud/src/middleware/requireAuth.ts',
+ 'nara-cloud/src/sessions/sessions.ts',
+ 'nara-cloud/src/security/password.ts',
+ 'nara-cloud/src/config/env.ts',
+ 'nara-core/permissions/**',
+ 'nara-core/readiness/**',
+ 'nara-core/integration/**',
+ 'public/humanale-final-readiness.js',
+ 'scripts/humanale-final-evidence.mjs',
  'docs/humanale-final-readiness-certificate.json',
- '.github/workflows/verify.yml',
- '.github/workflows/android-apk.yml',
- 'desktop/agent-maintenance-policy.mjs'
+ 'docs/humanale-final-readiness*.md',
+ 'tests/agent-maintenance-policy.test.mjs',
+ 'tests/agent-maintenance-guard.test.mjs',
+ 'tests/agent-orchestrator.test.mjs',
+ 'tests/humanale-final-readiness.test.mjs'
 ]);
 
 function freezeResult(value){
@@ -78,7 +133,8 @@ function freezeResult(value){
   ...value,
   allowedCapabilities:AI_MAINTENANCE_ALLOWED_CAPABILITIES,
   deniedCapabilities:AI_MAINTENANCE_DENIED_CAPABILITIES,
-  protectedAreas:AI_MAINTENANCE_PROTECTED_AREAS
+  protectedAreas:AI_MAINTENANCE_PROTECTED_AREAS,
+  readDeniedAreas:AI_MAINTENANCE_READ_DENIED_AREAS
  });
 }
 
@@ -142,6 +198,7 @@ export function buildMaintenanceWorkPrompt(task){
   'Capability yang selalu dilarang: '+AI_MAINTENANCE_DENIED_CAPABILITIES.join(', ')+'.',
   'Jangan mengubah Owner/Creator identity, password, credential, secret, API key, ownership, access grants, Creator Final Approval, signing authority, atau release publication.',
   'Jangan git push, git merge, publish, mengganti branch, menaikkan privilege, menonaktifkan security/sandbox, atau mengakses data di luar proyek.',
+  'Jangan membaca file secret lokal: '+AI_MAINTENANCE_READ_DENIED_AREAS.join(', ')+'.',
   'Jangan mengedit area dilindungi: '+AI_MAINTENANCE_PROTECTED_AREAS.join(', ')+'.',
   'Boleh membaca/edit source program yang tidak dilindungi, memperbaiki bug, refactor seperlunya, menjalankan test/build yang diizinkan, dan melaporkan diff serta hasil verifikasi.',
   'Jika tugas memerlukan capability terlarang, berhenti dan laporkan kebutuhan Owner; jangan mencari jalan lain.',
@@ -161,6 +218,7 @@ export function maintenancePolicySnapshot(){
   releaseAuthority:false,
   allowedCapabilities:AI_MAINTENANCE_ALLOWED_CAPABILITIES,
   deniedCapabilities:AI_MAINTENANCE_DENIED_CAPABILITIES,
-  protectedAreas:AI_MAINTENANCE_PROTECTED_AREAS
+  protectedAreas:AI_MAINTENANCE_PROTECTED_AREAS,
+  readDeniedAreas:AI_MAINTENANCE_READ_DENIED_AREAS
  });
 }
