@@ -268,9 +268,12 @@ async function beginTransaction(cwd){
  }
 
  const gitDirRaw=await gitText(gitRoot,['rev-parse','--git-dir']);
+ const commonGitDirRaw=await gitText(gitRoot,['rev-parse','--git-common-dir']);
  const gitDir=resolve(gitRoot,gitDirRaw);
- const lock=await acquireLock(gitDir,{baseHead,baseBranch});
+ const commonGitDir=resolve(gitRoot,commonGitDirRaw);
+ const lock=await acquireLock(commonGitDir,{baseHead,baseBranch});
  let transaction;
+ let isolatedHome='';
  try{
   const status=await gitText(gitRoot,['status','--porcelain=v1','-z','--untracked-files=all']);
   if(status){
@@ -295,13 +298,14 @@ async function beginTransaction(cwd){
    throw error;
   }
 
-  const isolatedHome=await mkdtemp(join(tmpdir(),'humanale-ai-home-'));
+  isolatedHome=await mkdtemp(join(tmpdir(),'humanale-ai-home-'));
 
   transaction={
    id:'maintenance-'+randomUUID(),
    version:AI_MAINTENANCE_TRANSACTION_VERSION,
    cwd:gitRoot,
    gitDir,
+   commonGitDir,
    baseHead,
    baseBranch,
    gitMetadataHash:await gitMetadataFingerprint(gitRoot),
@@ -313,6 +317,7 @@ async function beginTransaction(cwd){
   return transaction;
  }catch(error){
   await releaseLock({...lock});
+  if(isolatedHome)await rm(isolatedHome,{recursive:true,force:true});
   throw error;
  }
 }
