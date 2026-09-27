@@ -16,7 +16,10 @@ const DEFAULT_SKILLS=Object.freeze([
   {id:'server.observe',label:'Configured Server Observer',category:'system',region:'NARA_CORE'},
   {id:'dataflow.observe',label:'NARA Data Flow Observer',category:'system',region:'NARA_CORE'},
   {id:'device.integrate',label:'Device Integration',category:'system',region:'NARA_CORE'},
-  {id:'capability.guard',label:'Capability Guard',category:'safety',region:'SAFETY'}
+  {id:'capability.guard',label:'Capability Guard',category:'safety',region:'SAFETY'},
+  {id:'autopilot.control',label:'Autopilot Control',category:'control',region:'AGENT_MANAGER'},
+  {id:'watchdog.monitor',label:'Watchdog Monitor',category:'diagnostic',region:'ERROR_MONITOR'},
+  {id:'recovery.decide',label:'Recovery Decision',category:'diagnostic',region:'FOLLOW_UP'}
 ]);
 
 const EVENT_MAP=Object.freeze({
@@ -45,7 +48,12 @@ const EVENT_MAP=Object.freeze({
   'device.integration':['device.integrate','pulse'],
   'capability.requested':['capability.guard','start'],
   'capability.approved':['capability.guard','complete'],
-  'capability.denied':['capability.guard','failed']
+  'capability.denied':['capability.guard','failed'],
+  'autopilot.task.start':['autopilot.control','start'],
+  'autopilot.task.complete':['autopilot.control','complete'],
+  'autopilot.task.failed':['autopilot.control','failed'],
+  'autopilot.task.stalled':['watchdog.monitor','pulse'],
+  'autopilot.task.blocked':['recovery.decide','pulse']
 });
 
 const safeText=(value,max=160)=>String(value??'').replace(/[\r\n\t]+/g,' ').trim().slice(0,max);
