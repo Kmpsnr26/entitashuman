@@ -42,6 +42,17 @@ function safeText(value,max){
   return String(value??'').replace(/[\r\n\t]+/g,' ').replace(/\s+/g,' ').trim().slice(0,max);
 }
 
+function strictText(value,max,label){
+  const normalized=String(value??'')
+    .replace(/[\r\n\t]+/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+  if(!normalized||normalized.length>max){
+    throw new TypeError(label+' harus berisi 1–'+max+' karakter.');
+  }
+  return normalized;
+}
+
 function fingerprintOf(finding){
   return createHash('sha256')
     .update([
@@ -63,11 +74,15 @@ function normalizeFinding(raw,now){
     }
   }
 
-  const id=safeText(raw.id,120);
-  const source=safeText(raw.source,24).toLowerCase();
-  const code=safeText(raw.code,80);
-  const summary=safeText(raw.summary,MAINTENANCE_AUTOPILOT_LIMITS.maxSummaryLength);
-  const severity=safeText(raw.severity||'medium',16).toLowerCase();
+  const id=strictText(raw.id,120,'Finding id');
+  const source=strictText(raw.source,24,'Finding source').toLowerCase();
+  const code=strictText(raw.code,80,'Finding code');
+  const summary=strictText(
+    raw.summary,
+    MAINTENANCE_AUTOPILOT_LIMITS.maxSummaryLength,
+    'Finding summary'
+  );
+  const severity=strictText(raw.severity||'medium',16,'Finding severity').toLowerCase();
   const timestamp=raw.timestamp===undefined?now():Number(raw.timestamp);
 
   if(!SAFE_ID.test(id))throw new TypeError('Finding id tidak valid.');
@@ -194,8 +209,25 @@ export class SafeMaintenanceAutopilot{
     this.queue=[];
     this.history=[];
     this.known=new Set();
+    this.knownEntries=[];
     this.active=null;
     this.checkpointPending=false;
+  }
+
+  rememberFinding(finding){
+    this.known.add(finding.id);
+    this.known.add(finding.fingerprint);
+    this.knownEntries.push(Object.freeze({
+      id:finding.id,
+      fingerprint:finding.fingerprint
+    }));
+    const limit=this.limits.queueLimit+this.limits.historyLimit;
+    while(this.knownEntries.length>limit){
+      const removed=this.knownEntries.shift();
+      if(!removed)break;
+      this.known.delete(removed.id);
+      this.known.delete(removed.fingerprint);
+    }
   }
 
   enqueue(raw){
@@ -211,8 +243,7 @@ export class SafeMaintenanceAutopilot{
     }
 
     this.queue.push(finding);
-    this.known.add(finding.id);
-    this.known.add(finding.fingerprint);
+    this.rememberFinding(finding);
     return Object.freeze({
       accepted:true,
       reason:'QUEUED',
