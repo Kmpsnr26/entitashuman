@@ -196,7 +196,11 @@ export class TrustedDraftPRBroker{
       number:Number(row.number)||0,
       url:String(row.url||''),
       draft:true,
-      existing:true
+      existing:true,
+      branchName:receipt.branchName,
+      commitSha:receipt.commitSha,
+      findingId:receipt.findingId,
+      findingFingerprint:receipt.findingFingerprint
     });
   }
 
