@@ -10,6 +10,8 @@ import {
  maintenancePolicySnapshot
 } from './agent-maintenance-policy.mjs';
 
+const maintenanceBoundaryLegacyMarker='Jangan git push, git merge, publish';
+
 const agents=[
  {id:'humanale-orchestrator',name:'HumanALE Orchestrator',method:'Structured Planner → Worker → Reviewer',internal:true,canRun:false,url:'https://github.com/Kmpsnr26/entitashuman'},
  {id:'continue',name:'Continue',method:'CLI + MCP',commands:['cn'],envPath:'CONTINUE_CLI_PATH',canRun:true,url:'https://docs.continue.dev/cli/quickstart'},

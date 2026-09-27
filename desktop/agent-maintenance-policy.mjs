@@ -42,7 +42,7 @@ const FORBIDDEN_WORK_INTENTS=Object.freeze([
  }),
  Object.freeze({
   code:'OWNER_AUTHORITY_MUTATION',
-  pattern:/\b(?:buat|create|tambah|add|ubah|change|ganti|replace|hapus|delete|grant|beri|promote|jadikan)\b[\s\S]{0,80}\b(?:owner|creator|root\s+authority|ownership|kepemilikan)\b/i
+  pattern:/\b(?:buat|create|tambah|tambahkan|menambah|menambahkan|add|ubah|change|ganti|replace|hapus|delete|grant|beri|promote|jadikan)\b[\s\S]{0,80}\b(?:owner|creator|root\s+authority|ownership|kepemilikan)\b/i
  }),
  Object.freeze({
   code:'ACCESS_AUTHORITY_MUTATION',
