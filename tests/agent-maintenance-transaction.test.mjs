@@ -175,3 +175,52 @@ test('explicit rollback quarantines and removes otherwise safe partial worker ch
   await rm(root,{recursive:true,force:true});
  }
 });
+
+
+test('ignored secret created after preflight is blocked quarantined and removed',async()=>{
+ const {root}=await repoFixture();
+ try{
+  const tx=await beginMaintenanceTransaction(root);
+  await writeFile(join(root,'.env'),'OPENAI_API_KEY=agent-created-secret\n','utf8');
+  const result=await tx.inspect();
+  assert.equal(result.allowed,false);
+  assert.ok(result.violations.includes('SECRET_FILE_PRESENT'));
+  assert.equal(result.rolledBack,true);
+  await assert.rejects(
+   ()=>readFile(join(root,'.env'),'utf8'),
+   error=>error?.code==='ENOENT'
+  );
+  assert.equal(git(root,'status','--porcelain'),'');
+  await tx.release();
+ }finally{
+  await rm(root,{recursive:true,force:true});
+ }
+});
+
+test('linked worktrees from the same repository share one common maintenance lock',async()=>{
+ const {root}=await repoFixture();
+ const container=await mkdtemp(join(tmpdir(),'humanale-linked-worktrees-'));
+ const one=join(container,'one');
+ const two=join(container,'two');
+ try{
+  git(root,'branch','maintenance/one');
+  git(root,'branch','maintenance/two');
+  git(root,'worktree','add',one,'maintenance/one');
+  git(root,'worktree','add',two,'maintenance/two');
+
+  const first=await beginMaintenanceTransaction(one);
+  await assert.rejects(
+   ()=>beginMaintenanceTransaction(two),
+   error=>error?.code==='AI_MAINTENANCE_REPO_LOCKED'
+  );
+  await first.release();
+
+  const second=await beginMaintenanceTransaction(two);
+  await second.release();
+ }finally{
+  try{git(root,'worktree','remove','--force',one);}catch{}
+  try{git(root,'worktree','remove','--force',two);}catch{}
+  await rm(container,{recursive:true,force:true});
+  await rm(root,{recursive:true,force:true});
+ }
+});
