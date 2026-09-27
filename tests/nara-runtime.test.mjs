@@ -8,7 +8,9 @@ test('Electron preload exposes only the narrow NARA runtime bridge',async()=>{
   const preload=await readFile(new URL('desktop/preload.cjs',root),'utf8');
   assert.match(preload,/naraSnapshot:\(\)=>ipcRenderer\.invoke\('dudidam:nara-snapshot'\)/);
   assert.match(preload,/naraDispatch:\(event,payload=\{\}\)=>ipcRenderer\.invoke\('dudidam:nara-dispatch'/);
+  assert.match(preload,/runtimeSnapshot:\(\)=>ipcRenderer\.invoke\('dudidam:runtime-snapshot'\)/);
   assert.match(preload,/onNaraState:callback/);
+  assert.match(preload,/onRuntimeState:callback/);
 });
 
 test('Electron main owns and starts the NARA orchestrator with renderer event allowlist',async()=>{
@@ -29,8 +31,11 @@ test('Electron main owns and starts the NARA orchestrator with renderer event al
   assert.match(main,/nara\.dispatch\('dataflow\.sample'/);
   assert.match(main,/nara\.dispatch\('server\.observe'/);
   assert.match(main,/nara\.start\(\)/);
-  assert.match(main,/NARA_RENDERER_EVENTS=new Set\(\['audio\.energy','vision\.frame','vision\.stop','speech\.start','speech\.energy','speech\.stop','brain\.region\.select'\]\)/);
-  assert.match(main,/Event NARA tidak diizinkan dari renderer/);
+  assert.match(main,/createHumanALERuntimeHost/);
+  assert.match(main,/humanaleRuntime=createHumanALERuntimeHost/);
+  assert.match(main,/humanaleRuntime\.bindIpc\(ipcMain\)/);
+  assert.match(main,/humanaleRuntime\.start\(\)/);
+  assert.match(main,/humanaleRuntime\?\.stop\(\)/);
   assert.match(main,/app\.on\('before-quit'.*nara\?\.stop/s);
 });
 
