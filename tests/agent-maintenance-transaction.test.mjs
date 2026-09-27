@@ -82,6 +82,25 @@ test('ignored secret file blocks transaction before any agent can run',async()=>
  }
 });
 
+test('ignored secret created after preflight is detected, quarantined and removed',async()=>{
+ const {root}=await repoFixture();
+ try{
+  const tx=await beginMaintenanceTransaction(root);
+  const secretPath=join(root,'.env');
+  await writeFile(secretPath,'OPENAI_API_KEY=created-during-run\n','utf8');
+  const result=await tx.inspect();
+  assert.equal(result.allowed,false);
+  assert.ok(result.violations.includes('SECRET_FILE_CREATED'));
+  assert.deepEqual([...result.secretPaths],['.env']);
+  assert.equal(result.rolledBack,true);
+  await assert.rejects(()=>readFile(secretPath,'utf8'),error=>error?.code==='ENOENT');
+  assert.equal(git(root,'status','--porcelain'),'');
+  await tx.release();
+ }finally{
+  await rm(root,{recursive:true,force:true});
+ }
+});
+
 test('tracked protected policy edit is quarantined and restored exactly to baseline',async()=>{
  const {root}=await repoFixture();
  try{

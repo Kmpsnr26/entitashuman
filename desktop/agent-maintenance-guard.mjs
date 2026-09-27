@@ -1,6 +1,6 @@
 import {posix as pathPosix} from 'node:path';
 
-export const AI_MAINTENANCE_GUARD_VERSION='1.0.0';
+export const AI_MAINTENANCE_GUARD_VERSION='1.1.0';
 
 export const AI_MAINTENANCE_MAX_CHANGED_FILES=32;
 export const AI_MAINTENANCE_MAX_CHANGED_BYTES=2*1024*1024;
@@ -132,6 +132,7 @@ export function evaluateMaintenanceChangeSet({
  protectedAreas=[],
  symlinkPaths=[],
  stagedPaths=[],
+ secretPaths=[],
  totalBytes=0,
  branchChanged=false,
  headChanged=false,
@@ -142,6 +143,7 @@ export function evaluateMaintenanceChangeSet({
  const normalizedPaths=[...new Set((paths||[]).map(path=>normalizeMaintenanceRepoPath(path)))];
  const normalizedSymlinks=[...new Set((symlinkPaths||[]).map(path=>normalizeMaintenanceRepoPath(path)))];
  const normalizedStaged=[...new Set((stagedPaths||[]).map(path=>normalizeMaintenanceRepoPath(path)))];
+ const normalizedSecrets=[...new Set((secretPaths||[]).map(path=>normalizeMaintenanceRepoPath(path)))];
  const protectedPaths=normalizedPaths.filter(path=>isMaintenanceProtectedPath(path,protectedAreas));
  const patchInspection=inspectMaintenancePatchText(patch);
  const violations=[];
@@ -152,6 +154,7 @@ export function evaluateMaintenanceChangeSet({
  if(lockChanged)violations.push('REPO_LOCK_DRIFT');
  if(normalizedStaged.length)violations.push('STAGED_CHANGE');
  if(normalizedSymlinks.length)violations.push('SYMLINK_CHANGE');
+ if(normalizedSecrets.length)violations.push('SECRET_FILE_CREATED');
  if(protectedPaths.length)violations.push('PROTECTED_PATH_CHANGE');
  if(normalizedPaths.length>AI_MAINTENANCE_MAX_CHANGED_FILES)violations.push('TOO_MANY_CHANGED_FILES');
  if(!Number.isFinite(totalBytes)||totalBytes<0||totalBytes>AI_MAINTENANCE_MAX_CHANGED_BYTES){
@@ -166,6 +169,7 @@ export function evaluateMaintenanceChangeSet({
   protectedPaths:Object.freeze(protectedPaths),
   symlinkPaths:Object.freeze(normalizedSymlinks),
   stagedPaths:Object.freeze(normalizedStaged),
+  secretPaths:Object.freeze(normalizedSecrets),
   totalBytes,
   patch:Object.freeze({
    allowed:patchInspection.allowed,

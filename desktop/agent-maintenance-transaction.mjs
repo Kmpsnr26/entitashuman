@@ -15,7 +15,7 @@ import {
  sanitizeMaintenanceEnvironment
 } from './agent-maintenance-guard.mjs';
 
-export const AI_MAINTENANCE_TRANSACTION_VERSION='1.0.0';
+export const AI_MAINTENANCE_TRANSACTION_VERSION='1.1.0';
 export const AI_MAINTENANCE_LOCK_FILE='humanale-ai-maintenance.lock';
 
 const SECRET_SCAN_SKIP_DIRS=new Set([
@@ -303,6 +303,7 @@ async function collectChangeSet(transaction){
  const stagedRaw=(await runGit(cwd,['diff','--cached','--name-only','-z'])).stdout;
  const stagedPaths=stagedRaw.split('\0').filter(Boolean).map(path=>normalizeMaintenanceRepoPath(path));
  const symlinkPaths=[];
+ const secretFiles=await scanSecretFiles(cwd);
  let totalBytes=0;
  for(const path of paths){
   try{
@@ -323,6 +324,7 @@ async function collectChangeSet(transaction){
   paths,
   stagedPaths,
   symlinkPaths,
+  secretFiles,
   totalBytes,
   patch,
   branchChanged:branch!==transaction.baseBranch,
@@ -342,9 +344,10 @@ async function quarantineAndRollback(transaction,changeSet){
  await patchHandle.writeFile(trackedPatch,'utf8');
  await patchHandle.close();
 
- const untracked=[...new Set(
-  changeSet.entries.filter(entry=>entry.untracked).flatMap(entry=>entry.paths)
- )];
+ const untracked=[...new Set([
+  ...changeSet.entries.filter(entry=>entry.untracked).flatMap(entry=>entry.paths),
+  ...(changeSet.secretFiles||[])
+ ])];
  for(const path of untracked){
   const source=join(cwd,path);
   const target=join(quarantine,'untracked',path);
@@ -358,8 +361,9 @@ async function quarantineAndRollback(transaction,changeSet){
 
  await runGit(cwd,['restore','--source',transaction.baseHead,'--staged','--worktree','--','.']);
  const remaining=await gitText(cwd,['status','--porcelain=v1','-z','--untracked-files=all']);
- if(remaining){
-  const error=new Error('Rollback AI maintenance tidak kembali ke worktree bersih.');
+ const remainingSecrets=await scanSecretFiles(cwd);
+ if(remaining||remainingSecrets.length){
+  const error=new Error('Rollback AI maintenance tidak kembali ke worktree bersih atau masih menyisakan file secret.');
   error.code='AI_MAINTENANCE_ROLLBACK_INCOMPLETE';
   throw error;
  }
@@ -383,6 +387,7 @@ export class MaintenanceTransaction{
    protectedAreas:AI_MAINTENANCE_PROTECTED_AREAS,
    symlinkPaths:changeSet.symlinkPaths,
    stagedPaths:changeSet.stagedPaths,
+   secretPaths:changeSet.secretFiles,
    totalBytes:changeSet.totalBytes,
    branchChanged:changeSet.branchChanged,
    headChanged:changeSet.headChanged,
@@ -426,7 +431,7 @@ export class MaintenanceTransaction{
    error.identity=identity;
    throw error;
   }
-  if(!changeSet.paths.length){
+  if(!changeSet.paths.length&&!changeSet.secretFiles.length){
    return Object.freeze({rolledBack:false,reason,transactionId:this.id});
   }
   await quarantineAndRollback(this,changeSet);
