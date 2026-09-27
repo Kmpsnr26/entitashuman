@@ -31,6 +31,9 @@ function fakeRunner({existing=false,existingDraft=true}={}){
         return {code:0,stdout:receipt.baseHead+'\n',stderr:''};
       }
     }
+    if(command==='git'&&args[0]==='ls-remote'){
+      return {code:0,stdout:'',stderr:''};
+    }
     if(command==='git'&&args[0]==='push'){
       return {code:0,stdout:'pushed\n',stderr:''};
     }
@@ -197,6 +200,43 @@ test('existing Draft PR with stale head SHA fails closed',async()=>{
   await assert.rejects(
     ()=>broker.publish({repoRoot:'.',receipt}),
     error=>error?.code==='MAINTENANCE_DRAFT_EXISTING_MISMATCH'
+  );
+  assert.equal(calls.some(call=>call.command==='git'&&call.args[0]==='push'),false);
+});
+
+
+test('conflicting existing remote maintenance branch is never overwritten',async()=>{
+  const calls=[];
+  const runner=async(command,args)=>{
+    calls.push({command,args:[...args]});
+    if(command==='git'&&args[0]==='remote'){
+      return {code:0,stdout:'https://github.com/Kmpsnr26/entitashuman.git\n',stderr:''};
+    }
+    if(command==='git'&&args[0]==='rev-parse'){
+      if(args[1]==='refs/heads/'+receipt.branchName){
+        return {code:0,stdout:receipt.commitSha+'\n',stderr:''};
+      }
+      return {code:0,stdout:receipt.baseHead+'\n',stderr:''};
+    }
+    if(/gh(?:\.exe)?$/.test(command)&&args[1]==='list'){
+      return {code:0,stdout:'[]',stderr:''};
+    }
+    if(command==='git'&&args[0]==='ls-remote'){
+      return {
+        code:0,
+        stdout:'3'.repeat(40)+'\trefs/heads/'+receipt.branchName+'\n',
+        stderr:''
+      };
+    }
+    throw new Error('unexpected command');
+  };
+  const broker=new TrustedDraftPRBroker({
+    expectedRepository:'Kmpsnr26/entitashuman',
+    runner
+  });
+  await assert.rejects(
+    ()=>broker.publish({repoRoot:'.',receipt}),
+    error=>error?.code==='MAINTENANCE_DRAFT_REMOTE_BRANCH_CONFLICT'
   );
   assert.equal(calls.some(call=>call.command==='git'&&call.args[0]==='push'),false);
 });
