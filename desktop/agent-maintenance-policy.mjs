@@ -78,7 +78,10 @@ export const AI_MAINTENANCE_READ_DENIED_AREAS=Object.freeze([
  '**/credentials.json',
  '**/credentials.*.json',
  '**/secrets.json',
- '**/secrets.*.json'
+ '**/secrets.*.json',
+ '**/.git-credentials',
+ '**/.netrc',
+ '**/auth.json'
 ]);
 
 export const AI_MAINTENANCE_PROTECTED_AREAS=Object.freeze([
@@ -112,6 +115,8 @@ export const AI_MAINTENANCE_PROTECTED_AREAS=Object.freeze([
  'desktop/agent-maintenance-policy.mjs',
  'desktop/agent-maintenance-guard.mjs',
  'desktop/agent-maintenance-transaction.mjs',
+ 'desktop/agent-autopilot-*.mjs',
+ 'desktop/agent-trusted-*-broker.mjs',
  'desktop/agent-hub.mjs',
  'desktop/terminal-policy.mjs',
  'desktop/main.cjs',
@@ -139,6 +144,8 @@ export const AI_MAINTENANCE_PROTECTED_AREAS=Object.freeze([
  'tests/agent-maintenance-policy.test.mjs',
  'tests/agent-maintenance-guard.test.mjs',
  'tests/agent-maintenance-transaction.test.mjs',
+ 'tests/agent-autopilot-*.test.mjs',
+ 'tests/agent-trusted-*.test.mjs',
  'tests/agent-orchestrator.test.mjs',
  'tests/humanale-final-readiness.test.mjs'
 ]);
