@@ -239,7 +239,9 @@ export class DeveloperAgentHub{
    :['-p',prompt,'--mode=ask','--output-format','text'];
   const timeoutMs=agentTimeoutMs(mode);
   const directResult=await new Promise((resolve,reject)=>{
-   const maintenanceEnv=sanitizeMaintenanceEnvironment(process.env).env;
+   const maintenanceEnv=sanitizeMaintenanceEnvironment(process.env,{
+    isolatedHome:this.maintenanceTransaction?.isolatedHome||''
+   }).env;
    const child=spawn(executable,args,{cwd,windowsHide:true,stdio:['ignore','pipe','pipe'],env:maintenanceEnv});
    this.child=child;let stdout='',stderr='',settled=false;
    const finish=(error,value)=>{if(settled)return;settled=true;clearTimeout(timer);if(this.child===child)this.child=null;error?reject(error):resolve(value);};
