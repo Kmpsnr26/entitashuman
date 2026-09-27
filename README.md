@@ -91,3 +91,10 @@ Statistik pada partikel adalah efek visual generatif, bukan metrik sistem. Tidak
 # Avatar, telinga, emosi, dan suara Indonesia
 
 Kontrol avatar menyediakan **Karakter emosi** (otomatis dari balasan, netral, bahagia, marah, kesal, sedih) dan **Efek suara** (bayi robot atau natural). Preset bayi robot memakai model suara Indonesia lokal Piper bila tersedia; suara Windows Indonesia menjadi cadangan. Telinga biner bereaksi terhadap pita frekuensi rendah, menengah, dan tinggi dari Mikrofon visual, Audio perangkat, atau file musik yang dipilih. Mikrofon tetap memerlukan izin pengguna.
+
+
+## NARA auto-connect
+
+Pada aplikasi desktop, NARA melakukan bootstrap koneksi provider saat aktif. Runtime memeriksa bridge ChatGPT melalui sesi Codex CLI yang sudah login, GitHub Copilot CLI, OpenAI API, Gemini API, serta Codex di Developer Agent Hub. Pemeriksaan startup tidak menyimpan API key ke source dan tidak memulai login interaktif secara diam-diam.
+
+Status provider disimpan pada snapshot NARA sebagai `providers`. Status `autopilot` memakai mode `bounded`: orchestrator hanya di-arm bila Agent Hub memiliki executor yang tersedia, dan tidak menjalankan edit/push/merge/publish tanpa tugas eksplisit serta permission yang sesuai. Untuk GitHub Copilot, deteksi executable saat startup tidak dianggap bukti autentikasi; autentikasi OAuth/token tetap diverifikasi ketika provider digunakan.
