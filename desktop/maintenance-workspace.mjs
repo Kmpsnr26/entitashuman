@@ -133,6 +133,11 @@ export class TrustedMaintenanceWorkspaceBroker{
 
     const baseHead=await gitText(root,['rev-parse','--verify',baseRef]);
     const baseBranch=await gitText(root,['branch','--show-current']);
+    if(!baseBranch){
+      const error=new Error('Workspace broker tidak menerima source checkout detached HEAD.');
+      error.code='MAINTENANCE_WORKSPACE_DETACHED_HEAD';
+      throw error;
+    }
     if(!baseHead){
       const error=new Error('Base ref maintenance tidak dapat di-resolve.');
       error.code='MAINTENANCE_WORKSPACE_BASE_INVALID';
@@ -256,6 +261,24 @@ export class TrustedMaintenanceWorkspaceBroker{
       findingId:state.findingId,
       findingFingerprint:state.findingFingerprint
     });
+  }
+
+  async finalizePublished(workspace,draft){
+    const state=this.get(workspace?.id);
+    if(!state||state.checkpointed!==true){
+      throw new Error('Finalize membutuhkan checkpointed workspace yang dikenal broker.');
+    }
+    if(!draft||draft.draft!==true||!draft.url){
+      throw new Error('Finalize membutuhkan verified Draft PR result.');
+    }
+    try{
+      await runGit(state.repoRoot,['worktree','remove','--force',state.path]);
+    }finally{
+      try{await removeBranch(state.repoRoot,state.branchName);}catch{}
+      this.active.delete(state.id);
+      await rm(state.container,{recursive:true,force:true});
+    }
+    return true;
   }
 
   async discard(workspace,{deleteBranch=true}={}){
