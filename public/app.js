@@ -189,7 +189,7 @@ const apiProviders=['copilot','openai','grok','gemini','claude','deepseek','askc
 const SUMMON_DURATION_MS=4200;
 const DISMISS_DURATION_MS=3000;
 const DEFAULT_AVATAR_SIZE=420;
-let panelZoomFactor=1,latestNaraBrainState=null,selectedBrainRegion='NARA_CORE';
+let panelZoomFactor=1,latestNaraBrainState=null,latestHumanALERuntime=null,selectedBrainRegion='NARA_CORE';
 let aiReady=false,savedProvider=desktop?localStorage.getItem('dudidam-provider'):'',aiProvider=apiProviders.includes(savedProvider)?savedProvider:'chatgpt',busy=false,voice=true,selectedVoiceURI=desktop?(localStorage.getItem('dudidam-voice-uri')||''):'',listening=false,recognition,cameraStream,cameraPending=false,history=[],toastTimer,bubbleTimer,speechTimer,drag,offset={x:0,y:0},ttsActive=false,ttsEnergy=0,audioEnergy=0,audioMode='',musicUrl='',wakeRecognition,wakeListening=false,wakeEnabled=desktop?localStorage.getItem('dudidam-wake-enabled')==='true':false,wakeRestartTimer,wakeHealthVerified=false,wakeRetryBlocked=false,wakeNetworkFailures=0,summoning=false,dismissing=false,transitionSerial=0,hold5Timer,hold5Fired=false;
 let wakeStartGeneration=0;
 let micProbeGeneration=0,micChecking=false;
@@ -200,6 +200,27 @@ let activeSpeechSource='',naraVoiceQueue=[],naraVoiceActive=false,naraVoiceDrain
 let voiceStyle=desktop?localStorage.getItem('dudidam-voice-style')||'baby-robot':'baby-robot',emotionChoice=desktop?localStorage.getItem('dudidam-emotion')||'auto':'auto',lastBandsSent=0;
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 let naraAudioBands={low:0,mid:0,high:0},lastNaraAudioSent=0;
+function syncHumanALERuntime(runtime){
+ if(!runtime||typeof runtime!=='object')return;
+ latestHumanALERuntime=runtime;
+ if(runtime.core&&runtime.core!==latestNaraBrainState)syncNaraBrainState(runtime.core);
+ if(panelOnly)return;
+ const body=runtime.humanale?.body;
+ if(!body)return;
+ const bodyState=String(body.state||'idle');
+ const avatarState=bodyState==='working'?'processing':bodyState==='warning'?'error':bodyState;
+ if(['idle','listening','thinking','speaking','processing','error'].includes(avatarState)){
+  avatar.setState?.(avatarState);
+ }
+ avatar.setListening?.(Boolean(body.hearing?.active)&&!Boolean(body.speech?.active));
+ avatar.setEarSpectrum?.({
+  low:Number(body.hearing?.low)||0,
+  mid:Number(body.hearing?.mid)||0,
+  high:Number(body.hearing?.high)||0
+ });
+ if(body.speech?.active)avatar.setSpeechEnergy?.(Math.max(.2,Number(body.speech?.energy)||.35));
+}
+
 function syncNaraHearing(){
  if(panelOnly||!desktop?.naraDispatch)return;
  const now=performance.now();if(now-lastNaraAudioSent<100)return;lastNaraAudioSent=now;
@@ -891,7 +912,14 @@ if(!panelOnly){
  desktop?.onDismiss?.(reason=>dismissAle(reason));
  desktop?.onNaraVoice?.(cue=>enqueueNaraVoice(cue));
  desktop?.onNaraState?.(snapshot=>syncNaraBrainState(snapshot));
- if(desktop?.naraSnapshot)desktop.naraSnapshot().then(result=>{if(result?.state)syncNaraBrainState(result.state);}).catch(()=>{});
+ desktop?.onRuntimeState?.(runtime=>syncHumanALERuntime(runtime));
+ if(desktop?.naraSnapshot)desktop.naraSnapshot().then(result=>{
+  if(result?.state)syncNaraBrainState(result.state);
+  if(result?.runtime)syncHumanALERuntime(result.runtime);
+ }).catch(()=>{});
+ if(desktop?.runtimeSnapshot)desktop.runtimeSnapshot().then(result=>{
+  if(result?.runtime)syncHumanALERuntime(result.runtime);
+ }).catch(()=>{});
  desktop?.onGlobalPointer?.(point=>{if(!point||drag)return;avatar.gazePointer={x:Math.max(-1,Math.min(1,Number(point.x)||0)),y:Math.max(-1,Math.min(1,Number(point.y)||0))};avatar.gazeActive=true;});
  desktop?.onBackdrop?.(grid=>avatar.setBackdrop?.(grid));
 }
