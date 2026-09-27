@@ -44,6 +44,32 @@ export class NaraExperienceModel{
       .sort((a,b)=>b.score-a.score||a.failures-b.failures||a.id.localeCompare(b.id))[0].id;
   }
 
+  hydrate(snapshot={}){
+    if(snapshot?.version!==1||!Array.isArray(snapshot?.strategies)||!Array.isArray(snapshot?.history)){
+      throw new Error('Snapshot experience NARA tidak valid.');
+    }
+    this.records.clear();
+    for(const raw of snapshot.strategies.slice(0,500)){
+      const id=String(raw?.id||'');
+      if(!SAFE_ID.test(id))continue;
+      this.records.set(id,{
+        id,
+        runs:Math.max(0,Math.floor(Number(raw.runs)||0)),
+        successes:Math.max(0,Math.floor(Number(raw.successes)||0)),
+        failures:Math.max(0,Math.floor(Number(raw.failures)||0)),
+        score:Math.max(.05,Math.min(.95,Number(raw.score)||.5)),
+        updatedAt:Math.max(0,Number(raw.updatedAt)||0)
+      });
+    }
+    this.history=snapshot.history.slice(-this.limit).map(raw=>({
+      id:SAFE_ID.test(String(raw?.id||''))?String(raw.id):'strategy.unknown',
+      ok:Boolean(raw?.ok),
+      durationMs:Math.max(0,Number(raw?.durationMs)||0),
+      timestamp:Math.max(0,Number(raw?.timestamp)||0)
+    }));
+    return this.snapshot();
+  }
+
   snapshot(){
     return {
       version:1,
