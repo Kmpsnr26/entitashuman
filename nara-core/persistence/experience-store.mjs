@@ -1,4 +1,4 @@
-import {mkdir,readFile,rename,rm,stat,writeFile} from 'node:fs/promises';
+import {mkdir,open,rename,rm,writeFile} from 'node:fs/promises';
 import {mkdirSync,renameSync,rmSync,writeFileSync} from 'node:fs';
 import {dirname} from 'node:path';
 
@@ -12,10 +12,12 @@ export class NaraExperienceStore{
   }
 
   async load(){
+    let handle;
     try{
-      const info=await stat(this.filePath);
+      handle=await open(this.filePath,'r');
+      const info=await handle.stat();
       if(info.size<=0||info.size>this.maxBytes)throw new Error('Experience store NARA melebihi batas aman.');
-      const raw=await readFile(this.filePath,'utf8');
+      const raw=await handle.readFile({encoding:'utf8'});
       const data=JSON.parse(raw);
       if(data?.version!==1||!Array.isArray(data?.strategies)||!Array.isArray(data?.history)){
         throw new Error('Experience store NARA tidak valid.');
@@ -24,6 +26,8 @@ export class NaraExperienceStore{
     }catch(error){
       if(error?.code==='ENOENT')return null;
       throw error;
+    }finally{
+      await handle?.close();
     }
   }
 

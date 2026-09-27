@@ -713,6 +713,8 @@ test('Creator Gateway UI defers Studio boot and uses browser permission APIs wit
   assert.match(server,/HttpOnly|sessionCookie/);
   assert.match(server,/frame-ancestors 'none'/);
   assert.match(auth,/timingSafeEqual/);
+  assert.doesNotMatch(auth,/createHash/);
+  assert.doesNotMatch(auth,/result\s*\[\s*key\s*\]\s*=/);
   assert.match(auth,/randomBytes\(32\)/);
   assert.match(auth,/not_configured/);
 });

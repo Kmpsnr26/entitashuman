@@ -1,27 +1,34 @@
-import {createHash,randomBytes,timingSafeEqual} from 'node:crypto';
+import {randomBytes,timingSafeEqual} from 'node:crypto';
 
 const COOKIE_NAME='nara_creator_session';
 const DEFAULT_TTL=8*60*60*1000;
 const DEFAULT_WINDOW=10*60*1000;
 
-function digest(value){
-  return createHash('sha256').update(String(value??''),'utf8').digest();
-}
-
 function safeEqual(left,right){
-  return timingSafeEqual(digest(left),digest(right));
+  const leftBuffer=Buffer.from(String(left??''),'utf8');
+  const rightBuffer=Buffer.from(String(right??''),'utf8');
+  const comparisonLength=Math.max(leftBuffer.length,rightBuffer.length,1);
+  const paddedLeft=Buffer.alloc(comparisonLength);
+  const paddedRight=Buffer.alloc(comparisonLength);
+  leftBuffer.copy(paddedLeft);
+  rightBuffer.copy(paddedRight);
+  return timingSafeEqual(paddedLeft,paddedRight)&&leftBuffer.length===rightBuffer.length;
 }
 
-function parseCookies(header=''){
-  const result={};
+function readSessionCookie(header=''){
+  let sessionToken=null;
   for(const part of String(header).split(';')){
     const index=part.indexOf('=');
     if(index<0)continue;
     const key=part.slice(0,index).trim();
-    const value=part.slice(index+1).trim();
-    if(key)result[key]=decodeURIComponent(value);
+    if(key!==COOKIE_NAME)continue;
+    try{
+      sessionToken=decodeURIComponent(part.slice(index+1).trim());
+    }catch{
+      sessionToken=null;
+    }
   }
-  return result;
+  return sessionToken;
 }
 
 export function createCreatorAuth({
@@ -87,7 +94,7 @@ export function createCreatorAuth({
 
   function getSession(req){
     prune();
-    const token=parseCookies(req.headers.cookie||'')[COOKIE_NAME];
+    const token=readSessionCookie(req.headers.cookie||'');
     if(!token)return null;
     const session=sessions.get(token);
     if(!session||session.expiresAt<=Date.now()){
@@ -128,7 +135,7 @@ export function createCreatorAuth({
   }
 
   function logout(req){
-    const token=parseCookies(req.headers.cookie||'')[COOKIE_NAME];
+    const token=readSessionCookie(req.headers.cookie||'');
     if(token)sessions.delete(token);
   }
 

@@ -166,6 +166,33 @@ test('Creator auth uses owner store and login changes require authenticated owne
   }
 });
 
+test('Creator auth fallback compares exact credentials and accepts only its session cookie',()=>{
+  const auth=createCreatorAuth({
+    username:'owner',
+    password:'CreatorPass123!',
+    ttlMs:60000
+  });
+  const req={socket:{remoteAddress:'127.0.0.1'},headers:{cookie:''}};
+
+  assert.equal(auth.login(req,{username:'owner',password:'CreatorPass123?'}).ok,false);
+  assert.equal(auth.login(req,{username:'ownerx',password:'CreatorPass123!'}).ok,false);
+
+  const login=auth.login(req,{username:'owner',password:'CreatorPass123!'});
+  assert.equal(login.ok,true);
+  req.headers.cookie=[
+    '__proto__=polluted',
+    'constructor=malicious',
+    'unrelated=value',
+    'nara_creator_session='+encodeURIComponent(login.token)
+  ].join('; ');
+  assert.equal(auth.getSession(req)?.username,'owner');
+  assert.equal(Object.prototype.polluted,undefined);
+
+  req.headers.cookie='nara_creator_session=%E0%A4%A';
+  assert.equal(auth.getSession(req),null);
+  assert.doesNotThrow(()=>auth.logout(req));
+});
+
 test('system observer exposes only own interface metadata and data-flow meter counts NARA payloads',()=>{
   const observer=createSystemObserver({intervalMs:1000});
   const snapshot=observer.snapshot();

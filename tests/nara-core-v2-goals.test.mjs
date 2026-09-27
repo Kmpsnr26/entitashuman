@@ -147,6 +147,16 @@ test('Persistent Experience Store saves and restores bounded NARA experience',as
   }
 });
 
+test('Persistent Experience Store validates and reads through one pinned file handle',()=>{
+  const source=readFileSync(new URL('../nara-core/persistence/experience-store.mjs',import.meta.url),'utf8');
+  assert.match(source,/handle=await open\(this\.filePath,'r'\)/);
+  assert.match(source,/await handle\.stat\(\)/);
+  assert.match(source,/await handle\.readFile\(\{encoding:'utf8'\}\)/);
+  assert.match(source,/await handle\?\.close\(\)/);
+  assert.doesNotMatch(source,/\bstat\(this\.filePath\)/);
+  assert.doesNotMatch(source,/\breadFile\(this\.filePath/);
+});
+
 test('NARA orchestrator links goals to autopilot tasks and completes goal automatically',async()=>{
   const nara=createOrchestrator();
   nara.start();
