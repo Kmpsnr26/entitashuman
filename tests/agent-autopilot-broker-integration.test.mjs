@@ -71,19 +71,14 @@ test('autopilot + trusted broker rollback failed first attempt then use a fresh 
 test('autopilot + trusted broker blocks unsafe inspection and rolls transaction back',async()=>{
  const events=[];
  const tx=makeTx('tx-block',events);
- let inspections=0;
  tx.inspect=async()=>{
-  inspections++;
   events.push('tx-block:inspect');
-  if(inspections>=2){
-   return {
-    allowed:false,
-    violations:['PROTECTED_PATH_CHANGE'],
-    paths:['desktop/agent-maintenance-policy.mjs'],
-    totalBytes:1
-   };
-  }
-  return {allowed:true,violations:[],paths:['src/fix.js'],totalBytes:1};
+  return {
+   allowed:false,
+   violations:['PROTECTED_PATH_CHANGE'],
+   paths:['desktop/agent-maintenance-policy.mjs'],
+   totalBytes:1
+  };
  };
  const broker=createTrustedMaintenanceBroker({
   projectRoot:'/repo',
