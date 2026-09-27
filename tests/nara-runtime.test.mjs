@@ -16,6 +16,8 @@ test('Electron main owns and starts the NARA orchestrator with renderer event al
   assert.match(main,/import\('\.\.\/nara-core\/brain\/index\.js'\)/);
   assert.match(main,/nara=createOrchestrator\(\)/);
   assert.match(main,/nara\.start\(\)/);
+  assert.match(main,/import\('\.\/startup-connections\.mjs'\)/);
+  assert.match(main,/bootstrapNaraConnections\(\{bridges,agentHub,nara\}\)/);
   assert.match(main,/NARA_RENDERER_EVENTS=new Set\(\['audio\.energy','vision\.frame','vision\.stop','speech\.start','speech\.energy','speech\.stop','brain\.region\.select'\]\)/);
   assert.match(main,/Event NARA tidak diizinkan dari renderer/);
   assert.match(main,/app\.on\('before-quit'.*nara\?\.stop/s);

@@ -41,6 +41,8 @@ export class NaraBrainState{
         vision:{active:false,activity:0,frameId:null},
         speech:{active:false,energy:0}
       },
+      providers:{},
+      autopilot:{ready:false,armed:false,mode:'bounded',projectRootReady:false,executors:[],detail:''},
       lastEvent:null
     };
   }
@@ -59,6 +61,8 @@ export class NaraBrainState{
         vision:{...this.state.sensory.vision},
         speech:{...this.state.sensory.speech}
       },
+      providers:Object.fromEntries(Object.entries(this.state.providers).map(([id,value])=>[id,{...value}])),
+      autopilot:{...this.state.autopilot,executors:[...(this.state.autopilot.executors||[])]},
       currentTask:this.state.currentTask?{...this.state.currentTask}:null,
       lastEvent:this.state.lastEvent?{...this.state.lastEvent}:null
     };
@@ -167,6 +171,37 @@ export class NaraBrainState{
       this.setRegion('BUG_HUNTER',{status:'bug',activity:1,message:String(payload.message||'Bug terdeteksi')},event);
     }else if(event==='bug.fixed'){
       this.setRegion('BUG_HUNTER',{status:'complete',activity:.25,message:'Perbaikan selesai dan siap diverifikasi'},event);
+    }else if(event==='provider.status'){
+      const id=String(payload.id||'').trim();
+      if(id){
+        const next={...payload,id,updatedAt:envelope.timestamp};
+        this.state.providers={...this.state.providers,[id]:next};
+        if(id==='copilot'){
+          const authenticated=payload.ready&&payload.auth==='available';
+          this.setRegion('COPILOT',{
+            status:authenticated?'connected':payload.attached?'ready':'disconnected',
+            activity:authenticated?.55:payload.attached?.18:0,
+            message:authenticated?'GitHub Copilot terautentikasi':payload.attached?'GitHub Copilot terpasang; autentikasi diverifikasi saat digunakan':'GitHub Copilot belum tersedia'
+          },event);
+        }
+        this.notify({type:'provider',id,value:{...next}});
+      }
+    }else if(event==='autopilot.status'){
+      const executors=Array.isArray(payload.executors)?payload.executors.map(value=>String(value)).slice(0,8):[];
+      this.state.autopilot={
+        ready:Boolean(payload.ready),
+        armed:Boolean(payload.armed),
+        mode:String(payload.mode||'bounded').slice(0,40),
+        projectRootReady:Boolean(payload.projectRootReady),
+        executors,
+        detail:String(payload.detail||'').slice(0,240)
+      };
+      this.setRegion('AGENT_MANAGER',{
+        status:payload.ready?'ready':'paused',
+        activity:payload.ready?.45:.1,
+        message:payload.ready?'Autopilot siap dengan '+executors.length+' executor':'Autopilot menunggu executor yang terautentikasi'
+      },event);
+      this.notify({type:'autopilot',value:{...this.state.autopilot,executors:[...executors]}});
     }else if(event==='terminal.open'){
       this.setRegion('TERMINAL',{status:'active',activity:1,message:'Terminal aktif'},event);
     }else if(connectionEvents[event]){

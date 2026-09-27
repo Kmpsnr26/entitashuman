@@ -6,7 +6,7 @@ const path=require('node:path');
 const {tmpdir}=require('node:os');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer,backdropTimer;
+let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,startupConnections,tray,saveTimer,pointerTimer,backdropTimer;
 let cloudAllowedOrigins=new Set();
 let announceNaraEvent=()=>{};
 let baseWindowSize={width:420,height:480};
@@ -200,7 +200,7 @@ else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
   const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
-  const [{createOrchestrator},{createVoiceFeedback}]=await Promise.all([import('../nara-core/brain/index.js'),import('../nara-core/voice/index.js')]);
+  const [{createOrchestrator},{createVoiceFeedback},{bootstrapNaraConnections}]=await Promise.all([import('../nara-core/brain/index.js'),import('../nara-core/voice/index.js'),import('./startup-connections.mjs')]);
   naraVoice=createVoiceFeedback();
   nara=createOrchestrator();
   nara.start();
@@ -222,6 +222,14 @@ else{
   }
   agentHub=new DeveloperAgentHub();
   const savedProjectRoot=await readProjectRoot();if(savedProjectRoot)agentHub.setProjectRoot(savedProjectRoot);
+  startupConnections={pending:true,checkedAt:0,providers:{},autopilot:{ready:false,armed:false,mode:'bounded',executors:[]}};
+  void bootstrapNaraConnections({bridges,agentHub,nara}).then(result=>{
+   startupConnections={pending:false,...result};
+  }).catch(error=>{
+   startupConnections={pending:false,checkedAt:Date.now(),providers:{},autopilot:{ready:false,armed:false,mode:'bounded',executors:[],detail:'Auto-connect gagal'}};
+   try{nara.dispatch('autopilot.status',startupConnections.autopilot,{source:'startup-connections'});}catch{}
+   console.error('[NARA AUTO CONNECT]',error);
+  });
   terminalPolicy=policyModule;
   const emitTerminal=(channel,...args)=>{for(const target of [win,panelWin]){if(target&&!target.isDestroyed()&&!target.webContents.isLoading())target.webContents.send(channel,...args);}};
   terminalManager=new TerminalManager({
