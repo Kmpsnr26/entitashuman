@@ -183,6 +183,51 @@ export class NaraBrainState{
       this.setRegion('SYNC',{status:'syncing',activity:1,message:'Sinkronisasi berjalan'},event);
     }else if(event==='sync.complete'){
       this.setRegion('SYNC',{status:'complete',activity:.2,message:'Sinkronisasi selesai'},event);
+    }else if(event==='capability.requested'){
+      this.setRegion('SAFETY',{status:'processing',activity:.85,message:'Memeriksa permintaan capability'},event);
+    }else if(event==='capability.approved'){
+      this.setRegion('SAFETY',{status:'complete',activity:.3,message:'Capability disetujui creator'},event);
+    }else if(event==='capability.denied'||event==='capability.revoked'){
+      this.setRegion('SAFETY',{status:'paused',activity:.25,message:'Capability ditolak atau dicabut'},event);
+    }else if(event==='autopilot.task.queued'){
+      this.setRegion('PLANNER',{status:'ready',activity:.45,message:'Task autopilot masuk antrian'},event);
+    }else if(event==='autopilot.task.start'){
+      this.setRegion('AGENT_MANAGER',{status:'processing',activity:1,message:'Autopilot menjalankan handler terdaftar'},event);
+      this.setRegion('PROGRAM',{status:'processing',activity:.9,message:'Task autopilot berjalan'},event);
+    }else if(event==='autopilot.task.complete'){
+      this.setRegion('AGENT_MANAGER',{status:'complete',activity:.25,message:'Autopilot task selesai'},event);
+      this.setRegion('PROGRAM',{status:'complete',activity:.2,message:'Task autopilot selesai'},event);
+      this.setRegion('FOLLOW_UP',{status:'active',activity:.55,message:'Memverifikasi hasil autopilot'},event);
+    }else if(event==='autopilot.task.failed'){
+      this.setRegion('AGENT_MANAGER',{status:'error',activity:.85,message:'Autopilot task gagal'},event);
+      this.setRegion('ERROR_MONITOR',{status:'error',activity:1,message:'Autopilot membutuhkan recovery'},event);
+    }else if(event==='autopilot.task.stalled'){
+      this.setRegion('ERROR_MONITOR',{status:'error',activity:1,message:'Watchdog mendeteksi task macet'},event);
+      this.setRegion('FOLLOW_UP',{status:'processing',activity:.9,message:'Mengevaluasi task macet'},event);
+    }else if(event==='autopilot.task.blocked'){
+      this.setRegion('SAFETY',{status:'paused',activity:.8,message:'Autopilot menunggu capability Creator'},event);
+    }else if(event==='goal.created'){
+      this.setRegion('PLANNER',{status:'ready',activity:.5,message:'Goal baru dibuat'},event);
+    }else if(event==='goal.activated'){
+      this.setRegion('PLANNER',{status:'processing',activity:.9,message:'Goal aktif'},event);
+      this.setRegion('NARA_CORE',{status:'active',activity:.8,message:'Menjaga goal aktif'},event);
+    }else if(event==='goal.task.linked'||event==='goal.progress'){
+      this.setRegion('PLANNER',{status:'processing',activity:.75,message:'Memantau progres goal'},event);
+      this.setRegion('FOLLOW_UP',{status:'active',activity:.5,message:'Memverifikasi progres goal'},event);
+    }else if(event==='goal.complete'){
+      this.setRegion('PLANNER',{status:'complete',activity:.25,message:'Goal selesai'},event);
+      this.setRegion('FOLLOW_UP',{status:'complete',activity:.2,message:'Goal terverifikasi selesai'},event);
+    }else if(event==='goal.blocked'){
+      this.setRegion('PLANNER',{status:'paused',activity:.75,message:'Goal terblokir'},event);
+      this.setRegion('FOLLOW_UP',{status:'processing',activity:.8,message:'Goal membutuhkan tindak lanjut'},event);
+    }else if(event==='goal.failed'){
+      this.setRegion('PLANNER',{status:'error',activity:.9,message:'Goal gagal'},event);
+      this.setRegion('ERROR_MONITOR',{status:'error',activity:1,message:'Goal membutuhkan recovery'},event);
+    }else if(event==='metacognition.review'){
+      this.setRegion('REASONER',{status:'active',activity:.55,message:'Mengevaluasi confidence dan uncertainty'},event);
+      if(payload.recommendation==='ask-owner')this.setRegion('SAFETY',{status:'paused',activity:.7,message:'Metacognition meminta keputusan Creator'},event);
+      else if(payload.recommendation==='recover')this.setRegion('FOLLOW_UP',{status:'processing',activity:.8,message:'Metacognition merekomendasikan recovery'},event);
+      else if(payload.recommendation==='verify')this.setRegion('FOLLOW_UP',{status:'processing',activity:.65,message:'Metacognition merekomendasikan verifikasi'},event);
     }else if(event==='report.created'){
       this.setRegion('REPORTING',{status:'complete',activity:.2,message:'Laporan dibuat'},event);
     }else if(event==='audio.energy'){

@@ -5,13 +5,20 @@ import {readFile} from 'node:fs/promises';
 const root=new URL('../',import.meta.url);
 
 test('NARA runtime publishes voice cues from the event bus without exposing arbitrary speech IPC',async()=>{
-  const [main,preload]=await Promise.all([
+  const [main,preload,runtimeHost]=await Promise.all([
     readFile(new URL('desktop/main.cjs',root),'utf8'),
-    readFile(new URL('desktop/preload.cjs',root),'utf8')
+    readFile(new URL('desktop/preload.cjs',root),'utf8'),
+    readFile(new URL('desktop/humanale-runtime-host.mjs',root),'utf8')
   ]);
   assert.match(main,/createVoiceFeedback/);
-  assert.match(main,/nara\.bus\.onAny\(envelope=>consumeNaraVoice\(envelope\)\)/);
-  assert.match(main,/dudidam:nara-voice/);
+  assert.match(main,/voiceFeedback:naraVoice/);
+  assert.match(main,/onExperienceDirty:scheduleExperienceSave/);
+  assert.match(runtimeHost,/this\.nara\.bus\.onAny\(envelope=>\{/);
+  assert.match(runtimeHost,/this\.consumeEnvelope\(envelope\)/);
+  assert.match(runtimeHost,/this\.publishState\(this\.nara\.snapshot\(\)\)/);
+  assert.match(runtimeHost,/this\.voiceFeedback\?\.consume\?\.\(envelope\)/);
+  assert.match(runtimeHost,/autopilot\.task\.complete/);
+  assert.match(runtimeHost,/dudidam:nara-voice/);
   assert.match(main,/announceNaraEvent\('nara\.start'\)/);
   assert.match(main,/announceNaraEvent\('nara\.shutdown'\)/);
   assert.match(preload,/onNaraVoice:callback/);

@@ -58,6 +58,18 @@ const LINK_LIVE=0x42ddff;
 const LINK_SELECTED=0xa9f7ff;
 const ROUTE_POOL_SIZE=24;
 const QUALITY_ORDER=['low','balanced','high'];
+const DEFAULT_SCENE_VISUALS=Object.freeze({
+  brainFrame:true,binary:true,frameGlow:1.45,
+  aurora:true,auroraIntensity:1.35,nebula:true,particles:true,
+  roots:true,rootGlow:1.15,dataFlow:true,
+  coreScale:1,coreGlow:1.25,ringA:true,ringB:true,
+  ringSpeedA:1,ringSpeedB:1
+});
+
+function bounded(value,min,max,fallback){
+  const number=Number(value);
+  return Number.isFinite(number)?Math.max(min,Math.min(max,number)):fallback;
+}
 
 function statusColor(status,group){
   return STATUS_COLORS[status]??GROUP_COLORS[group]??0x42ddff;
@@ -148,6 +160,311 @@ function makeGlowTexture(){
   return texture;
 }
 
+function makeGalacticBrainFrame(){
+  const group=new THREE.Group();
+  const materials=[];
+  const geometries=[];
+  const colors=[0x51e8ff,0x7b78ff,0x5bf0c1];
+
+  function addFrameLine(points,{color,hueOffset=0,baseOpacity=.18,bridge=false}={}){
+    const geometry=new THREE.BufferGeometry().setFromPoints(points);
+    const coreMaterial=new THREE.LineBasicMaterial({
+      color,transparent:true,opacity:baseOpacity,depthWrite:false,
+      blending:THREE.AdditiveBlending
+    });
+    coreMaterial.userData={baseOpacity,hueOffset,role:'core'};
+    const coreLine=new THREE.Line(geometry,coreMaterial);
+    coreLine.userData.galacticBrainFrame=true;
+    group.add(coreLine);
+
+    const glowGeometry=geometry.clone();
+    const glowMaterial=new THREE.LineBasicMaterial({
+      color,transparent:true,opacity:baseOpacity*.48,depthWrite:false,
+      blending:THREE.AdditiveBlending
+    });
+    glowMaterial.userData={baseOpacity:baseOpacity*.48,hueOffset:hueOffset+.03,role:'glow'};
+    const glowLine=new THREE.Line(glowGeometry,glowMaterial);
+    glowLine.scale.setScalar(bridge?1.018:1.012);
+    glowLine.userData.galacticBrainFrameGlow=true;
+    group.add(glowLine);
+
+    geometries.push(geometry,glowGeometry);
+    materials.push(coreMaterial,glowMaterial);
+  }
+
+  for(const side of [-1,1]){
+    for(let band=0;band<6;band++){
+      const points=[];
+      const y=-3.7+band*1.45;
+      const width=4.9-Math.abs(y)*.28;
+      const depth=3.2-Math.abs(y)*.12;
+      for(let i=0;i<=42;i++){
+        const angle=-Math.PI*.56+(i/42)*Math.PI*1.12;
+        const x=side*(1.0+Math.cos(angle)*width);
+        const z=Math.sin(angle)*depth;
+        const ripple=Math.sin(angle*3+band*.7)*.16;
+        points.push(new THREE.Vector3(x,y+ripple,z));
+      }
+      const curve=new THREE.CatmullRomCurve3(points,false,'centripetal',.45);
+      addFrameLine(curve.getPoints(72),{
+        color:colors[band%colors.length],
+        hueOffset:band*.035+(side>0?.018:0),
+        baseOpacity:.20+(band%3)*.025
+      });
+    }
+  }
+
+  for(let bridge=0;bridge<5;bridge++){
+    const y=-2.8+bridge*1.4;
+    const points=[
+      new THREE.Vector3(-1.25,y,-2.4),
+      new THREE.Vector3(-.55,y+.18,-.7),
+      new THREE.Vector3(0,y+.28,0),
+      new THREE.Vector3(.55,y+.18,.7),
+      new THREE.Vector3(1.25,y,2.4)
+    ];
+    const curve=new THREE.CatmullRomCurve3(points,false,'centripetal',.5);
+    addFrameLine(curve.getPoints(48),{
+      color:0xa6f8ff,
+      hueOffset:.11+bridge*.018,
+      baseOpacity:.16,
+      bridge:true
+    });
+  }
+
+  group.scale.set(1.16,1.02,1.12);
+  group.rotation.y=.12;
+  group.userData={materials,geometries};
+  return group;
+}
+
+function makeBinaryGlyphTexture(value='0'){
+  const canvas=document.createElement('canvas');
+  canvas.width=64;
+  canvas.height=64;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,64,64);
+  ctx.font='700 42px ui-monospace, SFMono-Regular, Consolas, monospace';
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  const gradient=ctx.createLinearGradient(8,10,56,54);
+  gradient.addColorStop(0,'rgba(112,246,255,1)');
+  gradient.addColorStop(.52,'rgba(172,225,255,.95)');
+  gradient.addColorStop(1,'rgba(137,105,255,.92)');
+  ctx.fillStyle=gradient;
+  ctx.shadowBlur=13;
+  ctx.shadowColor='rgba(74,224,255,.9)';
+  ctx.fillText(value,32,34);
+  const texture=new THREE.CanvasTexture(canvas);
+  texture.colorSpace=THREE.SRGBColorSpace;
+  return texture;
+}
+
+function makeBrainBinaryField(){
+  const group=new THREE.Group();
+  const textures=[makeBinaryGlyphTexture('0'),makeBinaryGlyphTexture('1')];
+  const sprites=[];
+  for(let index=0;index<52;index++){
+    const side=index%2?-1:1;
+    const y=-3.55+stableUnit('binary-y-'+index)*7.1;
+    const width=4.45-Math.abs(y)*.24;
+    const x=side*(.82+stableUnit('binary-x-'+index)*Math.max(.7,width));
+    const z=(stableUnit('binary-z-'+index)*2-1)*2.85;
+    const material=new THREE.SpriteMaterial({
+      map:textures[index%2],
+      color:index%5===0?0x9b83ff:0x73efff,
+      transparent:true,
+      opacity:.22+stableUnit('binary-a-'+index)*.34,
+      depthWrite:false,
+      blending:THREE.AdditiveBlending
+    });
+    const sprite=new THREE.Sprite(material);
+    sprite.position.set(x,y,z);
+    const size=.19+stableUnit('binary-size-'+index)*.18;
+    sprite.scale.set(size,size,1);
+    sprite.userData={
+      baseX:x,baseY:y,baseZ:z,
+      phase:stableUnit('binary-phase-'+index)*Math.PI*2
+    };
+    group.add(sprite);
+    sprites.push(sprite);
+  }
+  group.scale.set(1.16,1.02,1.12);
+  group.rotation.y=.12;
+  group.userData={sprites,textures};
+  return group;
+}
+
+function makeAuroraRibbon({y=0,z=-5,color=0x48ddff,phase=0}={}){
+  const segments=36;
+  const positions=[];
+  const indices=[];
+  for(let i=0;i<=segments;i++){
+    const u=i/segments;
+    const x=(u-.5)*18;
+    const wave=Math.sin(u*Math.PI*2.15+phase)*1.15+Math.sin(u*Math.PI*5+phase*.7)*.26;
+    const centerY=y+wave;
+    const width=.45+.32*Math.sin(u*Math.PI);
+    positions.push(x,centerY-width,z+.35*Math.sin(u*Math.PI*2+phase));
+    positions.push(x,centerY+width,z-.35*Math.sin(u*Math.PI*2+phase));
+    if(i<segments){
+      const base=i*2;
+      indices.push(base,base+1,base+2,base+1,base+3,base+2);
+    }
+  }
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+  geometry.setIndex(indices);
+  geometry.computeBoundingSphere();
+  const material=new THREE.MeshBasicMaterial({
+    color,transparent:true,opacity:.085,depthWrite:false,side:THREE.DoubleSide,
+    blending:THREE.AdditiveBlending
+  });
+  const mesh=new THREE.Mesh(geometry,material);
+  mesh.userData={phase};
+  return mesh;
+}
+
+function makeAuroraField(){
+  const group=new THREE.Group();
+  const ribbons=[
+    makeAuroraRibbon({y:2.8,z:-6.5,color:0x46dfff,phase:.2}),
+    makeAuroraRibbon({y:.6,z:-7.4,color:0x7869ff,phase:1.7}),
+    makeAuroraRibbon({y:-2.0,z:-6.9,color:0x4ce6b4,phase:3.1})
+  ];
+  for(const ribbon of ribbons)group.add(ribbon);
+  group.rotation.y=-.16;
+  group.userData.ribbons=ribbons;
+  return group;
+}
+
+function makeNebulaField(glowTexture){
+  const group=new THREE.Group();
+  const specs=[
+    [-6,3,-10,0x3bdfff,10,.07],
+    [6,1,-11,0x725fff,11,.055],
+    [1,-4,-9,0x46e8b2,9,.045],
+    [-2,5,-13,0xb0f8ff,8,.035]
+  ];
+  const sprites=[];
+  for(const [x,y,z,color,size,opacity] of specs){
+    const material=new THREE.SpriteMaterial({
+      map:glowTexture,color,transparent:true,opacity,depthWrite:false,
+      blending:THREE.AdditiveBlending
+    });
+    const sprite=new THREE.Sprite(material);
+    sprite.position.set(x,y,z);
+    sprite.scale.set(size,size,1);
+    group.add(sprite);
+    sprites.push(sprite);
+  }
+  group.userData.sprites=sprites;
+  return group;
+}
+
+function disposeDecorativeGroup(group){
+  if(!group)return;
+  group.traverse(object=>{
+    if(object.geometry)object.geometry.dispose();
+    if(object.material){
+      const list=Array.isArray(object.material)?object.material:[object.material];
+      for(const material of list)material.dispose();
+    }
+  });
+}
+
+function makeCoreMechanicalSystem(){
+  const root=new THREE.Group();
+  root.userData.coreMechanical=true;
+
+  const ringA=new THREE.Group();
+  const ringB=new THREE.Group();
+  const materialA=new THREE.MeshStandardMaterial({
+    color:0x60eaff,emissive:0x36d9ff,emissiveIntensity:1.45,
+    metalness:.8,roughness:.22,transparent:true,opacity:.88
+  });
+  const materialB=new THREE.MeshStandardMaterial({
+    color:0x866fff,emissive:0x705cff,emissiveIntensity:1.40,
+    metalness:.82,roughness:.20,transparent:true,opacity:.86
+  });
+
+  const torusA=new THREE.Mesh(new THREE.TorusGeometry(1.34,.055,8,64),materialA);
+  const torusB=new THREE.Mesh(new THREE.TorusGeometry(1.54,.050,8,64),materialB);
+  ringA.add(torusA);
+  ringB.add(torusB);
+
+  for(let index=0;index<12;index++){
+    const angle=index/12*Math.PI*2;
+    const marker=new THREE.Mesh(
+      new THREE.BoxGeometry(index%3===0?.22:.13,.055,.075),
+      materialA
+    );
+    marker.position.set(Math.cos(angle)*1.34,Math.sin(angle)*1.34,0);
+    marker.rotation.z=angle;
+    ringA.add(marker);
+  }
+  for(let index=0;index<14;index++){
+    const angle=index/14*Math.PI*2;
+    const marker=new THREE.Mesh(
+      new THREE.BoxGeometry(index%4===0?.2:.11,.05,.07),
+      materialB
+    );
+    marker.position.set(Math.cos(angle)*1.54,Math.sin(angle)*1.54,0);
+    marker.rotation.z=angle;
+    ringB.add(marker);
+  }
+
+  for(let index=0;index<6;index++){
+    const angle=index/6*Math.PI*2;
+    const guardianBladeA=new THREE.Mesh(
+      new THREE.BoxGeometry(index%2===0?.38:.26,.075,.14),
+      materialA
+    );
+    guardianBladeA.position.set(Math.cos(angle)*1.18,Math.sin(angle)*1.18,0);
+    guardianBladeA.rotation.z=angle;
+    guardianBladeA.rotation.y=index%2===0?.28:-.28;
+    ringA.add(guardianBladeA);
+
+    const guardianBladeB=new THREE.Mesh(
+      new THREE.BoxGeometry(index%2===0?.34:.23,.07,.13),
+      materialB
+    );
+    guardianBladeB.position.set(Math.cos(angle+Math.PI/6)*1.38,Math.sin(angle+Math.PI/6)*1.38,0);
+    guardianBladeB.rotation.z=angle+Math.PI/6;
+    guardianBladeB.rotation.x=index%2===0?-.24:.24;
+    ringB.add(guardianBladeB);
+  }
+
+  ringA.rotation.set(Math.PI*.58,.18,.12);
+  ringB.rotation.set(Math.PI*.18,Math.PI*.56,-.24);
+  ringA.userData={baseX:ringA.rotation.x,baseY:ringA.rotation.y};
+  ringB.userData={baseX:ringB.rotation.x,baseY:ringB.rotation.y};
+
+  const shellA=new THREE.Mesh(
+    new THREE.SphereGeometry(1.00,28,20),
+    new THREE.MeshBasicMaterial({
+      color:0x55eaff,transparent:true,opacity:.11,depthWrite:false,
+      blending:THREE.AdditiveBlending,side:THREE.BackSide
+    })
+  );
+  const shellB=new THREE.Mesh(
+    new THREE.SphereGeometry(1.10,24,18),
+    new THREE.MeshBasicMaterial({
+      color:0x806cff,transparent:true,opacity:.075,depthWrite:false,
+      blending:THREE.AdditiveBlending,wireframe:true
+    })
+  );
+
+  root.add(shellA,shellB,ringA,ringB);
+  root.userData.ringA=ringA;
+  root.userData.ringB=ringB;
+  root.userData.shellA=shellA;
+  root.userData.shellB=shellB;
+  root.userData.materialA=materialA;
+  root.userData.materialB=materialB;
+  return root;
+}
+
 function organicCurve(from,to,key){
   const start=from.clone();
   const end=to.clone();
@@ -173,7 +490,12 @@ function organicCurve(from,to,key){
     .addScaledVector(side,-amplitude*(.46+seedC*.55))
     .addScaledVector(lift,amplitude*(seedA*.5));
 
-  return new THREE.CatmullRomCurve3([start,p1,p2,p3,end],false,'centripetal',.5);
+  const path=new THREE.CurvePath();
+  const points=[start,p1,p2,p3,end];
+  for(let index=0;index<points.length-1;index++){
+    path.add(new THREE.LineCurve3(points[index],points[index+1]));
+  }
+  return path;
 }
 
 export class Neural3DScene{
@@ -199,6 +521,8 @@ export class Neural3DScene{
     this.qualityMode='auto';
     this.effectiveQuality='balanced';
     this.qualityScale=.8;
+    this.qualityConfig=null;
+    this.visualSettings={...DEFAULT_SCENE_VISUALS};
     this.pointer={down:false,moved:false,x:0,y:0,button:0};
     this.target=new THREE.Vector3(0,-.3,0);
     this.homeTarget=this.target.clone();
@@ -236,7 +560,12 @@ export class Neural3DScene{
     this.stars=makeStarField();
     this.dust=makeDustField();
     this.glowTexture=makeGlowTexture();
-    this.scene.add(this.stars,this.dust);
+    this.galacticFrame=makeGalacticBrainFrame();
+    this.brainBinary=makeBrainBinaryField();
+    this.aurora=makeAuroraField();
+    this.nebula=makeNebulaField(this.glowTexture);
+    this.world.add(this.galacticFrame,this.brainBinary);
+    this.scene.add(this.stars,this.dust,this.aurora,this.nebula);
 
     this.scene.add(new THREE.HemisphereLight(0x7deeff,0x031017,1.3));
     const key=new THREE.PointLight(0x65eaff,12,26,2);
@@ -386,16 +715,63 @@ export class Neural3DScene{
   applyQuality(level){
     this.effectiveQuality=QUALITY_ORDER.includes(level)?level:'balanced';
     const config={
-      high:{pixel:1.8,scale:1,fog:.030,dust:true},
-      balanced:{pixel:1.35,scale:.8,fog:.033,dust:true},
-      low:{pixel:1,scale:.55,fog:.037,dust:false}
+      high:{pixel:1.8,scale:1,fog:.028,dust:true,aurora:true,nebula:true,frame:.9},
+      balanced:{pixel:1.35,scale:.8,fog:.031,dust:true,aurora:true,nebula:true,frame:.68},
+      low:{pixel:1,scale:.55,fog:.036,dust:false,aurora:false,nebula:false,frame:.42}
     }[this.effectiveQuality];
+    this.qualityConfig=config;
     this.qualityScale=config.scale;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,config.pixel));
     this.scene.fog.density=config.fog;
-    if(this.dust)this.dust.visible=config.dust;
+    this.refreshVisualVisibility();
     this.resize();
     this.emitMetrics();
+  }
+
+  applyVisualSettings(settings={}){
+    const current=this.visualSettings||{...DEFAULT_SCENE_VISUALS};
+    const next={...current};
+    for(const key of ['brainFrame','binary','aurora','nebula','particles','roots','dataFlow','ringA','ringB']){
+      if(typeof settings[key]==='boolean')next[key]=settings[key];
+    }
+    next.frameGlow=bounded(settings.frameGlow,.35,2,current.frameGlow);
+    next.auroraIntensity=bounded(settings.auroraIntensity,.2,2,current.auroraIntensity);
+    next.rootGlow=bounded(settings.rootGlow,.35,2,current.rootGlow);
+    next.coreScale=bounded(settings.coreScale,.72,1.35,current.coreScale);
+    next.coreGlow=bounded(settings.coreGlow,.5,2,current.coreGlow);
+    next.ringSpeedA=bounded(settings.ringSpeedA,.15,2.2,current.ringSpeedA);
+    next.ringSpeedB=bounded(settings.ringSpeedB,.15,2.2,current.ringSpeedB);
+    this.visualSettings=next;
+    this.refreshVisualVisibility();
+    this.emitMetrics();
+  }
+
+  refreshVisualVisibility(){
+    const config=this.qualityConfig||{dust:true,aurora:true,nebula:true,frame:.68};
+    const visual=this.visualSettings||DEFAULT_SCENE_VISUALS;
+    if(this.stars)this.stars.visible=visual.particles;
+    if(this.dust)this.dust.visible=visual.particles&&config.dust;
+    if(this.galacticFrame){
+      this.galacticFrame.visible=visual.brainFrame;
+      for(const material of this.galacticFrame.userData.materials||[]){
+        const base=material.userData.baseOpacity??material.opacity;
+        material.opacity=Math.min(.78,base*config.frame*visual.frameGlow);
+      }
+    }
+    if(this.brainBinary)this.brainBinary.visible=visual.brainFrame&&visual.binary;
+    if(this.aurora)this.aurora.visible=visual.aurora&&config.aurora;
+    if(this.nebula)this.nebula.visible=visual.nebula&&config.nebula;
+    for(const link of this.links||[])link.group.visible=visual.roots;
+    for(const route of this.routePackets||[]){
+      if(!visual.dataFlow)route.group.visible=false;
+      else if(route.active)route.group.visible=true;
+    }
+    const core=this.nodes?.get?.('NARA_CORE');
+    if(core?.coreFx){
+      const fx=core.coreFx.userData;
+      fx.ringA.visible=visual.ringA;
+      fx.ringB.visible=visual.ringB;
+    }
   }
 
   emitMetrics(){
@@ -413,7 +789,14 @@ export class Neural3DScene{
       lastRoute:this.lastRoute,
       fps:Math.round(this.frameWindow.fps||0),
       mode:this.mode,
-      quality:this.qualityMode==='auto'?'auto/'+this.effectiveQuality:this.effectiveQuality
+      quality:this.qualityMode==='auto'?'auto/'+this.effectiveQuality:this.effectiveQuality,
+      galacticFrame:Boolean(this.galacticFrame?.visible),
+      aurora:Boolean(this.aurora?.visible),
+      nebula:Boolean(this.nebula?.visible),
+      mechanicalCore:Boolean(this.nodes.get('NARA_CORE')?.coreFx),
+      brainBinary:Boolean(this.brainBinary?.visible),
+      guardianRingA:Boolean(this.nodes.get('NARA_CORE')?.coreFx?.userData?.ringA?.visible),
+      guardianRingB:Boolean(this.nodes.get('NARA_CORE')?.coreFx?.userData?.ringB?.visible)
     };
   }
 
@@ -475,6 +858,7 @@ export class Neural3DScene{
       entry.shell.geometry.dispose();
       entry.shell.material.dispose();
       entry.halo?.material.dispose();
+      if(entry.coreFx)disposeDecorativeGroup(entry.coreFx);
       this.world.remove(entry.group);
     }
     this.nodes.clear();
@@ -488,7 +872,7 @@ export class Neural3DScene{
     const key=linkKey(fromId,toId);
     const curve=organicCurve(from.group.position,to.group.position,key);
     const distance=from.group.position.distanceTo(to.group.position);
-    const radius=Math.min(.075,Math.max(.038,distance*.008));
+    const radius=Math.min(.068,Math.max(.032,distance*.0068));
     const tubularSegments=Math.max(22,Math.min(42,Math.round(distance*4.5)));
 
     const group=new THREE.Group();
@@ -502,9 +886,9 @@ export class Neural3DScene{
     );
 
     const glow=new THREE.Mesh(
-      new THREE.TubeGeometry(curve,tubularSegments,radius*1.9,5,false),
+      new THREE.TubeGeometry(curve,tubularSegments,radius*1.62,5,false),
       new THREE.MeshBasicMaterial({
-        color:LINK_LIVE,transparent:true,opacity:.018,depthWrite:false,
+        color:LINK_LIVE,transparent:true,opacity:.012,depthWrite:false,
         blending:THREE.AdditiveBlending
       })
     );
@@ -572,7 +956,7 @@ export class Neural3DScene{
 
       const isCore=region.id==='NARA_CORE';
       const geometry=isCore
-        ?new THREE.SphereGeometry(1.18,40,30)
+        ?new THREE.SphereGeometry(.88,36,26)
         :new THREE.IcosahedronGeometry(region.group==='connection'?.46:.58,2);
       const base=statusColor(region.defaultStatus,region.group);
       const material=new THREE.MeshStandardMaterial({
@@ -584,7 +968,7 @@ export class Neural3DScene{
       group.add(mesh);
 
       const shellGeometry=isCore
-        ?new THREE.SphereGeometry(1.52,26,20)
+        ?new THREE.SphereGeometry(1.18,24,18)
         :new THREE.IcosahedronGeometry(region.group==='connection'?.64:.78,1);
       const shell=new THREE.Mesh(shellGeometry,new THREE.MeshBasicMaterial({
         color:base,wireframe:true,transparent:true,opacity:isCore?.2:.1,depthWrite:false
@@ -597,13 +981,16 @@ export class Neural3DScene{
         opacity:isCore?.22:.08,depthWrite:false,
         blending:THREE.AdditiveBlending
       }));
-      const haloSize=isCore?4.6:2.2;
+      const haloSize=isCore?3.50:2.05;
       halo.scale.set(haloSize,haloSize,1);
       group.add(halo);
 
+      const coreFx=isCore?makeCoreMechanicalSystem():null;
+      if(coreFx)group.add(coreFx);
+
       this.world.add(group);
       this.nodes.set(region.id,{
-        group,mesh,shell,halo,region,baseY:position.y,
+        group,mesh,shell,halo,coreFx,region,baseY:position.y,
         phase:stableUnit(region.id+'node')*Math.PI*2,pulse:0
       });
     }
@@ -620,7 +1007,25 @@ export class Neural3DScene{
       }
     }
 
+    this.recenterHomeView();
     this.setState(this.state||{regions:{}});
+  }
+
+  recenterHomeView(){
+    if(!this.nodes.size)return;
+    const bounds=new THREE.Box3();
+    for(const entry of this.nodes.values())bounds.expandByPoint(entry.group.position);
+    const center=bounds.getCenter(new THREE.Vector3());
+    const size=bounds.getSize(new THREE.Vector3());
+    const span=Math.max(size.x,size.y,size.z,1);
+    this.homeTarget.copy(center);
+    this.homeRadius=Math.max(12.5,Math.min(16.5,span*1.05));
+    if(this.mode==='explorer'&&!this.focusTarget){
+      this.target.copy(center);
+      this.radius=this.homeRadius;
+    }
+    if(this.galacticFrame)this.galacticFrame.position.copy(center);
+    if(this.brainBinary)this.brainBinary.position.copy(center);
   }
 
   setState(state={}){
@@ -653,7 +1058,7 @@ export class Neural3DScene{
       const toState=this.state.regions?.[link.to]||{};
       link.selected=Boolean(this.selected&&(link.from===this.selected||link.to===this.selected));
       link.active=ACTIVE_STATUSES.has(fromState.status)||ACTIVE_STATUSES.has(toState.status);
-      link.targetIntensity=link.selected?1:link.active?.7:.075;
+      link.targetIntensity=link.selected?1:link.active?.72:.032;
 
       const selectedPeer=link.from===this.selected?link.to:link.to===this.selected?link.from:null;
       const activeRegion=ACTIVE_STATUSES.has(toState.status)?link.to:ACTIVE_STATUSES.has(fromState.status)?link.from:selectedPeer;
@@ -737,7 +1142,7 @@ export class Neural3DScene{
     const route=this.acquireRoutePacket();
     const color=routeColor(envelope.event);
     route.active=true;
-    route.group.visible=true;
+    route.group.visible=this.visualSettings.dataFlow;
     route.path=path;
     route.segment=0;
     route.progress=0;
@@ -793,20 +1198,24 @@ export class Neural3DScene{
   }
 
   animateLinks(t){
+    const visual=this.visualSettings||DEFAULT_SCENE_VISUALS;
     for(const link of this.links){
+      link.group.visible=visual.roots;
+      if(!visual.roots)continue;
       link.intensity+=(link.targetIntensity-link.intensity)*.075;
       if(link.pulse>0)link.pulse=Math.max(0,link.pulse-.014*this.motionScale);
       if(link.routePulse>0)link.routePulse=Math.max(0,link.routePulse-.022*this.motionScale);
       const energy=Math.min(1.6,link.intensity+link.pulse*.72+link.routePulse*1.05);
       const breathing=.5+.5*Math.sin(t*(1.1+link.phase*.55)+link.phase*Math.PI*2);
 
-      link.sheath.material.opacity=(.07+energy*.16+breathing*.018)*this.qualityScale;
-      link.core.material.opacity=(.025+energy*.48)*this.qualityScale;
-      link.glow.material.opacity=(.008+energy*.115)*this.qualityScale;
+      const rootGlow=visual.rootGlow;
+      link.sheath.material.opacity=(.024+energy*.142+breathing*.012)*this.qualityScale*rootGlow;
+      link.core.material.opacity=(.012+energy*.43)*this.qualityScale*rootGlow;
+      link.glow.material.opacity=(.004+energy*.105)*this.qualityScale*rootGlow;
 
-      const visible=energy>.16||link.selected||link.active;
-      link.packet.visible=visible;
-      link.halo.visible=visible;
+      const visible=energy>.20||link.selected||link.active;
+      link.packet.visible=visible&&visual.dataFlow;
+      link.halo.visible=visible&&visual.dataFlow;
       if(!visible)continue;
 
       const speed=link.speed*(1+energy*2.3)*this.motionScale;
@@ -829,6 +1238,7 @@ export class Neural3DScene{
   animateRoutes(delta,t){
     for(const route of this.routePackets){
       if(!route.active)continue;
+      route.group.visible=this.visualSettings.dataFlow;
       const segment=route.path[route.segment];
       if(!segment){
         route.active=false;
@@ -902,25 +1312,93 @@ export class Neural3DScene{
       entry.shell.rotation.y-=core?.0014*motion:.0006*motion;
       if(entry.pulse>0)entry.pulse=Math.max(0,entry.pulse-.025*motion);
       const pulseScale=1+entry.pulse*.22;
-      entry.group.scale.setScalar(breathing*pulseScale);
+      const visual=this.visualSettings||DEFAULT_SCENE_VISUALS;
+      entry.group.scale.setScalar(breathing*pulseScale*(core?visual.coreScale:1));
       if(core){
-        entry.mesh.material.emissiveIntensity=1.55+Math.sin(t*1.35)*.25*motion+entry.pulse*1.5;
+        const hue=(.51+.095*Math.sin(t*.23)+.045*Math.sin(t*.071+1.8)+1)%1;
+        const hueB=(hue+.16+.035*Math.sin(t*.13))%1;
+        entry.mesh.material.color.setHSL(hue,.88,.64);
+        entry.mesh.material.emissive.setHSL(hue,.94,.47);
+        entry.mesh.material.emissiveIntensity=(1.72+Math.sin(t*1.35)*.28*motion+entry.pulse*1.55)*visual.coreGlow;
+        entry.shell.material.color.setHSL(hueB,.9,.66);
         entry.shell.material.opacity=.16+Math.sin(t*1.1)*.04*motion+entry.pulse*.22;
+        entry.halo.material.color.setHSL((hue+.06)%1,.92,.68);
+        if(entry.coreFx){
+          const fx=entry.coreFx.userData;
+          fx.ringA.visible=visual.ringA;
+          fx.ringB.visible=visual.ringB;
+          fx.ringA.rotation.z+=delta*.52*motion*visual.ringSpeedA;
+          fx.ringB.rotation.z-=delta*.67*motion*visual.ringSpeedB;
+          fx.ringA.rotation.x=fx.ringA.userData.baseX+Math.sin(t*.37)*.16*motion;
+          fx.ringA.rotation.y=fx.ringA.userData.baseY+Math.cos(t*.29)*.11*motion;
+          fx.ringB.rotation.x=fx.ringB.userData.baseX-Math.sin(t*.31)*.13*motion;
+          fx.ringB.rotation.y=fx.ringB.userData.baseY-Math.cos(t*.35)*.17*motion;
+          fx.shellA.rotation.y+=delta*.18*motion;
+          fx.shellB.rotation.x-=delta*.14*motion;
+          fx.shellA.material.color.setHSL(hue,.95,.62);
+          fx.shellB.material.color.setHSL(hueB,.9,.64);
+          fx.materialA.color.setHSL(hue,.84,.62);
+          fx.materialA.emissive.setHSL(hue,.95,.46);
+          fx.materialA.emissiveIntensity=1.45*visual.coreGlow;
+          fx.materialB.color.setHSL(hueB,.82,.63);
+          fx.materialB.emissive.setHSL(hueB,.94,.44);
+          fx.materialB.emissiveIntensity=1.40*visual.coreGlow;
+          fx.shellA.material.opacity=.11*visual.coreGlow;
+          fx.shellB.material.opacity=.075*visual.coreGlow;
+          entry.coreFx.scale.setScalar(1+entry.pulse*.055+Math.sin(t*.9)*.008*motion);
+        }
       }else if(id!==this.selected){
         entry.mesh.material.emissiveIntensity=.7+entry.pulse*1.2;
       }
 
-      const haloBase=core?.2:.065;
-      entry.halo.material.opacity=(haloBase+entry.pulse*.18+(id===this.selected?.12:0))*this.qualityScale;
-      const haloScale=(core?4.6:2.2)*(1+entry.pulse*.16+(core?Math.sin(t*1.2)*.025:0));
+      const haloBase=core?.17:.055;
+      entry.halo.material.opacity=(haloBase+entry.pulse*.18+(id===this.selected?.12:0))*this.qualityScale*(core?visual.coreGlow:1);
+      const haloScale=(core?3.50:2.05)*(1+entry.pulse*.16+(core?Math.sin(t*1.2)*.025:0));
       entry.halo.scale.set(haloScale,haloScale,1);
     }
 
     this.animateLinks(t);
     this.animateRoutes(delta,t);
-    this.stars.rotation.y=t*.0025*this.motionScale;
-    this.dust.rotation.x=t*.004*this.motionScale;
-    this.dust.rotation.y=-t*.003*this.motionScale;
+    this.stars.rotation.y=t*.0022*this.motionScale;
+    this.dust.rotation.x=t*.0035*this.motionScale;
+    this.dust.rotation.y=-t*.0028*this.motionScale;
+    if(this.galacticFrame){
+      this.galacticFrame.rotation.y=.12+Math.sin(t*.11)*.025*this.motionScale;
+      this.galacticFrame.rotation.z=Math.sin(t*.08)*.012*this.motionScale;
+      if(this.galacticFrame.visible){
+        const framePulse=.88+.12*Math.sin(t*.72);
+        for(const [index,material] of (this.galacticFrame.userData.materials||[]).entries()){
+          const data=material.userData||{};
+          const hue=(.50+(data.hueOffset||0)+Math.sin(t*.11+index*.23)*.045+1)%1;
+          material.color.setHSL(hue,.92,data.role==='glow'?.60:.68);
+          const base=data.baseOpacity??.1;
+          const frameQuality=this.qualityConfig?.frame??.68;
+          material.opacity=Math.min(.82,base*frameQuality*this.visualSettings.frameGlow*framePulse);
+        }
+      }
+    }
+    if(this.brainBinary?.visible){
+      this.brainBinary.rotation.y=.12+Math.sin(t*.13)*.035*this.motionScale;
+      this.brainBinary.rotation.z=Math.sin(t*.09)*.01*this.motionScale;
+      for(const [index,sprite] of (this.brainBinary.userData.sprites||[]).entries()){
+        const data=sprite.userData;
+        sprite.position.x=data.baseX+Math.sin(t*.31+data.phase)*.075*this.motionScale;
+        sprite.position.y=data.baseY+Math.cos(t*.27+data.phase)*.055*this.motionScale;
+        sprite.position.z=data.baseZ+Math.sin(t*.22+data.phase)*.065*this.motionScale;
+        sprite.material.opacity=.18+(.22+.18*Math.sin(t*.9+index*.37))*this.qualityScale;
+      }
+    }
+    if(this.aurora?.visible){
+      this.aurora.rotation.z=Math.sin(t*.07)*.035*this.motionScale;
+      this.aurora.position.y=Math.sin(t*.16)*.16*this.motionScale;
+      for(const [index,ribbon] of (this.aurora.userData.ribbons||[]).entries()){
+        const pulse=.075+.055*Math.sin(t*.38+index*1.8);
+        ribbon.material.opacity=Math.max(.018,pulse*this.qualityScale*this.visualSettings.auroraIntensity);
+      }
+    }
+    if(this.nebula?.visible){
+      this.nebula.rotation.z=t*.0012*this.motionScale;
+    }
     const activeRoutes=this.routePackets.filter(packet=>packet.active).length;
     const targetExposure=1.08+Math.min(.18,activeRoutes*.012);
     this.renderer.toneMappingExposure+=(targetExposure-this.renderer.toneMappingExposure)*.04;
@@ -954,6 +1432,13 @@ export class Neural3DScene{
     this.stars.material.dispose();
     this.dust.geometry.dispose();
     this.dust.material.dispose();
+    disposeDecorativeGroup(this.galacticFrame);
+    disposeDecorativeGroup(this.brainBinary);
+    for(const texture of this.brainBinary?.userData?.textures||[])texture.dispose();
+    disposeDecorativeGroup(this.aurora);
+    disposeDecorativeGroup(this.nebula);
+    this.world.remove(this.galacticFrame,this.brainBinary);
+    this.scene.remove(this.aurora,this.nebula);
     this.timer.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();

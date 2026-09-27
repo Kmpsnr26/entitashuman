@@ -3,10 +3,11 @@ const http=require('node:http');
 const {readFile,writeFile}=require('node:fs/promises');
 const {mkdtempSync,existsSync}=require('node:fs');
 const path=require('node:path');
-const {tmpdir}=require('node:os');
+const {tmpdir,homedir}=require('node:os');
+const {randomUUID}=require('node:crypto');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer,backdropTimer;
+let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,naraAgentCoordinator,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,humanaleRuntime,ownerStore,ownerGate,systemObserver,dataFlowMeter,experienceStore,experienceSaveTimer,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer;
 let cloudAllowedOrigins=new Set();
 let announceNaraEvent=()=>{};
 let baseWindowSize={width:420,height:480};
@@ -21,7 +22,14 @@ const summonShortcut='CommandOrControl+Alt+5';
 const ciSmoke=process.argv.includes('--ci-smoke');
 if(process.platform==='win32')app.setAppUserModelId('id.my.aleprinting.dudidam');
 if(ciSmoke)app.setPath('userData',mkdtempSync(path.join(tmpdir(),'dudidam-ci-smoke-')));
-app.on('before-quit',()=>{try{nara?.stop();}catch{}});
+app.on('before-quit',()=>{
+ try{stopSystemObserver?.();}catch{}
+ try{if(dataFlowTimer)clearInterval(dataFlowTimer);}catch{}
+ try{if(experienceSaveTimer)clearTimeout(experienceSaveTimer);}catch{}
+ try{if(experienceStore&&nara?.experience)experienceStore.saveSync(nara.experience.snapshot());}catch{}
+ try{humanaleRuntime?.stop();}catch{}
+ try{nara?.stop();}catch{}
+});
 
 function statePath(){return path.join(app.getPath('userData'),'window-state.json');}
 function projectRootPath(){return path.join(app.getPath('userData'),'project-root.txt');}
@@ -136,7 +144,14 @@ async function openPanel(view='controls'){
  panelWin.webContents.on('will-navigate',(event,url)=>{if(!url.startsWith(origin+'/'))event.preventDefault();});
  panelWin.webContents.on('will-attach-webview',event=>event.preventDefault());
  panelWin.on('closed',()=>{panelWin=null;});
- try{await panelWin.loadURL(origin+'/?panel='+encodeURIComponent(target));panelWin?.show();panelWin?.focus();}
+ try{
+  await panelWin.loadURL(origin+'/?panel='+encodeURIComponent(target));
+  if(ownerGate?.isUnlocked(String(win?.webContents?.id||''))){
+   ownerGate.unlock(String(panelWin.webContents.id));
+   panelWin.webContents.send('dudidam:owner-state',ownerGate.status(String(panelWin.webContents.id)));
+  }
+  panelWin?.show();panelWin?.focus();
+ }
  catch(error){console.error('HumanALE god egine panel failed:',error);throw error;}
 }
 function safeCloudNavigation(value){
@@ -199,11 +214,56 @@ if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
-  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
-  const [{createOrchestrator},{createVoiceFeedback}]=await Promise.all([import('../nara-core/brain/index.js'),import('../nara-core/voice/index.js')]);
+  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
+  const [{createOrchestrator,createExperienceModel},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createNaraAgentCoordinator},{createHumanALEOwnerGate,isOwnerTargetUnlocked,authorizedDisplayMediaTarget}]=await Promise.all([
+   import('../nara-core/brain/index.js'),
+   import('../nara-core/voice/index.js'),
+   import('../nara-core/persistence/experience-store.mjs'),
+   import('../nara-core/security/owner-store.mjs'),
+   import('./humanale-runtime-host.mjs'),
+   import('./nara-agent-coordinator.mjs'),
+   import('./humanale-owner-gate.mjs')
+  ]);
   naraVoice=createVoiceFeedback();
-  nara=createOrchestrator();
+  systemObserver=createSystemObserver({intervalMs:5000});
+  dataFlowMeter=createDataFlowMeter();
+  experienceStore=createExperienceStore({filePath:path.join(app.getPath('userData'),'nara-experience.json')});
+  const ownerStorePath=ciSmoke
+   ?path.join(app.getPath('userData'),'nara-owner.json')
+   :(process.env.NARA_OWNER_STORE||path.join(homedir(),'.nara','owner.json'));
+  ownerStore=createOwnerStore({filePath:ownerStorePath});
+  const bootstrapOwnerPassword=String(process.env.NARA_CREATOR_PASSWORD||'');
+  if(!ownerStore.configured()&&bootstrapOwnerPassword){
+   ownerStore.provision({
+    username:process.env.NARA_CREATOR_USERNAME||'creator',
+    password:bootstrapOwnerPassword
+   });
+  }
+  delete process.env.NARA_CREATOR_PASSWORD;
+  ownerGate=createHumanALEOwnerGate({store:ownerStore});
+  const experience=createExperienceModel();
+  let restoredExperience=null;
+  try{
+   restoredExperience=await experienceStore.load();
+   if(restoredExperience)experience.hydrate(restoredExperience);
+  }catch(error){
+   console.error('[NARA EXPERIENCE RESTORE]',error.message);
+  }
+  nara=createOrchestrator({deviceProfile:systemObserver.deviceProfile(),experience});
   nara.start();
+  if(restoredExperience){
+   try{nara.dispatch('experience.restored',{
+    strategies:experience.snapshot().strategies.length
+   },{source:'experience-store'});}catch{}
+  }
+  nara.configureDevice(systemObserver.deviceProfile());
+  stopSystemObserver=systemObserver.start(snapshot=>{
+    try{nara.dispatch('system.telemetry',snapshot,{source:'system-observer'});}catch{}
+  });
+  dataFlowTimer=setInterval(()=>{
+    try{nara.dispatch('dataflow.sample',dataFlowMeter.snapshot(),{source:'dataflow-meter'});}catch{}
+  },2000);
+  dataFlowTimer.unref?.();
   bridges={chatgpt:new ChatGPTBridge(),copilot:new CopilotBridge(),openai:new OpenAIBridge(),grok:new GrokBridge(),gemini:new GeminiBridge(),claude:new ClaudeBridge(),deepseek:new DeepSeekBridge(),askcodi:new AskCodiBridge()};
   try{
    const cloudOrigin=normalizeOrigin(process.env.NARA_CLOUD_ORIGIN||'');
@@ -221,9 +281,10 @@ else{
    cloudMemory=new NaraCloudContextClient({origin:''});
   }
   agentHub=new DeveloperAgentHub();
+  naraAgentCoordinator=createNaraAgentCoordinator({nara,agentHub}).bind();
   const savedProjectRoot=await readProjectRoot();if(savedProjectRoot)agentHub.setProjectRoot(savedProjectRoot);
   terminalPolicy=policyModule;
-  const emitTerminal=(channel,...args)=>{for(const target of [win,panelWin]){if(target&&!target.isDestroyed()&&!target.webContents.isLoading())target.webContents.send(channel,...args);}};
+  const emitTerminal=(channel,...args)=>{for(const target of [win,panelWin]){if(isOwnerTargetUnlocked(target,ownerGate)&&!target.webContents.isLoading())target.webContents.send(channel,...args);}};
   terminalManager=new TerminalManager({
    workspace:agentHub.getProjectRoot(),
    onData:(id,data)=>emitTerminal('dudidam:terminal-data',id,data),
@@ -253,26 +314,82 @@ else{
   }catch{res.writeHead(404);res.end();}});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   origin='http://127.0.0.1:'+server.address().port;
+  try{
+   nara.dispatch('server.observe',{
+    scope:'loopback',
+    host:'127.0.0.1',
+    port:server.address().port,
+    transport:'HTTP',
+    health:'online'
+   },{source:'desktop-server'});
+  }catch{}
   const workArea=screen.getPrimaryDisplay().workAreaSize,width=Math.min(420,workArea.width),height=Math.min(480,workArea.height);baseWindowSize={width,height};
   const position=safePosition(await readWindowPosition(),width,height);
   win=new BrowserWindow({width,height,x:position.x,y:position.y,frame:false,transparent:true,backgroundColor:'#00000000',hasShadow:false,resizable:false,alwaysOnTop:true,skipTaskbar:true,title:'HumanALE god egine — Avatar Transparan',show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false,spellcheck:false}});
   win.setAlwaysOnTop(true,'floating');
   win.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true});
   const trusted=e=>(e.sender===win?.webContents||e.sender===panelWin?.webContents)&&e.senderFrame?.url?.startsWith(origin+'/');
-  const NARA_RENDERER_EVENTS=new Set(['audio.energy','vision.frame','vision.stop','speech.start','speech.energy','speech.stop','brain.region.select']);
-  const publishNaraState=snapshot=>{for(const target of [win,panelWin]){if(target&&!target.isDestroyed()&&!target.webContents.isLoading())target.webContents.send('dudidam:nara-state',snapshot);}};
-  const publishNaraVoice=cue=>{if(cue&&win&&!win.isDestroyed()&&!win.webContents.isLoading())win.webContents.send('dudidam:nara-voice',cue);};
-  const consumeNaraVoice=envelope=>{const cue=naraVoice?.consume(envelope);if(cue)publishNaraVoice(cue);return cue;};
-  nara.state.subscribe(snapshot=>publishNaraState(snapshot));
-  nara.bus.onAny(envelope=>consumeNaraVoice(envelope));
-  announceNaraEvent=(event,payload={})=>consumeNaraVoice({event,payload,timestamp:Date.now()});
-  ipcMain.handle('dudidam:nara-snapshot',e=>trusted(e)?{ok:true,state:nara.snapshot()}:{error:'Akses ditolak.'});
-  ipcMain.handle('dudidam:nara-dispatch',(e,value)=>{
+  const ownerActor=e=>String(e?.sender?.id||'');
+  const ownerTrusted=e=>trusted(e)&&ownerGate?.isUnlocked(ownerActor(e));
+  if(ciSmoke&&!ownerStore.configured()){
+   const ciPassword='CI-'+randomUUID()+'-Nara!';
+   const provisioned=ownerGate.provision(String(win.webContents.id),{
+    username:'ci-owner',
+    password:ciPassword,
+    confirmPassword:ciPassword
+   });
+   if(!provisioned.ok)throw new Error('CI Creator provisioning gagal: '+provisioned.error);
+  }
+  const scheduleExperienceSave=()=>{
+   if(experienceSaveTimer)clearTimeout(experienceSaveTimer);
+   experienceSaveTimer=setTimeout(async()=>{
+    experienceSaveTimer=null;
+    try{
+     const saved=await experienceStore.save(nara.experience.snapshot());
+     nara.dispatch('experience.persisted',{
+      strategies:saved.strategies.length,
+      history:saved.history.length
+     },{source:'experience-store'});
+    }catch(error){
+     console.error('[NARA EXPERIENCE SAVE]',error.message);
+    }
+   },250);
+   experienceSaveTimer.unref?.();
+  };
+  humanaleRuntime=createHumanALERuntimeHost({
+   nara,
+   voiceFeedback:naraVoice,
+   dataFlowMeter,
+   getTargets:()=>[win,panelWin].filter(target=>target&&ownerGate?.isUnlocked(String(target.webContents.id))),
+   isTrustedEvent:ownerTrusted,
+   onExperienceDirty:scheduleExperienceSave
+  });
+  humanaleRuntime.bindIpc(ipcMain);
+  humanaleRuntime.start();
+  announceNaraEvent=(event,payload={})=>humanaleRuntime.announce(event,payload);
+
+  const publishOwnerState=()=>{
+   for(const target of [win,panelWin]){
+    if(!target||target.isDestroyed()||target.webContents.isLoading())continue;
+    target.webContents.send('dudidam:owner-state',ownerGate.status(String(target.webContents.id)));
+   }
+  };
+  ipcMain.handle('dudidam:owner-status',e=>trusted(e)?ownerGate.status(ownerActor(e)):{error:'Akses ditolak.'});
+  ipcMain.handle('dudidam:owner-provision',(e,value)=>{
    if(!trusted(e))return {error:'Akses ditolak.'};
-   const event=String(value?.event||'');
-   if(!NARA_RENDERER_EVENTS.has(event))return {error:'Event NARA tidak diizinkan dari renderer.'};
-   try{return {ok:true,...nara.dispatch(event,value?.payload&&typeof value.payload==='object'?value.payload:{},{source:'renderer'})};}
-   catch(error){return {error:error.message};}
+   const result=ownerGate.provision(ownerActor(e),value);publishOwnerState();return result;
+  });
+  ipcMain.handle('dudidam:owner-login',(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   const result=ownerGate.login(ownerActor(e),value);publishOwnerState();return result;
+  });
+  ipcMain.handle('dudidam:owner-logout',e=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   const result=ownerGate.logout(ownerActor(e));publishOwnerState();return result;
+  });
+  ipcMain.handle('dudidam:owner-change-login',(e,value)=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   const result=ownerGate.changeCredentials(ownerActor(e),value);publishOwnerState();return result;
   });
 
   const openCloudLogin=()=>{
@@ -300,22 +417,23 @@ else{
    return {ok:true};
   };
   ipcMain.handle('dudidam:cloud-status',async e=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    try{return await cloudMemory.status();}catch(error){return {error:error.message};}
   });
   ipcMain.handle('dudidam:cloud-login',async e=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    return openCloudLogin();
   });
   ipcMain.handle('dudidam:cloud-context',async(e,value)=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    try{return await cloudMemory.context(value);}catch(error){return {error:error.message};}
   });
 
   const pickProvider=value=>['copilot','openai','grok','gemini','claude','deepseek','askcodi'].includes(value)?value:'chatgpt';
-  ipcMain.handle('dudidam:status',async(e,provider)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{const selected=pickProvider(provider),result=await bridges[selected].status();if(selected==='copilot')nara.connection('COPILOT',Boolean(result?.configured));return result;}catch(error){if(provider==='copilot')nara.connection('COPILOT',false);return {configured:false,error:error.message};}});
+  ipcMain.handle('dudidam:status',async(e,provider)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{const selected=pickProvider(provider),result=await bridges[selected].status();if(selected==='copilot')nara.connection('COPILOT',Boolean(result?.configured));return result;}catch(error){if(provider==='copilot')nara.connection('COPILOT',false);return {configured:false,error:error.message};}});
   ipcMain.handle('dudidam:ask',async(e,value)=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
+   dataFlowMeter?.recordIn(value);
    const provider=pickProvider(value?.provider);
    let memoryContext=null;
    try{memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['reasoner']});}
@@ -333,6 +451,7 @@ else{
     }else{
      nara.dispatch('reason.complete',{source:'chat'});
     }
+    dataFlowMeter?.recordOut(result);
     return result;
    }catch(error){
     nara.dispatch('reason.complete',{source:'chat'});
@@ -340,17 +459,17 @@ else{
     return {error:error.message};
    }
   });
-  ipcMain.handle('dudidam:login',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await bridges.chatgpt.login();}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:login-copilot',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await bridges.copilot.login();}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:stt-status',async e=>{if(!trusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianStt.status();});
-  ipcMain.handle('dudidam:transcribe',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await indonesianStt.transcribe(value);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:tts-status',async e=>{if(!trusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianTts.status();});
-  ipcMain.handle('dudidam:synthesize',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await indonesianTts.synthesize(value);}catch(error){return {error:error.message};}});
-  ipcMain.on('dudidam:panel-open',(e,view)=>{if(trusted(e))openPanel(view);});
+  ipcMain.handle('dudidam:login',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await bridges.chatgpt.login();}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:login-copilot',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await bridges.copilot.login();}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:stt-status',async e=>{if(!ownerTrusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianStt.status();});
+  ipcMain.handle('dudidam:transcribe',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await indonesianStt.transcribe(value);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:tts-status',async e=>{if(!ownerTrusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianTts.status();});
+  ipcMain.handle('dudidam:synthesize',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await indonesianTts.synthesize(value);}catch(error){return {error:error.message};}});
+  ipcMain.on('dudidam:panel-open',(e,view)=>{if(ownerTrusted(e))openPanel(view);});
   ipcMain.on('dudidam:panel-close',e=>{if(trusted(e))panelWin?.hide();});
-  ipcMain.handle('dudidam:agents',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await agentHub.status();}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:agents',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await agentHub.status();}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:project-root-choose',async e=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    const result=await dialog.showOpenDialog(panelWin?.isVisible()?panelWin:win,{title:'Pilih folder checkout proyek HumanALE god egine',properties:['openDirectory']});
    if(result.canceled||!result.filePaths?.[0])return {canceled:true};
    const selected=path.resolve(result.filePaths[0]);
@@ -359,60 +478,40 @@ else{
    return {ok:true,...await agentHub.status()};
   });
   ipcMain.handle('dudidam:agent-run',async(e,value)=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    let memoryContext=null;
    try{memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['planner','agent']});}
-   catch(error){nara.dispatch('context.blocked',{target:'agent',reason:'invalid-packet',source:'desktop'});return {error:error.message};}
-   const id=String(value?.id||'agent').slice(0,80);
-   const mode=value?.mode==='work'?'work':'analyze';
-   const label='Agent '+id+' · '+(mode==='work'?'mode kerja':'analisis');
-   if(memoryContext)nara.dispatch('context.used',{target:memoryContext.target,count:memoryContext.count,chars:memoryContext.chars,source:'desktop'});
-   nara.startWork({id,label});
-   nara.dispatch('plan.start',{label:'Menyiapkan '+label,source:'agent'});
-   nara.dispatch('plan.complete',{source:'agent'});
-   nara.dispatch('agent.start',{label,source:'agent'});
-   if(mode==='work')nara.dispatch('program.start',{label:'Menjalankan perubahan melalui '+id,source:'agent'});
+   catch(error){
+    nara.dispatch('context.blocked',{target:'agent',reason:'invalid-packet',source:'desktop'});
+    return {error:error.message};
+   }
    try{
-    const result=await agentHub.run({...value,memoryContext});
-    if(result?.error){
-     if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
-     nara.dispatch('agent.failed',{label,source:'agent'});
-     nara.dispatch('work.failed',{id,label,source:'agent'});
-     nara.dispatch('error.detected',{message:String(result.error).slice(0,300),source:'agent'});
-    }else{
-     if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
-     nara.dispatch('agent.complete',{label,source:'agent'});
-     nara.completeWork({source:'agent'});
-    }
-    return result;
+    return await naraAgentCoordinator.run({...value,memoryContext});
    }catch(error){
-    if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
-    nara.dispatch('agent.failed',{label,source:'agent'});
-    nara.dispatch('work.failed',{id,label,source:'agent'});
-    nara.dispatch('error.detected',{message:error.message,source:'agent'});
+    nara.dispatch('error.detected',{message:error.message,source:'nara-agent-coordinator'});
     return {error:error.message};
    }
   });
-  ipcMain.handle('dudidam:agent-open',async(e,id)=>{if(!trusted(e))return {error:'Akses ditolak.'};const url=agentLinks[String(id||'')];if(!url||!url.startsWith('https://'))return {error:'Tautan agent tidak valid.'};await shell.openExternal(url);return {ok:true};});
+  ipcMain.handle('dudidam:agent-open',async(e,id)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};const url=agentLinks[String(id||'')];if(!url||!url.startsWith('https://'))return {error:'Tautan agent tidak valid.'};await shell.openExternal(url);return {ok:true};});
   ipcMain.handle('dudidam:terminal-create',async(e,value)=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    const shellId=['auto','pwsh','powershell','cmd'].includes(String(value?.shell||''))?String(value.shell):'auto';
    const profileId=['claude','codex','cursor','gemini'].includes(String(value?.profile||''))?String(value.profile):undefined;
    const options={shell:shellId,profile:profileId,title:String(value?.title||'').slice(0,80),cols:value?.cols,rows:value?.rows};
    try{const result=await terminalManager.create(options);nara.dispatch('terminal.open',{source:'terminal-manager'});return result;}catch(error){nara.dispatch('error.detected',{message:error.message,source:'terminal'});return {error:error.message};}
   });
-  ipcMain.handle('dudidam:terminal-write',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.write(value?.sessionId,value?.data);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-resize',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.resize(value?.sessionId,value?.cols,value?.rows);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-kill',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.kill(value?.sessionId);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-restart',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.restart(value?.sessionId);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-clear',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.clear(value?.sessionId);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-list',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};return {sessions:terminalManager.list()};});
-  ipcMain.handle('dudidam:terminal-detect',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.detect();}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-recent',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};return {output:terminalManager.getRecentOutput(value?.sessionId,value?.limit)};});
-  ipcMain.handle('dudidam:terminal-cwd',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.setCwd(value?.sessionId,value?.cwd);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-policy',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};return terminalPolicy.classifyCommand(value?.command);});
+  ipcMain.handle('dudidam:terminal-write',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.write(value?.sessionId,value?.data);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-resize',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.resize(value?.sessionId,value?.cols,value?.rows);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-kill',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.kill(value?.sessionId);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-restart',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.restart(value?.sessionId);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-clear',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.clear(value?.sessionId);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-list',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};return {sessions:terminalManager.list()};});
+  ipcMain.handle('dudidam:terminal-detect',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.detect();}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-recent',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};return {output:terminalManager.getRecentOutput(value?.sessionId,value?.limit)};});
+  ipcMain.handle('dudidam:terminal-cwd',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.setCwd(value?.sessionId,value?.cwd);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-policy',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};return terminalPolicy.classifyCommand(value?.command);});
   ipcMain.handle('dudidam:terminal-execute',async(e,value)=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    const command=String(value?.command||'').trim(),decision=terminalPolicy.classifyCommand(command);
    if(decision.category==='BLOCK')return {error:decision.reason,category:'BLOCK'};
    if(decision.category==='CONFIRM'){
@@ -423,7 +522,7 @@ else{
    catch(error){return {error:error.message,category:decision.category};}
   });
   ipcMain.handle('dudidam:terminal-open',async e=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    try{
     const cwd=path.resolve(agentHub?.getProjectRoot?.()||process.env.DUDIDAM_PROJECT_ROOT||process.cwd());
     const child=spawn('powershell.exe',['-NoLogo','-NoExit'],{cwd,detached:true,stdio:'ignore',windowsHide:false});
@@ -445,9 +544,9 @@ else{
   win.webContents.setWindowOpenHandler(({url})=>{try{if(new URL(url).origin==='https://chatgpt.com')shell.openExternal(url);}catch{}return {action:'deny'};});
   win.webContents.on('will-navigate',(e,url)=>{if(!url.startsWith(origin+'/'))e.preventDefault();});
   win.webContents.on('will-attach-webview',e=>e.preventDefault());
-  win.webContents.session.setPermissionCheckHandler((contents,permission,requestingOrigin)=>(contents===win.webContents||contents===panelWin?.webContents)&&permission==='media'&&requestingOrigin===origin);
-  win.webContents.session.setDisplayMediaRequestHandler(async(request,callback)=>{if(request.securityOrigin!==origin||!request.userGesture||!request.audioRequested){callback({});return;}try{const sources=await desktopCapturer.getSources({types:['screen']});if(!sources.length){callback({});return;}callback({video:sources[0],audio:'loopback'});}catch{callback({});}});
-  win.webContents.session.setPermissionRequestHandler(async(contents,permission,callback,details)=>{if((contents!==win.webContents&&contents!==panelWin?.webContents)||!contents.getURL().startsWith(origin+'/')||permission!=='media'){callback(false);return;}const mediaTypes=details.mediaTypes||[];const result=await dialog.showMessageBox(panelWin?.isVisible()?panelWin:win,{type:'question',title:'Izin perangkat HumanALE god egine',message:'Izinkan '+(mediaTypes.includes('video')?'kamera':'mikrofon')+' untuk sesi ini?',detail:'Mikrofon dipakai hanya saat Wake ALE, dikte, atau reaksi suara yang kamu aktifkan; status Wake selalu terlihat di layar. Kamera hanya mengirim satu foto setelah tombol kirim foto ditekan.',buttons:['Izinkan','Batal'],defaultId:1,cancelId:1});callback(result.response===0);});
+  win.webContents.session.setPermissionCheckHandler((contents,permission,requestingOrigin)=>(contents===win.webContents||contents===panelWin?.webContents)&&ownerGate.isUnlocked(String(contents.id))&&permission==='media'&&requestingOrigin===origin);
+  win.webContents.session.setDisplayMediaRequestHandler(async(request,callback)=>{const requester=authorizedDisplayMediaTarget(request,{targets:[win,panelWin],ownerGate,origin});if(!requester){callback({});return;}try{const sources=await desktopCapturer.getSources({types:['screen']});if(!sources.length){callback({});return;}callback({video:sources[0],audio:'loopback'});}catch{callback({});}});
+  win.webContents.session.setPermissionRequestHandler(async(contents,permission,callback,details)=>{if((contents!==win.webContents&&contents!==panelWin?.webContents)||!ownerGate.isUnlocked(String(contents.id))||!contents.getURL().startsWith(origin+'/')||permission!=='media'){callback(false);return;}const mediaTypes=details.mediaTypes||[];const result=await dialog.showMessageBox(panelWin?.isVisible()?panelWin:win,{type:'question',title:'Izin perangkat HumanALE god egine',message:'Izinkan '+(mediaTypes.includes('video')?'kamera':'mikrofon')+' untuk sesi ini?',detail:'Mikrofon dipakai hanya saat Wake ALE, dikte, atau reaksi suara yang kamu aktifkan; status Wake selalu terlihat di layar. Kamera hanya mengirim satu foto setelah tombol kirim foto ditekan.',buttons:['Izinkan','Batal'],defaultId:1,cancelId:1});callback(result.response===0);});
 
   const trayIcon=nativeImage.createFromPath(path.join(root,'reference.png')).resize({width:20,height:20,quality:'best'});
   tray=new Tray(trayIcon);
@@ -467,6 +566,30 @@ else{
   if(ciSmoke){
    const rendererReady=await win.webContents.executeJavaScript("Boolean(document.querySelector('#avatar')) && Boolean(document.querySelector('#assistantPopup')) && typeof window.dudidamAvatar?.setAvatarState === 'function' && typeof window.dudidamDesktop?.onGlobalPointer === 'function' && typeof window.dudidamDesktop?.avatarViewport === 'function' && typeof window.dudidamDesktop?.openTerminal === 'function' && document.title.includes('HumanALE god egine')");
    if(!rendererReady)throw new Error('Renderer HumanALE god egine tidak siap.');
+   const unifiedRuntimeReady=await win.webContents.executeJavaScript(`
+    (async()=>{
+      const api=window.dudidamDesktop;
+      if(typeof api?.runtimeSnapshot!=='function'||typeof api?.naraDispatch!=='function')return false;
+      const initial=await api.runtimeSnapshot();
+      if(initial?.runtime?.version!==3||initial.runtime?.humanale?.role!=='nara-body')return false;
+      if(initial.runtime?.core?.engine?.identity?.id!=='NARA')return false;
+      const heard=await api.naraDispatch('audio.energy',{energy:.61,low:.2,mid:.4,high:.7});
+      if(!heard?.ok)return false;
+      const hearing=await api.runtimeSnapshot();
+      if(!hearing?.runtime?.humanale?.body?.hearing?.active)return false;
+      if(Math.abs(Number(hearing.runtime.humanale.body.hearing.high)-.7)>.001)return false;
+      const speech=await api.naraDispatch('speech.start',{energy:.55});
+      if(!speech?.ok)return false;
+      const speaking=await api.runtimeSnapshot();
+      if(speaking?.runtime?.humanale?.body?.state!=='speaking')return false;
+      const blocked=await api.naraDispatch('memory.write',{label:'forbidden-renderer-write'});
+      if(!blocked?.error)return false;
+      await api.naraDispatch('speech.stop',{});
+      await api.naraDispatch('audio.energy',{energy:0,low:0,mid:0,high:0});
+      return true;
+    })()
+   `);
+   if(!unifiedRuntimeReady)throw new Error('Unified NARA + HumanALE runtime V3 belum siap.');
    const wakeIdle=await win.webContents.executeJavaScript("Boolean(document.querySelector('#wakeToggle')) && !document.querySelector('#wakeToggle').checked && document.querySelector('#wakeIndicator')?.textContent?.includes('nonaktif')");
    if(!wakeIdle)throw new Error('Wake mic harus nonaktif saat HumanALE god egine mulai.');
    await openPanel('controls');

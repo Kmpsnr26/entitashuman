@@ -1,9 +1,59 @@
+import {initializeCreatorGateway} from './creator-gateway.js';
+import {createEdgeHud} from './edge-hud.js';
+import {createNeuralEntryExperience} from './neural-entry.js';
+import {createNodeInspector} from './node-inspector.js';
+import {createNodeVoice} from './node-voice.js';
+import {createCustomSettingsPanel} from './custom-settings.js';
+import {createUiSoundEngine} from './ui-sound.js';
+
 const $=id=>document.getElementById(id);
 let snapshot=null,regions={},telemetry=null,skillsSnapshot=null;
 let neural3d=null,neural3dLoading=null,studioView='2d';
 let eventBuffer=[],eventPaused=false,replayTimer=null;
 const connectionIds=['GITHUB','COPILOT','WEB','TEAM','PR','SYNC','ONLINE','OWNER_EMAIL','DRIVE'];
 const eventSelect=$('eventSelect');
+const neuralEntry=createNeuralEntryExperience();
+const nodeVoice=createNodeVoice();
+let uiSound=null;
+const customSettings=createCustomSettingsPanel({
+  onChange:settings=>neural3d?.applyVisualSettings?.(settings),
+  onAudioChange:enabled=>{
+    neuralEntry.setAudioEnabled(enabled);
+    if(!enabled)nodeVoice.stop();
+  },
+  onAudioProfileChange:settings=>{
+    neuralEntry.applyAudioSettings?.(settings);
+    nodeVoice.applyVoiceSettings?.(settings);
+    uiSound?.setProfile(settings);
+  },
+  onUiCue:cue=>uiSound?.cue(cue),
+  onVoicePreview:settings=>nodeVoice.preview?.(settings),
+  onQualityChange:quality=>{
+    const select=$('neuralQuality');
+    if(select&&select.value!==quality)select.value=quality;
+    neural3d?.setQuality?.(quality);
+  }
+});
+const nodeInspector=createNodeInspector({
+  onNavigate:region=>dispatch('brain.region.select',{region}).catch(error=>{
+    $('consoleLog').textContent=error.message;
+  }),
+  onFocus:region=>ensureNeural3D().then(scene=>scene.focusRegion(region)).catch(()=>{}),
+  onMetadata:metadata=>nodeVoice.speak(metadata)
+});
+const edgeHud=createEdgeHud({onView:mode=>{
+  if(mode==='3d'&&studioView!=='3d')neuralEntry.play({announce:false,compact:true});
+  setStudioView(mode);
+}});
+
+uiSound=createUiSoundEngine({enabled:()=>customSettings.getSettings().audio!==false});
+uiSound.setProfile(customSettings.getSettings());
+uiSound.attach(document);
+customSettings.applyToRuntime();
+document.getElementById('edgeAudioToggle')?.addEventListener('click',()=>{
+  const pressed=document.getElementById('edgeAudioToggle')?.getAttribute('aria-pressed')!=='false';
+  if(customSettings.getSettings().audio!==pressed)customSettings.setSettings({audio:pressed});
+});
 
 function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
 function statusClass(status='idle'){return 's-'+String(status).replace(/[^a-z0-9_-]/gi,'');}
@@ -28,9 +78,10 @@ function updateNeuralHud(){
   if(!neural3d)return;
 
   const stats=neural3d.getStats();
+  edgeHud.update({neural:stats});
   $('neural3dRoots').textContent=stats.links+' living roots · '+stats.activeLinks+' active';
   $('neural3dRoutes').textContent='routes: '+stats.routeCount+' · active '+stats.activeRoutes;
-  $('neural3dPerf').textContent='fps '+stats.fps+' · quality '+stats.quality+' · '+stats.mode;
+  $('neural3dPerf').textContent='fps '+stats.fps+' · quality '+stats.quality+' · '+stats.mode+' · galaxy '+(stats.galacticFrame?'on':'off')+' · aurora '+(stats.aurora?'on':'off')+' · core rings '+(stats.mechanicalCore?'on':'off')+' · binary '+(stats.brainBinary?'on':'off')+' · guardian '+(stats.guardianRingA?'A':'-')+'/'+(stats.guardianRingB?'B':'-');
   $('neural3dLastRoute').textContent='last route: '+(stats.lastRoute||'—');
 
   for(const [id,mode] of [['neuralExplorer','explorer'],['neuralFocus','focus'],['neuralCore','core']]){
@@ -60,12 +111,18 @@ async function ensureNeural3D(){
     const host=$('neural3dHost');
     host.innerHTML='';
     neural3d=createNeural3DScene(host,{
-      onSelect:region=>dispatch('brain.region.select',{region}).catch(error=>{
-        $('consoleLog').textContent=error.message;
-      }),
+      onSelect:async region=>{
+        try{
+          await dispatch('brain.region.select',{region});
+          await nodeInspector.open(region);
+        }catch(error){
+          $('consoleLog').textContent=error.message;
+        }
+      },
       onMetrics:()=>updateNeuralHud()
     });
     neural3d.setRegions(regions);
+    neural3d.applyVisualSettings?.(customSettings.getSettings());
     if(snapshot)neural3d.setState(snapshot);
     neural3d.setActive(studioView==='3d'&&!document.hidden);
     $('neural3dStatus').textContent='LIVE · ROOT FLOW';
@@ -107,7 +164,14 @@ function drawBrain(){
     el.className='brain-node '+statusClass(state.status)+(snapshot?.selectedRegion===region.id?' selected':'');
     el.style.left=x+'%';el.style.top=y+'%';el.dataset.region=region.id;
     el.innerHTML='<strong>'+escapeHtml(region.label)+'</strong><span>'+escapeHtml(state.status||'idle')+'</span>';
-    el.onclick=()=>dispatch('brain.region.select',{region:region.id});
+    el.onclick=async()=>{
+      try{
+        await dispatch('brain.region.select',{region:region.id});
+        await nodeInspector.open(region.id);
+      }catch(error){
+        $('consoleLog').textContent=error.message;
+      }
+    };
     nodes.appendChild(el);
   }
   const seen=new Set();
@@ -126,6 +190,7 @@ function drawBrain(){
 
 function renderState(state){
   snapshot=state;
+  edgeHud.update({snapshot:state});
   $('lifecycle').textContent=state.lifecycle||'—';
   $('selectedRegion').textContent=state.selectedRegion||'—';
   $('currentTask').textContent=state.currentTask?.label||'—';
@@ -207,6 +272,7 @@ const phaseElements={
 
 function renderTelemetry(data){
   telemetry=data||{};
+  edgeHud.update({telemetry});
   const decision=telemetry.decision||{};
   const history=Array.isArray(decision.history)?decision.history:[];
   $('decisionStatus').textContent=decision.status||'idle';
@@ -269,6 +335,7 @@ function renderDiagnostics(data){
 
 function renderSkills(data){
   skillsSnapshot=data||{};
+  edgeHud.update({skills:skillsSnapshot});
   const skills=Array.isArray(skillsSnapshot.skills)?skillsSnapshot.skills:[];
   $('skillSummary').textContent=(skillsSnapshot.total||skills.length)+' skills';
   $('skillEnabled').textContent=String(skillsSnapshot.enabled||0);
@@ -332,12 +399,12 @@ async function boot(){
   for(const event of data.events||[])appendEvent(event);
 
   const stream=new EventSource('/api/stream');
-  stream.addEventListener('ready',()=>{$('connection').textContent='LIVE';$('connection').className='live';});
+  stream.addEventListener('ready',()=>{$('connection').textContent='LIVE';$('connection').className='live';edgeHud.setConnection('LIVE');});
   stream.addEventListener('state',e=>renderState(JSON.parse(e.data)));
   stream.addEventListener('telemetry',e=>renderTelemetry(JSON.parse(e.data)));
   stream.addEventListener('skills',e=>renderSkills(JSON.parse(e.data)));
   stream.addEventListener('event',e=>appendEvent(JSON.parse(e.data)));
-  stream.onerror=()=>{$('connection').textContent='RECONNECTING';$('connection').className='warn';};
+  stream.onerror=()=>{$('connection').textContent='RECONNECTING';$('connection').className='warn';edgeHud.setConnection('RECONNECTING');};
 }
 
 $('view2d').onclick=()=>setStudioView('2d');
@@ -346,7 +413,10 @@ $('neuralExplorer').onclick=()=>ensureNeural3D().then(scene=>{scene.setMode('exp
 $('neuralFocus').onclick=()=>ensureNeural3D().then(scene=>{scene.setMode('focus');updateNeuralHud();}).catch(()=>{});
 $('neuralCore').onclick=()=>ensureNeural3D().then(scene=>{scene.setMode('core');updateNeuralHud();}).catch(()=>{});
 $('neuralReset').onclick=()=>ensureNeural3D().then(scene=>{scene.resetView();updateNeuralHud();}).catch(()=>{});
-$('neuralQuality').onchange=event=>ensureNeural3D().then(scene=>{scene.setQuality(event.target.value);updateNeuralHud();}).catch(()=>{});
+$('neuralQuality').onchange=event=>{
+  customSettings.setSettings({quality:event.target.value});
+  ensureNeural3D().then(scene=>{scene.setQuality(event.target.value);updateNeuralHud();}).catch(()=>{});
+};
 $('sendEvent').onclick=()=>dispatch(eventSelect.value,{label:$('eventLabel').value,message:$('eventLabel').value}).catch(e=>$('consoleLog').textContent=e.message);
 document.querySelectorAll('.quick button').forEach(btn=>btn.onclick=()=>dispatch(btn.dataset.event,{label:'NARA Studio test',message:'NARA Studio simulated event'}).catch(e=>$('consoleLog').textContent=e.message));
 $('clearEvents').onclick=()=>{stopReplay();eventBuffer=[];eventPaused=false;$('pauseEvents').textContent='Pause';renderEventItems([]);};
@@ -359,5 +429,22 @@ document.addEventListener('visibilitychange',()=>{
   if(neural3d)neural3d.setActive(studioView==='3d'&&!document.hidden);
 });
 setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString('id-ID');renderPerformance();},1000);
-setStudioView('2d');
-boot().catch(error=>{$('consoleLog').textContent=error.stack||error.message;$('connection').textContent='OFFLINE';});
+async function startStudioAfterCreatorAccess(){
+  document.body.classList.add('creator-session-active');
+  edgeHud.activate();
+  setStudioView('3d');
+  $('connection').textContent='CONNECTING';
+  edgeHud.setConnection('CONNECTING');
+  await boot();
+}
+
+initializeCreatorGateway({
+  onEntering:()=>neuralEntry.play({announce:true,compact:false}),
+  onReady:()=>startStudioAfterCreatorAccess().catch(error=>{
+    $('consoleLog').textContent=error.stack||error.message;
+    $('connection').textContent='OFFLINE';
+  })
+}).catch(error=>{
+  $('consoleLog').textContent=error.stack||error.message;
+  $('connection').textContent='AUTH ERROR';
+});
