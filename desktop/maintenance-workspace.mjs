@@ -268,8 +268,14 @@ export class TrustedMaintenanceWorkspaceBroker{
     if(!state||state.checkpointed!==true){
       throw new Error('Finalize membutuhkan checkpointed workspace yang dikenal broker.');
     }
-    if(!draft||draft.draft!==true||!draft.url){
-      throw new Error('Finalize membutuhkan verified Draft PR result.');
+    if(
+      !draft||
+      draft.draft!==true||
+      !draft.url||
+      draft.branchName!==state.branchName||
+      draft.commitSha!==state.commitSha
+    ){
+      throw new Error('Finalize membutuhkan Draft PR yang cocok dengan checkpoint.');
     }
     try{
       await runGit(state.repoRoot,['worktree','remove','--force',state.path]);
