@@ -5,6 +5,7 @@ import {
   NARA_UNIFIED_SIMULATION_MODE,
   createNaraUnifiedSimulationStack
 } from '../nara-core/simulation/index.js';
+import {READINESS_STATUS} from '../nara-core/readiness/index.js';
 
 function makeStack(){
   let sequence=0;
@@ -24,6 +25,10 @@ test('unified simulation stack composes every real NARA component and exposes no
   assert.equal(snapshot.mockHumanALE,true);
   assert.equal(snapshot.realHumanALEBridgeActive,false);
   assert.equal(snapshot.finalIntegrationUnlocked,false);
+  assert.equal(snapshot.readiness.status,READINESS_STATUS.SIMULATION_READY);
+  assert.equal(snapshot.readiness.simulationReady,true);
+  assert.equal(snapshot.readiness.liveReady,false);
+  assert.ok(snapshot.readiness.liveMissing.includes('humanale.creator_final_approval'));
   assert.deepEqual(
     snapshot.components.map(item=>item.id).sort(),
     [...NARA_UNIFIED_COMPONENTS].sort()
@@ -166,4 +171,50 @@ test('real HumanALE integration handshake remains fail-closed while FINAL_READY 
   assert.equal(snapshot.finalIntegrationUnlocked,false);
   assert.equal(snapshot.integration.connectedToMock,true);
   assert.equal(snapshot.mockHumanALE,true);
+});
+
+
+test('readiness failure blocks unified simulation before workflow execution',async()=>{
+  const stack=makeStack();
+  const readiness=stack.setReadinessFacts({'security.codeql_pass':false});
+  assert.equal(readiness.status,READINESS_STATUS.NOT_READY);
+  assert.equal(readiness.simulationReady,false);
+
+  const report=await stack.runReasonSimulation({
+    workflowId:'wf-readiness-block'
+  });
+  assert.equal(report.status,'BLOCKED');
+  assert.equal(report.reason,'SIMULATION_READINESS_INCOMPLETE');
+  assert.equal(stack.snapshot().counters.workflow.attempts,0);
+});
+
+test('unknown readiness facts fail closed',()=>{
+  const stack=makeStack();
+  assert.throws(
+    ()=>stack.setReadinessFacts({'bypass.everything':true}),
+    /Unknown readiness gate/
+  );
+});
+
+test('even LIVE_READY facts cannot activate a real HumanALE transport',()=>{
+  const stack=makeStack();
+  const readiness=stack.setReadinessFacts({
+    'humanale.real_test_pass':true,
+    'humanale.final_ready':true,
+    'humanale.baseline_frozen':true,
+    'humanale.creator_final_approval':true
+  });
+  assert.equal(readiness.status,READINESS_STATUS.LIVE_READY);
+  assert.equal(readiness.liveReady,true);
+
+  const boundary=stack.evaluateFinalIntegrationBoundary({
+    id:'live-ready-still-no-activation'
+  });
+  assert.equal(boundary.outcome,'DEFER');
+
+  const snapshot=stack.snapshot();
+  assert.equal(snapshot.realHumanALEBridgeActive,false);
+  assert.equal(snapshot.finalIntegrationUnlocked,false);
+  assert.equal(typeof stack.setTransport,'undefined');
+  assert.equal(typeof stack.activateRealIntegration,'undefined');
 });

@@ -55,3 +55,14 @@ It does not close the remaining HumanALE release gates:
 - Creator Final Approval.
 
 It also does not authorize merging PR #78 or publishing v2.5.0.
+
+
+## Readiness Gate v1.1
+
+The unified stack now composes the strict NARA ↔ HumanALE readiness evaluator.
+
+Default unified-simulation evidence reaches `SIMULATION_READY` only. Live readiness additionally requires HumanALE real-test pass, FINAL_READY, frozen baseline, and explicit `humanale.creator_final_approval`.
+
+If any simulation/security readiness fact becomes false, the unified stack stops before workflow execution.
+
+Even a `LIVE_READY` evaluation cannot activate a real transport. This simulation harness still exposes no transport switch, activation function, merge, release, or Creator approval mutation.

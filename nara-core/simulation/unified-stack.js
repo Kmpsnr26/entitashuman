@@ -9,11 +9,15 @@ import {createWorkflowOrchestrator} from '../workflow/index.js';
 import {createSupervisor} from '../supervisor/index.js';
 import {createApprovalManager} from '../permissions/index.js';
 import {
+  createIntegrationReadinessGate,
+  READINESS_STATUS
+} from '../readiness/index.js';
+import {
   createNaraHumanALEBridge,
   createMockHumanALE
 } from '../integration/index.js';
 
-export const NARA_UNIFIED_SIMULATION_VERSION='1.0.0';
+export const NARA_UNIFIED_SIMULATION_VERSION='1.1.0';
 export const NARA_UNIFIED_SIMULATION_MODE='SIMULATION_ONLY';
 export const NARA_UNIFIED_SIMULATION_SCOPE='session.unified-simulation';
 
@@ -52,10 +56,49 @@ function approvalBlocked(reason){
   });
 }
 
+export function unifiedSimulationReadinessFacts({
+  decisionValidated=true,
+  memoryValidated=true,
+  executionValidated=true,
+  verificationValidated=true,
+  learningValidated=true,
+  workflowValidated=true,
+  supervisorValidated=true,
+  approvalValidated=true,
+  contractValidated=true,
+  mockBridgeValidated=true,
+  codeqlPass=true,
+  qualityGatePass=true,
+  humanaleRealTestPass=false,
+  humanaleFinalReady=false,
+  humanaleBaselineFrozen=false,
+  creatorFinalApproval=false
+}={}){
+  return freeze({
+    'nara.decision.validated':decisionValidated===true,
+    'nara.memory.validated':memoryValidated===true,
+    'nara.execution.validated':executionValidated===true,
+    'nara.verification.validated':verificationValidated===true,
+    'nara.learning.validated':learningValidated===true,
+    'nara.workflow.validated':workflowValidated===true,
+    'nara.supervisor.validated':supervisorValidated===true,
+    'nara.approval.validated':approvalValidated===true,
+    'integration.contract_validated':contractValidated===true,
+    'integration.mock_bridge_validated':mockBridgeValidated===true,
+    'security.codeql_pass':codeqlPass===true,
+    'security.quality_gate_pass':qualityGatePass===true,
+    'humanale.real_test_pass':humanaleRealTestPass===true,
+    'humanale.final_ready':humanaleFinalReady===true,
+    'humanale.baseline_frozen':humanaleBaselineFrozen===true,
+    'humanale.creator_final_approval':creatorFinalApproval===true
+  });
+}
+
 export function createNaraUnifiedSimulationStack({
   now=()=>Date.now(),
   idFactory=()=>randomUUID(),
-  mockHumanALEOptions={}
+  mockHumanALEOptions={},
+  readinessFacts={}
 }={}){
   const bus=createEventBus({historyLimit:500});
   const decisionEngine=createDecisionEngine({bus,now,idFactory});
@@ -65,6 +108,12 @@ export function createNaraUnifiedSimulationStack({
   const learningEngine=createLearningEngine({bus,now,idFactory});
   const approvalManager=createApprovalManager({bus,now,idFactory});
   const supervisor=createSupervisor({bus,now});
+  const readinessGate=createIntegrationReadinessGate({bus,now});
+  let currentReadinessFacts={
+    ...unifiedSimulationReadinessFacts(),
+    ...readinessFacts
+  };
+  let currentReadiness=readinessGate.evaluate(currentReadinessFacts);
 
   const mockHumanALE=createMockHumanALE({
     ...mockHumanALEOptions,
@@ -187,6 +236,34 @@ export function createNaraUnifiedSimulationStack({
     approvals:{owner:Boolean(owner)}
   });
 
+  const readinessView=()=>freeze({
+    status:currentReadiness.status,
+    simulationReady:currentReadiness.simulationReady,
+    liveReady:currentReadiness.liveReady,
+    simulationMissing:freeze([...currentReadiness.simulationMissing]),
+    liveMissing:freeze([...currentReadiness.liveMissing])
+  });
+
+  function setReadinessFacts(nextFacts={}){
+    currentReadinessFacts={
+      ...unifiedSimulationReadinessFacts(),
+      ...nextFacts
+    };
+    currentReadiness=readinessGate.evaluate(currentReadinessFacts);
+    return readinessView();
+  }
+
+  const checkSimulationReadiness=()=>currentReadiness.simulationReady
+    ?null
+    :freeze({
+      version:NARA_UNIFIED_SIMULATION_VERSION,
+      mode:NARA_UNIFIED_SIMULATION_MODE,
+      status:'BLOCKED',
+      reason:'SIMULATION_READINESS_INCOMPLETE',
+      readiness:readinessView(),
+      realExecution:false
+    });
+
   const checkHealth=()=>{
     for(const componentId of NARA_UNIFIED_COMPONENTS){
       const gate=supervisor.canRun(componentId,{timestamp:now()});
@@ -200,6 +277,8 @@ export function createNaraUnifiedSimulationStack({
     requestId=null,
     input={}
   }={}){
+    const readinessBlock=checkSimulationReadiness();
+    if(readinessBlock)return readinessBlock;
     const health=checkHealth();
     if(!health.allowed)return supervisorBlocked(health);
     const wfId=workflowId||('sim-reason-'+idFactory());
@@ -256,6 +335,8 @@ export function createNaraUnifiedSimulationStack({
     workflowId=null,
     requestId=null
   }={}){
+    const readinessBlock=checkSimulationReadiness();
+    if(readinessBlock)return readinessBlock;
     const health=checkHealth();
     if(!health.allowed)return supervisorBlocked(health);
 
@@ -345,6 +426,7 @@ export function createNaraUnifiedSimulationStack({
       mockHumanALE:true,
       realHumanALEBridgeActive:false,
       finalIntegrationUnlocked:false,
+      readiness:readinessView(),
       components:freeze(supervision.components.map(item=>freeze({
         id:item.id,
         status:item.status,
@@ -392,6 +474,8 @@ export function createNaraUnifiedSimulationStack({
     evaluateFinalIntegrationBoundary,
     reportComponentHealth,
     recoveryRecommendation,
+    setReadinessFacts,
+    getReadiness:readinessView,
     snapshot
   });
 }
