@@ -8,6 +8,12 @@ export const AI_MAINTENANCE_MAX_CHANGED_BYTES=2*1024*1024;
 export const AI_MAINTENANCE_SENSITIVE_ENV_PATTERN=
  /(?:^|_)(?:TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|APIKEY|AUTHORIZATION|COOKIE|CREDENTIALS?|PRIVATE_KEY|CLIENT_SECRET|REFRESH_TOKEN|ACCESS_KEY|PEPPER|SIGNING|KEYSTORE|CERTIFICATE)(?:_|$)|DATABASE_URL|SSH_AUTH_SOCK|SSH_AGENT_PID|GPG_AGENT_INFO|GOOGLE_APPLICATION_CREDENTIALS|DOCKER_AUTH_CONFIG|NPM_CONFIG__AUTH/i;
 
+export const AI_MAINTENANCE_IDENTITY_ENV_KEYS=Object.freeze([
+ 'HOME','USERPROFILE','HOMEDRIVE','HOMEPATH',
+ 'XDG_CONFIG_HOME','XDG_DATA_HOME','XDG_STATE_HOME','XDG_CACHE_HOME',
+ 'APPDATA','LOCALAPPDATA','SSH_AUTH_SOCK','SSH_AGENT_PID','GPG_AGENT_INFO'
+]);
+
 const PATCH_DENY_RULES=Object.freeze([
  Object.freeze({
   code:'SECRET_ENV_ACCESS_ADDED',
@@ -74,19 +80,40 @@ export function normalizeMaintenanceRepoPath(value,{allowGlob=false}={}){
  return normalized.replace(/^\.\//,'');
 }
 
-export function sanitizeMaintenanceEnvironment(baseEnv={}){
+export function sanitizeMaintenanceEnvironment(baseEnv={},{
+ isolatedHome=''
+}={}){
  const output={};
  const removed=[];
+ const isolated=String(isolatedHome||'').trim();
+ const identityKeys=new Set(AI_MAINTENANCE_IDENTITY_ENV_KEYS);
  for(const [rawKey,rawValue] of Object.entries(baseEnv||{})){
   const key=String(rawKey);
-  if(AI_MAINTENANCE_SENSITIVE_ENV_PATTERN.test(key)){
+  if(AI_MAINTENANCE_SENSITIVE_ENV_PATTERN.test(key)||identityKeys.has(key.toUpperCase())){
    removed.push(key);
    continue;
   }
   if(rawValue===undefined||rawValue===null)continue;
   output[key]=String(rawValue);
  }
+ if(isolated){
+  output.HOME=isolated;
+  output.USERPROFILE=isolated;
+  output.XDG_CONFIG_HOME=isolated+'/config';
+  output.XDG_DATA_HOME=isolated+'/data';
+  output.XDG_STATE_HOME=isolated+'/state';
+  output.XDG_CACHE_HOME=isolated+'/cache';
+  if(process.platform==='win32'){
+   const match=/^([A-Za-z]:)(.*)$/.exec(isolated.replace(/\//g,'\\'));
+   if(match){
+    output.HOMEDRIVE=match[1];
+    output.HOMEPATH=match[2]||'\\';
+   }
+  }
+ }
  output.NO_COLOR='1';
+ output.GIT_TERMINAL_PROMPT='0';
+ output.GCM_INTERACTIVE='Never';
  return Object.freeze({
   env:Object.freeze({...output}),
   removed:Object.freeze(removed.sort())
