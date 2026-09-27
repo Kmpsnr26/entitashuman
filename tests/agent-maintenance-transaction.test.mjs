@@ -218,6 +218,36 @@ test('baseline symbolic links fail closed before any agent can run',async()=>{
  }
 });
 
+test('symbolic link created during a transaction is rejected without reading its target',async()=>{
+ const {root}=await repoFixture();
+ const external=await mkdtemp(join(tmpdir(),'humanale-maintenance-external-'));
+ try{
+  const target=join(external,'outside.txt');
+  const link=join(root,'outside-link.txt');
+  await writeFile(target,'must remain outside the maintenance patch\n','utf8');
+  const tx=await beginMaintenanceTransaction(root);
+  try{
+   try{
+    await symlink(target,link,'file');
+   }catch(error){
+    if(process.platform==='win32'&&['EPERM','EACCES'].includes(error?.code))return;
+    throw error;
+   }
+   const result=await tx.inspect();
+   assert.equal(result.allowed,false);
+   assert.ok(result.violations.includes('SYMLINK_CHANGE'));
+   assert.equal(result.rolledBack,true);
+   assert.equal(await readFile(target,'utf8'),'must remain outside the maintenance patch\n');
+   assert.equal(git(root,'status','--porcelain'),'');
+  }finally{
+   await tx.release();
+  }
+ }finally{
+  await rm(external,{recursive:true,force:true});
+  await rm(root,{recursive:true,force:true});
+ }
+});
+
 test('repository-global lock blocks a second maintenance session from another Git worktree',async()=>{
  const {root}=await repoFixture();
  const other=await mkdtemp(join(tmpdir(),'humanale-maintenance-worktree-parent-'));

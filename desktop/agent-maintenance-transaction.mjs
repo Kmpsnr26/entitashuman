@@ -32,6 +32,43 @@ function sha256(value){
  return createHash('sha256').update(value).digest('hex');
 }
 
+function sameFileIdentity(left,right){
+ return left.dev===right.dev&&left.ino===right.ino&&left.mode===right.mode;
+}
+
+function sameFileSnapshot(left,right){
+ return sameFileIdentity(left,right)&&
+  left.size===right.size&&
+  left.mtimeMs===right.mtimeMs&&
+  left.ctimeMs===right.ctimeMs;
+}
+
+function fileRaceError(path){
+ const error=new Error('File berubah saat diperiksa oleh AI maintenance: '+path);
+ error.code='AI_MAINTENANCE_FILE_RACE';
+ error.path=path;
+ return error;
+}
+
+async function readStableRegularFile(path,{maxBytes=Infinity}={}){
+ const handle=await open(path,'r');
+ try{
+  const opened=await handle.stat();
+  const current=await lstat(path);
+  if(!opened.isFile()||!current.isFile()||current.isSymbolicLink())return null;
+  if(!sameFileIdentity(opened,current))throw fileRaceError(path);
+  if(opened.size>maxBytes)return null;
+  const data=await handle.readFile();
+  const after=await handle.stat();
+  if(!sameFileSnapshot(opened,after)||data.length!==after.size){
+   throw fileRaceError(path);
+  }
+  return data;
+ }finally{
+  await handle.close();
+ }
+}
+
 async function runGit(cwd,args,{timeout=12000,maxOutput=8*1024*1024}={}){
  const safeEnv=sanitizeMaintenanceEnvironment(process.env).env;
  return await new Promise((resolvePromise,reject)=>{
@@ -75,28 +112,31 @@ async function gitText(cwd,args,options){
 }
 
 async function fileFingerprint(path){
+ let info;
  try{
-  const info=await lstat(path);
-  if(info.isSymbolicLink()){
-   return 'link:'+await readlink(path);
-  }
-  if(info.isDirectory()){
-   const entries=(await readdir(path,{withFileTypes:true}))
-    .sort((a,b)=>a.name.localeCompare(b.name));
-   const parts=[];
-   for(const entry of entries){
-    parts.push(entry.name+':'+await fileFingerprint(join(path,entry.name)));
-   }
-   return 'dir:'+sha256(parts.join('\n'));
-  }
-  if(info.isFile()){
-   return 'file:'+sha256(await readFile(path));
-  }
-  return 'other:'+String(info.mode);
+  info=await lstat(path);
  }catch(error){
   if(error?.code==='ENOENT')return 'missing';
   throw error;
  }
+ if(info.isSymbolicLink()){
+  return 'link:'+await readlink(path);
+ }
+ if(info.isDirectory()){
+  const entries=(await readdir(path,{withFileTypes:true}))
+   .sort((a,b)=>a.name.localeCompare(b.name));
+  const parts=[];
+  for(const entry of entries){
+   parts.push(entry.name+':'+await fileFingerprint(join(path,entry.name)));
+  }
+  return 'dir:'+sha256(parts.join('\n'));
+ }
+ if(info.isFile()){
+  const data=await readStableRegularFile(path);
+  if(data===null)throw fileRaceError(path);
+  return 'file:'+sha256(data);
+ }
+ return 'other:'+String(info.mode);
 }
 
 async function gitMetadataFingerprint(cwd){
@@ -328,14 +368,15 @@ async function appendUntrackedPatch(cwd,entries,patch){
   for(const path of entry.paths){
    const absolute=join(cwd,path);
    try{
-    const info=await lstat(absolute);
-    if(!info.isFile()||info.isSymbolicLink()||info.size>512*1024)continue;
-    const data=await readFile(absolute);
+    const data=await readStableRegularFile(absolute,{maxBytes:512*1024});
+    if(data===null)continue;
     if(data.includes(0))continue;
     const text=data.toString('utf8');
     output+='\n--- /dev/null\n+++ b/'+path+'\n';
     output+=text.split(/\r?\n/).map(line=>'+'+line).join('\n');
-   }catch{}
+   }catch(error){
+    if(error?.code==='AI_MAINTENANCE_FILE_RACE')throw error;
+   }
   }
  }
  return output;
