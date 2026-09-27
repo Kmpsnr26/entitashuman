@@ -157,6 +157,24 @@ export class TrustedDraftPRBroker{
     }
   }
 
+  async remoteBranchHead(root,receipt){
+    const result=await this.run(
+      'git',
+      [
+        'ls-remote','--heads',this.remote,
+        'refs/heads/'+receipt.branchName
+      ],
+      root
+    );
+    const line=String(result.stdout||'').trim();
+    if(!line)return null;
+    const sha=line.split(/\s+/)[0]||'';
+    if(!SHA.test(sha)){
+      throw new Error('Remote maintenance branch mengembalikan SHA tidak valid.');
+    }
+    return sha;
+  }
+
   async existingDraft(root,receipt){
     const result=await this.run(
       ghExecutable(),
@@ -216,16 +234,25 @@ export class TrustedDraftPRBroker{
     const existing=await this.existingDraft(root,receipt);
     if(existing)return existing;
 
-    await this.run(
-      'git',
-      [
-        'push',
-        '--set-upstream',
-        this.remote,
-        'refs/heads/'+receipt.branchName+':refs/heads/'+receipt.branchName
-      ],
-      root
-    );
+    const remoteHead=await this.remoteBranchHead(root,receipt);
+    if(remoteHead&&remoteHead!==receipt.commitSha){
+      const error=new Error('Remote maintenance branch sudah ada dengan commit berbeda.');
+      error.code='MAINTENANCE_DRAFT_REMOTE_BRANCH_CONFLICT';
+      throw error;
+    }
+
+    if(!remoteHead){
+      await this.run(
+        'git',
+        [
+          'push',
+          '--set-upstream',
+          this.remote,
+          'refs/heads/'+receipt.branchName+':refs/heads/'+receipt.branchName
+        ],
+        root
+      );
+    }
 
     const title=safeText(
       '[AI maintenance] '+receipt.findingId+' — '+findingCode,
