@@ -138,7 +138,12 @@ test('NARA skill registry follows cognitive and agent lifecycle events',async t=
   const data=await fetch(base+'/api/snapshot').then(r=>r.json());
   const reason=data.skills.skills.find(skill=>skill.id==='reason');
   const agent=data.skills.skills.find(skill=>skill.id==='agent.manage');
-  assert.equal(data.skills.total,9);
+  assert.ok(data.skills.total>=19);
+  for(const id of [
+    'sense.hearing','sense.vision','system.observe','server.observe',
+    'dataflow.observe','device.integrate','capability.guard',
+    'autopilot.control','watchdog.monitor','recovery.decide'
+  ])assert.ok(data.skills.skills.some(skill=>skill.id===id),id+' missing');
   assert.equal(reason.runs,1);
   assert.equal(reason.successes,1);
   assert.equal(reason.status,'complete');
