@@ -165,7 +165,7 @@ export class TrustedDraftPRBroker{
         '--repo',this.expectedRepository,
         '--state','open',
         '--head',receipt.branchName,
-        '--json','number,url,isDraft,baseRefName,headRefName',
+        '--json','number,url,isDraft,baseRefName,headRefName,headRefOid',
         '--limit','10'
       ],
       root
@@ -183,8 +183,12 @@ export class TrustedDraftPRBroker{
       error.code='MAINTENANCE_DRAFT_EXISTING_NOT_DRAFT';
       throw error;
     }
-    if(row.headRefName!==receipt.branchName||row.baseRefName!==receipt.baseBranch){
-      const error=new Error('Existing Draft PR branch/base tidak cocok checkpoint.');
+    if(
+      row.headRefName!==receipt.branchName||
+      row.baseRefName!==receipt.baseBranch||
+      row.headRefOid!==receipt.commitSha
+    ){
+      const error=new Error('Existing Draft PR branch/base/head tidak cocok checkpoint.');
       error.code='MAINTENANCE_DRAFT_EXISTING_MISMATCH';
       throw error;
     }
