@@ -122,3 +122,17 @@ test('trusted maintenance verifier hook is not exposed through Electron preload'
  assert.doesNotMatch(preload,/maintenance-verifier\.mjs/);
  assert.doesNotMatch(preload,/maintenance-autopilot\.mjs/);
 });
+
+
+test('trusted workspace and Draft PR brokers are not exposed through Electron preload',async()=>{
+ const preload=await readFile(new URL('../desktop/preload.cjs',import.meta.url),'utf8');
+ for(const forbidden of [
+  'maintenance-workspace',
+  'maintenance-draft-pr-broker',
+  'maintenance-checkpoint-coordinator',
+  'runMaintenanceVerified',
+  'resumePending'
+ ]){
+  assert.equal(preload.includes(forbidden),false,forbidden);
+ }
+});
