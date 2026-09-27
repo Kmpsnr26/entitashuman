@@ -7,3 +7,5 @@ export * from './recovery-engine.js';
 export * from './instinct-engine.js';
 export * from './experience-model.js';
 export * from './autopilot.js';
+export * from './goal-manager.js';
+export * from './metacognition-engine.js';
