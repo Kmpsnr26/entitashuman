@@ -19,7 +19,7 @@ export const AI_MAINTENANCE_TRANSACTION_VERSION='1.0.0';
 export const AI_MAINTENANCE_LOCK_FILE='humanale-ai-maintenance.lock';
 
 const SECRET_SCAN_SKIP_DIRS=new Set([
- '.git','node_modules','dist','build','out','release','coverage','.next','.vite'
+ '.git','node_modules','dist','build','out','coverage','.next','.vite'
 ]);
 
 function normalizedOsPath(value){
@@ -408,6 +408,29 @@ export class MaintenanceTransaction{
    quarantineCreated:Boolean(quarantine),
    manualRecoveryRequired:!result.allowed&&identityDrift
   });
+ }
+
+ async rollback(reason='PIPELINE_FAILED'){
+  if(this.released)throw new Error('Maintenance transaction sudah dilepas.');
+  const changeSet=await collectChangeSet(this);
+  const identity={
+   branchChanged:changeSet.branchChanged,
+   headChanged:changeSet.headChanged,
+   gitMetadataChanged:changeSet.gitMetadataChanged,
+   lockChanged:changeSet.lockChanged
+  };
+  if(Object.values(identity).some(Boolean)){
+   const error=new Error('Rollback otomatis diblokir karena identitas repository berubah; recovery manual diperlukan.');
+   error.code='AI_MAINTENANCE_MANUAL_RECOVERY_REQUIRED';
+   error.reason=reason;
+   error.identity=identity;
+   throw error;
+  }
+  if(!changeSet.paths.length){
+   return Object.freeze({rolledBack:false,reason,transactionId:this.id});
+  }
+  await quarantineAndRollback(this,changeSet);
+  return Object.freeze({rolledBack:true,reason,transactionId:this.id,quarantineCreated:true});
  }
 
  async release(){
