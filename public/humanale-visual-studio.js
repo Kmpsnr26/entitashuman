@@ -155,6 +155,8 @@ export function createHumanALEVisualStudio({
  let realTestEvidence={};
  try{realTestEvidence=JSON.parse(storage?.getItem?.(HUMANALE_VISUAL_REAL_TEST_EVIDENCE_KEY)||'{}')||{};}catch{realTestEvidence={};}
 
+ const liveSnapshot=()=>isPanel?current:(getSnapshot?.()||current);
+
  const render=value=>{
   current=safeSnapshot(value);
   setText(root,'visualStudioState',current.runtime.state.toUpperCase());
@@ -310,7 +312,7 @@ export function createHumanALEVisualStudio({
   }
  };
  const runHealthScan=()=>{
-  const snapshot=safeSnapshot(getSnapshot?.()||current);
+  const snapshot=safeSnapshot(liveSnapshot());
   const badConnections=snapshot.connections.filter(item=>['error','bug'].includes(item.status));
   const checks=[
    {name:'NARA authority',status:snapshot.runtime.controlledBy==='NARA_CORE'?'PASS':'FAIL',detail:snapshot.runtime.controlledBy},
@@ -362,7 +364,7 @@ export function createHumanALEVisualStudio({
   return result;
  };
 
-   const syncPayload=()=>({type:'humanale-visual-studio-sync',snapshot:safeSnapshot(getSnapshot?.()||current)});
+ const syncPayload=()=>({type:'humanale-visual-studio-sync',snapshot:safeSnapshot(liveSnapshot())});
 
  root.querySelector?.('#humanaleVisualStudioOpen')?.addEventListener('click',()=>onOpen());
  root.querySelector?.('#visualStudioRefresh')?.addEventListener('click',async()=>{
@@ -420,7 +422,7 @@ export function createHumanALEVisualStudio({
   setText(root,'visualStudioTestStatus','RUNNING · SKILL '+String(button.dataset.skillTest||'').toUpperCase()+' · '+scenario.toUpperCase());
   try{
    const result=await onTestScenario(scenario);
-   render(getSnapshot?.()||current);
+   render(liveSnapshot());
    renderTestTrace(result||{},baselineFps);
    testHistory=[...testHistory,{scenario:'skill:'+String(button.dataset.skillTest||scenario),ok:Boolean(result?.ok&&result?.restored),durationMs:Math.max(0,Math.round(Number(result?.durationMs)||0)),timestamp:Date.now()}].slice(-12);
    renderTestHistory();
@@ -451,7 +453,7 @@ export function createHumanALEVisualStudio({
    setText(root,'visualStudioTestStatus','RUNNING · '+scenario.toUpperCase()+' · NARA Core mengendalikan transisi…');
    try{
     const result=await onTestScenario(scenario);
-    render(getSnapshot?.()||current);
+    render(liveSnapshot());
     renderTestTrace(result||{},baselineFps);
     testHistory=[...testHistory,{
      scenario:scenario||'unknown',

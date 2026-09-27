@@ -45,6 +45,69 @@ test('HumanALE Visual Studio normalizes bounded runtime telemetry without a rend
  assert.equal(HUMANALE_VISUAL_REAL_TEST_EVIDENCE_KEY,'humanale.visual-studio.real-test-evidence.v1');
 });
 
+test('separate Visual Studio panel preserves 16 skills after controlled skill test',async()=>{
+ const listeners={};
+ const makeNode=()=>({
+  dataset:{},style:{},children:[],textContent:'',className:'',type:'',value:'',checked:false,disabled:false,
+  append(...nodes){this.children.push(...nodes);},
+  replaceChildren(...nodes){this.children=[...nodes];},
+  setAttribute(){},
+  addEventListener(type,handler){listeners[type]=handler;}
+ });
+ const inspector=makeNode();
+ const dom={
+  querySelector:selector=>selector==='#visualStudioSkillInspector'?inspector:null,
+  querySelectorAll:()=>[],
+  createElement:()=>makeNode()
+ };
+ const skills=Array.from({length:16},(_,index)=>({
+  id:'skill-'+String(index+1).padStart(2,'0'),
+  label:'Skill '+(index+1),
+  group:'capability',
+  region:'NARA_CORE',
+  state:'ready',
+  regionStatus:'active',
+  activity:.5,
+  message:'Ready',
+  dependencies:[],
+  missingDependencies:[],
+  permissions:['state:read'],
+  dependencyOk:true,
+  testScenario:index===0?'thinking':null
+ }));
+ const panelSnapshot={
+  runtime:{state:'idle',rendererMode:'eco',activity:0,controlledBy:'NARA_CORE',reason:'test.ready'},
+  nara:{lifecycle:'active',selectedRegion:'NARA_CORE',currentTask:'',lastEvent:'test.ready'},
+  performance:{fps:60,points:1600,material:'mixed',zoom:1},
+  health:{status:'ready',errorCount:0,errorRegions:[]},
+  skills,
+  skillCounts:{total:16,ready:16,running:0,blocked:0,error:0,offline:0,setup:0}
+ };
+ const studio=createHumanALEVisualStudio({
+  root:dom,
+  isPanel:true,
+  getSnapshot:()=>({}),
+  onTestScenario:async()=>({ok:true,restored:true,durationMs:4,trace:[]})
+ });
+ studio.handleMessage({type:'humanale-visual-studio-sync',snapshot:panelSnapshot});
+ assert.equal(studio.current().skills.length,16);
+ assert.equal(studio.syncPayload().snapshot.skills.length,16);
+ assert.equal(studio.syncPayload().snapshot.skillCounts.total,16);
+ const health=studio.runHealthScan();
+ assert.equal(health.find(item=>item.name==='NARA lifecycle')?.status,'PASS');
+ const button={
+  dataset:{skillTest:'skill-01',scenario:'thinking'},
+  closest:selector=>selector==='[data-skill-test]'?button:null
+ };
+ assert.equal(typeof listeners.click,'function');
+ await listeners.click({target:button});
+ assert.equal(studio.current().skills.length,16);
+ assert.equal(studio.current().skillCounts.total,16);
+ assert.equal(studio.syncPayload().snapshot.skills.length,16);
+ assert.equal(studio.testHistory().at(-1)?.scenario,'skill:skill-01');
+ assert.equal(studio.testHistory().at(-1)?.ok,true);
+});
+
 test('HumanALE Visual Studio UI and runtime wiring remain present',async()=>{
  const [html,app,desktop,style,module]=await Promise.all([
   readFile(new URL('public/index.html',root),'utf8'),
