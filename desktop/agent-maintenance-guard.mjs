@@ -136,6 +136,7 @@ export function evaluateMaintenanceChangeSet({
  branchChanged=false,
  headChanged=false,
  gitMetadataChanged=false,
+ lockChanged=false,
  patch=''
 }={}){
  const normalizedPaths=[...new Set((paths||[]).map(path=>normalizeMaintenanceRepoPath(path)))];
@@ -148,6 +149,7 @@ export function evaluateMaintenanceChangeSet({
  if(branchChanged)violations.push('BRANCH_DRIFT');
  if(headChanged)violations.push('HEAD_DRIFT');
  if(gitMetadataChanged)violations.push('GIT_METADATA_DRIFT');
+ if(lockChanged)violations.push('REPO_LOCK_DRIFT');
  if(normalizedStaged.length)violations.push('STAGED_CHANGE');
  if(normalizedSymlinks.length)violations.push('SYMLINK_CHANGE');
  if(protectedPaths.length)violations.push('PROTECTED_PATH_CHANGE');
