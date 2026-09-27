@@ -4,6 +4,8 @@ import {readFile} from 'node:fs/promises';
 import {
  AI_MAINTENANCE_ALLOWED_CAPABILITIES,
  AI_MAINTENANCE_DENIED_CAPABILITIES,
+ AI_MAINTENANCE_PROTECTED_AREAS,
+ AI_MAINTENANCE_READ_DENIED_AREAS,
  assertMaintenanceTaskAllowed,
  buildMaintenanceWorkPrompt,
  evaluateMaintenanceTask,
@@ -17,6 +19,13 @@ test('AI maintenance policy is repair-only and denies all owner/release authorit
  assert.equal(snapshot.selfPrivilegeEscalation,false);
  assert.equal(snapshot.autoApproval,false);
  assert.equal(snapshot.releaseAuthority,false);
+ assert.ok(snapshot.readDeniedAreas.includes('.env'));
+ assert.ok(snapshot.protectedAreas.includes('desktop/agent-hub.mjs'));
+ assert.ok(snapshot.protectedAreas.includes('desktop/agent-maintenance-transaction.mjs'));
+ assert.ok(snapshot.protectedAreas.includes('nara-cloud/src/services/owner.service.ts'));
+ assert.ok(snapshot.protectedAreas.includes('nara-core/permissions/**'));
+ assert.ok(AI_MAINTENANCE_READ_DENIED_AREAS.includes('**/*.pfx'));
+ assert.ok(AI_MAINTENANCE_PROTECTED_AREAS.includes('.github/workflows/**'));
 
  for(const capability of [
   'program.read','program.edit','program.test','program.build','program.debug',
@@ -81,15 +90,21 @@ test('maintenance work prompt carries immutable repair boundary to every worker'
  assert.match(prompt,/release\.publish/);
  assert.match(prompt,/Jangan git push, git merge, publish/);
  assert.match(prompt,/Creator Final Approval/);
+ assert.match(prompt,/Jangan membaca file secret lokal/);
  assert.match(prompt,/Jangan mengedit area dilindungi/);
 });
 
-test('Agent Hub enforces maintenance policy before work execution and requires a clean Git worktree',async()=>{
+test('Agent Hub enforces maintenance transaction, secret-free environment and post-patch inspection',async()=>{
  const hub=await readFile(new URL('../desktop/agent-hub.mjs',import.meta.url),'utf8');
  assert.match(hub,/agent-maintenance-policy\.mjs/);
+ assert.match(hub,/agent-maintenance-guard\.mjs/);
+ assert.match(hub,/agent-maintenance-transaction\.mjs/);
  assert.match(hub,/assertMaintenanceTaskAllowed\(prompt,\{mode\}\)/);
- assert.match(hub,/git',\['status','--porcelain'\]/);
- assert.match(hub,/AI maintenance hanya boleh dimulai dari Git worktree bersih/);
+ assert.match(hub,/beginMaintenanceTransaction\(cwd\)/);
+ assert.match(hub,/sanitizeMaintenanceEnvironment\(process\.env\)\.env/);
+ assert.match(hub,/maintenanceTransaction\.inspect\(\)/);
+ assert.match(hub,/maintenanceTransaction\.rollback/);
+ assert.match(hub,/Mode kerja agent wajib berjalan di dalam AI maintenance transaction/);
  assert.match(hub,/buildMaintenanceWorkPrompt\(prompt\)/);
  assert.match(hub,/maintenancePolicy:maintenancePolicySnapshot\(\)/);
  assert.match(hub,/--sandbox','workspace-write/);
