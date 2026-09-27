@@ -44,7 +44,9 @@ test('structured HumanALE orchestrator keeps planning, work and review bounded',
  assert.match(hub,/DEGRADED SINGLE-EXECUTOR/);
  assert.match(hub,/INDEPENDENT REVIEW/);
  assert.match(hub,/runProcess\(executable,\['--version'\]/);
- assert.match(hub,/Jangan git push, git merge, publish/);
+ assert.match(hub,/buildMaintenanceWorkPrompt\(prompt\)/);
+ const policy=await readFile(new URL('../desktop/agent-maintenance-policy.mjs',import.meta.url),'utf8');
+ assert.match(policy,/Jangan git push, git merge, publish/);
  assert.match(hub,/validateMemoryContext\(value\?\.memoryContext/);
  assert.match(hub,/memoryContextBlock\(memoryContext\)/);
  assert.match(hub,/if\(id==='humanale-orchestrator'\)return await this\.runStructured/);

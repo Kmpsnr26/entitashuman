@@ -37,12 +37,12 @@ export const AI_MAINTENANCE_DENIED_CAPABILITIES=Object.freeze([
 
 const FORBIDDEN_WORK_INTENTS=Object.freeze([
  Object.freeze({
-  code:'OWNER_AUTHORITY_MUTATION',
-  pattern:/\b(?:buat|create|tambah|add|ubah|change|ganti|replace|hapus|delete|grant|beri|promote|jadikan)\b[\s\S]{0,80}\b(?:owner|creator|root\s+authority|ownership|kepemilikan)\b/i
- }),
- Object.freeze({
   code:'CREDENTIAL_MUTATION',
   pattern:/\b(?:ubah|change|ganti|replace|reset|set|simpan|store|tanam|embed|hardcode|hapus|delete)\b[\s\S]{0,80}\b(?:password|credential|credentials|secret|api\s*key|token)\b/i
+ }),
+ Object.freeze({
+  code:'OWNER_AUTHORITY_MUTATION',
+  pattern:/\b(?:buat|create|tambah|add|ubah|change|ganti|replace|hapus|delete|grant|beri|promote|jadikan)\b[\s\S]{0,80}\b(?:owner|creator|root\s+authority|ownership|kepemilikan)\b/i
  }),
  Object.freeze({
   code:'ACCESS_AUTHORITY_MUTATION',
