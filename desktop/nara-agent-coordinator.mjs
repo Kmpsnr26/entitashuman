@@ -111,8 +111,10 @@ export class NaraAgentCoordinator{
     this.bind();
     const input=this.normalize(value);
     const {goalId,taskId}=this.nextIds(input.mode);
+    // Keep the raw prompt process-local. Goal/task labels are persisted in Core state,
+    // so they must contain only bounded operational metadata.
     const label=safeText(
-      (input.mode==='work'?'Kerjakan':'Analisis')+' dengan '+input.id+': '+input.prompt,
+      'Agent '+input.id+' · '+(input.mode==='work'?'mode kerja':'analisis'),
       180
     );
 
