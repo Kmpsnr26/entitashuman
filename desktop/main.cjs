@@ -6,7 +6,7 @@ const path=require('node:path');
 const {tmpdir}=require('node:os');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,systemObserver,dataFlowMeter,experienceStore,experienceSaveTimer,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer;
+let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,humanaleRuntime,systemObserver,dataFlowMeter,experienceStore,experienceSaveTimer,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer;
 let cloudAllowedOrigins=new Set();
 let announceNaraEvent=()=>{};
 let baseWindowSize={width:420,height:480};
@@ -26,6 +26,7 @@ app.on('before-quit',()=>{
  try{if(dataFlowTimer)clearInterval(dataFlowTimer);}catch{}
  try{if(experienceSaveTimer)clearTimeout(experienceSaveTimer);}catch{}
  try{if(experienceStore&&nara?.experience)experienceStore.saveSync(nara.experience.snapshot());}catch{}
+ try{humanaleRuntime?.stop();}catch{}
  try{nara?.stop();}catch{}
 });
 
@@ -206,10 +207,11 @@ else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
   const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
-  const [{createOrchestrator,createExperienceModel},{createVoiceFeedback},{createExperienceStore}]=await Promise.all([
+  const [{createOrchestrator,createExperienceModel},{createVoiceFeedback},{createExperienceStore},{createHumanALERuntimeHost}]=await Promise.all([
    import('../nara-core/brain/index.js'),
    import('../nara-core/voice/index.js'),
-   import('../nara-core/persistence/experience-store.mjs')
+   import('../nara-core/persistence/experience-store.mjs'),
+   import('./humanale-runtime-host.mjs')
   ]);
   naraVoice=createVoiceFeedback();
   systemObserver=createSystemObserver({intervalMs:5000});
@@ -302,18 +304,6 @@ else{
   win.setAlwaysOnTop(true,'floating');
   win.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true});
   const trusted=e=>(e.sender===win?.webContents||e.sender===panelWin?.webContents)&&e.senderFrame?.url?.startsWith(origin+'/');
-  const NARA_RENDERER_EVENTS=new Set(['audio.energy','vision.frame','vision.stop','speech.start','speech.energy','speech.stop','brain.region.select']);
-  const publishNaraState=snapshot=>{
-   dataFlowMeter?.recordOut(snapshot);
-   for(const target of [win,panelWin]){if(target&&!target.isDestroyed()&&!target.webContents.isLoading())target.webContents.send('dudidam:nara-state',snapshot);}
-  };
-  const publishNaraVoice=cue=>{
-   if(!cue)return;
-   dataFlowMeter?.recordOut(cue);
-   if(win&&!win.isDestroyed()&&!win.webContents.isLoading())win.webContents.send('dudidam:nara-voice',cue);
-  };
-  const consumeNaraVoice=envelope=>{const cue=naraVoice?.consume(envelope);if(cue)publishNaraVoice(cue);return cue;};
-  nara.state.subscribe(snapshot=>publishNaraState(snapshot));
   const scheduleExperienceSave=()=>{
    if(experienceSaveTimer)clearTimeout(experienceSaveTimer);
    experienceSaveTimer=setTimeout(async()=>{
@@ -330,27 +320,17 @@ else{
    },250);
    experienceSaveTimer.unref?.();
   };
-  nara.bus.onAny(envelope=>{
-   consumeNaraVoice(envelope);
-   if(envelope.event==='autopilot.task.complete'||envelope.event==='autopilot.task.failed'){
-    scheduleExperienceSave();
-   }
+  humanaleRuntime=createHumanALERuntimeHost({
+   nara,
+   voiceFeedback:naraVoice,
+   dataFlowMeter,
+   getTargets:()=>[win,panelWin],
+   isTrustedEvent:trusted,
+   onExperienceDirty:scheduleExperienceSave
   });
-  announceNaraEvent=(event,payload={})=>consumeNaraVoice({event,payload,timestamp:Date.now()});
-  ipcMain.handle('dudidam:nara-snapshot',e=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
-   const result={ok:true,state:nara.snapshot()};
-   dataFlowMeter?.recordOut(result);
-   return result;
-  });
-  ipcMain.handle('dudidam:nara-dispatch',(e,value)=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
-   dataFlowMeter?.recordIn(value);
-   const event=String(value?.event||'');
-   if(!NARA_RENDERER_EVENTS.has(event))return {error:'Event NARA tidak diizinkan dari renderer.'};
-   try{return {ok:true,...nara.dispatch(event,value?.payload&&typeof value.payload==='object'?value.payload:{},{source:'renderer'})};}
-   catch(error){return {error:error.message};}
-  });
+  humanaleRuntime.bindIpc(ipcMain);
+  humanaleRuntime.start();
+  announceNaraEvent=(event,payload={})=>humanaleRuntime.announce(event,payload);
 
   const openCloudLogin=()=>{
    if(!cloudMemory?.configured())return {error:'NARA_CLOUD_NOT_CONFIGURED'};
