@@ -25,6 +25,7 @@ app.on('before-quit',()=>{
  try{stopSystemObserver?.();}catch{}
  try{if(dataFlowTimer)clearInterval(dataFlowTimer);}catch{}
  try{if(experienceSaveTimer)clearTimeout(experienceSaveTimer);}catch{}
+ try{if(experienceStore&&nara?.experience)experienceStore.saveSync(nara.experience.snapshot());}catch{}
  try{nara?.stop();}catch{}
 });
 
