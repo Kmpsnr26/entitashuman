@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NARA Core Live Studio</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header>
+    <div><span class="dot"></span><strong>NARA CORE LIVE STUDIO</strong><small>Realtime Brain Laboratory</small></div>
+    <div class="status"><span id="connection">CONNECTING</span><span id="clock"></span></div>
+  </header>
+
+  <main>
+    <section class="panel brain-panel">
+      <div class="panel-title neural-title">
+        <h2>Neural Space</h2>
+        <div class="view-switch" role="group" aria-label="Neural view">
+          <button id="view2d" class="view-active" type="button">2D Brain Map</button>
+          <button id="view3d" type="button">3D Neural Explorer</button>
+          <span id="brainSummary">22 regions</span>
+        </div>
+      </div>
+      <div id="brainStage" class="brain-stage">
+        <div id="brainMap" class="brain-map neural-view"><svg id="brainLines"></svg><div id="brainNodes"></div></div>
+        <div id="neural3d" class="neural-3d neural-view" hidden>
+          <div class="neural3d-toolbar" role="group" aria-label="Neural navigation">
+            <button id="neuralExplorer" type="button">Explorer</button>
+            <button id="neuralFocus" type="button">Focus</button>
+            <button id="neuralCore" type="button">Core</button>
+            <button id="neuralReset" type="button">Reset</button>
+            <label>Quality
+              <select id="neuralQuality">
+                <option value="auto">Auto</option>
+                <option value="high">High</option>
+                <option value="balanced">Balanced</option>
+                <option value="low">Low power</option>
+              </select>
+            </label>
+          </div>
+          <div class="neural3d-detail">
+            <span>SELECTED REGION</span>
+            <strong id="neuralDetailLabel">NARA Core</strong>
+            <small><b id="neuralDetailId">NARA_CORE</b> · <span id="neuralDetailStatus">ready</span> · <span id="neuralDetailGroup">core</span></small>
+            <small id="neuralDetailNeighbors">neighbors: —</small>
+          </div>
+          <div class="neural3d-hud">
+            <span id="neural3dStatus">EXPERIMENTAL</span>
+            <strong id="neural3dSelected">NARA_CORE</strong>
+            <small>drag rotate · right-drag pan · wheel zoom · double-click focus</small>
+            <small id="neural3dRoots">living roots initializing…</small>
+            <small id="neural3dRoutes">routes: 0 · active 0</small>
+            <small id="neural3dPerf">fps — · quality auto</small>
+            <small id="neural3dLastRoute">last route: —</small>
+          </div>
+          <div class="neural3d-vignette" aria-hidden="true"></div>
+          <div id="neural3dHost" class="neural3d-host" aria-label="NARA Neural Space 3D"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel state-panel">
+      <div class="panel-title"><h2>Live State</h2><span id="lifecycle">idle</span></div>
+      <dl class="state-grid">
+        <div><dt>Selected</dt><dd id="selectedRegion">—</dd></div>
+        <div><dt>Current task</dt><dd id="currentTask">—</dd></div>
+        <div><dt>Last event</dt><dd id="lastEvent">—</dd></div>
+        <div><dt>Safety</dt><dd id="safetyState">—</dd></div>
+      </dl>
+      <h3>Sensory telemetry</h3>
+      <div class="meters">
+        <label>Hearing <progress id="hearing" max="1" value="0"></progress></label>
+        <label>Vision <progress id="vision" max="1" value="0"></progress></label>
+        <label>Speech <progress id="speech" max="1" value="0"></progress></label>
+      </div>
+      <h3>Connections</h3>
+      <div id="connections" class="chips"></div>
+    </section>
+
+    <section class="panel decision-panel">
+      <div class="panel-title"><h2>Decision / Reasoning Inspector</h2><span id="decisionStatus">idle</span></div>
+      <div class="phase-pipeline">
+        <div class="phase-card" data-stage="reason"><span>REASON</span><strong id="phaseReason">idle</strong><small id="phaseReasonTime">—</small></div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-card" data-stage="plan"><span>PLAN</span><strong id="phasePlan">idle</strong><small id="phasePlanTime">—</small></div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-card" data-stage="agent"><span>AGENT</span><strong id="phaseAgent">idle</strong><small id="phaseAgentTime">—</small></div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-card" data-stage="program"><span>PROGRAM</span><strong id="phaseProgram">idle</strong><small id="phaseProgramTime">—</small></div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-card" data-stage="verify"><span>VERIFY</span><strong id="phaseVerify">idle</strong><small id="phaseVerifyTime">—</small></div>
+      </div>
+      <div class="inspector-summary">
+        <div><span>Current stage</span><strong id="decisionCurrent">—</strong></div>
+        <div><span>Label</span><strong id="decisionLabel">—</strong></div>
+        <div><span>Completed</span><strong id="decisionCompleted">0</strong></div>
+        <div><span>Failed</span><strong id="decisionFailed">0</strong></div>
+      </div>
+      <div id="decisionHistory" class="trace-list"></div>
+    </section>
+
+    <section class="panel memory-panel">
+      <div class="panel-title"><h2>Memory Inspector</h2><span id="memoryActivity">idle</span></div>
+      <div class="memory-counters">
+        <div><span>READ</span><strong id="memoryReadCount">0</strong></div>
+        <div><span>WRITE</span><strong id="memoryWriteCount">0</strong></div>
+        <div><span>USED</span><strong id="memoryUsedCount">0</strong></div>
+        <div><span>BLOCKED</span><strong id="memoryBlockedCount">0</strong></div>
+      </div>
+      <div class="memory-last">
+        <span>Last operation</span>
+        <strong id="memoryLastOperation">—</strong>
+        <small id="memoryLastLabel">No memory activity yet.</small>
+      </div>
+      <div id="memoryHistory" class="trace-list memory-trace"></div>
+    </section>
+
+    <section class="panel skill-panel">
+      <div class="panel-title"><h2>Skill Registry</h2><span id="skillSummary">0 skills</span></div>
+      <div class="skill-stats">
+        <div><span>ENABLED</span><strong id="skillEnabled">0</strong></div>
+        <div><span>RUNNING</span><strong id="skillRunning">0</strong></div>
+        <div><span>FAILED</span><strong id="skillFailed">0</strong></div>
+      </div>
+      <div class="skill-table">
+        <div class="skill-head"><span>Skill</span><span>Region</span><span>Status</span><span>Runs</span><span>Last</span></div>
+        <div id="skillRows"></div>
+      </div>
+    </section>
+
+    <section class="panel agent-panel">
+      <div class="panel-title"><h2>Agent Monitor</h2><span id="agentStatus">ready</span></div>
+      <div class="agent-orbit">
+        <div class="agent-core">
+          <span>AGENT_MANAGER</span>
+          <strong id="agentCoreStatus">idle</strong>
+        </div>
+      </div>
+      <dl class="agent-grid">
+        <div><dt>Current work</dt><dd id="agentLabel">—</dd></div>
+        <div><dt>Runs</dt><dd id="agentRuns">0</dd></div>
+        <div><dt>Success</dt><dd id="agentSuccess">0</dd></div>
+        <div><dt>Failures</dt><dd id="agentFailures">0</dd></div>
+        <div><dt>Last duration</dt><dd id="agentDuration">—</dd></div>
+        <div><dt>Last event</dt><dd id="agentLastEvent">—</dd></div>
+      </dl>
+    </section>
+
+    <section class="panel bug-panel">
+      <div class="panel-title"><h2>Bug Hunter / Repair Monitor</h2><span id="bugStatus">idle</span></div>
+      <div class="bug-stats">
+        <div><span>ERRORS</span><strong id="bugErrors">0</strong></div>
+        <div><span>BUGS</span><strong id="bugDetected">0</strong></div>
+        <div><span>FIXED</span><strong id="bugFixed">0</strong></div>
+        <div><span>VERIFIED</span><strong id="bugVerified">0</strong></div>
+      </div>
+      <div class="bug-current">
+        <span>Current issue</span>
+        <strong id="bugCurrent">—</strong>
+        <small>Last repair: <b id="bugRepairDuration">—</b></small>
+      </div>
+      <div id="bugHistory" class="trace-list bug-trace"></div>
+    </section>
+
+    <section class="panel performance-panel">
+      <div class="panel-title"><h2>Performance Monitor</h2><span>read-only</span></div>
+      <div class="perf-grid">
+        <div><span>EVENTS</span><strong id="perfTotalEvents">0</strong><small>total</small></div>
+        <div><span>RATE</span><strong id="perfRate">0</strong><small>events/sec</small></div>
+        <div><span>ACTIVE REGIONS</span><strong id="perfActiveRegions">0</strong><small>live</small></div>
+        <div><span>UPTIME</span><strong id="perfUptime">0s</strong><small>studio telemetry</small></div>
+        <div><span>MEMORY OPS</span><strong id="perfMemoryOps">0</strong><small>read + write</small></div>
+        <div><span>SKILL RUNS</span><strong id="perfSkillRuns">0</strong><small>all skills</small></div>
+      </div>
+      <div class="perf-bar-wrap"><span>10s event window</span><progress id="perfEventWindow" max="100" value="0"></progress></div>
+    </section>
+
+    <section class="panel event-panel">
+      <div class="panel-title"><h2>Event Timeline / Replay</h2><span>visual replay only</span></div>
+      <div class="timeline-controls">
+        <input id="eventFilter" maxlength="80" placeholder="Filter event...">
+        <button id="pauseEvents">Pause</button>
+        <button id="replayEvents">Replay last 30</button>
+        <button id="clearEvents">Clear view</button>
+      </div>
+      <div id="events" class="events timeline-events"></div>
+    </section>
+
+    <section class="panel console-panel">
+      <div class="panel-title"><h2>Safe Test Console</h2><span>allowlisted events only</span></div>
+      <div class="console-controls">
+        <select id="eventSelect"></select>
+        <input id="eventLabel" maxlength="160" placeholder="Label / message opsional">
+        <button id="sendEvent">Dispatch</button>
+        <button id="resetStudio" class="secondary">Reset state</button>
+      </div>
+      <div class="quick">
+        <button data-event="reason.start">Reason Start</button>
+        <button data-event="reason.complete">Reason Done</button>
+        <button data-event="plan.start">Plan Start</button>
+        <button data-event="plan.complete">Plan Done</button>
+        <button data-event="memory.read">Memory Read</button>
+        <button data-event="agent.start">Agent Start</button>
+        <button data-event="error.detected">Simulate Error</button>
+        <button data-event="bug.fixed">Bug Fixed</button>
+      </div>
+      <pre id="consoleLog">Studio ready.</pre>
+    </section>
+  </main>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
