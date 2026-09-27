@@ -47,6 +47,17 @@ function safeText(value,max=240){
  return String(value??'').replace(/[\r\n\t]+/g,' ').trim().slice(0,max);
 }
 
+function redactAutopilotSummary(value,max=240){
+ let text=safeText(value,max*2);
+ text=text
+  .replace(/\b(?:sk|sk-proj)-[A-Za-z0-9_-]{8,}\b/gi,'[REDACTED]')
+  .replace(/\bgh[pousr]_[A-Za-z0-9_]{12,}\b/gi,'[REDACTED]')
+  .replace(/\bgithub_pat_[A-Za-z0-9_]{12,}\b/gi,'[REDACTED]')
+  .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}\b/gi,'Bearer [REDACTED]')
+  .replace(/\b(password|passwd|token|secret|api[_ -]?key|authorization)\s*[:=]\s*[^\s,;]+/gi,'$1=[REDACTED]');
+ return safeText(text,max);
+}
+
 function normalizeLimits(overrides={}){
  const limits={...DEFAULT_AI_AUTOPILOT_LIMITS,...overrides};
  for(const key of Object.keys(DEFAULT_AI_AUTOPILOT_LIMITS)){
@@ -86,7 +97,7 @@ function normalizeStepResult(name,raw,{maxSummaryLength}){
  }
  const ok=raw.ok===true;
  const code=safeText(raw.code||(ok?'PASS':'FAILED'),80);
- const summary=safeText(raw.summary||(ok?name+' passed.':name+' failed.'),maxSummaryLength);
+ const summary=redactAutopilotSummary(raw.summary||(ok?name+' passed.':name+' failed.'),maxSummaryLength);
  return {ok,code:SAFE_ID.test(code)?code:'INVALID_RESULT',summary};
 }
 
@@ -145,7 +156,7 @@ export class AIAutopilotTransaction{
     name,
     ok:false,
     code:'STEP_ERROR',
-    summary:safeText(error?.message||error,this.limits.maxSummaryLength),
+    summary:redactAutopilotSummary(error?.message||error,this.limits.maxSummaryLength),
     attempt,
     startedAt,
     endedAt,
