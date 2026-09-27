@@ -133,12 +133,14 @@ test('secret-file boundary blocks real secret files while allowing templates',()
  const denied=[
   '.env',
   'nara-cloud/.env.local',
+  '.env.staging',
+  'apps/web/.env.development',
   'keys/release-signing.pfx',
   'android/upload.keystore',
   'config/credentials.json'
  ];
  const patterns=[
-  '.env','**/.env','.env.local','**/.env.local',
+  '.env*','**/.env*',
   '**/*.pfx','**/*.keystore','**/credentials.json'
  ];
  for(const path of denied){
