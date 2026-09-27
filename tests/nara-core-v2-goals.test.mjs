@@ -137,6 +137,11 @@ test('Persistent Experience Store saves and restores bounded NARA experience',as
     await store.save(model.snapshot());
     const again=await store.load();
     assert.ok(again.strategies.find(item=>item.id==='strategy.fast').runs>=2);
+
+    model.record('strategy.safe',{ok:true,durationMs:12});
+    store.saveSync(model.snapshot());
+    const syncRaw=readFileSync(file,'utf8');
+    assert.match(syncRaw,/strategy\.safe/);
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }
