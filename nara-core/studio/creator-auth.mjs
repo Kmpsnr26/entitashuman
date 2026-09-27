@@ -27,14 +27,27 @@ function parseCookies(header=''){
 export function createCreatorAuth({
   username='creator',
   password='',
+  credentialStore=null,
   ttlMs=DEFAULT_TTL,
   maxSessions=8,
   maxAttempts=5,
   attemptWindowMs=DEFAULT_WINDOW
 }={}){
-  const configured=Boolean(String(password));
+  const storedProfile=credentialStore?.publicProfile?.()||null;
+  const configured=Boolean(storedProfile?.configured||String(password));
   const sessions=new Map();
   const attempts=new Map();
+
+  function currentUsername(){
+    return credentialStore?.publicProfile?.()?.username||username;
+  }
+
+  function verifyCredentials(user,pass){
+    if(credentialStore?.configured?.()){
+      return Boolean(credentialStore.verify({username:user,password:pass}));
+    }
+    return safeEqual(user,username)&&safeEqual(pass,password);
+  }
 
   function prune(now=Date.now()){
     for(const [token,session] of sessions){
@@ -95,7 +108,7 @@ export function createCreatorAuth({
 
     const user=String(input.username||'').slice(0,120);
     const pass=String(input.password||'').slice(0,512);
-    if(!safeEqual(user,username)||!safeEqual(pass,password)){
+    if(!verifyCredentials(user,pass)){
       recordFailure(req);
       return {ok:false,status:401,error:'Identitas creator tidak valid.'};
     }
@@ -103,12 +116,12 @@ export function createCreatorAuth({
     attempts.delete(clientKey(req));
     const token=randomBytes(32).toString('base64url');
     const now=Date.now();
-    sessions.set(token,{username,createdAt:now,expiresAt:now+ttlMs});
+    sessions.set(token,{username:currentUsername(),createdAt:now,expiresAt:now+ttlMs});
     prune(now);
     return {
       ok:true,
       authenticated:true,
-      username,
+      username:currentUsername(),
       token,
       expiresAt:now+ttlMs
     };
@@ -117,6 +130,29 @@ export function createCreatorAuth({
   function logout(req){
     const token=parseCookies(req.headers.cookie||'')[COOKIE_NAME];
     if(token)sessions.delete(token);
+  }
+
+  function changeCredentials(req,input={}){
+    const session=getSession(req);
+    if(!session)return {ok:false,status:401,error:'Creator authentication required.'};
+    if(!credentialStore?.configured?.()||typeof credentialStore.changeCredentials!=='function'){
+      return {ok:false,status:409,error:'Persistent Creator owner store belum aktif.'};
+    }
+    const currentPassword=String(input.currentPassword||'').slice(0,512);
+    const newUsername=String(input.newUsername||'').slice(0,120);
+    const newPassword=String(input.newPassword||'').slice(0,512);
+    try{
+      const profile=credentialStore.changeCredentials({
+        currentUsername:session.username,
+        currentPassword,
+        newUsername,
+        newPassword
+      });
+      sessions.clear();
+      return {ok:true,profile};
+    }catch(error){
+      return {ok:false,status:400,error:error.message||'Perubahan login Creator gagal.'};
+    }
   }
 
   function sessionCookie(token,{secure=false}={}){
@@ -149,7 +185,7 @@ export function createCreatorAuth({
       configured,
       authenticated,
       development:!configured,
-      username:session?.username||(configured?null:'creator'),
+      username:session?.username||(configured?null:currentUsername()),
       expiresAt:session?.expiresAt||null,
       capabilities:[
         {id:'camera',label:'Camera',state:authenticated?'permission_required':'locked',authority:'browser-os'},
@@ -164,10 +200,11 @@ export function createCreatorAuth({
 
   return {
     configured,
-    username,
+    get username(){return currentUsername();},
     getSession,
     login,
     logout,
+    changeCredentials,
     publicSession,
     sessionCookie,
     clearCookie
