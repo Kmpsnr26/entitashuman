@@ -1186,7 +1186,8 @@ test('Revision R5 adds bounded droid voice character and Creator audio controls'
 
   assert.match(sound,/name==='voiceBoot'/);
   assert.match(sound,/from:74,to:52/);
-  assert.match(sound,/\.075\*profile\.masterVolume\*profile\.transitionFx/);
+  assert.match(sound,/\.075\*profile\.masterVolume\*\(ducked\?\.34:1\)/);
+  assert.match(sound,/profile\.coreFx:profile\.transitionFx/);
   assert.match(sound,/setProfile\(next=\{\}\)/);
 
   assert.match(entry,/voiceRate:\.86/);
