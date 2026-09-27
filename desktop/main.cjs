@@ -6,7 +6,7 @@ const path=require('node:path');
 const {tmpdir}=require('node:os');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,tray,saveTimer,pointerTimer,backdropTimer;
+let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,systemObserver,dataFlowMeter,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer;
 let cloudAllowedOrigins=new Set();
 let announceNaraEvent=()=>{};
 let baseWindowSize={width:420,height:480};
@@ -21,7 +21,11 @@ const summonShortcut='CommandOrControl+Alt+5';
 const ciSmoke=process.argv.includes('--ci-smoke');
 if(process.platform==='win32')app.setAppUserModelId('id.my.aleprinting.dudidam');
 if(ciSmoke)app.setPath('userData',mkdtempSync(path.join(tmpdir(),'dudidam-ci-smoke-')));
-app.on('before-quit',()=>{try{nara?.stop();}catch{}});
+app.on('before-quit',()=>{
+ try{stopSystemObserver?.();}catch{}
+ try{if(dataFlowTimer)clearInterval(dataFlowTimer);}catch{}
+ try{nara?.stop();}catch{}
+});
 
 function statePath(){return path.join(app.getPath('userData'),'window-state.json');}
 function projectRootPath(){return path.join(app.getPath('userData'),'project-root.txt');}
@@ -199,11 +203,21 @@ if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
-  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs')]);
+  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
   const [{createOrchestrator},{createVoiceFeedback}]=await Promise.all([import('../nara-core/brain/index.js'),import('../nara-core/voice/index.js')]);
   naraVoice=createVoiceFeedback();
-  nara=createOrchestrator();
+  systemObserver=createSystemObserver({intervalMs:5000});
+  dataFlowMeter=createDataFlowMeter();
+  nara=createOrchestrator({deviceProfile:systemObserver.deviceProfile()});
   nara.start();
+  nara.configureDevice(systemObserver.deviceProfile());
+  stopSystemObserver=systemObserver.start(snapshot=>{
+    try{nara.dispatch('system.telemetry',snapshot,{source:'system-observer'});}catch{}
+  });
+  dataFlowTimer=setInterval(()=>{
+    try{nara.dispatch('dataflow.sample',dataFlowMeter.snapshot(),{source:'dataflow-meter'});}catch{}
+  },2000);
+  dataFlowTimer.unref?.();
   bridges={chatgpt:new ChatGPTBridge(),copilot:new CopilotBridge(),openai:new OpenAIBridge(),grok:new GrokBridge(),gemini:new GeminiBridge(),claude:new ClaudeBridge(),deepseek:new DeepSeekBridge(),askcodi:new AskCodiBridge()};
   try{
    const cloudOrigin=normalizeOrigin(process.env.NARA_CLOUD_ORIGIN||'');
@@ -253,6 +267,15 @@ else{
   }catch{res.writeHead(404);res.end();}});
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   origin='http://127.0.0.1:'+server.address().port;
+  try{
+   nara.dispatch('server.observe',{
+    scope:'loopback',
+    host:'127.0.0.1',
+    port:server.address().port,
+    transport:'HTTP',
+    health:'online'
+   },{source:'desktop-server'});
+  }catch{}
   const workArea=screen.getPrimaryDisplay().workAreaSize,width=Math.min(420,workArea.width),height=Math.min(480,workArea.height);baseWindowSize={width,height};
   const position=safePosition(await readWindowPosition(),width,height);
   win=new BrowserWindow({width,height,x:position.x,y:position.y,frame:false,transparent:true,backgroundColor:'#00000000',hasShadow:false,resizable:false,alwaysOnTop:true,skipTaskbar:true,title:'HumanALE god egine — Avatar Transparan',show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false,spellcheck:false}});
@@ -260,15 +283,28 @@ else{
   win.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true});
   const trusted=e=>(e.sender===win?.webContents||e.sender===panelWin?.webContents)&&e.senderFrame?.url?.startsWith(origin+'/');
   const NARA_RENDERER_EVENTS=new Set(['audio.energy','vision.frame','vision.stop','speech.start','speech.energy','speech.stop','brain.region.select']);
-  const publishNaraState=snapshot=>{for(const target of [win,panelWin]){if(target&&!target.isDestroyed()&&!target.webContents.isLoading())target.webContents.send('dudidam:nara-state',snapshot);}};
-  const publishNaraVoice=cue=>{if(cue&&win&&!win.isDestroyed()&&!win.webContents.isLoading())win.webContents.send('dudidam:nara-voice',cue);};
+  const publishNaraState=snapshot=>{
+   dataFlowMeter?.recordOut(snapshot);
+   for(const target of [win,panelWin]){if(target&&!target.isDestroyed()&&!target.webContents.isLoading())target.webContents.send('dudidam:nara-state',snapshot);}
+  };
+  const publishNaraVoice=cue=>{
+   if(!cue)return;
+   dataFlowMeter?.recordOut(cue);
+   if(win&&!win.isDestroyed()&&!win.webContents.isLoading())win.webContents.send('dudidam:nara-voice',cue);
+  };
   const consumeNaraVoice=envelope=>{const cue=naraVoice?.consume(envelope);if(cue)publishNaraVoice(cue);return cue;};
   nara.state.subscribe(snapshot=>publishNaraState(snapshot));
   nara.bus.onAny(envelope=>consumeNaraVoice(envelope));
   announceNaraEvent=(event,payload={})=>consumeNaraVoice({event,payload,timestamp:Date.now()});
-  ipcMain.handle('dudidam:nara-snapshot',e=>trusted(e)?{ok:true,state:nara.snapshot()}:{error:'Akses ditolak.'});
+  ipcMain.handle('dudidam:nara-snapshot',e=>{
+   if(!trusted(e))return {error:'Akses ditolak.'};
+   const result={ok:true,state:nara.snapshot()};
+   dataFlowMeter?.recordOut(result);
+   return result;
+  });
   ipcMain.handle('dudidam:nara-dispatch',(e,value)=>{
    if(!trusted(e))return {error:'Akses ditolak.'};
+   dataFlowMeter?.recordIn(value);
    const event=String(value?.event||'');
    if(!NARA_RENDERER_EVENTS.has(event))return {error:'Event NARA tidak diizinkan dari renderer.'};
    try{return {ok:true,...nara.dispatch(event,value?.payload&&typeof value.payload==='object'?value.payload:{},{source:'renderer'})};}
@@ -316,6 +352,7 @@ else{
   ipcMain.handle('dudidam:status',async(e,provider)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{const selected=pickProvider(provider),result=await bridges[selected].status();if(selected==='copilot')nara.connection('COPILOT',Boolean(result?.configured));return result;}catch(error){if(provider==='copilot')nara.connection('COPILOT',false);return {configured:false,error:error.message};}});
   ipcMain.handle('dudidam:ask',async(e,value)=>{
    if(!trusted(e))return {error:'Akses ditolak.'};
+   dataFlowMeter?.recordIn(value);
    const provider=pickProvider(value?.provider);
    let memoryContext=null;
    try{memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['reasoner']});}
@@ -333,6 +370,7 @@ else{
     }else{
      nara.dispatch('reason.complete',{source:'chat'});
     }
+    dataFlowMeter?.recordOut(result);
     return result;
    }catch(error){
     nara.dispatch('reason.complete',{source:'chat'});
