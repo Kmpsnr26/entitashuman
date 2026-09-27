@@ -4,6 +4,7 @@ import {createNeuralEntryExperience} from './neural-entry.js';
 import {createNodeInspector} from './node-inspector.js';
 import {createNodeVoice} from './node-voice.js';
 import {createCustomSettingsPanel} from './custom-settings.js';
+import {createUiSoundEngine} from './ui-sound.js';
 
 const $=id=>document.getElementById(id);
 let snapshot=null,regions={},telemetry=null,skillsSnapshot=null;
@@ -13,6 +14,7 @@ const connectionIds=['GITHUB','COPILOT','WEB','TEAM','PR','SYNC','ONLINE','OWNER
 const eventSelect=$('eventSelect');
 const neuralEntry=createNeuralEntryExperience();
 const nodeVoice=createNodeVoice();
+let uiSound=null;
 const customSettings=createCustomSettingsPanel({
   onChange:settings=>neural3d?.applyVisualSettings?.(settings),
   onAudioChange:enabled=>{
@@ -22,7 +24,10 @@ const customSettings=createCustomSettingsPanel({
   onAudioProfileChange:settings=>{
     neuralEntry.applyAudioSettings?.(settings);
     nodeVoice.applyVoiceSettings?.(settings);
+    uiSound?.setProfile(settings);
   },
+  onUiCue:cue=>uiSound?.cue(cue),
+  onVoicePreview:settings=>nodeVoice.preview?.(settings),
   onQualityChange:quality=>{
     const select=$('neuralQuality');
     if(select&&select.value!==quality)select.value=quality;
@@ -41,6 +46,9 @@ const edgeHud=createEdgeHud({onView:mode=>{
   setStudioView(mode);
 }});
 
+uiSound=createUiSoundEngine({enabled:()=>customSettings.getSettings().audio!==false});
+uiSound.setProfile(customSettings.getSettings());
+uiSound.attach(document);
 customSettings.applyToRuntime();
 document.getElementById('edgeAudioToggle')?.addEventListener('click',()=>{
   const pressed=document.getElementById('edgeAudioToggle')?.getAttribute('aria-pressed')!=='false';
