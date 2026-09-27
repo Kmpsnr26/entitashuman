@@ -23,8 +23,9 @@ async function repoFixture(){
  await writeFile(join(root,'policy.txt'),'owner boundary\n','utf8');
  git(root,'add','.');
  git(root,'commit','-m','baseline');
+ const initialBranch=git(root,'branch','--show-current');
  git(root,'switch','-c','maintenance/test');
- return root;
+ return {root,initialBranch};
 }
 
 test('porcelain parser handles normal and rename records',()=>{
@@ -37,7 +38,7 @@ test('porcelain parser handles normal and rename records',()=>{
 });
 
 test('transaction accepts a small unprotected working-tree edit',async()=>{
- const root=await repoFixture();
+ const {root}=await repoFixture();
  try{
   const tx=await beginMaintenanceTransaction(root);
   await writeFile(join(root,'app.js'),'export const value=2;\n','utf8');
@@ -51,7 +52,7 @@ test('transaction accepts a small unprotected working-tree edit',async()=>{
 });
 
 test('transaction blocks and rolls back protected path edits',async()=>{
- const root=await repoFixture();
+ const {root}=await repoFixture();
  try{
   const tx=await beginMaintenanceTransaction(root);
   tx.constructor.prototype.inspect;
@@ -63,7 +64,7 @@ test('transaction blocks and rolls back protected path edits',async()=>{
 });
 
 test('transaction repository lock blocks concurrent maintenance sessions',async()=>{
- const root=await repoFixture();
+ const {root}=await repoFixture();
  try{
   const first=await beginMaintenanceTransaction(root);
   await assert.rejects(
@@ -79,7 +80,7 @@ test('transaction repository lock blocks concurrent maintenance sessions',async(
 });
 
 test('ignored secret file blocks transaction before any agent can run',async()=>{
- const root=await repoFixture();
+ const {root}=await repoFixture();
  try{
   await writeFile(join(root,'.env'),'OPENAI_API_KEY=secret\n','utf8');
   await assert.rejects(
@@ -92,7 +93,7 @@ test('ignored secret file blocks transaction before any agent can run',async()=>
 });
 
 test('protected maintenance policy edit is quarantined and rolled back in a real repo',async()=>{
- const root=await repoFixture();
+ const {root}=await repoFixture();
  try{
   await rm(join(root,'policy.txt'));
   await writeFile(join(root,'desktop-agent.txt'),'baseline\n','utf8');
@@ -119,7 +120,7 @@ test('protected maintenance policy edit is quarantined and rolled back in a real
 });
 
 test('staged changes fail closed and are rolled back',async()=>{
- const root=await repoFixture();
+ const {root}=await repoFixture();
  try{
   const tx=await beginMaintenanceTransaction(root);
   await writeFile(join(root,'app.js'),'export const value=3;\n','utf8');
@@ -137,7 +138,7 @@ test('staged changes fail closed and are rolled back',async()=>{
 });
 
 test('HEAD or branch drift requires manual recovery and is never auto-reset',async()=>{
- const root=await repoFixture();
+ const {root}=await repoFixture();
  try{
   const tx=await beginMaintenanceTransaction(root);
   git(root,'switch','-c','maintenance/drift');
@@ -153,10 +154,10 @@ test('HEAD or branch drift requires manual recovery and is never auto-reset',asy
  }
 });
 
-test('main and release candidate branches are write-protected',async()=>{
- const root=await repoFixture();
+test('main/master and release candidate branches are write-protected',async()=>{
+ const {root,initialBranch}=await repoFixture();
  try{
-  git(root,'switch','master');
+  git(root,'switch',initialBranch);
   await assert.rejects(
    ()=>beginMaintenanceTransaction(root),
    error=>error?.code==='AI_MAINTENANCE_PROTECTED_BRANCH'
@@ -168,6 +169,23 @@ test('main and release candidate branches are write-protected',async()=>{
    ()=>beginMaintenanceTransaction(root),
    error=>error?.code==='AI_MAINTENANCE_PROTECTED_BRANCH'
   );
+ }finally{
+  await rm(root,{recursive:true,force:true});
+ }
+});
+
+
+test('explicit rollback quarantines and removes otherwise safe partial worker changes',async()=>{
+ const {root}=await repoFixture();
+ try{
+  const tx=await beginMaintenanceTransaction(root);
+  await writeFile(join(root,'app.js'),'export const partial=true;\n','utf8');
+  const rollback=await tx.rollback('WORKER_FAILED');
+  assert.equal(rollback.rolledBack,true);
+  assert.equal(rollback.quarantineCreated,true);
+  assert.equal(await readFile(join(root,'app.js'),'utf8'),'export const value=1;\n');
+  assert.equal(git(root,'status','--porcelain'),'');
+  await tx.release();
  }finally{
   await rm(root,{recursive:true,force:true});
  }
