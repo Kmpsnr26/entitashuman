@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 
 import {createOrchestrator} from '../nara-core/brain/orchestrator.js';
 import {createHumanALERuntimeHost,DEFAULT_RENDERER_EVENTS} from '../desktop/humanale-runtime-host.mjs';
+import {
+  NARA_UNIFIED_RUNTIME_CONTRACT,
+  normalizeHumanALEInput
+} from '../nara-core/runtime/unified-contract.js';
 
 function fakeTarget(){
   const messages=[];
@@ -34,6 +38,11 @@ test('V3 runtime host publishes legacy Core state and unified HumanALE state tog
   assert.ok(coreMessage);
   assert.ok(runtimeMessage);
   assert.equal(runtimeMessage.payload.version,3);
+  assert.equal(runtimeMessage.payload.contract.version,1);
+  assert.equal(runtimeMessage.payload.contract.roles.naraCore,'brain');
+  assert.equal(runtimeMessage.payload.contract.roles.humanale,'body');
+  assert.equal(runtimeMessage.payload.authority.renderer,'sensory-only');
+  assert.equal(runtimeMessage.payload.authority.privilegedActions,'capability-broker');
   assert.equal(runtimeMessage.payload.humanale.role,'nara-body');
   assert.equal(runtimeMessage.payload.humanale.body.hearing.active,true);
   assert.equal(runtimeMessage.payload.humanale.body.hearing.high,.8);
@@ -105,5 +114,61 @@ test('V3 runtime snapshot IPC projection contains Core plus HumanALE body but no
   assert.deepEqual(Object.keys(result.runtime.humanale.channels).sort(),['coreState','state','voice']);
   assert.equal(Object.hasOwn(result.runtime,'shell'),false);
   assert.equal(Object.hasOwn(result.runtime,'terminal'),false);
+  nara.stop();
+});
+
+
+test('V3.4 runtime contract strips unknown fields and clamps sensory data',()=>{
+  assert.equal(NARA_UNIFIED_RUNTIME_CONTRACT.runtimeVersion,3);
+  assert.equal(NARA_UNIFIED_RUNTIME_CONTRACT.authority.arbitraryShell,false);
+  assert.equal(NARA_UNIFIED_RUNTIME_CONTRACT.authority.authenticationBypass,false);
+  assert.equal(NARA_UNIFIED_RUNTIME_CONTRACT.authority.rootExploit,false);
+
+  const audio=normalizeHumanALEInput('audio.energy',{
+    energy:9,
+    low:-4,
+    mid:.4,
+    high:.8,
+    password:'must-not-survive',
+    raw:new Array(10).fill('x')
+  });
+  assert.deepEqual(audio,{energy:1,low:0,mid:.4,high:.8});
+  assert.equal(Object.hasOwn(audio,'password'),false);
+  assert.equal(Object.hasOwn(audio,'raw'),false);
+
+  const vision=normalizeHumanALEInput('vision.frame',{
+    activity:2,
+    frameId:'frame-'+('x'.repeat(300)),
+    image:'base64-secret-image'
+  });
+  assert.equal(vision.activity,1);
+  assert.ok(vision.frameId.length<=120);
+  assert.equal(Object.hasOwn(vision,'image'),false);
+
+  assert.equal(normalizeHumanALEInput('brain.region.select',{region:'NOT_A_REGION'}),null);
+  assert.deepEqual(normalizeHumanALEInput('speech.stop',{secret:'drop-me'}),{});
+  assert.equal(normalizeHumanALEInput('memory.write',{label:'blocked'}),null);
+});
+
+test('V3.4 runtime host rejects oversized renderer envelopes and sanitized payload reaches Core',()=>{
+  const nara=createOrchestrator();
+  nara.start();
+  const host=createHumanALERuntimeHost({nara,isTrustedEvent:()=>true});
+
+  const oversized=host.dispatchRenderer({},{
+    event:'vision.frame',
+    payload:{activity:.8,frameId:'x'.repeat(5000)}
+  });
+  assert.match(oversized.error,/terlalu besar/i);
+
+  const accepted=host.dispatchRenderer({},{
+    event:'vision.frame',
+    payload:{activity:5,frameId:'safe-frame',secret:'discard'}
+  });
+  assert.equal(accepted.ok,true);
+  const vision=nara.snapshot().engine.sensory.vision;
+  assert.equal(vision.activity,1);
+  assert.equal(vision.frameId,'safe-frame');
+  assert.equal(Object.hasOwn(vision,'secret'),false);
   nara.stop();
 });
