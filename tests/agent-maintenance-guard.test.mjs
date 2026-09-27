@@ -101,11 +101,12 @@ test('changeset blocks protected paths symlinks staging drift and excessive scop
   branchChanged:true,
   headChanged:true,
   gitMetadataChanged:true,
+  lockChanged:true,
   patch:'--- a/public/app.js\n+++ b/public/app.js\n+const x=1;'
  });
  assert.equal(result.allowed,false);
  for(const code of [
-  'BRANCH_DRIFT','HEAD_DRIFT','GIT_METADATA_DRIFT','STAGED_CHANGE',
+  'BRANCH_DRIFT','HEAD_DRIFT','GIT_METADATA_DRIFT','REPO_LOCK_DRIFT','STAGED_CHANGE',
   'SYMLINK_CHANGE','PROTECTED_PATH_CHANGE','CHANGESET_TOO_LARGE'
  ]){
   assert.ok(result.violations.includes(code),code);
