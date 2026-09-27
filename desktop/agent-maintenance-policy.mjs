@@ -101,6 +101,9 @@ export const AI_MAINTENANCE_PROTECTED_AREAS=Object.freeze([
  'desktop/agent-maintenance-transaction.mjs',
  'desktop/maintenance-verifier.mjs',
  'desktop/maintenance-autopilot.mjs',
+ 'desktop/maintenance-workspace.mjs',
+ 'desktop/maintenance-draft-pr-broker.mjs',
+ 'desktop/maintenance-checkpoint-coordinator.mjs',
  'desktop/agent-hub.mjs',
  'desktop/terminal-policy.mjs',
  'desktop/main.cjs',
@@ -130,6 +133,9 @@ export const AI_MAINTENANCE_PROTECTED_AREAS=Object.freeze([
  'tests/agent-maintenance-transaction.test.mjs',
  'tests/maintenance-verifier.test.mjs',
  'tests/maintenance-autopilot.test.mjs',
+ 'tests/maintenance-workspace.test.mjs',
+ 'tests/maintenance-draft-pr-broker.test.mjs',
+ 'tests/maintenance-checkpoint-coordinator.test.mjs',
  'tests/agent-orchestrator.test.mjs',
  'tests/humanale-final-readiness.test.mjs'
 ]);
