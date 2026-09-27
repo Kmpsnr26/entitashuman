@@ -25,9 +25,9 @@ export class NaraMetacognitionEngine{
     const blockedRatio=clamp01((blockedGoals+failedGoals+failedTasks+pendingCaps)/(Math.max(1,goalList.length+taskList.length)));
     const uncertainty=clamp01(
       blockedRatio*.5+
-      (serverProblem?.2:0)+
-      (errorRegion?.18:0)+
-      (pendingCaps?.12:0)+
+      (serverProblem ? .2 : 0)+
+      (errorRegion ? .18 : 0)+
+      (pendingCaps ? .12 : 0)+
       workload*.12
     );
 
