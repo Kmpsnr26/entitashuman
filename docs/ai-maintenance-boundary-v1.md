@@ -66,3 +66,20 @@ Realtime autopilot is intentionally not enabled by this change. The next layer m
 - health/circuit integration.
 
 Only after those controls are green should the realtime detect → patch → test → verify loop be enabled.
+
+
+## Stage 3 — bounded transaction-aware autopilot
+
+The bounded autopilot controller now runs directly on top of the hardened maintenance transaction.
+
+- one explicit task per invocation;
+- HumanALE Orchestrator is always used for work;
+- maximum two attempts;
+- one repository transaction stays active through the worker and deterministic `npm run verify`;
+- verification receives a secret-sanitized environment;
+- verification failure rolls the same transaction back before any retry;
+- authority, protected-path, repository-identity, secret, lock and rollback violations never retry;
+- success preserves only the inspected bounded source changes;
+- no timer loop, daemon, direct-main write, merge, publish, release, Owner or Creator Final Approval authority.
+
+This supersedes the earlier simple reset/clean Guard v2 approach. Realtime event intake remains disabled.

@@ -11,6 +11,13 @@ import {
 } from './agent-maintenance-policy.mjs';
 import {sanitizeMaintenanceEnvironment} from './agent-maintenance-guard.mjs';
 import {beginMaintenanceTransaction} from './agent-maintenance-transaction.mjs';
+import {
+ AI_MAINTENANCE_AUTOPILOT_VERIFY_TIMEOUT_MS,
+ autopilotSnapshot,
+ createAutopilotAttemptPrompt,
+ isNonRetryableMaintenanceError,
+ normalizeAutopilotAttempts
+} from './maintenance-autopilot.mjs';
 
 const maintenanceBoundaryLegacyMarker='Jangan git push, git merge, publish';
 
@@ -86,9 +93,9 @@ export function agentTimeoutMs(mode='analyze',env=process.env){
  if(!Number.isFinite(raw)||raw<=0)return fallback;
  return Math.max(30000,Math.min(900000,Math.round(raw)));
 }
-function runProcess(executable,args,{cwd,timeout=12000}={}){
+function runProcess(executable,args,{cwd,timeout=12000,env=process.env}={}){
  return new Promise(resolve=>{
-  const child=spawn(executable,args,{cwd,windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...process.env,NO_COLOR:'1'}});
+  const child=spawn(executable,args,{cwd,windowsHide:true,stdio:['ignore','pipe','pipe'],env:{...env,NO_COLOR:'1'}});
   let stdout='',stderr='',settled=false;
   const finish=value=>{if(settled)return;settled=true;clearTimeout(timer);resolve(value);};
   const timer=setTimeout(()=>{child.kill();finish({code:null,stdout,stderr,timedOut:true});},timeout);
@@ -150,7 +157,7 @@ function looksLikeCopilotTrustPrompt(text=''){
   value.includes('confirm that you trust');
 }
 export class DeveloperAgentHub{
- constructor(){this.child=null;this.pending=false;this.projectRoot='';this.maintenanceTransaction=null;}
+ constructor(){this.child=null;this.pending=false;this.autopilotPending=false;this.projectRoot='';this.maintenanceTransaction=null;}
  setProjectRoot(value=''){this.projectRoot=String(value||'').trim();}
  getProjectRoot(){return (this.projectRoot||process.env.HUMANALE_PROJECT_ROOT||process.env.DUDIDAM_PROJECT_ROOT||process.cwd()).trim();}
  async projectRootReady(){
@@ -189,6 +196,7 @@ export class DeveloperAgentHub{
    projectRoot,
    projectRootReady,
    maintenancePolicy:maintenancePolicySnapshot(),
+   maintenanceAutopilot:autopilotSnapshot(),
    agents:rows
   };
  }
@@ -337,20 +345,23 @@ export class DeveloperAgentHub{
   ].join('\n');
   return {id:'humanale-orchestrator',name:'HumanALE Orchestrator',mode,difficulty,stages,text:summary};
  }
- async run(value){
-  if(this.pending)throw new Error('Tunggu agent sebelumnya selesai.');
+ async run(value,{internal=false,transaction:providedTransaction=null}={}){
+  if(this.pending||(this.autopilotPending&&!internal))throw new Error('Tunggu agent sebelumnya selesai.');
   const id=String(value?.id||''),mode=value?.mode==='work'?'work':'analyze';
   let prompt=String(value?.prompt||'').trim();
   if(!prompt||prompt.length>4000)throw new Error('Prompt agent harus berisi 1–4000 karakter.');
 
   this.pending=true;
   let transaction=null;
+  let ownsTransaction=false;
   try{
    if(mode==='work'){
     assertMaintenanceTaskAllowed(prompt,{mode});
     const cwd=this.getProjectRoot();
     if(!await this.projectRootReady())throw new Error('AI maintenance memerlukan checkout Git proyek yang dipilih secara eksplisit.');
-    transaction=await beginMaintenanceTransaction(cwd);
+    transaction=providedTransaction||await beginMaintenanceTransaction(cwd);
+    ownsTransaction=!providedTransaction;
+    if(transaction?.released)throw new Error('Maintenance transaction yang diberikan sudah dilepas.');
     this.maintenanceTransaction=transaction;
    }
 
@@ -388,14 +399,130 @@ export class DeveloperAgentHub{
    }
    throw error;
   }finally{
-   if(transaction&&!transaction.released){
+   if(ownsTransaction&&transaction&&!transaction.released){
     try{await transaction.release();}catch{}
    }
    if(this.maintenanceTransaction===transaction)this.maintenanceTransaction=null;
    this.pending=false;
   }
  }
- stop(){this.child?.kill();}
+
+ async runAutopilot(value={}){
+  if(this.pending||this.autopilotPending)throw new Error('Tunggu agent sebelumnya selesai.');
+  const prompt=String(value?.prompt||'').trim();
+  if(!prompt||prompt.length>4000)throw new Error('Prompt autopilot harus berisi 1–4000 karakter.');
+  assertMaintenanceTaskAllowed(prompt,{mode:'work'});
+  if(!await this.projectRootReady())throw new Error('Autopilot memerlukan checkout Git proyek yang dipilih secara eksplisit.');
+
+  const cwd=this.getProjectRoot();
+  const maxAttempts=normalizeAutopilotAttempts(value?.maxAttempts);
+  const attempts=[];
+  const npmExecutable=process.platform==='win32'?'npm.cmd':'npm';
+  const verifyEnv=sanitizeMaintenanceEnvironment(process.env).env;
+  this.autopilotPending=true;
+
+  try{
+   for(let attempt=1;attempt<=maxAttempts;attempt++){
+    let transaction=null;
+    let recorded=false;
+    try{
+     transaction=await beginMaintenanceTransaction(cwd);
+     const workResult=await this.run({
+      id:'humanale-orchestrator',
+      mode:'work',
+      prompt:createAutopilotAttemptPrompt(prompt,{attempt}),
+      memoryContext:value?.memoryContext
+     },{internal:true,transaction});
+
+     const verification=await runProcess(
+      npmExecutable,
+      ['run','verify'],
+      {cwd,timeout:AI_MAINTENANCE_AUTOPILOT_VERIFY_TIMEOUT_MS,env:verifyEnv}
+     );
+     const inspection=await transaction.inspect();
+     if(!inspection.allowed)throw maintenanceChangeSetError(inspection);
+
+     const passed=verification.code===0&&!verification.timedOut;
+     attempts.push(Object.freeze({
+      attempt,
+      status:passed?'PASS':'VERIFY_FAILED',
+      verifyCode:verification.code,
+      timedOut:Boolean(verification.timedOut),
+      changedFiles:inspection.paths.length,
+      totalBytes:inspection.totalBytes
+     }));
+     recorded=true;
+
+     if(passed){
+      await transaction.release();
+      return Object.freeze({
+       id:'humanale-maintenance-autopilot',
+       name:'HumanALE Maintenance Autopilot',
+       mode:'work',
+       status:'PASS',
+       maxAttempts,
+       attempts:Object.freeze([...attempts]),
+       result:workResult
+      });
+     }
+
+     const rollback=await transaction.rollback('VERIFY_FAILED');
+     await transaction.release();
+     transaction=null;
+
+     if(attempt===maxAttempts){
+      const error=new Error('Autopilot mencapai batas percobaan tanpa npm run verify yang sukses.');
+      error.code='AI_MAINTENANCE_VERIFY_FAILED';
+      error.autopilot=Object.freeze({
+       status:'FAILED',
+       maxAttempts,
+       attempts:Object.freeze([...attempts]),
+       rollback
+      });
+      throw error;
+     }
+    }catch(error){
+     if(!recorded){
+      attempts.push(Object.freeze({
+       attempt,
+       status:'WORK_FAILED',
+       code:String(error?.code||'WORK_FAILED')
+      }));
+     }
+
+     if(transaction&&!transaction.released){
+      try{
+       const rollback=await transaction.rollback('AUTOPILOT_ATTEMPT_FAILED');
+       if(rollback?.rolledBack)error.maintenanceRollback=rollback;
+      }catch(rollbackError){
+       if(rollbackError?.code==='AI_MAINTENANCE_MANUAL_RECOVERY_REQUIRED'){
+        error=rollbackError;
+       }else{
+        error.maintenanceRollbackError=String(rollbackError?.message||rollbackError);
+       }
+      }finally{
+       try{await transaction.release();}catch{}
+      }
+     }
+
+     if(isNonRetryableMaintenanceError(error)||attempt===maxAttempts||error?.code==='AI_MAINTENANCE_VERIFY_FAILED'){
+      if(error&&typeof error==='object'&&!error.autopilot){
+       error.autopilot=Object.freeze({
+        status:'FAILED',
+        maxAttempts,
+        attempts:Object.freeze([...attempts])
+       });
+      }
+      throw error;
+     }
+    }
+   }
+   throw new Error('Autopilot berhenti tanpa hasil.');
+  }finally{
+   this.autopilotPending=false;
+  }
+ }
+  stop(){this.child?.kill();}
 }
 
 export const agentMaintenanceCapabilities=Object.freeze({
