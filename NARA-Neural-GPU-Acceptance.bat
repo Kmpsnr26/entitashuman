@@ -4,7 +4,7 @@ chcp 65001 >nul
 cd /d "%~dp0"
 
 echo ============================================================
-echo  NARA R5 Release Candidate - Physical Acceptance
+echo  NARA R7 Release Candidate - Physical Acceptance
 echo ============================================================
 echo.
 
@@ -13,9 +13,9 @@ set "EXIT_CODE=%ERRORLEVEL%"
 
 echo.
 if not "%EXIT_CODE%"=="0" (
-  echo [FAIL] R5 physical GPU / visual / audio acceptance belum lolos.
+  echo [FAIL] R7 physical GPU / visual / voice / UI-audio acceptance belum lolos.
 ) else (
-  echo [PASS] R5 physical GPU / visual / audio acceptance selesai dan lolos.
+  echo [PASS] R7 physical GPU / visual / voice / UI-audio acceptance selesai dan lolos.
 )
 echo.
 pause
