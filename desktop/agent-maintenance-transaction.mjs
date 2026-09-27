@@ -380,6 +380,41 @@ async function collectChangeSet(transaction){
  };
 }
 
+async function maintenanceChangeDigest(transaction,changeSet){
+ const hash=createHash('sha256');
+ hash.update('humanale-maintenance-change-set/1\n');
+ hash.update(String(transaction.baseHead||'')+'\n');
+ hash.update(String(transaction.baseBranch||'')+'\n');
+ const paths=[...changeSet.paths].sort();
+ hash.update(JSON.stringify(paths)+'\n');
+ for(const path of paths){
+  hash.update(path+'\0');
+  try{
+   const info=await lstat(join(transaction.cwd,path));
+   if(info.isSymbolicLink()){
+    hash.update('symlink\0'+String(await readlink(join(transaction.cwd,path)))+'\0');
+   }else if(info.isFile()){
+    hash.update('file\0'+String(info.size)+'\0');
+    if(info.size<=4*1024*1024){
+     hash.update(await readFile(join(transaction.cwd,path)));
+    }else{
+     hash.update('oversize-not-readable\0');
+    }
+   }else if(info.isDirectory()){
+    hash.update('directory\0');
+   }else{
+    hash.update('other\0');
+   }
+  }catch(error){
+   if(error?.code==='ENOENT')hash.update('deleted\0');
+   else throw error;
+  }
+ }
+ hash.update('\nPATCH\n');
+ hash.update(String(changeSet.patch||''));
+ return hash.digest('hex');
+}
+
 async function quarantineAndRollback(transaction,changeSet){
  const cwd=transaction.cwd;
  const quarantine=join(transaction.gitDir,'humanale-maintenance-quarantine',transaction.id);
@@ -452,9 +487,14 @@ export class MaintenanceTransaction{
    rolledBack=true;
   }
 
+  const changeDigest=result.allowed
+   ?await maintenanceChangeDigest(this,changeSet)
+   :null;
+
   return Object.freeze({
    ...result,
    transactionId:this.id,
+   changeDigest,
    rolledBack,
    quarantineCreated:Boolean(quarantine),
    manualRecoveryRequired:!result.allowed&&identityDrift
