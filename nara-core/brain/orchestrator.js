@@ -9,6 +9,8 @@ import {
   createRecoveryEngine,
   createInstinctEngine,
   createExperienceModel,
+  createGoalManager,
+  createMetacognitionEngine,
   createAutopilot,
   NARA_IDENTITY,
   integrationPlan
@@ -34,6 +36,8 @@ export class NaraOrchestrator{
     recovery=createRecoveryEngine(),
     instinct=createInstinctEngine(),
     experience=createExperienceModel(),
+    goals=createGoalManager(),
+    metacognition=createMetacognitionEngine(),
     autopilot=null,
     deviceProfile={}
   }={}){
@@ -46,6 +50,8 @@ export class NaraOrchestrator{
     this.recovery=recovery;
     this.instinct=instinct;
     this.experience=experience;
+    this.goals=goals;
+    this.metacognition=metacognition;
     this.devicePlan=integrationPlan(deviceProfile);
     this.running=false;
     this.unsubscribe=null;
@@ -162,12 +168,66 @@ export class NaraOrchestrator{
     return this.autopilot.registerHandler(id,handler,options);
   }
 
+  createGoal(goal={}){
+    const created=this.goals.create(goal);
+    if(this.running)this.bus.emit('goal.created',{
+      id:created.id,label:created.label,priority:created.priority
+    },{source:'goal-manager'});
+    return created;
+  }
+
+  activateGoal(id){
+    const goal=this.goals.activate(id);
+    if(this.running)this.bus.emit('goal.activated',{
+      id:goal.id,label:goal.label
+    },{source:'goal-manager'});
+    return goal;
+  }
+
+  completeGoal(id){
+    const goal=this.goals.complete(id);
+    if(this.running)this.bus.emit('goal.complete',{
+      id:goal.id,label:goal.label,progress:goal.progress
+    },{source:'goal-manager'});
+    return goal;
+  }
+
+  failGoal(id,error=''){
+    const goal=this.goals.fail(id,error);
+    if(this.running)this.bus.emit('goal.failed',{
+      id:goal.id,label:goal.label,error:goal.lastError
+    },{source:'goal-manager'});
+    return goal;
+  }
+
   queueAutopilotTask(task={}){
-    return this.autopilot.enqueue(task);
+    const queued=this.autopilot.enqueue(task);
+    if(queued.goalId){
+      this.goals.attachTask(queued.goalId,queued.id);
+      if(this.running)this.bus.emit('goal.task.linked',{
+        id:queued.goalId,taskId:queued.id
+      },{source:'goal-manager'});
+    }
+    return queued;
+  }
+
+  reconcileGoals(){
+    const changes=this.goals.reconcileTasks(this.scheduler.snapshot().tasks);
+    for(const goal of changes){
+      if(!this.running)continue;
+      const event=goal.status==='complete'?'goal.complete':
+        goal.status==='blocked'?'goal.blocked':'goal.progress';
+      this.bus.emit(event,{
+        id:goal.id,label:goal.label,progress:goal.progress,status:goal.status
+      },{source:'goal-manager'});
+    }
+    return changes;
   }
 
   async runAutopilotOnce(){
-    return await this.autopilot.runNext();
+    const result=await this.autopilot.runNext();
+    this.reconcileGoals();
+    return result;
   }
 
   inspectWatchdog(now=Date.now()){
@@ -185,25 +245,40 @@ export class NaraOrchestrator{
     const brain=this.state.snapshot();
     const sensory=this.sensory.snapshot();
     const autopilot=this.autopilot.snapshot();
+    const goals=this.goals.snapshot();
+    const capabilities=this.capabilities.snapshot();
+    const experience=this.experience.snapshot();
     const activeTask=autopilot.scheduler.tasks.find(item=>
       item.status==='running'||item.status==='failed'
     )||{};
+    const instinct=this.instinct.evaluate({
+      sensory,
+      diagnostics:{
+        failures:autopilot.scheduler.failed,
+        errors:brain.regions.ERROR_MONITOR?.status==='error'?1:0
+      },
+      task:activeTask
+    });
+    const metacognition=this.metacognition.evaluate({
+      brain,
+      sensory,
+      goals,
+      autopilot,
+      capabilities,
+      experience
+    });
     return {
       ...brain,
       engine:{
         identity:NARA_IDENTITY,
         sensory,
-        capabilities:this.capabilities.snapshot(),
+        capabilities,
         device:this.devicePlan,
+        goals,
         autopilot,
-        instinct:this.instinct.evaluate({
-          sensory,
-          diagnostics:{
-            failures:autopilot.scheduler.failed,
-            errors:brain.regions.ERROR_MONITOR?.status==='error'?1:0
-          },
-          task:activeTask
-        })
+        experience,
+        instinct,
+        metacognition
       }
     };
   }
