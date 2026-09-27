@@ -508,6 +508,30 @@ else{
   if(ciSmoke){
    const rendererReady=await win.webContents.executeJavaScript("Boolean(document.querySelector('#avatar')) && Boolean(document.querySelector('#assistantPopup')) && typeof window.dudidamAvatar?.setAvatarState === 'function' && typeof window.dudidamDesktop?.onGlobalPointer === 'function' && typeof window.dudidamDesktop?.avatarViewport === 'function' && typeof window.dudidamDesktop?.openTerminal === 'function' && document.title.includes('HumanALE god egine')");
    if(!rendererReady)throw new Error('Renderer HumanALE god egine tidak siap.');
+   const unifiedRuntimeReady=await win.webContents.executeJavaScript(`
+    (async()=>{
+      const api=window.dudidamDesktop;
+      if(typeof api?.runtimeSnapshot!=='function'||typeof api?.naraDispatch!=='function')return false;
+      const initial=await api.runtimeSnapshot();
+      if(initial?.runtime?.version!==3||initial.runtime?.humanale?.role!=='nara-body')return false;
+      if(initial.runtime?.core?.engine?.identity?.id!=='NARA')return false;
+      const heard=await api.naraDispatch('audio.energy',{energy:.61,low:.2,mid:.4,high:.7});
+      if(!heard?.ok)return false;
+      const hearing=await api.runtimeSnapshot();
+      if(!hearing?.runtime?.humanale?.body?.hearing?.active)return false;
+      if(Math.abs(Number(hearing.runtime.humanale.body.hearing.high)-.7)>.001)return false;
+      const speech=await api.naraDispatch('speech.start',{energy:.55});
+      if(!speech?.ok)return false;
+      const speaking=await api.runtimeSnapshot();
+      if(speaking?.runtime?.humanale?.body?.state!=='speaking')return false;
+      const blocked=await api.naraDispatch('memory.write',{label:'forbidden-renderer-write'});
+      if(!blocked?.error)return false;
+      await api.naraDispatch('speech.stop',{});
+      await api.naraDispatch('audio.energy',{energy:0,low:0,mid:0,high:0});
+      return true;
+    })()
+   `);
+   if(!unifiedRuntimeReady)throw new Error('Unified NARA + HumanALE runtime V3 belum siap.');
    const wakeIdle=await win.webContents.executeJavaScript("Boolean(document.querySelector('#wakeToggle')) && !document.querySelector('#wakeToggle').checked && document.querySelector('#wakeIndicator')?.textContent?.includes('nonaktif')");
    if(!wakeIdle)throw new Error('Wake mic harus nonaktif saat HumanALE god egine mulai.');
    await openPanel('controls');
