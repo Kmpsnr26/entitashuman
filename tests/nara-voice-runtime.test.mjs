@@ -13,7 +13,9 @@ test('NARA runtime publishes voice cues from the event bus without exposing arbi
   assert.match(main,/createVoiceFeedback/);
   assert.match(main,/voiceFeedback:naraVoice/);
   assert.match(main,/onExperienceDirty:scheduleExperienceSave/);
-  assert.match(runtimeHost,/this\.nara\.bus\.onAny\(envelope=>this\.consumeEnvelope\(envelope\)\)/);
+  assert.match(runtimeHost,/this\.nara\.bus\.onAny\(envelope=>\{/);
+  assert.match(runtimeHost,/this\.consumeEnvelope\(envelope\)/);
+  assert.match(runtimeHost,/this\.publishState\(this\.nara\.snapshot\(\)\)/);
   assert.match(runtimeHost,/this\.voiceFeedback\?\.consume\?\.\(envelope\)/);
   assert.match(runtimeHost,/autopilot\.task\.complete/);
   assert.match(runtimeHost,/dudidam:nara-voice/);
