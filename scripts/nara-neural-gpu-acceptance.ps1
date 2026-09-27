@@ -48,7 +48,7 @@ if (-not $SkipInstall -and ((-not (Test-Path $electronPackage)) -or (-not (Test-
   if ($LASTEXITCODE -ne 0) { Fail "npm ci gagal." }
 } else {
   Write-Host ""
-  Write-Host "[1/4] Dependency tersedia." -ForegroundColor Green
+  Write-Host "[1/5] Dependency tersedia." -ForegroundColor Green
 }
 
 if (-not (Test-Path $electronExe)) {
@@ -58,7 +58,7 @@ if (-not (Test-Path $electronExe)) {
   & $installer --no
   if ($LASTEXITCODE -ne 0) { Fail "Download/install binary Electron gagal." }
 } else {
-  Write-Host "[2/4] Binary Electron tersedia." -ForegroundColor Green
+  Write-Host "[2/5] Binary Electron tersedia." -ForegroundColor Green
 }
 
 $artifactDir = Join-Path $Root 'artifacts'
