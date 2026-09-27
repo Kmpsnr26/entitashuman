@@ -173,6 +173,20 @@ test('NARA orchestrator links goals to autopilot tasks and completes goal automa
   nara.stop();
 });
 
+
+test('NARA rejects task-to-goal links before mutating the scheduler when goal is unknown',()=>{
+  const nara=createOrchestrator();
+  nara.start();
+  nara.registerAutopilotHandler('safe.noop',async()=>({ok:true}));
+  assert.throws(()=>nara.queueAutopilotTask({
+    id:'orphan-task',
+    goalId:'missing-goal',
+    handler:'safe.noop'
+  }),/Goal NARA untuk task tidak ditemukan/);
+  assert.equal(nara.snapshot().engine.autopilot.scheduler.total,0);
+  nara.stop();
+});
+
 test('NARA metacognition requests owner attention when a protected capability is pending',()=>{
   const nara=createOrchestrator();
   nara.start();
