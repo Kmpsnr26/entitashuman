@@ -192,16 +192,18 @@ test('agent hub treats memory as reference data while preserving existing sandbo
 });
 
 test('desktop IPC validates context before provider or agent use and records context.used',async()=>{
-  const [main,runtimeHost]=await Promise.all([
+  const [main,runtimeHost,agentCoordinator]=await Promise.all([
     read('desktop/main.cjs'),
-    read('desktop/humanale-runtime-host.mjs')
+    read('desktop/humanale-runtime-host.mjs'),
+    read('desktop/nara-agent-coordinator.mjs')
   ]);
   assert.match(main,/import\('\.\/memory-context\.mjs'\)/);
   assert.match(main,/validateMemoryContext\(value\?\.memoryContext,\{allowedTargets:\['reasoner'\]\}\)/);
   assert.match(main,/validateMemoryContext\(value\?\.memoryContext,\{allowedTargets:\['planner','agent'\]\}\)/);
-  assert.match(main,/nara\.dispatch\('context\.used'/);
+  assert.match(agentCoordinator,/this\.nara\.dispatch\('context\.used'/);
   assert.match(main,/nara\.dispatch\('context\.blocked'/);
-  assert.match(main,/agentHub\.run\(\{\.\.\.value,memoryContext\}\)/);
+  assert.match(main,/naraAgentCoordinator\.run\(\{\.\.\.value,memoryContext\}\)/);
+  assert.match(agentCoordinator,/this\.agentHub\.run\(\{/);
   const allowlist=(runtimeHost.match(/DEFAULT_RENDERER_EVENTS=Object\.freeze\(\[([\s\S]*?)\]\)/)||[])[1]||'';
   assert.doesNotMatch(allowlist,/context\.used|context\.approved|memory\.write/);
 });
