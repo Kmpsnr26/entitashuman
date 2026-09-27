@@ -14,7 +14,13 @@ test('Electron preload exposes only the narrow NARA runtime bridge',async()=>{
 test('Electron main owns and starts the NARA orchestrator with renderer event allowlist',async()=>{
   const main=await readFile(new URL('desktop/main.cjs',root),'utf8');
   assert.match(main,/import\('\.\.\/nara-core\/brain\/index\.js'\)/);
-  assert.match(main,/nara=createOrchestrator\(\)/);
+  assert.match(main,/nara=createOrchestrator\(\{deviceProfile:systemObserver\.deviceProfile\(\)\}\)/);
+  assert.match(main,/createSystemObserver/);
+  assert.match(main,/createDataFlowMeter/);
+  assert.match(main,/nara\.configureDevice\(systemObserver\.deviceProfile\(\)\)/);
+  assert.match(main,/nara\.dispatch\('system\.telemetry'/);
+  assert.match(main,/nara\.dispatch\('dataflow\.sample'/);
+  assert.match(main,/nara\.dispatch\('server\.observe'/);
   assert.match(main,/nara\.start\(\)/);
   assert.match(main,/NARA_RENDERER_EVENTS=new Set\(\['audio\.energy','vision\.frame','vision\.stop','speech\.start','speech\.energy','speech\.stop','brain\.region\.select'\]\)/);
   assert.match(main,/Event NARA tidak diizinkan dari renderer/);
