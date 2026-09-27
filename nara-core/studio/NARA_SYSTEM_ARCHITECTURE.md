@@ -408,3 +408,187 @@ The Core currently exposes at least 19 operational skills, including:
 ### V2.1 security principle
 
 NARA may integrate deeply with a device only through capabilities that the device and Creator permit. "Deep integration" means learning the host profile, using approved adapters, reading its own runtime state and calling explicit APIs. It does not mean bypassing the host security model.
+
+
+## 11. NARA + HumanALE Unified Runtime V3
+
+V3 makes the boundary explicit:
+
+```text
+CREATOR
+   │
+   ▼
+OWNER / SAFETY
+   │
+   ▼
+NARA CORE ENGINE  ← brain / goals / reasoning / memory / skills / safety
+   │
+   ▼
+UNIFIED RUNTIME HOST
+   │
+   ├── HumanALE body / avatar / voice / hearing / vision
+   ├── Agent Coordinator → Agent Hub → Codex / Copilot / supported executors
+   └── Visual / Live Studio control surfaces
+```
+
+NARA Core is the authoritative brain. HumanALE is the embodied desktop surface. Visual Studio is a monitor/control surface rather than a second brain.
+
+### V3.1 — HumanALE Runtime Host
+
+`desktop/humanale-runtime-host.mjs` centralizes the desktop/Core bridge.
+
+It preserves the legacy channels:
+- `dudidam:nara-state`
+- `dudidam:nara-voice`
+
+It adds:
+- `dudidam:runtime-state`
+- `dudidam:runtime-snapshot`
+
+The unified snapshot contains:
+- complete NARA Core state
+- HumanALE body state
+- runtime contract / authority projection
+- bounded sensory projection
+
+HumanALE body state is derived from authoritative Core state:
+- idle
+- listening
+- thinking
+- working
+- speaking
+- warning
+
+### V3.2 — Goal → Agent Coordinator → Agent Hub
+
+`desktop/nara-agent-coordinator.mjs` routes HumanALE developer work through NARA instead of calling the Agent Hub directly.
+
+```text
+HumanALE request
+      ↓
+NARA Goal Manager
+      ↓
+Task Scheduler
+      ↓
+Registered Autopilot Handler
+      ↓
+Agent Hub
+      ↓
+Codex / GitHub Copilot / supported worker
+      ↓
+Verification
+      ↓
+Goal reconciliation
+      ↓
+Experience + Metacognition
+```
+
+Prompt and approved memory-context packets stay in process memory only while the coordinated task is running. They are not copied into Goal or Experience persistence.
+
+Agent Hub safety boundaries remain active:
+- analyze mode is read-only
+- work mode is restricted to the selected project checkout
+- no automatic git push
+- no automatic merge
+- no automatic publish
+- no credential mutation
+
+### V3.3 — End-to-end Electron acceptance
+
+Desktop CI smoke now checks the complete renderer-to-Core loop:
+- renderer obtains Runtime V3 snapshot
+- NARA identity is present
+- HumanALE role is `nara-body`
+- audio sensory input reaches Core
+- speech state returns as HumanALE `speaking`
+- forbidden renderer memory-write event is rejected
+- detached panel still loads
+
+### V3.4 — Unified Runtime Contract
+
+`nara-core/runtime/unified-contract.js` is the canonical renderer/Core contract.
+
+Renderer input is restricted to:
+- `audio.energy`
+- `vision.frame`
+- `vision.stop`
+- `speech.start`
+- `speech.energy`
+- `speech.stop`
+- `brain.region.select`
+
+The contract:
+- clamps sensory numeric values
+- strips unrecognized fields
+- bounds text fields
+- rejects invalid brain regions
+- rejects oversized renderer envelopes
+- does not expose arbitrary shell, authentication bypass or root-exploit actions
+
+High-impact actions remain outside this renderer contract.
+
+### V3.5 — Shared Creator Gate
+
+HumanALE desktop and NARA Studio use the same persistent owner-store path by default:
+
+```text
+NARA_OWNER_STORE
+or
+~/.nara/owner.json
+```
+
+The desktop Creator Gate provides:
+- first-run Creator provisioning
+- bounded login session
+- login attempt rate limiting
+- global desktop lock
+- Creator credential rotation
+- session revocation after credential change
+- shared owner identity with Studio
+
+Passwords:
+- are sent only to the Electron main process for verification
+- are not stored in localStorage
+- are not included in Runtime V3 snapshots
+- are not written into NARA memory
+- are stored on disk only as the existing salted scrypt verifier
+
+Creator unlock is required for:
+- AI/provider calls and provider login
+- NARA Cloud context access
+- Agent Hub / Codex / Copilot
+- project-root changes
+- terminal operations
+- microphone/camera/system-audio permission paths
+- NARA renderer sensory dispatch and Runtime snapshots
+
+Window-only controls such as hide/close/move remain available while locked so the user can safely dismiss the application.
+
+### V3.6 — Unified Physical Acceptance
+
+`HumanALE-Unified-Acceptance.bat` runs a one-click Windows acceptance sequence:
+
+1. locked dependency / Electron preparation
+2. HumanALE desktop `--ci-smoke`
+3. Creator Gate + Unified Runtime smoke
+4. NARA Neural physical GPU acceptance
+5. combined JSON evidence
+6. final PASS / FAIL
+
+Evidence:
+- `artifacts/humanale-unified-acceptance.json`
+- `artifacts/humanale-unified.png`
+- `artifacts/nara-neural-live-report.json`
+- `artifacts/nara-neural-live.png`
+
+The wrapper does not enable optional Copilot or local-voice external smoke by default.
+
+### V3 current release boundary
+
+Automated CI verifies the merged source architecture, but the latest V3 physical GTX 1650 run must still be performed on the target Windows machine before V3 is considered physically accepted.
+
+The previous GTX 1650 PASS predates Core V2 / Unified Runtime V3 and must not be treated as proof for the newest V3 build.
+
+### Remaining security work before final public release
+
+Creator Gate protects control access and high-impact IPC surfaces. Existing renderer-local browser storage is not described as encrypted at rest by this gate. If sensitive local-memory-at-rest protection becomes a release requirement, it must be implemented and verified as a separate owner-scoped storage milestone rather than implied by the login overlay.
