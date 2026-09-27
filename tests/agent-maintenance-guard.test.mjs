@@ -34,8 +34,8 @@ test('maintenance environment strips credential-bearing variables but preserves 
   NARA_STUDIO_PORT:'4178'
  });
  assert.equal(result.env.PATH,'C:\\Windows');
- assert.equal(Object.hasOwn(result.env,'USERPROFILE'),false);
- assert.ok(result.removed.includes('USERPROFILE'));
+ assert.equal(result.env.USERPROFILE,'C:\\Users\\owner');
+ assert.equal(result.removed.includes('USERPROFILE'),false);
  assert.equal(result.env.GITHUB_COPILOT_CLI_PATH,'C:\\Tools\\copilot.exe');
  assert.equal(result.env.NARA_STUDIO_PORT,'4178');
  assert.equal(result.env.NO_COLOR,'1');
