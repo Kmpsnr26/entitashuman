@@ -77,7 +77,7 @@ test('brain state records provider readiness and bounded autopilot status',()=>{
   assert.equal(state.autopilot.ready,true);
   assert.equal(state.autopilot.armed,true);
   assert.deepEqual(state.autopilot.executors,['codex','github-copilot']);
-  assert.equal(state.regions.COPILOT.status,'connected');
+  assert.equal(state.regions.COPILOT.status,'ready');
   assert.equal(state.regions.AGENT_MANAGER.status,'ready');
   nara.stop();
 });
