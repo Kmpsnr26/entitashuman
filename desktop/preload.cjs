@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('dudidamDesktop',Object.freeze({
  ownerLogin:payload=>ipcRenderer.invoke('dudidam:owner-login',payload),
  ownerLogout:()=>ipcRenderer.invoke('dudidam:owner-logout'),
  ownerChangeLogin:payload=>ipcRenderer.invoke('dudidam:owner-change-login',payload),
+ onOwnerState:callback=>{if(typeof callback!=='function')return()=>{};const handler=(_event,state)=>callback(state);ipcRenderer.on('dudidam:owner-state',handler);return()=>ipcRenderer.removeListener('dudidam:owner-state',handler);},
  cloudStatus:()=>ipcRenderer.invoke('dudidam:cloud-status'),
  cloudLogin:()=>ipcRenderer.invoke('dudidam:cloud-login'),
  cloudContext:payload=>ipcRenderer.invoke('dudidam:cloud-context',payload),
