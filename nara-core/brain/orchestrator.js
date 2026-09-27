@@ -4,6 +4,12 @@ import {isRegionId} from './regions.js';
 import {
   createSensoryFusion,
   createCapabilityBroker,
+  createTaskScheduler,
+  createWatchdog,
+  createRecoveryEngine,
+  createInstinctEngine,
+  createExperienceModel,
+  createAutopilot,
   NARA_IDENTITY,
   integrationPlan
 } from '../engine/index.js';
@@ -23,15 +29,36 @@ export class NaraOrchestrator{
     state=createBrainState(),
     sensory=createSensoryFusion(),
     capabilities=createCapabilityBroker(),
+    scheduler=createTaskScheduler(),
+    watchdog=createWatchdog(),
+    recovery=createRecoveryEngine(),
+    instinct=createInstinctEngine(),
+    experience=createExperienceModel(),
+    autopilot=null,
     deviceProfile={}
   }={}){
     this.bus=bus;
     this.state=state;
     this.sensory=sensory;
     this.capabilities=capabilities;
+    this.scheduler=scheduler;
+    this.watchdog=watchdog;
+    this.recovery=recovery;
+    this.instinct=instinct;
+    this.experience=experience;
     this.devicePlan=integrationPlan(deviceProfile);
     this.running=false;
     this.unsubscribe=null;
+    this.autopilot=autopilot||createAutopilot({
+      scheduler:this.scheduler,
+      watchdog:this.watchdog,
+      recovery:this.recovery,
+      capabilities:this.capabilities,
+      experience:this.experience,
+      onEvent:(event,payload={})=>{
+        if(this.running)this.bus.emit(event,payload,{source:'autopilot'});
+      }
+    });
   }
 
   start(){
@@ -131,6 +158,29 @@ export class NaraOrchestrator{
     return this.capabilities.authorize(capability);
   }
 
+  registerAutopilotHandler(id,handler,options={}){
+    return this.autopilot.registerHandler(id,handler,options);
+  }
+
+  queueAutopilotTask(task={}){
+    return this.autopilot.enqueue(task);
+  }
+
+  async runAutopilotOnce(){
+    return await this.autopilot.runNext();
+  }
+
+  inspectWatchdog(now=Date.now()){
+    const stalled=this.watchdog.inspect(now);
+    for(const item of stalled){
+      if(this.running)this.bus.emit('autopilot.task.stalled',{
+        id:item.id,
+        label:item.label
+      },{source:'watchdog'});
+    }
+    return stalled;
+  }
+
   snapshot(){
     return {
       ...this.state.snapshot(),
@@ -138,7 +188,16 @@ export class NaraOrchestrator{
         identity:NARA_IDENTITY,
         sensory:this.sensory.snapshot(),
         capabilities:this.capabilities.snapshot(),
-        device:this.devicePlan
+        device:this.devicePlan,
+        autopilot:this.autopilot.snapshot(),
+        instinct:this.instinct.evaluate({
+          sensory:this.sensory.snapshot(),
+          diagnostics:{
+            failures:this.autopilot.snapshot().scheduler.failed,
+            errors:this.state.regions.ERROR_MONITOR?.status==='error'?1:0
+          },
+          task:this.autopilot.snapshot().scheduler.tasks.find(item=>item.status==='running'||item.status==='failed')||{}
+        })
       }
     };
   }
