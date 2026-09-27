@@ -107,9 +107,14 @@ export class NaraSkillExecutor{
     return this.describe(skillId);
   }
 
+  isSkillActive(id){
+    const skillId=String(id||'');
+    return [...this.active.values()].some(item=>item.skillId===skillId);
+  }
+
   unregister(id){
     const skillId=safeText(id,120);
-    if(this.active.has(skillId))throw new Error('Cannot unregister an active skill: '+skillId);
+    if(this.isSkillActive(skillId))throw new Error('Cannot unregister an active skill: '+skillId);
     return this.handlers.delete(skillId);
   }
 
@@ -129,7 +134,7 @@ export class NaraSkillExecutor{
       timeoutMs:record.timeoutMs,
       enabled:record.enabled,
       description:record.description,
-      active:this.active.has(record.id)
+      active:this.isSkillActive(record.id)
     });
   }
 
@@ -307,6 +312,16 @@ export class NaraSkillExecutor{
       });
     }
 
+    if(this.isSkillActive(id)){
+      return this.deferred({
+        executionId,
+        requestId:reqId,
+        skillId:id,
+        decisionId,
+        reason:SKILL_EXECUTION_REASON.SKILL_BUSY
+      });
+    }
+
     if(this.active.size>=this.limits.maxConcurrent){
       return this.deferred({
         executionId,
@@ -340,8 +355,8 @@ export class NaraSkillExecutor{
     try{
       const timeoutPromise=new Promise((_,reject)=>{
         timer=setTimeout(()=>{
-          controller.abort();
           reject(timeoutError(handlerRecord.timeoutMs));
+          controller.abort();
         },handlerRecord.timeoutMs);
       });
 
