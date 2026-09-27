@@ -33,7 +33,7 @@ From a checked-out copy of this branch/repository, double-click:
 
 `NARA-Neural-GPU-Acceptance.bat`
 
-The wrapper checks Node/npm, records the current Git HEAD when available, installs locked dependencies only when needed, ensures the Electron binary exists, forces `NARA_GPU_MODE=hardware`, runs the acceptance, and prints a GPU + R4/R5 release-candidate summary.
+The wrapper checks Node/npm, records the current Git HEAD when available, installs locked dependencies only when needed, ensures the Electron binary exists, forces `NARA_GPU_MODE=hardware`, runs the acceptance, and prints a GPU + R4/R5/R7 release-candidate summary.
 
 ## Command-line run
 
@@ -57,7 +57,7 @@ On every run:
 - `artifacts/nara-neural-live-report.json`
 - `artifacts/nara-neural-live.png`
 
-A passing local hardware run requires `passed=true`, `gpu.modeMatched=true`, and all required R4/R5 revision checks to be true.
+A passing local hardware run requires `passed=true`, `gpu.modeMatched=true`, and all required R4/R5/R7 revision checks to be true.
 
 ## CI behavior
 
@@ -67,7 +67,7 @@ GitHub Actions intentionally sets `NARA_GPU_MODE=software` and uses ANGLE/SwiftS
 - Physical Windows acceptance: software renderer is rejected.
 
 
-## R4/R5 release-candidate checks
+## R4/R5/R7 release-candidate checks
 
 The Windows wrapper now explicitly requires these browser-smoke checks:
 
@@ -77,6 +77,9 @@ The Windows wrapper now explicitly requires these browser-smoke checks:
 - `customSettingsPersistence`
 - `r5AudioControls`
 - `r5AudioProfileRuntime`
+- `r7VoiceIdentityControls`
+- `r7VoiceProfileRuntime`
+- `r7VoicePreviewSafe`
 - `nodeVoiceNarration`
 - `mechanicalCoreRings`
 - `galacticEnvironment`
@@ -84,3 +87,6 @@ The Windows wrapper now explicitly requires these browser-smoke checks:
 The acceptance report still does not store the Creator password used by the browser smoke.
 
 Audio automation verifies that the controls and bounded profile are wired and persisted correctly. The final perceived voice timbre and speaker loudness must still be reviewed on the target Windows machine because Speech Synthesis voices differ between Windows/browser installations.
+
+
+R7 additionally validates that the Creator panel exposes system voice selection, NARA voice character profiles, Preview Voice, UI SFX and Core FX controls. The automated gate verifies wiring and persisted bounded preferences; the final perceived timbre is still reviewed on the actual Windows voice installed on the target machine.
