@@ -1,3 +1,5 @@
+import {VOICE_PROFILES,voiceProfilePatch,populateNaraVoiceSelect} from './voice-identity.js';
+
 const STORAGE_KEY='nara.visual.settings.v1';
 
 export const DEFAULT_VISUAL_SETTINGS=Object.freeze({
@@ -21,10 +23,14 @@ export const DEFAULT_VISUAL_SETTINGS=Object.freeze({
   uiScale:1,
   audio:true,
   masterVolume:.78,
+  uiSfx:.62,
   transitionFx:.82,
+  coreFx:.86,
   voiceVolume:.9,
   voiceRate:.86,
   voicePitch:.68,
+  voiceProfile:'deep',
+  voiceURI:'auto',
   droidCharacter:true,
   quality:'auto'
 });
@@ -65,12 +71,15 @@ const NUMBER_RANGES=Object.freeze({
   hudOpacity:[.45,1],
   uiScale:[.82,1.18],
   masterVolume:[0,1],
+  uiSfx:[0,1],
   transitionFx:[0,1],
+  coreFx:[0,1],
   voiceVolume:[0,1],
   voiceRate:[.72,1.15],
   voicePitch:[.5,1.2]
 });
 const QUALITY=new Set(['auto','high','balanced','low']);
+const VOICE_PROFILE_NAMES=new Set(Object.keys(VOICE_PROFILES));
 
 function clamp(value,min,max){
   return Math.max(min,Math.min(max,Number(value)));
@@ -86,6 +95,8 @@ export function sanitizeVisualSettings(input={}){
     if(Number.isFinite(value))result[key]=clamp(value,min,max);
   }
   if(QUALITY.has(input.quality))result.quality=input.quality;
+  if(VOICE_PROFILE_NAMES.has(input.voiceProfile))result.voiceProfile=input.voiceProfile;
+  if(typeof input.voiceURI==='string'&&input.voiceURI.length<=240)result.voiceURI=input.voiceURI||'auto';
   return result;
 }
 
@@ -113,7 +124,7 @@ function formatValue(key,value){
   if(['frameGlow','auroraIntensity','rootGlow','coreGlow'].includes(key))return Number(value).toFixed(2)+'×';
   if(key==='coreScale'||key==='uiScale')return Number(value).toFixed(2)+'×';
   if(key==='ringSpeedA'||key==='ringSpeedB')return Number(value).toFixed(2)+'×';
-  if(key==='hudOpacity'||key==='masterVolume'||key==='transitionFx'||key==='voiceVolume')return Math.round(Number(value)*100)+'%';
+  if(key==='hudOpacity'||key==='masterVolume'||key==='uiSfx'||key==='transitionFx'||key==='coreFx'||key==='voiceVolume')return Math.round(Number(value)*100)+'%';
   if(key==='voiceRate'||key==='voicePitch')return Number(value).toFixed(2)+'×';
   return String(value);
 }
@@ -122,12 +133,16 @@ export function createCustomSettingsPanel({
   onChange=()=>{},
   onAudioChange=()=>{},
   onAudioProfileChange=()=>{},
+  onUiCue=()=>{},
+  onVoicePreview=()=>{},
   onQualityChange=()=>{}
 }={}){
   const panel=document.getElementById('customSettingsPanel');
   const openButton=document.getElementById('edgeCustomSettings');
   const closeButton=document.getElementById('customSettingsClose');
   const resetButton=document.getElementById('customSettingsReset');
+  const previewButton=document.getElementById('naraVoicePreview');
+  const voiceSelect=document.getElementById('naraVoiceSelect');
   const presetButtons=[...document.querySelectorAll('[data-visual-preset]')];
   const controls=[...document.querySelectorAll('[data-visual-setting]')];
   let settings=load();
@@ -142,6 +157,7 @@ export function createCustomSettingsPanel({
       if(output)output.textContent=formatValue(key,settings[key]);
     }
     applyCss(settings);
+    if(voiceSelect)populateNaraVoiceSelect(voiceSelect,settings.voiceURI);
   }
 
   function emit({persist=true}={}){
@@ -161,6 +177,7 @@ export function createCustomSettingsPanel({
     panel.classList.toggle('custom-settings-open',Boolean(open));
     openButton?.classList.toggle('settings-active',Boolean(open));
     openButton?.setAttribute('aria-expanded',open?'true':'false');
+    onUiCue(open?'panelOpen':'panelClose');
     if(!open)setTimeout(()=>{if(!panel.classList.contains('custom-settings-open'))panel.hidden=true;},260);
   }
 
@@ -174,6 +191,9 @@ export function createCustomSettingsPanel({
       if(control.type==='checkbox')settings[key]=control.checked;
       else if(control.type==='range')settings[key]=Number(control.value);
       else settings[key]=control.value;
+      if(key==='voiceProfile'){
+        settings={...settings,...voiceProfilePatch(settings.voiceProfile)};
+      }
       emit();
     });
   }
@@ -183,14 +203,27 @@ export function createCustomSettingsPanel({
       const preset=VISUAL_PRESETS[button.dataset.visualPreset];
       if(!preset)return;
       settings=sanitizeVisualSettings({...settings,...preset});
+      onUiCue('confirm');
       emit();
     });
   }
 
   resetButton?.addEventListener('click',()=>{
     settings={...DEFAULT_VISUAL_SETTINGS};
+    onUiCue('warning');
     emit();
   });
+
+  previewButton?.addEventListener('click',()=>{
+    onUiCue('confirm');
+    onVoicePreview({...settings});
+  });
+
+  if('speechSynthesis' in window){
+    const refreshVoices=()=>populateNaraVoiceSelect(voiceSelect,settings.voiceURI);
+    window.speechSynthesis.addEventListener?.('voiceschanged',refreshVoices);
+    refreshVoices();
+  }
 
   syncControls();
 
