@@ -104,6 +104,8 @@ export function sanitizeMaintenanceEnvironment(baseEnv={},{
   output.XDG_STATE_HOME=isolated+'/state';
   output.XDG_CACHE_HOME=isolated+'/cache';
   if(process.platform==='win32'){
+   output.APPDATA=isolated+'/AppData/Roaming';
+   output.LOCALAPPDATA=isolated+'/AppData/Local';
    const match=/^([A-Za-z]:)(.*)$/.exec(isolated.replace(/\//g,'\\'));
    if(match){
     output.HOMEDRIVE=match[1];
