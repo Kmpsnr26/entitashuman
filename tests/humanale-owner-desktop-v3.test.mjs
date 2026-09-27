@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {
+  authorizedDisplayMediaTarget,
+  createHumanALEOwnerGate,
+  isOwnerTargetUnlocked
+} from '../desktop/humanale-owner-gate.mjs';
 
 const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');
@@ -53,7 +58,7 @@ test('V3.5 high-impact HumanALE IPC surfaces require Creator unlock',async()=>{
 
   assert.match(main,/ipcMain\.on\('dudidam:panel-open'.*ownerTrusted\(e\)/);
   assert.match(main,/setPermissionCheckHandler[\s\S]{0,350}ownerGate\.isUnlocked/);
-  assert.match(main,/setDisplayMediaRequestHandler[\s\S]{0,500}ownerUnlocked/);
+  assert.match(main,/setDisplayMediaRequestHandler[\s\S]{0,500}authorizedDisplayMediaTarget/);
   assert.match(main,/setPermissionRequestHandler[\s\S]{0,500}ownerGate\.isUnlocked/);
 });
 
@@ -82,4 +87,53 @@ test('V3.5 Creator UI never persists password fields in browser storage',async()
   assert.doesNotMatch(app,/localStorage\.(?:setItem|getItem)\([^\n)]*owner/i);
   assert.match(css,/V3\.5 Creator Gate/);
   assert.match(css,/\.creator-locked/);
+});
+
+test('V3.5 outbound desktop streams and display capture require the receiving Creator session',async()=>{
+  const main=await read('desktop/main.cjs');
+  assert.match(main,/emitTerminal=.*isOwnerTargetUnlocked\(target,ownerGate\)/);
+  assert.match(main,/authorizedDisplayMediaTarget\(request,\{targets:\[win,panelWin\],ownerGate,origin\}\)/);
+
+  const frameA={},frameB={};
+  const target=id=>({
+    isDestroyed:()=>false,
+    webContents:{id,isDestroyed:()=>false,mainFrame:id===1?frameA:frameB}
+  });
+  const first=target(1),second=target(2);
+  const ownerGate={isUnlocked:actor=>actor==='1'};
+
+  assert.equal(isOwnerTargetUnlocked(first,ownerGate),true);
+  assert.equal(isOwnerTargetUnlocked(second,ownerGate),false);
+  const request={
+    frame:frameA,
+    securityOrigin:'http://127.0.0.1:4321',
+    userGesture:true,
+    audioRequested:true
+  };
+  assert.equal(authorizedDisplayMediaTarget(request,{
+    targets:[first,second],ownerGate,origin:'http://127.0.0.1:4321'
+  }),first);
+  assert.equal(authorizedDisplayMediaTarget({...request,frame:frameB},{
+    targets:[first,second],ownerGate,origin:'http://127.0.0.1:4321'
+  }),null,'locked requester must not inherit another window session');
+  assert.equal(authorizedDisplayMediaTarget({...request,userGesture:false},{
+    targets:[first,second],ownerGate,origin:'http://127.0.0.1:4321'
+  }),null);
+});
+
+test('V3.5 failed Creator login preserves canonical configured state for UI retry',()=>{
+  const store={
+    configured:()=>true,
+    publicProfile:()=>({configured:true,username:'creator'}),
+    verify:()=>false,
+    provision:()=>{},
+    changeCredentials:()=>{}
+  };
+  const gate=createHumanALEOwnerGate({store});
+  const result=gate.login('window-a',{username:'creator',password:'wrong'});
+  assert.equal(result.ok,false);
+  assert.equal(result.configured,true);
+  assert.equal(result.unlocked,false);
+  assert.equal(result.username,'creator');
+  assert.match(result.error,/tidak valid/i);
 });

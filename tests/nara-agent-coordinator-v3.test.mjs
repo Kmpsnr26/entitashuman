@@ -120,7 +120,6 @@ test('V3.2 validates request before mutating Goal Manager or scheduler',async()=
   nara.stop();
 });
 
-
 test('V3.2 keeps raw prompt out of persisted Goal, Task and Experience snapshots',async()=>{
   const secretPrompt='PRIVATE-PROMPT-DO-NOT-PERSIST-9f3b7a';
   const nara=createOrchestrator();
@@ -140,5 +139,30 @@ test('V3.2 keeps raw prompt out of persisted Goal, Task and Experience snapshots
   const serialized=JSON.stringify(nara.snapshot());
   assert.equal(serialized.includes(secretPrompt),false);
   assert.equal(coordinator.snapshot().pending,0);
+  nara.stop();
+});
+
+test('V3.2 successful bounded retry clears transient recovery warning',async()=>{
+  let calls=0;
+  const agentHub={
+    async run(){
+      calls+=1;
+      if(calls===1)throw new Error('Gangguan sementara');
+      return {text:'Pulih'};
+    }
+  };
+  const nara=createOrchestrator();
+  nara.start();
+  const coordinator=createNaraAgentCoordinator({nara,agentHub});
+
+  const result=await coordinator.run({id:'codex',prompt:'Coba ulang',mode:'analyze'});
+
+  assert.equal(calls,2);
+  assert.equal(result.text,'Pulih');
+  assert.equal(result.nara.goalStatus,'complete');
+  const snapshot=nara.snapshot();
+  assert.equal(snapshot.regions.ERROR_MONITOR.status,'complete');
+  assert.equal(snapshot.regions.ERROR_MONITOR.lastEvent,'autopilot.task.recovered');
+  assert.notEqual(snapshot.engine.metacognition.recommendation,'recover');
   nara.stop();
 });

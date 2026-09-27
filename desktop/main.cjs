@@ -215,7 +215,7 @@ else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
   const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
-  const [{createOrchestrator,createExperienceModel},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createNaraAgentCoordinator},{createHumanALEOwnerGate}]=await Promise.all([
+  const [{createOrchestrator,createExperienceModel},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createNaraAgentCoordinator},{createHumanALEOwnerGate,isOwnerTargetUnlocked,authorizedDisplayMediaTarget}]=await Promise.all([
    import('../nara-core/brain/index.js'),
    import('../nara-core/voice/index.js'),
    import('../nara-core/persistence/experience-store.mjs'),
@@ -284,7 +284,7 @@ else{
   naraAgentCoordinator=createNaraAgentCoordinator({nara,agentHub}).bind();
   const savedProjectRoot=await readProjectRoot();if(savedProjectRoot)agentHub.setProjectRoot(savedProjectRoot);
   terminalPolicy=policyModule;
-  const emitTerminal=(channel,...args)=>{for(const target of [win,panelWin]){if(target&&!target.isDestroyed()&&!target.webContents.isLoading())target.webContents.send(channel,...args);}};
+  const emitTerminal=(channel,...args)=>{for(const target of [win,panelWin]){if(isOwnerTargetUnlocked(target,ownerGate)&&!target.webContents.isLoading())target.webContents.send(channel,...args);}};
   terminalManager=new TerminalManager({
    workspace:agentHub.getProjectRoot(),
    onData:(id,data)=>emitTerminal('dudidam:terminal-data',id,data),
@@ -545,7 +545,7 @@ else{
   win.webContents.on('will-navigate',(e,url)=>{if(!url.startsWith(origin+'/'))e.preventDefault();});
   win.webContents.on('will-attach-webview',e=>e.preventDefault());
   win.webContents.session.setPermissionCheckHandler((contents,permission,requestingOrigin)=>(contents===win.webContents||contents===panelWin?.webContents)&&ownerGate.isUnlocked(String(contents.id))&&permission==='media'&&requestingOrigin===origin);
-  win.webContents.session.setDisplayMediaRequestHandler(async(request,callback)=>{const ownerUnlocked=ownerGate.isUnlocked(String(win?.webContents?.id||''))||ownerGate.isUnlocked(String(panelWin?.webContents?.id||''));if(!ownerUnlocked||request.securityOrigin!==origin||!request.userGesture||!request.audioRequested){callback({});return;}try{const sources=await desktopCapturer.getSources({types:['screen']});if(!sources.length){callback({});return;}callback({video:sources[0],audio:'loopback'});}catch{callback({});}});
+  win.webContents.session.setDisplayMediaRequestHandler(async(request,callback)=>{const requester=authorizedDisplayMediaTarget(request,{targets:[win,panelWin],ownerGate,origin});if(!requester){callback({});return;}try{const sources=await desktopCapturer.getSources({types:['screen']});if(!sources.length){callback({});return;}callback({video:sources[0],audio:'loopback'});}catch{callback({});}});
   win.webContents.session.setPermissionRequestHandler(async(contents,permission,callback,details)=>{if((contents!==win.webContents&&contents!==panelWin?.webContents)||!ownerGate.isUnlocked(String(contents.id))||!contents.getURL().startsWith(origin+'/')||permission!=='media'){callback(false);return;}const mediaTypes=details.mediaTypes||[];const result=await dialog.showMessageBox(panelWin?.isVisible()?panelWin:win,{type:'question',title:'Izin perangkat HumanALE god egine',message:'Izinkan '+(mediaTypes.includes('video')?'kamera':'mikrofon')+' untuk sesi ini?',detail:'Mikrofon dipakai hanya saat Wake ALE, dikte, atau reaksi suara yang kamu aktifkan; status Wake selalu terlihat di layar. Kamera hanya mengirim satu foto setelah tombol kirim foto ditekan.',buttons:['Izinkan','Batal'],defaultId:1,cancelId:1});callback(result.response===0);});
 
   const trayIcon=nativeImage.createFromPath(path.join(root,'reference.png')).resize({width:20,height:20,quality:'best'});

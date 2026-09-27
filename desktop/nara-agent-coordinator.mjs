@@ -140,15 +140,32 @@ export class NaraAgentCoordinator{
       });
 
       let outcome=null;
+      let retried=false;
       for(let cycle=0;cycle<3;cycle++){
         outcome=await this.nara.runAutopilotOnce();
         if(outcome.ok)break;
         if(outcome.reason==='autopilot-busy')break;
         if(outcome.decision?.action!=='retry')break;
+        retried=true;
         await delay(outcome.decision.delayMs);
       }
 
       if(outcome?.ok){
+        if(retried){
+          const monitor=this.nara.state?.snapshot?.().regions?.ERROR_MONITOR;
+          if(monitor?.lastEvent==='autopilot.task.failed'){
+            this.nara.state.setRegion('ERROR_MONITOR',{
+              status:'complete',
+              activity:.2,
+              message:'Recovery autopilot berhasil'
+            },'autopilot.task.recovered');
+            this.nara.dispatch('autopilot.task.recovered',{
+              id:taskId,
+              goalId,
+              source:'nara-agent-coordinator'
+            });
+          }
+        }
         const core=this.nara.snapshot();
         const goal=core.engine.goals.goals.find(item=>item.id===goalId)||null;
         return {

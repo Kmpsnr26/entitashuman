@@ -1,5 +1,25 @@
 const safeKey=value=>String(value??'').slice(0,120);
 
+export function isOwnerTargetUnlocked(target,ownerGate){
+  if(!target||target.isDestroyed?.())return false;
+  const contents=target.webContents;
+  if(!contents||contents.isDestroyed?.())return false;
+  return Boolean(ownerGate?.isUnlocked?.(String(contents.id)));
+}
+
+export function authorizedDisplayMediaTarget(request,{targets=[],ownerGate,origin=''}={}){
+  if(
+    !request?.frame||
+    !request.userGesture||
+    !request.audioRequested||
+    String(request.securityOrigin||'')!==String(origin||'')
+  )return null;
+  const target=(Array.isArray(targets)?targets:[]).find(item=>
+    item?.webContents?.mainFrame===request.frame
+  );
+  return isOwnerTargetUnlocked(target,ownerGate)?target:null;
+}
+
 export class HumanALEOwnerGate{
   constructor({
     store,
@@ -48,6 +68,10 @@ export class HumanALEOwnerGate{
     };
   }
 
+  failure(actor,error,extra={}){
+    return {ok:false,...this.status(actor),...extra,error:String(error||'Akses Creator gagal.')};
+  }
+
   recordFailure(actor){
     const key=this.key(actor);
     const now=Date.now();
@@ -73,24 +97,24 @@ export class HumanALEOwnerGate{
   }
 
   provision(actor,{username='creator',password='',confirmPassword=''}={}){
-    if(this.store.configured())return {ok:false,error:'Creator HumanALE sudah diprovision.'};
-    if(String(password)!==String(confirmPassword))return {ok:false,error:'Konfirmasi password Creator tidak sama.'};
+    if(this.store.configured())return this.failure(actor,'Creator HumanALE sudah diprovision.');
+    if(String(password)!==String(confirmPassword))return this.failure(actor,'Konfirmasi password Creator tidak sama.');
     try{
       const profile=this.store.provision({username,password});
       const sessionExpiresAt=this.unlock(actor);
       return {ok:true,configured:true,unlocked:true,username:profile.username,sessionExpiresAt};
     }catch(error){
-      return {ok:false,error:error?.message||'Provisioning Creator HumanALE gagal.'};
+      return this.failure(actor,error?.message||'Provisioning Creator HumanALE gagal.');
     }
   }
 
   login(actor,{username='',password=''}={}){
-    if(!this.store.configured())return {ok:false,error:'Creator HumanALE belum diprovision.'};
-    if(this.rateLimited(actor))return {ok:false,error:'Terlalu banyak percobaan login. Coba lagi nanti.',rateLimited:true};
+    if(!this.store.configured())return this.failure(actor,'Creator HumanALE belum diprovision.');
+    if(this.rateLimited(actor))return this.failure(actor,'Terlalu banyak percobaan login. Coba lagi nanti.',{rateLimited:true});
     const ok=this.store.verify({username:String(username),password:String(password)});
     if(!ok){
       this.recordFailure(actor);
-      return {ok:false,error:'Identitas Creator tidak valid.'};
+      return this.failure(actor,'Identitas Creator tidak valid.');
     }
     const sessionExpiresAt=this.unlock(actor);
     return {ok:true,configured:true,unlocked:true,username:this.store.publicProfile().username,sessionExpiresAt};
@@ -102,7 +126,7 @@ export class HumanALEOwnerGate{
   }
 
   changeCredentials(actor,input={}){
-    if(!this.isUnlocked(actor))return {ok:false,error:'Creator unlock diperlukan.'};
+    if(!this.isUnlocked(actor))return this.failure(actor,'Creator unlock diperlukan.');
     try{
       const profile=this.store.changeCredentials({
         currentUsername:this.store.publicProfile().username,
@@ -120,7 +144,7 @@ export class HumanALEOwnerGate{
         username:profile.username
       };
     }catch(error){
-      return {ok:false,error:error?.message||'Perubahan login Creator gagal.'};
+      return this.failure(actor,error?.message||'Perubahan login Creator gagal.');
     }
   }
 
