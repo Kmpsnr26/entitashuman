@@ -22,6 +22,7 @@ test('Electron main owns and starts the NARA orchestrator with renderer event al
   assert.match(main,/nara-experience\.json/);
   assert.match(main,/experience\.hydrate\(restoredExperience\)/);
   assert.match(main,/experienceStore\.save\(nara\.experience\.snapshot\(\)\)/);
+  assert.match(main,/experienceStore\.saveSync\(nara\.experience\.snapshot\(\)\)/);
   assert.match(main,/experience\.persisted/);
   assert.match(main,/nara\.configureDevice\(systemObserver\.deviceProfile\(\)\)/);
   assert.match(main,/nara\.dispatch\('system\.telemetry'/);
