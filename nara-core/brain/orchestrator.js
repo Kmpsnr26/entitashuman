@@ -91,19 +91,40 @@ export class NaraOrchestrator{
   }
 
   requestCapability(capability,options={}){
-    return this.capabilities.request(capability,options);
+    const request=this.capabilities.request(capability,options);
+    if(this.running)this.bus.emit('capability.requested',{
+      capability:request.capability,
+      requestId:request.id,
+      risk:request.risk
+    },{source:'capability-broker'});
+    return request;
   }
 
   approveCapability(requestId,options={}){
-    return this.capabilities.approve(requestId,options);
+    const request=this.capabilities.approve(requestId,options);
+    if(this.running)this.bus.emit('capability.approved',{
+      capability:request.capability,
+      requestId:request.id
+    },{source:'capability-broker'});
+    return request;
   }
 
   denyCapability(requestId,options={}){
-    return this.capabilities.deny(requestId,options);
+    const request=this.capabilities.deny(requestId,options);
+    if(request&&this.running)this.bus.emit('capability.denied',{
+      capability:request.capability,
+      requestId:request.id
+    },{source:'capability-broker'});
+    return request;
   }
 
   revokeCapability(capability,options={}){
-    return this.capabilities.revoke(capability,options);
+    const removed=this.capabilities.revoke(capability,options);
+    if(this.running)this.bus.emit('capability.revoked',{
+      capability:String(capability||'').slice(0,80),
+      removed
+    },{source:'capability-broker'});
+    return removed;
   }
 
   authorizeCapability(capability){
