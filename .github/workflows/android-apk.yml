@@ -16,6 +16,7 @@ on:
       - "capacitor.config.json"
       - "scripts/prepare-android.mjs"
       - "scripts/android-version.mjs"
+      - "scripts/humanale-release-publication-gate.mjs"
       - "package-lock.json"
       - ".github/workflows/android-apk.yml"
       - "build.mjs"
@@ -28,6 +29,7 @@ on:
       - "capacitor.config.json"
       - "scripts/prepare-android.mjs"
       - "scripts/android-version.mjs"
+      - "scripts/humanale-release-publication-gate.mjs"
       - "package-lock.json"
       - ".github/workflows/android-apk.yml"
       - "build.mjs"
@@ -121,6 +123,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Enforce release publication gate
+        run: node scripts/humanale-release-publication-gate.mjs
 
       - name: Setup Java
         uses: actions/setup-java@v6

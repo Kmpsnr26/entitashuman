@@ -21,3 +21,27 @@ Run:
 
 PASS requires Windows Authenticode status = Valid and Android APK passing apksigner verify.
 If signing credentials are absent, the gate remains incomplete.
+
+## Publication fail-closed gate
+
+Production publication is blocked unless `scripts/humanale-release-publication-gate.mjs` confirms:
+
+- workflow is running from `main`;
+- readiness certificate build branch is `main`;
+- certificate state is `FINAL_READY`;
+- `integrationUnlocked === true`;
+- Creator Final Approval is explicitly recorded;
+- all nine required readiness gates are `pass`;
+- certificate version matches `package.json`;
+- certificate build commit is an ancestor of the publication commit.
+
+Windows public distribution additionally requires these Actions secrets:
+
+- `WINDOWS_SIGNING_PFX_BASE64`
+- `WINDOWS_SIGNING_PFX_PASSWORD`
+
+The Windows publish path signs the portable executable, lets electron-builder sign the installer using the same certificate, and rejects publication unless `Get-AuthenticodeSignature` returns `Valid` for both.
+
+Android publication remains protected by the existing keystore secrets and `apksigner verify`.
+
+A manual `publish_release=true` input never bypasses these checks.
