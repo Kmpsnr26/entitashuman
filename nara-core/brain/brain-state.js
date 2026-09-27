@@ -177,10 +177,11 @@ export class NaraBrainState{
         const next={...payload,id,updatedAt:envelope.timestamp};
         this.state.providers={...this.state.providers,[id]:next};
         if(id==='copilot'){
+          const authenticated=payload.ready&&payload.auth==='available';
           this.setRegion('COPILOT',{
-            status:payload.ready?'connected':payload.attached?'ready':'disconnected',
-            activity:payload.ready?.55:payload.attached?.18:0,
-            message:payload.ready?'GitHub Copilot siap':payload.attached?'GitHub Copilot terpasang; autentikasi diverifikasi saat digunakan':'GitHub Copilot belum tersedia'
+            status:authenticated?'connected':payload.attached?'ready':'disconnected',
+            activity:authenticated?.55:payload.attached?.18:0,
+            message:authenticated?'GitHub Copilot terautentikasi':payload.attached?'GitHub Copilot terpasang; autentikasi diverifikasi saat digunakan':'GitHub Copilot belum tersedia'
           },event);
         }
         this.notify({type:'provider',id,value:{...next}});
