@@ -1237,7 +1237,7 @@ test('Revision R6/R7 Windows release-candidate wrapper requires GPU plus visual 
   assert.match(bat,/nara-neural-gpu-acceptance\.ps1/);
   assert.match(ps1,/\$env:NARA_GPU_MODE = 'hardware'/);
   assert.match(ps1,/Git HEAD/);
-  assert.match(ps1,/Release-candidate revision gates/);
+  assert.match(ps1,/R7 release-candidate revision gates/);
   assert.match(ps1,/R4\/R5\/R7 gates\s+: PASS/);
 
   for(const check of [
