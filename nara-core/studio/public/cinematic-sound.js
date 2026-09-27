@@ -6,7 +6,8 @@ export function createCinematicSoundEngine({enabled=()=>true}={}){
   let context=null;
   let master=null;
   let noiseBuffer=null;
-  let profile={masterVolume:.78,transitionFx:.82,droidCharacter:true};
+  let profile={masterVolume:.78,transitionFx:.82,coreFx:.86,droidCharacter:true};
+  let ducked=false;
 
   function clamp(value,min,max,fallback){
     const number=Number(value);
@@ -14,7 +15,11 @@ export function createCinematicSoundEngine({enabled=()=>true}={}){
   }
 
   function outputGain(){
-    return .075*profile.masterVolume*profile.transitionFx;
+    return .075*profile.masterVolume*(ducked?.34:1);
+  }
+
+  function levelForCue(name){
+    return ['pulse','process','flow','voiceBoot'].includes(name)?profile.coreFx:profile.transitionFx;
   }
 
   function ensure(){
@@ -95,29 +100,30 @@ export function createCinematicSoundEngine({enabled=()=>true}={}){
     master.gain.cancelScheduledValues(t);
     master.gain.setTargetAtTime(Math.max(.0001,outputGain()),t,.018);
 
+    const level=levelForCue(name);
     if(name==='sweep'){
-      noiseSweep({from:220,to:1500,duration:.62,offset,peak:.11});
-      oscillator({type:'triangle',from:180,to:720,duration:.58,offset,peak:.12});
+      noiseSweep({from:220,to:1500,duration:.62,offset,peak:.11*level});
+      oscillator({type:'triangle',from:180,to:720,duration:.58,offset,peak:.12*level});
     }else if(name==='zoomIn'){
-      oscillator({from:72,to:320,duration:.78,offset,peak:.2});
-      oscillator({type:'triangle',from:145,to:740,duration:.72,offset:.04+offset,peak:.09});
+      oscillator({from:72,to:320,duration:.78,offset,peak:.2*level});
+      oscillator({type:'triangle',from:145,to:740,duration:.72,offset:.04+offset,peak:.09*level});
     }else if(name==='zoomOut'){
-      oscillator({from:360,to:88,duration:.7,offset,peak:.17});
-      noiseSweep({from:900,to:180,duration:.66,offset,peak:.07});
+      oscillator({from:360,to:88,duration:.7,offset,peak:.17*level});
+      noiseSweep({from:900,to:180,duration:.66,offset,peak:.07*level});
     }else if(name==='process'){
       [0,.12,.24,.36].forEach((step,index)=>oscillator({
         type:index%2?'square':'triangle',
-        from:260+index*75,to:330+index*82,duration:.09,offset:offset+step,peak:.065
+        from:260+index*75,to:330+index*82,duration:.09,offset:offset+step,peak:.065*level
       }));
     }else if(name==='pulse'){
-      oscillator({from:78,to:48,duration:.38,offset,peak:.29});
-      oscillator({type:'sine',from:156,to:92,duration:.34,offset:.055+offset,peak:.09});
+      oscillator({from:78,to:48,duration:.38,offset,peak:.29*level});
+      oscillator({type:'sine',from:156,to:92,duration:.34,offset:.055+offset,peak:.09*level});
     }else if(name==='flow'){
-      noiseSweep({from:320,to:1180,duration:1.1,offset,peak:.085});
-      oscillator({type:'sine',from:128,to:186,duration:1.05,offset,peak:.07});
+      noiseSweep({from:320,to:1180,duration:1.1,offset,peak:.085*level});
+      oscillator({type:'sine',from:128,to:186,duration:1.05,offset,peak:.07*level});
     }else if(name==='voiceBoot'){
-      oscillator({type:'sine',from:74,to:52,duration:.28,offset,peak:.22});
-      oscillator({type:'triangle',from:148,to:92,duration:.22,offset:.025+offset,peak:.055});
+      oscillator({type:'sine',from:74,to:52,duration:.28,offset,peak:.22*level});
+      oscillator({type:'triangle',from:148,to:92,duration:.22,offset:.025+offset,peak:.055*level});
     }else return false;
     return true;
   }
@@ -134,6 +140,7 @@ export function createCinematicSoundEngine({enabled=()=>true}={}){
     profile={
       masterVolume:clamp(next.masterVolume,0,1,profile.masterVolume),
       transitionFx:clamp(next.transitionFx,0,1,profile.transitionFx),
+      coreFx:clamp(next.coreFx,0,1,profile.coreFx),
       droidCharacter:typeof next.droidCharacter==='boolean'?next.droidCharacter:profile.droidCharacter
     };
     if(master&&context&&context.state!=='closed'){
@@ -143,6 +150,15 @@ export function createCinematicSoundEngine({enabled=()=>true}={}){
     }
     return {...profile};
   }
+
+  window.addEventListener('nara:voice-speaking',event=>{
+    ducked=Boolean(event.detail?.active);
+    if(master&&context&&context.state!=='closed'){
+      const time=context.currentTime;
+      master.gain.cancelScheduledValues(time);
+      master.gain.setTargetAtTime(Math.max(.0001,outputGain()),time,.02);
+    }
+  });
 
   return {cue,stop,setProfile,getProfile:()=>({...profile})};
 }
