@@ -161,7 +161,7 @@ export class NaraVerificationEngine{
       verifierId,
       ok:raw.ok,
       code,
-      summary:safeText(raw.summary|| (raw.ok?'Verification passed.':'Verification failed.'),this.limits.maxSummaryLength),
+      summary:raw.ok?'Verification passed.':'Verification failed.',
       durationMs
     });
   }
