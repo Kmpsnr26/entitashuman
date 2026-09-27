@@ -19,7 +19,10 @@ const DEFAULT_SKILLS=Object.freeze([
   {id:'capability.guard',label:'Capability Guard',category:'safety',region:'SAFETY'},
   {id:'autopilot.control',label:'Autopilot Control',category:'control',region:'AGENT_MANAGER'},
   {id:'watchdog.monitor',label:'Watchdog Monitor',category:'diagnostic',region:'ERROR_MONITOR'},
-  {id:'recovery.decide',label:'Recovery Decision',category:'diagnostic',region:'FOLLOW_UP'}
+  {id:'recovery.decide',label:'Recovery Decision',category:'diagnostic',region:'FOLLOW_UP'},
+  {id:'goal.manage',label:'Goal Manager',category:'cognitive',region:'PLANNER'},
+  {id:'metacognition.review',label:'Metacognition Review',category:'cognitive',region:'REASONER'},
+  {id:'experience.persist',label:'Persistent Experience',category:'memory',region:'MEMORY'}
 ]);
 
 const EVENT_MAP=Object.freeze({
@@ -53,7 +56,16 @@ const EVENT_MAP=Object.freeze({
   'autopilot.task.complete':['autopilot.control','complete'],
   'autopilot.task.failed':['autopilot.control','failed'],
   'autopilot.task.stalled':['watchdog.monitor','pulse'],
-  'autopilot.task.blocked':['recovery.decide','pulse']
+  'autopilot.task.blocked':['recovery.decide','pulse'],
+  'goal.created':['goal.manage','start'],
+  'goal.activated':['goal.manage','pulse'],
+  'goal.progress':['goal.manage','pulse'],
+  'goal.complete':['goal.manage','complete'],
+  'goal.blocked':['goal.manage','pulse'],
+  'goal.failed':['goal.manage','failed'],
+  'metacognition.review':['metacognition.review','pulse'],
+  'experience.persisted':['experience.persist','pulse'],
+  'experience.restored':['experience.persist','pulse']
 });
 
 const safeText=(value,max=160)=>String(value??'').replace(/[\r\n\t]+/g,' ').trim().slice(0,max);
