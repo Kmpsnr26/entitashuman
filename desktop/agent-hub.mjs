@@ -356,6 +356,11 @@ export class DeveloperAgentHub{
     this.maintenanceTransaction=transaction;
    }
 
+   if(mode==='work'&&value?.memoryContext!=null){
+    const error=new Error('Mode kerja AI maintenance tidak menerima memory context langsung. Gunakan mode Analisis/Planner; trusted scoped context untuk Worker belum diaktifkan.');
+    error.code='AI_MAINTENANCE_WORK_MEMORY_BLOCKED';
+    throw error;
+   }
    const memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['planner','agent']});
    const contextBlock=memoryContextBlock(memoryContext);
    if(contextBlock)prompt=contextBlock+'\n\nTugas pengguna:\n'+prompt;
