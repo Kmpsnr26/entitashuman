@@ -7,7 +7,8 @@ import {
  assertMaintenanceTaskAllowed,
  buildMaintenanceWorkPrompt,
  evaluateMaintenanceTask,
- maintenancePolicySnapshot
+ maintenancePolicySnapshot,
+ isProtectedMaintenancePath
 } from '../desktop/agent-maintenance-policy.mjs';
 
 test('AI maintenance policy is repair-only and denies all owner/release authority',()=>{
@@ -95,4 +96,54 @@ test('Agent Hub enforces maintenance policy before work execution and requires a
  assert.match(hub,/--sandbox','workspace-write/);
  assert.match(hub,/--available-tools=view,grep,glob,edit,create,apply_patch/);
  assert.doesNotMatch(hub,/--dangerously-skip-permissions|bypassPermissions/);
+});
+
+
+test('protected maintenance paths cover owner authority, secrets, self-policy and release control',()=>{
+ for(const path of [
+  '.git/config',
+  '.env',
+  '.env.production',
+  'nara-cloud/.env',
+  'nara-cloud/src/db/migrate.ts',
+  'nara-cloud/src/apps/authServer.ts',
+  'nara-cloud/src/services/owner.service.ts',
+  'nara-cloud/src/scripts/createOwner.ts',
+  'nara-cloud/src/security/password.ts',
+  'nara-cloud/src/sessions/session.ts',
+  'nara-core/permissions/approval-manager.js',
+  '.github/workflows/verify.yml',
+  '.github/workflows/cloud-auto-repair.yml',
+  'package.json',
+  'package-lock.json',
+  'electron-builder.yml',
+  'docs/humanale-final-readiness-certificate.json',
+  'desktop/agent-hub.mjs',
+  'desktop/agent-maintenance-policy.mjs'
+ ]){
+  assert.equal(isProtectedMaintenancePath(path),true,path);
+ }
+ for(const path of [
+  'public/avatar.js',
+  'public/app.js',
+  'desktop/audio-reactor.mjs',
+  'tests/avatar.test.mjs',
+  'nara-core/brain/brain-state.js'
+ ]){
+  assert.equal(isProtectedMaintenancePath(path),false,path);
+ }
+});
+
+test('Agent Hub audits changed paths and rolls back failed or protected maintenance runs',async()=>{
+ const hub=await readFile(new URL('../desktop/agent-hub.mjs',import.meta.url),'utf8');
+ assert.match(hub,/async function maintenanceChangedPaths\(cwd\)/);
+ assert.match(hub,/\['diff','--name-only','HEAD','--'\]/);
+ assert.match(hub,/\['ls-files','--others','--exclude-standard'\]/);
+ assert.match(hub,/changedPaths\.filter\(isProtectedMaintenancePath\)/);
+ assert.match(hub,/AI_MAINTENANCE_PROTECTED_PATH/);
+ assert.match(hub,/async function rollbackMaintenanceWorktree\(cwd\)/);
+ assert.match(hub,/\['reset','--hard','HEAD'\]/);
+ assert.match(hub,/\['clean','-fd'\]/);
+ assert.match(hub,/AI_MAINTENANCE_ROLLBACK_FAILED/);
+ assert.match(hub,/rollback:false/);
 });

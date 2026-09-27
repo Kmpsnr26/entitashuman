@@ -1,4 +1,4 @@
-export const AI_MAINTENANCE_POLICY_VERSION='1.0.0';
+export const AI_MAINTENANCE_POLICY_VERSION='1.1.0';
 
 export const AI_MAINTENANCE_ALLOWED_CAPABILITIES=Object.freeze([
  'program.read',
@@ -66,12 +66,50 @@ export const AI_MAINTENANCE_PROTECTED_AREAS=Object.freeze([
  '.git/**',
  '.env*',
  'nara-cloud/.env*',
+ 'nara-cloud/src/db/migrate.ts',
+ 'nara-cloud/src/apps/authServer.ts',
+ 'nara-cloud/src/services/owner.service.ts',
  'nara-cloud/src/scripts/createOwner.ts',
+ 'nara-cloud/src/security/password.ts',
+ 'nara-cloud/src/sessions/**',
+ 'nara-core/permissions/**',
+ '.github/workflows/**',
+ 'package.json',
+ 'package-lock.json',
+ 'electron-builder.yml',
  'docs/humanale-final-readiness-certificate.json',
- '.github/workflows/verify.yml',
- '.github/workflows/android-apk.yml',
+ 'desktop/agent-hub.mjs',
  'desktop/agent-maintenance-policy.mjs'
 ]);
+
+const exactProtected=new Set([
+ 'nara-cloud/src/db/migrate.ts',
+ 'nara-cloud/src/apps/authServer.ts',
+ 'nara-cloud/src/services/owner.service.ts',
+ 'nara-cloud/src/scripts/createOwner.ts',
+ 'nara-cloud/src/security/password.ts',
+ 'package.json',
+ 'package-lock.json',
+ 'electron-builder.yml',
+ 'docs/humanale-final-readiness-certificate.json',
+ 'desktop/agent-hub.mjs',
+ 'desktop/agent-maintenance-policy.mjs'
+]);
+
+export function isProtectedMaintenancePath(value=''){
+ const path=String(value||'')
+  .replaceAll('\\','/')
+  .replace(/^\.\//,'')
+  .trim();
+ if(!path)return false;
+ if(path==='.git'||path.startsWith('.git/'))return true;
+ if(/^\.env(?:\.|$)/i.test(path))return true;
+ if(/^nara-cloud\/\.env(?:\.|$)/i.test(path))return true;
+ if(path.startsWith('nara-cloud/src/sessions/'))return true;
+ if(path.startsWith('nara-core/permissions/'))return true;
+ if(path.startsWith('.github/workflows/'))return true;
+ return exactProtected.has(path);
+}
 
 function freezeResult(value){
  return Object.freeze({

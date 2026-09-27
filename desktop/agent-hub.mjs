@@ -7,7 +7,8 @@ import {
  AI_MAINTENANCE_DENIED_CAPABILITIES,
  assertMaintenanceTaskAllowed,
  buildMaintenanceWorkPrompt,
- maintenancePolicySnapshot
+ maintenancePolicySnapshot,
+ isProtectedMaintenancePath
 } from './agent-maintenance-policy.mjs';
 
 const maintenanceBoundaryLegacyMarker='Jangan git push, git merge, publish';
@@ -96,6 +97,36 @@ function runProcess(executable,args,{cwd,timeout=12000}={}){
   child.on('close',code=>finish({code,stdout,stderr}));
  });
 }
+async function maintenanceChangedPaths(cwd){
+ const commands=[
+  ['diff','--name-only','HEAD','--'],
+  ['diff','--cached','--name-only','HEAD','--'],
+  ['ls-files','--others','--exclude-standard']
+ ];
+ const changed=new Set();
+ for(const args of commands){
+  const result=await runProcess('git',args,{cwd,timeout:8000});
+  if(result.code!==0||result.timedOut){
+   throw new Error('Git diff maintenance tidak dapat diverifikasi.');
+  }
+  for(const line of String(result.stdout||'').split(/\r?\n/)){
+   const path=line.trim();
+   if(path)changed.add(path.replaceAll('\\','/'));
+  }
+ }
+ return [...changed].sort();
+}
+
+async function rollbackMaintenanceWorktree(cwd){
+ const reset=await runProcess('git',['reset','--hard','HEAD'],{cwd,timeout:15000});
+ const clean=await runProcess('git',['clean','-fd'],{cwd,timeout:15000});
+ return Object.freeze({
+  ok:reset.code===0&&!reset.timedOut&&clean.code===0&&!clean.timedOut,
+  resetCode:reset.code,
+  cleanCode:clean.code
+ });
+}
+
 async function codexLoginStatus(executable,cwd){
  const result=await runProcess(executable,['login','status'],{cwd,timeout:12000});
  return {ready:result.code===0&&isCodexLoggedIn(result.stdout+'\n'+result.stderr),...result};
@@ -316,6 +347,7 @@ export class DeveloperAgentHub{
   const id=String(value?.id||''),mode=value?.mode==='work'?'work':'analyze';
   let prompt=String(value?.prompt||'').trim();
   if(!prompt||prompt.length>4000)throw new Error('Prompt agent harus berisi 1–4000 karakter.');
+  let maintenanceCwd=null;
   if(mode==='work'){
    assertMaintenanceTaskAllowed(prompt,{mode});
    const cwd=this.getProjectRoot();
@@ -323,14 +355,50 @@ export class DeveloperAgentHub{
    const worktree=await runProcess('git',['status','--porcelain'],{cwd,timeout:8000});
    if(worktree.code!==0||worktree.timedOut)throw new Error('Status Git tidak dapat diverifikasi. AI maintenance dihentikan fail-closed.');
    if(worktree.stdout.trim())throw new Error('AI maintenance hanya boleh dimulai dari Git worktree bersih. Commit/stash perubahan manusia terlebih dahulu.');
+   maintenanceCwd=cwd;
   }
   const memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['planner','agent']});
   const contextBlock=memoryContextBlock(memoryContext);
   if(contextBlock)prompt=contextBlock+'\n\nTugas pengguna:\n'+prompt;
   this.pending=true;
   try{
-   if(id==='humanale-orchestrator')return await this.runStructured(prompt,mode);
-   return await this.runDirect(id,prompt,mode);
+   const result=id==='humanale-orchestrator'
+    ?await this.runStructured(prompt,mode)
+    :await this.runDirect(id,prompt,mode);
+
+   if(mode!=='work'||!maintenanceCwd)return result;
+
+   const changedPaths=await maintenanceChangedPaths(maintenanceCwd);
+   const protectedPaths=changedPaths.filter(isProtectedMaintenancePath);
+   if(protectedPaths.length){
+    const error=new Error('AI maintenance menyentuh area terlindungi dan seluruh perubahan run akan di-rollback.');
+    error.code='AI_MAINTENANCE_PROTECTED_PATH';
+    error.protectedPaths=protectedPaths;
+    throw error;
+   }
+
+   return {
+    ...result,
+    maintenance:Object.freeze({
+     mode:'REPAIR_ONLY',
+     changedPaths:Object.freeze(changedPaths),
+     protectedPaths:Object.freeze([]),
+     rollback:false
+    })
+   };
+  }catch(error){
+   if(mode==='work'&&maintenanceCwd){
+    const rollback=await rollbackMaintenanceWorktree(maintenanceCwd);
+    if(!rollback.ok){
+     const rollbackError=new Error('AI maintenance gagal dan rollback Git juga gagal. Intervensi Owner diperlukan.');
+     rollbackError.code='AI_MAINTENANCE_ROLLBACK_FAILED';
+     rollbackError.cause=error;
+     rollbackError.rollback=rollback;
+     throw rollbackError;
+    }
+    if(error&&typeof error==='object')error.rollback=rollback;
+   }
+   throw error;
   }finally{this.pending=false;}
  }
  stop(){this.child?.kill();}

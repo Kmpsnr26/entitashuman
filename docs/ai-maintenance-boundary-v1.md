@@ -66,3 +66,19 @@ Realtime autopilot is intentionally not enabled by this change. The next layer m
 - health/circuit integration.
 
 Only after those controls are green should the realtime detect → patch → test → verify loop be enabled.
+
+
+## Stage 2 — transaction guard and rollback
+
+Maintenance work is now treated as a bounded transaction:
+
+1. Work mode starts only from a clean Git worktree.
+2. After the worker/reviewer pipeline returns, Git changed paths are enumerated.
+3. Protected paths are checked in code, not only in the agent prompt.
+4. Touching any protected path fails the run.
+5. Any work-mode exception triggers `git reset --hard HEAD` plus `git clean -fd`.
+6. Because the worktree was required to be clean at the start, rollback only removes changes created by that AI run; ignored local files remain untouched.
+
+Protected areas include Owner identity/authentication and database ownership boundaries, NARA permission code, environment secrets, all GitHub workflows, package scripts/dependency manifests, release signing config, final-readiness certificate, and the Agent Hub / maintenance policy itself.
+
+A successful repair returns its changed-path list as maintenance metadata. Realtime autopilot remains disabled until a bounded retry/verification controller is added.
