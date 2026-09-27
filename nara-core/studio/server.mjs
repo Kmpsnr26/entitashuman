@@ -1,11 +1,13 @@
 import http from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {extname,join,normalize} from 'node:path';
+import {homedir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {createOrchestrator,NARA_REGIONS} from '../brain/index.js';
 import {createStudioTelemetry} from './telemetry.mjs';
 import {createSkillRegistry} from '../skills/index.js';
 import {createCreatorAuth} from './creator-auth.mjs';
+import {createOwnerStore} from '../security/owner-store.mjs';
 
 const HERE=fileURLToPath(new URL('.',import.meta.url));
 const PUBLIC=join(HERE,'public');
@@ -168,16 +170,36 @@ export function buildCreatorRegionMetadata({
 }
 
 export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:creatorOptions={}}={}){
+  const bootstrapUsername=creatorOptions.username||process.env.NARA_CREATOR_USERNAME||'creator';
+  const bootstrapPassword=creatorOptions.password??process.env.NARA_CREATOR_PASSWORD??'';
+  const ownerStorePath=String(creatorOptions.ownerStorePath||process.env.NARA_OWNER_STORE||'').trim();
+  let ownerStore=null,ownerStoreError='';
+  if(ownerStorePath){
+    try{
+      const candidate=createOwnerStore({filePath:ownerStorePath});
+      if(!candidate.configured()&&String(bootstrapPassword)){
+        candidate.provision({username:bootstrapUsername,password:bootstrapPassword});
+      }
+      if(candidate.configured()){
+        candidate.publicProfile();
+        ownerStore=candidate;
+      }
+    }catch(error){
+      ownerStoreError=String(error?.message||'Owner store NARA gagal dimuat.');
+    }
+  }
+
   const creator=createCreatorAuth({
-    username:creatorOptions.username||process.env.NARA_CREATOR_USERNAME||'creator',
-    password:creatorOptions.password??process.env.NARA_CREATOR_PASSWORD??'',
+    username:bootstrapUsername,
+    password:bootstrapPassword,
+    credentialStore:ownerStore,
     ttlMs:creatorOptions.ttlMs,
     maxSessions:creatorOptions.maxSessions,
     maxAttempts:creatorOptions.maxAttempts,
     attemptWindowMs:creatorOptions.attemptWindowMs
   });
   const creatorRequired=creatorOptions.required===false?false:(creator.configured||creatorOptions.required===true);
-  const creatorMisconfigured=creatorRequired&&!creator.configured;
+  const creatorMisconfigured=Boolean(ownerStoreError)||(creatorRequired&&!creator.configured);
   const nara=createOrchestrator();
   const telemetry=createStudioTelemetry();
   const skills=createSkillRegistry();
@@ -224,7 +246,9 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
           authenticated:creatorMisconfigured?false:publicCreator.authenticated,
           development:creatorMisconfigured?false:publicCreator.development,
           required:creatorRequired,
-          misconfigured:creatorMisconfigured
+          misconfigured:creatorMisconfigured,
+          persistentOwner:Boolean(ownerStore?.configured?.()),
+          owner:ownerStore?.publicProfile?.()||null
         });
       }
 
@@ -249,6 +273,23 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
         const secure=String(req.headers['x-forwarded-proto']||'').toLowerCase()==='https';
         res.setHeader('set-cookie',creator.clearCookie({secure}));
         return json(res,200,{ok:true});
+      }
+
+      if(req.method==='POST'&&url.pathname==='/api/creator/change-login'){
+        const data=await bodyJson(req);
+        const result=creator.changeCredentials(req,{
+          currentPassword:String(data.currentPassword||'').slice(0,512),
+          newUsername:String(data.newUsername||'').slice(0,120),
+          newPassword:String(data.newPassword||'').slice(0,512)
+        });
+        if(!result.ok)return json(res,result.status||400,result);
+        const secure=String(req.headers['x-forwarded-proto']||'').toLowerCase()==='https';
+        res.setHeader('set-cookie',creator.clearCookie({secure}));
+        return json(res,200,{
+          ok:true,
+          reloginRequired:true,
+          owner:result.profile
+        });
       }
 
       const creatorSession=creator.getSession(req);
@@ -342,6 +383,8 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
     telemetry,
     skills,
     creator,
+    ownerStore,
+    ownerStoreError,
     creatorRequired,
     creatorMisconfigured,
     server,
@@ -363,7 +406,10 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
 if(process.argv[1]&&fileURLToPath(import.meta.url)===normalize(process.argv[1])){
   const studio=createNaraStudioServer({
     host:process.env.NARA_STUDIO_HOST||'127.0.0.1',
-    port:Number(process.env.NARA_STUDIO_PORT)||4178
+    port:Number(process.env.NARA_STUDIO_PORT)||4178,
+    creatorAuth:{
+      ownerStorePath:process.env.NARA_OWNER_STORE||join(homedir(),'.nara','owner.json')
+    }
   });
   const address=await studio.start();
   const actualPort=typeof address==='object'&&address?address.port:4178;
