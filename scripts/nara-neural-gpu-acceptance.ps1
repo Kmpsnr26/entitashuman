@@ -94,6 +94,9 @@ Write-Host "Brain/Binary default : $($report.checks.r4VisualDefaults)"
 Write-Host "Guardian runtime     : $($report.checks.customSettingsRuntime)"
 Write-Host "R5 audio controls    : $($report.checks.r5AudioControls)"
 Write-Host "R5 audio profile     : $($report.checks.r5AudioProfileRuntime)"
+Write-Host "R7 voice controls    : $($report.checks.r7VoiceIdentityControls)"
+Write-Host "R7 voice runtime     : $($report.checks.r7VoiceProfileRuntime)"
+Write-Host "R7 preview safe      : $($report.checks.r7VoicePreviewSafe)"
 Write-Host "Node voice narration : $($report.checks.nodeVoiceNarration)"
 Write-Host "Report               : $reportPath"
 Write-Host "Screenshot           : $screenshotPath"
@@ -112,6 +115,9 @@ $requiredRevisionChecks = @(
   'customSettingsPersistence',
   'r5AudioControls',
   'r5AudioProfileRuntime',
+  'r7VoiceIdentityControls',
+  'r7VoiceProfileRuntime',
+  'r7VoicePreviewSafe',
   'nodeVoiceNarration',
   'mechanicalCoreRings',
   'galacticEnvironment'
@@ -125,11 +131,11 @@ foreach ($name in $requiredRevisionChecks) {
 }
 
 Write-Host ""
-Write-Host "[5/5] Release-candidate revision gates" -ForegroundColor Cyan
+Write-Host "[5/5] R7 release-candidate revision gates" -ForegroundColor Cyan
 if ($missingRevisionChecks.Count -eq 0) {
-  Write-Host "R4/R5 gates          : PASS" -ForegroundColor Green
+  Write-Host "R4/R5/R7 gates       : PASS" -ForegroundColor Green
 } else {
-  Write-Host "R4/R5 gates          : FAIL -> $($missingRevisionChecks -join ', ')" -ForegroundColor Red
+  Write-Host "R4/R5/R7 gates       : FAIL -> $($missingRevisionChecks -join ', ')" -ForegroundColor Red
 }
 
 if ($smokeExit -ne 0 -or $report.passed -ne $true -or $report.gpu.modeMatched -ne $true -or $failed.Count -gt 0 -or $missingRevisionChecks.Count -gt 0) {
@@ -140,5 +146,5 @@ if ($smokeExit -ne 0 -or $report.passed -ne $true -or $report.gpu.modeMatched -n
 }
 
 Write-Host ""
-Write-Host "[PASS] NARA R5 release candidate lolos physical GPU + visual/audio acceptance." -ForegroundColor Green
+Write-Host "[PASS] NARA R7 release candidate lolos physical GPU + visual/voice/UI-audio acceptance." -ForegroundColor Green
 exit 0
