@@ -97,7 +97,7 @@ export class HumanALEOwnerGate{
   }
 
   logout(actor){
-    this.sessions.delete(this.key(actor));
+    this.sessions.clear();
     return {ok:true,...this.status(actor)};
   }
 
