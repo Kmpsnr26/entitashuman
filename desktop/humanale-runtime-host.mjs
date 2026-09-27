@@ -136,8 +136,11 @@ export class HumanALERuntimeHost{
 
   start(){
     if(this.started)return this.buildRuntimeSnapshot();
-    this.unsubState=this.nara.state?.subscribe?.(()=>this.publishState(this.nara.snapshot()))||null;
-    this.unsubBus=this.nara.bus.onAny(envelope=>this.consumeEnvelope(envelope));
+    this.unsubState=null;
+    this.unsubBus=this.nara.bus.onAny(envelope=>{
+      this.consumeEnvelope(envelope);
+      this.publishState(this.nara.snapshot());
+    });
     this.started=true;
     const core=this.nara.snapshot();
     this.publishState(core);
