@@ -201,6 +201,10 @@ export class NaraOrchestrator{
   }
 
   queueAutopilotTask(task={}){
+    const requestedGoalId=String(task?.goalId||'');
+    if(requestedGoalId&&!this.goals.get(requestedGoalId)){
+      throw new Error('Goal NARA untuk task tidak ditemukan: '+requestedGoalId);
+    }
     const queued=this.autopilot.enqueue(task);
     if(queued.goalId){
       this.goals.attachTask(queued.goalId,queued.id);
