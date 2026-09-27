@@ -1224,7 +1224,7 @@ test('R5 audio modules stay local and pass Node syntax checks',async()=>{
 });
 
 
-test('Revision R6 Windows release-candidate wrapper requires GPU plus R4/R5 gates',async()=>{
+test('Revision R6/R7 Windows release-candidate wrapper requires GPU plus visual and voice gates',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [bat,ps1,docs]=await Promise.all([
@@ -1233,12 +1233,12 @@ test('Revision R6 Windows release-candidate wrapper requires GPU plus R4/R5 gate
     readFile(new URL('nara-core/studio/WINDOWS_GPU_ACCEPTANCE.md',root),'utf8')
   ]);
 
-  assert.match(bat,/NARA R5 Release Candidate - Physical Acceptance/);
+  assert.match(bat,/NARA R7 Release Candidate - Physical Acceptance/);
   assert.match(bat,/nara-neural-gpu-acceptance\.ps1/);
   assert.match(ps1,/\$env:NARA_GPU_MODE = 'hardware'/);
   assert.match(ps1,/Git HEAD/);
   assert.match(ps1,/Release-candidate revision gates/);
-  assert.match(ps1,/R4\/R5 gates\s+: PASS/);
+  assert.match(ps1,/R4\/R5\/R7 gates\s+: PASS/);
 
   for(const check of [
     'customSettingsPanel',
@@ -1247,6 +1247,9 @@ test('Revision R6 Windows release-candidate wrapper requires GPU plus R4/R5 gate
     'customSettingsPersistence',
     'r5AudioControls',
     'r5AudioProfileRuntime',
+    'r7VoiceIdentityControls',
+    'r7VoiceProfileRuntime',
+    'r7VoicePreviewSafe',
     'nodeVoiceNarration',
     'mechanicalCoreRings',
     'galacticEnvironment'
@@ -1257,7 +1260,7 @@ test('Revision R6 Windows release-candidate wrapper requires GPU plus R4/R5 gate
 
   assert.match(ps1,/gpu\.modeMatched/);
   assert.match(ps1,/missingRevisionChecks\.Count -gt 0/);
-  assert.match(ps1,/NARA R5 release candidate lolos physical GPU \+ visual\/audio acceptance/);
+  assert.match(ps1,/NARA R7 release candidate lolos physical GPU \+ visual\/voice\/UI-audio acceptance/);
   assert.match(docs,/final perceived voice timbre/i);
 });
 
