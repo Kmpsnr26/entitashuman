@@ -6,7 +6,7 @@ const path=require('node:path');
 const {tmpdir}=require('node:os');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,humanaleRuntime,systemObserver,dataFlowMeter,experienceStore,experienceSaveTimer,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer;
+let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,naraAgentCoordinator,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,humanaleRuntime,systemObserver,dataFlowMeter,experienceStore,experienceSaveTimer,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer;
 let cloudAllowedOrigins=new Set();
 let announceNaraEvent=()=>{};
 let baseWindowSize={width:420,height:480};
@@ -207,11 +207,12 @@ else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
   const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
-  const [{createOrchestrator,createExperienceModel},{createVoiceFeedback},{createExperienceStore},{createHumanALERuntimeHost}]=await Promise.all([
+  const [{createOrchestrator,createExperienceModel},{createVoiceFeedback},{createExperienceStore},{createHumanALERuntimeHost},{createNaraAgentCoordinator}]=await Promise.all([
    import('../nara-core/brain/index.js'),
    import('../nara-core/voice/index.js'),
    import('../nara-core/persistence/experience-store.mjs'),
-   import('./humanale-runtime-host.mjs')
+   import('./humanale-runtime-host.mjs'),
+   import('./nara-agent-coordinator.mjs')
   ]);
   naraVoice=createVoiceFeedback();
   systemObserver=createSystemObserver({intervalMs:5000});
@@ -257,6 +258,7 @@ else{
    cloudMemory=new NaraCloudContextClient({origin:''});
   }
   agentHub=new DeveloperAgentHub();
+  naraAgentCoordinator=createNaraAgentCoordinator({nara,agentHub}).bind();
   const savedProjectRoot=await readProjectRoot();if(savedProjectRoot)agentHub.setProjectRoot(savedProjectRoot);
   terminalPolicy=policyModule;
   const emitTerminal=(channel,...args)=>{for(const target of [win,panelWin]){if(target&&!target.isDestroyed()&&!target.webContents.isLoading())target.webContents.send(channel,...args);}};
@@ -421,34 +423,14 @@ else{
    if(!trusted(e))return {error:'Akses ditolak.'};
    let memoryContext=null;
    try{memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['planner','agent']});}
-   catch(error){nara.dispatch('context.blocked',{target:'agent',reason:'invalid-packet',source:'desktop'});return {error:error.message};}
-   const id=String(value?.id||'agent').slice(0,80);
-   const mode=value?.mode==='work'?'work':'analyze';
-   const label='Agent '+id+' · '+(mode==='work'?'mode kerja':'analisis');
-   if(memoryContext)nara.dispatch('context.used',{target:memoryContext.target,count:memoryContext.count,chars:memoryContext.chars,source:'desktop'});
-   nara.startWork({id,label});
-   nara.dispatch('plan.start',{label:'Menyiapkan '+label,source:'agent'});
-   nara.dispatch('plan.complete',{source:'agent'});
-   nara.dispatch('agent.start',{label,source:'agent'});
-   if(mode==='work')nara.dispatch('program.start',{label:'Menjalankan perubahan melalui '+id,source:'agent'});
+   catch(error){
+    nara.dispatch('context.blocked',{target:'agent',reason:'invalid-packet',source:'desktop'});
+    return {error:error.message};
+   }
    try{
-    const result=await agentHub.run({...value,memoryContext});
-    if(result?.error){
-     if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
-     nara.dispatch('agent.failed',{label,source:'agent'});
-     nara.dispatch('work.failed',{id,label,source:'agent'});
-     nara.dispatch('error.detected',{message:String(result.error).slice(0,300),source:'agent'});
-    }else{
-     if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
-     nara.dispatch('agent.complete',{label,source:'agent'});
-     nara.completeWork({source:'agent'});
-    }
-    return result;
+    return await naraAgentCoordinator.run({...value,memoryContext});
    }catch(error){
-    if(mode==='work')nara.dispatch('program.complete',{source:'agent'});
-    nara.dispatch('agent.failed',{label,source:'agent'});
-    nara.dispatch('work.failed',{id,label,source:'agent'});
-    nara.dispatch('error.detected',{message:error.message,source:'agent'});
+    nara.dispatch('error.detected',{message:error.message,source:'nara-agent-coordinator'});
     return {error:error.message};
    }
   });
