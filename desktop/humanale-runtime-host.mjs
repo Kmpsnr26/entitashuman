@@ -176,6 +176,10 @@ export class HumanALERuntimeHost{
 
   dispatchRenderer(event,value){
     if(!this.isTrustedEvent(event))return {error:'Akses ditolak.'};
+    let encoded='';
+    try{encoded=JSON.stringify(value??{});}
+    catch{return {error:'Payload event HumanALE tidak valid.'};}
+    if(encoded.length>4096)return {error:'Payload event HumanALE terlalu besar.'};
     this.dataFlowMeter?.recordIn?.(value);
     const name=String(value?.event||'');
     if(!this.rendererEvents.has(name))return {error:'Event NARA tidak diizinkan dari renderer.'};
