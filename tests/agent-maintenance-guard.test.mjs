@@ -6,6 +6,7 @@ import {
  extractAddedPatchLines,
  inspectMaintenancePatchText,
  isMaintenanceProtectedPath,
+ isMaintenanceReadDeniedPath,
  normalizeMaintenanceRepoPath,
  sanitizeMaintenanceEnvironment
 } from '../desktop/agent-maintenance-guard.mjs';
@@ -121,4 +122,25 @@ test('small unprotected source patch is allowed',()=>{
  });
  assert.equal(result.allowed,true);
  assert.deepEqual(result.violations,[]);
+});
+
+
+test('secret-file boundary blocks real secret files while allowing templates',()=>{
+ const denied=[
+  '.env',
+  'nara-cloud/.env.local',
+  'keys/release-signing.pfx',
+  'android/upload.keystore',
+  'config/credentials.json'
+ ];
+ const patterns=[
+  '.env','**/.env','.env.local','**/.env.local',
+  '**/*.pfx','**/*.keystore','**/credentials.json'
+ ];
+ for(const path of denied){
+  assert.equal(isMaintenanceReadDeniedPath(path,patterns),true,path);
+ }
+ assert.equal(isMaintenanceReadDeniedPath('.env.example',patterns),false);
+ assert.equal(isMaintenanceReadDeniedPath('config/.env.template',patterns),false);
+ assert.equal(isMaintenanceReadDeniedPath('public/app.js',patterns),false);
 });
