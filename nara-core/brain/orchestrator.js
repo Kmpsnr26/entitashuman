@@ -182,21 +182,27 @@ export class NaraOrchestrator{
   }
 
   snapshot(){
+    const brain=this.state.snapshot();
+    const sensory=this.sensory.snapshot();
+    const autopilot=this.autopilot.snapshot();
+    const activeTask=autopilot.scheduler.tasks.find(item=>
+      item.status==='running'||item.status==='failed'
+    )||{};
     return {
-      ...this.state.snapshot(),
+      ...brain,
       engine:{
         identity:NARA_IDENTITY,
-        sensory:this.sensory.snapshot(),
+        sensory,
         capabilities:this.capabilities.snapshot(),
         device:this.devicePlan,
-        autopilot:this.autopilot.snapshot(),
+        autopilot,
         instinct:this.instinct.evaluate({
-          sensory:this.sensory.snapshot(),
+          sensory,
           diagnostics:{
-            failures:this.autopilot.snapshot().scheduler.failed,
-            errors:this.state.regions.ERROR_MONITOR?.status==='error'?1:0
+            failures:autopilot.scheduler.failed,
+            errors:brain.regions.ERROR_MONITOR?.status==='error'?1:0
           },
-          task:this.autopilot.snapshot().scheduler.tasks.find(item=>item.status==='running'||item.status==='failed')||{}
+          task:activeTask
         })
       }
     };
