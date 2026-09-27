@@ -26,6 +26,10 @@ test('AI maintenance policy is repair-only and denies all owner/release authorit
  assert.ok(snapshot.protectedAreas.includes('nara-core/permissions/**'));
  assert.ok(AI_MAINTENANCE_READ_DENIED_AREAS.includes('**/*.pfx'));
  assert.ok(AI_MAINTENANCE_PROTECTED_AREAS.includes('.github/workflows/**'));
+ assert.ok(AI_MAINTENANCE_PROTECTED_AREAS.includes('package.json'));
+ assert.ok(AI_MAINTENANCE_PROTECTED_AREAS.includes('package-lock.json'));
+ assert.ok(AI_MAINTENANCE_PROTECTED_AREAS.includes('build.mjs'));
+ assert.ok(AI_MAINTENANCE_PROTECTED_AREAS.includes('tests/**'));
 
  for(const capability of [
   'program.read','program.edit','program.test','program.build','program.debug',
