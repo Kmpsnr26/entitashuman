@@ -106,7 +106,8 @@ test('Agent Hub enforces maintenance transaction, secret-free environment and po
  assert.match(hub,/agent-maintenance-transaction\.mjs/);
  assert.match(hub,/assertMaintenanceTaskAllowed\(prompt,\{mode\}\)/);
  assert.match(hub,/beginMaintenanceTransaction\(cwd\)/);
- assert.match(hub,/sanitizeMaintenanceEnvironment\(process\.env\)\.env/);
+ assert.match(hub,/sanitizeMaintenanceEnvironment\(process\.env,\{/);
+ assert.match(hub,/isolatedHome:this\.maintenanceTransaction\?\.isolatedHome/);
  assert.match(hub,/maintenanceTransaction\.inspect\(\)/);
  assert.match(hub,/transaction\.rollback\('PIPELINE_FAILED'\)/);
  assert.match(hub,/Mode kerja agent wajib berjalan di dalam AI maintenance transaction/);
