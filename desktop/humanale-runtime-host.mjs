@@ -136,7 +136,7 @@ export class HumanALERuntimeHost{
 
   start(){
     if(this.started)return this.buildRuntimeSnapshot();
-    this.unsubState=this.nara.state?.subscribe?.(snapshot=>this.publishState(snapshot))||null;
+    this.unsubState=this.nara.state?.subscribe?.(()=>this.publishState(this.nara.snapshot()))||null;
     this.unsubBus=this.nara.bus.onAny(envelope=>this.consumeEnvelope(envelope));
     this.started=true;
     const core=this.nara.snapshot();
