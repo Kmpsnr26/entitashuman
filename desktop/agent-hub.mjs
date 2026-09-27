@@ -10,6 +10,13 @@ import {
  maintenancePolicySnapshot,
  isProtectedMaintenancePath
 } from './agent-maintenance-policy.mjs';
+import {
+ AI_MAINTENANCE_AUTOPILOT_VERIFY_TIMEOUT_MS,
+ autopilotSnapshot,
+ createAutopilotAttemptPrompt,
+ isNonRetryableMaintenanceError,
+ normalizeAutopilotAttempts
+} from './maintenance-autopilot.mjs';
 
 const maintenanceBoundaryLegacyMarker='Jangan git push, git merge, publish';
 
@@ -170,7 +177,7 @@ function looksLikeCopilotTrustPrompt(text=''){
   value.includes('confirm that you trust');
 }
 export class DeveloperAgentHub{
- constructor(){this.child=null;this.pending=false;this.projectRoot='';}
+ constructor(){this.child=null;this.pending=false;this.autopilotPending=false;this.projectRoot='';}
  setProjectRoot(value=''){this.projectRoot=String(value||'').trim();}
  getProjectRoot(){return (this.projectRoot||process.env.HUMANALE_PROJECT_ROOT||process.env.DUDIDAM_PROJECT_ROOT||process.cwd()).trim();}
  async projectRootReady(){
@@ -209,6 +216,7 @@ export class DeveloperAgentHub{
    projectRoot,
    projectRootReady,
    maintenancePolicy:maintenancePolicySnapshot(),
+   maintenanceAutopilot:autopilotSnapshot(),
    agents:rows
   };
  }
@@ -342,8 +350,8 @@ export class DeveloperAgentHub{
   ].join('\n');
   return {id:'humanale-orchestrator',name:'HumanALE Orchestrator',mode,difficulty,stages,text:summary};
  }
- async run(value){
-  if(this.pending)throw new Error('Tunggu agent sebelumnya selesai.');
+ async run(value,internal=false){
+  if(this.pending||(this.autopilotPending&&internal!==true))throw new Error('Tunggu agent sebelumnya selesai.');
   const id=String(value?.id||''),mode=value?.mode==='work'?'work':'analyze';
   let prompt=String(value?.prompt||'').trim();
   if(!prompt||prompt.length>4000)throw new Error('Prompt agent harus berisi 1–4000 karakter.');
@@ -400,6 +408,110 @@ export class DeveloperAgentHub{
    }
    throw error;
   }finally{this.pending=false;}
+ }
+ async runAutopilot(value={}){
+  if(this.pending||this.autopilotPending)throw new Error('Tunggu agent sebelumnya selesai.');
+  const prompt=String(value?.prompt||'').trim();
+  if(!prompt||prompt.length>4000)throw new Error('Prompt autopilot harus berisi 1–4000 karakter.');
+  assertMaintenanceTaskAllowed(prompt,{mode:'work'});
+
+  const cwd=this.getProjectRoot();
+  if(!await this.projectRootReady())throw new Error('Autopilot memerlukan checkout Git proyek yang dipilih secara eksplisit.');
+  const worktree=await runProcess('git',['status','--porcelain'],{cwd,timeout:8000});
+  if(worktree.code!==0||worktree.timedOut)throw new Error('Status Git tidak dapat diverifikasi. Autopilot dihentikan fail-closed.');
+  if(worktree.stdout.trim())throw new Error('Autopilot hanya boleh dimulai dari Git worktree bersih.');
+
+  const maxAttempts=normalizeAutopilotAttempts(value?.maxAttempts);
+  const attempts=[];
+  const npmExecutable=process.platform==='win32'?'npm.cmd':'npm';
+  this.autopilotPending=true;
+
+  try{
+   for(let attempt=1;attempt<=maxAttempts;attempt++){
+    const attemptPrompt=createAutopilotAttemptPrompt(prompt,{attempt});
+    let workResult;
+    try{
+     workResult=await this.run({
+      id:'humanale-orchestrator',
+      mode:'work',
+      prompt:attemptPrompt,
+      memoryContext:value?.memoryContext
+     },true);
+    }catch(error){
+     attempts.push(Object.freeze({
+      attempt,
+      status:'WORK_FAILED',
+      code:String(error?.code||'WORK_FAILED')
+     }));
+     if(isNonRetryableMaintenanceError(error)||attempt===maxAttempts){
+      if(error&&typeof error==='object'){
+       error.autopilot=Object.freeze({
+        status:'FAILED',
+        maxAttempts,
+        attempts:Object.freeze([...attempts])
+       });
+      }
+      throw error;
+     }
+     continue;
+    }
+
+    const verification=await runProcess(
+     npmExecutable,
+     ['run','verify'],
+     {cwd,timeout:AI_MAINTENANCE_AUTOPILOT_VERIFY_TIMEOUT_MS}
+    );
+    const passed=verification.code===0&&!verification.timedOut;
+    attempts.push(Object.freeze({
+     attempt,
+     status:passed?'PASS':'VERIFY_FAILED',
+     verifyCode:verification.code,
+     timedOut:Boolean(verification.timedOut),
+     changedPaths:Object.freeze([...(workResult?.maintenance?.changedPaths||[])])
+    }));
+
+    if(passed){
+     return Object.freeze({
+      id:'humanale-maintenance-autopilot',
+      name:'HumanALE Maintenance Autopilot',
+      mode:'work',
+      status:'PASS',
+      maxAttempts,
+      attempts:Object.freeze([...attempts]),
+      result:workResult
+     });
+    }
+
+    const rollback=await rollbackMaintenanceWorktree(cwd);
+    if(!rollback.ok){
+     const error=new Error('Autopilot verify gagal dan rollback Git juga gagal. Intervensi Owner diperlukan.');
+     error.code='AI_MAINTENANCE_ROLLBACK_FAILED';
+     error.rollback=rollback;
+     error.autopilot=Object.freeze({
+      status:'FAILED',
+      maxAttempts,
+      attempts:Object.freeze([...attempts])
+     });
+     throw error;
+    }
+
+    if(attempt===maxAttempts){
+     const error=new Error('Autopilot mencapai batas percobaan tanpa npm run verify yang sukses.');
+     error.code='AI_MAINTENANCE_VERIFY_FAILED';
+     error.autopilot=Object.freeze({
+      status:'FAILED',
+      maxAttempts,
+      attempts:Object.freeze([...attempts]),
+      rollback
+     });
+     throw error;
+    }
+   }
+
+   throw new Error('Autopilot berhenti tanpa hasil.');
+  }finally{
+   this.autopilotPending=false;
+  }
  }
  stop(){this.child?.kill();}
 }

@@ -82,3 +82,24 @@ Maintenance work is now treated as a bounded transaction:
 Protected areas include Owner identity/authentication and database ownership boundaries, NARA permission code, environment secrets, all GitHub workflows, package scripts/dependency manifests, release signing config, final-readiness certificate, and the Agent Hub / maintenance policy itself.
 
 A successful repair returns its changed-path list as maintenance metadata. Realtime autopilot remains disabled until a bounded retry/verification controller is added.
+
+
+## Stage 3 — bounded autopilot controller
+
+A bounded maintenance autopilot controller is now defined, but it is not a background daemon.
+
+Behavior:
+
+1. accepts one explicit maintenance task;
+2. reuses the same repair-only policy and clean-worktree preflight;
+3. always routes work through HumanALE Orchestrator;
+4. allows at most **two** attempts;
+5. after each successful agent patch, independently runs `npm run verify`;
+6. returns PASS only when deterministic verification succeeds;
+7. if verification fails, resets the AI patch to HEAD before the next attempt;
+8. after the final failed verification, rolls back and stops;
+9. authority/protected-path/rollback violations are non-retryable and stop immediately.
+
+No timer, infinite loop, scheduler, release action, Owner action, or background execution is introduced by this stage.
+
+The next stage may expose this controller through a controlled UI/health trigger and Draft-PR checkpoint flow. That trigger must remain opt-in and must not turn the controller into unrestricted continuous execution.

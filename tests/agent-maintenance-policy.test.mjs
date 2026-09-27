@@ -1,3 +1,10 @@
+import {
+ AI_MAINTENANCE_AUTOPILOT_MAX_ATTEMPTS,
+ autopilotSnapshot,
+ createAutopilotAttemptPrompt,
+ isNonRetryableMaintenanceError,
+ normalizeAutopilotAttempts
+} from '../desktop/maintenance-autopilot.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -146,4 +153,47 @@ test('Agent Hub audits changed paths and rolls back failed or protected maintena
  assert.match(hub,/\['clean','-fd'\]/);
  assert.match(hub,/AI_MAINTENANCE_ROLLBACK_FAILED/);
  assert.match(hub,/rollback:false/);
+});
+
+
+test('bounded maintenance autopilot has a hard two-attempt ceiling and no daemon mode',()=>{
+ assert.equal(AI_MAINTENANCE_AUTOPILOT_MAX_ATTEMPTS,2);
+ assert.equal(normalizeAutopilotAttempts(undefined),2);
+ assert.equal(normalizeAutopilotAttempts(99),2);
+ assert.equal(normalizeAutopilotAttempts(0),1);
+ assert.equal(normalizeAutopilotAttempts(1),1);
+
+ const snapshot=autopilotSnapshot();
+ assert.equal(snapshot.mode,'BOUNDED_REPAIR');
+ assert.equal(snapshot.backgroundDaemon,false);
+ assert.equal(snapshot.ownerAuthority,false);
+ assert.equal(snapshot.releaseAuthority,false);
+ assert.equal(snapshot.verifyCommand,'npm run verify');
+
+ assert.equal(isNonRetryableMaintenanceError({code:'AI_MAINTENANCE_BOUNDARY_BLOCKED'}),true);
+ assert.equal(isNonRetryableMaintenanceError({code:'AI_MAINTENANCE_PROTECTED_PATH'}),true);
+ assert.equal(isNonRetryableMaintenanceError({code:'AI_MAINTENANCE_ROLLBACK_FAILED'}),true);
+ assert.equal(isNonRetryableMaintenanceError({code:'WORK_FAILED'}),false);
+
+ assert.equal(createAutopilotAttemptPrompt('perbaiki bug',{attempt:1}),'perbaiki bug');
+ const retry=createAutopilotAttemptPrompt('perbaiki bug',{attempt:2});
+ assert.match(retry,/AUTOPILOT RETRY/);
+ assert.match(retry,/rollback ke HEAD/);
+ assert.match(retry,/Jangan memperluas scope/);
+});
+
+test('Agent Hub bounded autopilot forces orchestrator, deterministic verify and rollback',async()=>{
+ const hub=await readFile(new URL('../desktop/agent-hub.mjs',import.meta.url),'utf8');
+ assert.match(hub,/async runAutopilot\(value=\{\}\)/);
+ assert.match(hub,/normalizeAutopilotAttempts\(value\?\.maxAttempts\)/);
+ assert.match(hub,/id:'humanale-orchestrator'/);
+ assert.match(hub,/mode:'work'/);
+ assert.match(hub,/\['run','verify'\]/);
+ assert.match(hub,/AI_MAINTENANCE_AUTOPILOT_VERIFY_TIMEOUT_MS/);
+ assert.match(hub,/rollbackMaintenanceWorktree\(cwd\)/);
+ assert.match(hub,/isNonRetryableMaintenanceError\(error\)/);
+ assert.match(hub,/AI_MAINTENANCE_VERIFY_FAILED/);
+ assert.match(hub,/this\.autopilotPending=true/);
+ assert.match(hub,/this\.autopilotPending=false/);
+ assert.doesNotMatch(hub,/while\s*\(\s*true\s*\)|setInterval\s*\(/);
 });
