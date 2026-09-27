@@ -98,6 +98,7 @@ export const AI_MAINTENANCE_PROTECTED_AREAS=Object.freeze([
  '.github/workflows/**',
  'desktop/agent-maintenance-policy.mjs',
  'desktop/agent-maintenance-guard.mjs',
+ 'desktop/agent-maintenance-transaction.mjs',
  'desktop/agent-hub.mjs',
  'desktop/terminal-policy.mjs',
  'desktop/main.cjs',
@@ -124,6 +125,7 @@ export const AI_MAINTENANCE_PROTECTED_AREAS=Object.freeze([
  'docs/humanale-final-readiness*.md',
  'tests/agent-maintenance-policy.test.mjs',
  'tests/agent-maintenance-guard.test.mjs',
+ 'tests/agent-maintenance-transaction.test.mjs',
  'tests/agent-orchestrator.test.mjs',
  'tests/humanale-final-readiness.test.mjs'
 ]);
