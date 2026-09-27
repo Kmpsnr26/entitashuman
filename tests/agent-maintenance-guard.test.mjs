@@ -147,3 +147,31 @@ test('secret-file boundary blocks real secret files while allowing templates',()
  assert.equal(isMaintenanceReadDeniedPath('config/.env.template',patterns),false);
  assert.equal(isMaintenanceReadDeniedPath('public/app.js',patterns),false);
 });
+
+
+test('isolated maintenance environment replaces user profile locations and disables interactive credential prompts',()=>{
+ const result=sanitizeMaintenanceEnvironment({
+  PATH:'/usr/bin',
+  HOME:'/home/owner',
+  USERPROFILE:'C:\\Users\\Owner',
+  APPDATA:'C:\\Users\\Owner\\AppData\\Roaming',
+  LOCALAPPDATA:'C:\\Users\\Owner\\AppData\\Local',
+  GH_TOKEN:'secret-gh',
+  NORMAL_FLAG:'ok'
+ },{isolatedHome:'/tmp/humanale-ai-home-test'});
+
+ assert.equal(result.env.HOME,'/tmp/humanale-ai-home-test');
+ assert.equal(result.env.USERPROFILE,'/tmp/humanale-ai-home-test');
+ assert.equal(result.env.XDG_CONFIG_HOME,'/tmp/humanale-ai-home-test/config');
+ assert.equal(result.env.XDG_CACHE_HOME,'/tmp/humanale-ai-home-test/cache');
+ assert.equal(result.env.GIT_TERMINAL_PROMPT,'0');
+ assert.equal(result.env.GCM_INTERACTIVE,'Never');
+ assert.equal(result.env.NORMAL_FLAG,'ok');
+ assert.equal(Object.hasOwn(result.env,'GH_TOKEN'),false);
+ assert.equal(Object.hasOwn(result.env,'APPDATA'),false);
+ assert.equal(Object.hasOwn(result.env,'LOCALAPPDATA'),false);
+ assert.ok(result.removed.includes('HOME'));
+ assert.ok(result.removed.includes('USERPROFILE'));
+ assert.ok(result.removed.includes('APPDATA'));
+ assert.ok(result.removed.includes('LOCALAPPDATA'));
+});
