@@ -48,10 +48,18 @@ test('HumanALE runtime forwards real audio and camera lifecycle into NARA',async
   assert.match(app,/now-lastNaraAudioSent<100/);
 });
 
-test('terminal and agent work lifecycle feed NARA operational state',async()=>{
-  const main=await readFile(new URL('desktop/main.cjs',root),'utf8');
+test('terminal and Agent Coordinator lifecycle feed NARA operational state',async()=>{
+  const [main,coordinator]=await Promise.all([
+    readFile(new URL('desktop/main.cjs',root),'utf8'),
+    readFile(new URL('desktop/nara-agent-coordinator.mjs',root),'utf8')
+  ]);
   assert.match(main,/nara\.dispatch\('terminal\.open'/);
-  assert.match(main,/nara\.startWork\(/);
-  assert.match(main,/nara\.completeWork\(/);
-  assert.match(main,/nara\.dispatch\('error\.detected'/);
+  assert.match(main,/createNaraAgentCoordinator/);
+  assert.match(main,/naraAgentCoordinator=createNaraAgentCoordinator/);
+  assert.match(main,/naraAgentCoordinator\.run/);
+  assert.match(coordinator,/this\.nara\.startWork\(/);
+  assert.match(coordinator,/this\.nara\.completeWork\(/);
+  assert.match(coordinator,/this\.nara\.dispatch\('agent\.start'/);
+  assert.match(coordinator,/this\.nara\.dispatch\('verify\.complete'/);
+  assert.match(coordinator,/this\.nara\.dispatch\('error\.detected'/);
 });
