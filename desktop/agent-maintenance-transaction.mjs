@@ -237,7 +237,7 @@ async function beginTransaction(cwd){
   throw error;
  }
 
- const gitDirRaw=await gitText(gitRoot,['rev-parse','--git-dir']);
+ const gitDirRaw=await gitText(gitRoot,['rev-parse','--git-common-dir']);
  const gitDir=resolve(gitRoot,gitDirRaw);
  const lock=await acquireLock(gitDir,{baseHead,baseBranch});
  let transaction;
@@ -317,12 +317,14 @@ async function collectChangeSet(transaction){
  const head=await gitText(cwd,['rev-parse','HEAD']);
  const metadataHash=await gitMetadataFingerprint(cwd);
  const lockChanged=!await lockMatches(transaction);
+ const secretPaths=await scanSecretFiles(cwd);
 
  return {
   entries,
   paths,
   stagedPaths,
   symlinkPaths,
+  secretPaths,
   totalBytes,
   patch,
   branchChanged:branch!==transaction.baseBranch,
@@ -342,9 +344,10 @@ async function quarantineAndRollback(transaction,changeSet){
  await patchHandle.writeFile(trackedPatch,'utf8');
  await patchHandle.close();
 
- const untracked=[...new Set(
-  changeSet.entries.filter(entry=>entry.untracked).flatMap(entry=>entry.paths)
- )];
+ const untracked=[...new Set([
+  ...changeSet.entries.filter(entry=>entry.untracked).flatMap(entry=>entry.paths),
+  ...(changeSet.secretPaths||[])
+ ])];
  for(const path of untracked){
   const source=join(cwd,path);
   const target=join(quarantine,'untracked',path);
@@ -383,6 +386,7 @@ export class MaintenanceTransaction{
    protectedAreas:AI_MAINTENANCE_PROTECTED_AREAS,
    symlinkPaths:changeSet.symlinkPaths,
    stagedPaths:changeSet.stagedPaths,
+   secretPaths:changeSet.secretPaths,
    totalBytes:changeSet.totalBytes,
    branchChanged:changeSet.branchChanged,
    headChanged:changeSet.headChanged,
