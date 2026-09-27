@@ -1,12 +1,10 @@
-const DEFAULT_RENDERER_EVENTS=Object.freeze([
-  'audio.energy',
-  'vision.frame',
-  'vision.stop',
-  'speech.start',
-  'speech.energy',
-  'speech.stop',
-  'brain.region.select'
-]);
+import {
+  NARA_UNIFIED_RUNTIME_CONTRACT,
+  normalizeHumanALEInput,
+  projectRuntimeAuthority
+} from '../nara-core/runtime/unified-contract.js';
+
+const DEFAULT_RENDERER_EVENTS=NARA_UNIFIED_RUNTIME_CONTRACT.rendererEvents;
 
 const safeNumber=(value,min=0,max=1)=>{
   const number=Number(value);
@@ -90,6 +88,8 @@ export class HumanALERuntimeHost{
   buildRuntimeSnapshot(core=this.nara.snapshot()){
     const runtime=Object.freeze({
       version:3,
+      contract:NARA_UNIFIED_RUNTIME_CONTRACT,
+      authority:projectRuntimeAuthority(core),
       timestamp:Date.now(),
       core,
       humanale:Object.freeze({
@@ -179,7 +179,8 @@ export class HumanALERuntimeHost{
     this.dataFlowMeter?.recordIn?.(value);
     const name=String(value?.event||'');
     if(!this.rendererEvents.has(name))return {error:'Event NARA tidak diizinkan dari renderer.'};
-    const payload=value?.payload&&typeof value.payload==='object'?value.payload:{};
+    const payload=normalizeHumanALEInput(name,value?.payload);
+    if(payload===null)return {error:'Payload event HumanALE tidak valid.'};
     try{
       const result={ok:true,...this.nara.dispatch(name,payload,{source:'humanale-renderer'})};
       return result;
