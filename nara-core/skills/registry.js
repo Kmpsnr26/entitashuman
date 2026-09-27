@@ -9,7 +9,14 @@ const DEFAULT_SKILLS=Object.freeze([
   {id:'program.execute',label:'Program Execution',category:'execution',region:'PROGRAM'},
   {id:'verify',label:'Verification',category:'workflow',region:'FOLLOW_UP'},
   {id:'bug.analyze',label:'Bug Analysis',category:'diagnostic',region:'BUG_HUNTER'},
-  {id:'sync',label:'Synchronization',category:'connection',region:'SYNC'}
+  {id:'sync',label:'Synchronization',category:'connection',region:'SYNC'},
+  {id:'sense.hearing',label:'Hearing Sensor',category:'sensory',region:'NARA_CORE'},
+  {id:'sense.vision',label:'Vision Sensor',category:'sensory',region:'NARA_CORE'},
+  {id:'system.observe',label:'System Observer',category:'system',region:'NARA_CORE'},
+  {id:'server.observe',label:'Configured Server Observer',category:'system',region:'NARA_CORE'},
+  {id:'dataflow.observe',label:'NARA Data Flow Observer',category:'system',region:'NARA_CORE'},
+  {id:'device.integrate',label:'Device Integration',category:'system',region:'NARA_CORE'},
+  {id:'capability.guard',label:'Capability Guard',category:'safety',region:'SAFETY'}
 ]);
 
 const EVENT_MAP=Object.freeze({
@@ -29,7 +36,16 @@ const EVENT_MAP=Object.freeze({
   'bug.detected':['bug.analyze','start'],
   'bug.fixed':['bug.analyze','complete'],
   'sync.start':['sync','start'],
-  'sync.complete':['sync','complete']
+  'sync.complete':['sync','complete'],
+  'audio.energy':['sense.hearing','pulse'],
+  'vision.frame':['sense.vision','pulse'],
+  'system.telemetry':['system.observe','pulse'],
+  'server.observe':['server.observe','pulse'],
+  'dataflow.sample':['dataflow.observe','pulse'],
+  'device.integration':['device.integrate','pulse'],
+  'capability.requested':['capability.guard','start'],
+  'capability.approved':['capability.guard','complete'],
+  'capability.denied':['capability.guard','failed']
 });
 
 const safeText=(value,max=160)=>String(value??'').replace(/[\r\n\t]+/g,' ').trim().slice(0,max);
