@@ -38,11 +38,13 @@ test('V3.5 HumanALE Creator gate provisions once and never persists plaintext pa
     const raw=readFileSync(file,'utf8');
     assert.equal(raw.includes('CreatorSecret123!'),false);
     assert.match(raw,/passwordHash/);
-    assert.throws(()=>gate.provision('window-b',{
+    const second=gate.provision('window-b',{
       username:'other',
       password:'AnotherSecret123!',
       confirmPassword:'AnotherSecret123!'
-    }));
+    });
+    assert.equal(second.ok,false);
+    assert.match(second.error,/sudah diprovision/i);
   }finally{
     rmSync(dir,{recursive:true,force:true});
   }
