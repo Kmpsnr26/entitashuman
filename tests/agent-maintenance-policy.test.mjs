@@ -19,7 +19,7 @@ test('AI maintenance policy is repair-only and denies all owner/release authorit
  assert.equal(snapshot.selfPrivilegeEscalation,false);
  assert.equal(snapshot.autoApproval,false);
  assert.equal(snapshot.releaseAuthority,false);
- assert.ok(snapshot.readDeniedAreas.includes('.env'));
+ assert.ok(snapshot.readDeniedAreas.includes('.env*'));
  assert.ok(snapshot.protectedAreas.includes('desktop/agent-hub.mjs'));
  assert.ok(snapshot.protectedAreas.includes('desktop/agent-maintenance-transaction.mjs'));
  assert.ok(snapshot.protectedAreas.includes('nara-cloud/src/services/owner.service.ts'));
