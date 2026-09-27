@@ -5,6 +5,7 @@ import {
  fallbackBranchFor,
  fallbackMarkerFor,
  isFallbackPullRequest,
+ issueRecovered,
  selectLatestFailedRuns
 } from './helpers/cloud-auto-repair-logic.mjs';
 
@@ -148,6 +149,24 @@ test('both cleanup paths share canonical and legacy fallback identity rules',()=
  assert.equal(isFallbackPullRequest({...legacy,head:{ref:'automation/issue-420'}},42),false);
  assert.equal(isFallbackPullRequest({...legacy,body:'Tracks #420.'},42),false);
  assert.equal(isFallbackPullRequest({...canonical,body:'<!-- cloud-fallback-request: issue-420 -->'},42),false);
+});
+
+test('resolved or closed issues cannot be requeued by labeled events',()=>{
+ const blocks=extractBlocks('issue-recovery-state');
+ assert.equal(blocks.length,2);
+ assert.equal(blocks[0],blocks[1]);
+ assert.equal(normalizeSource(blocks[0]),normalizeSource(issueRecovered.toString()));
+
+ assert.equal(issueRecovered({state:'open',labels:['ci-failure']}),false);
+ assert.equal(issueRecovered({state:'closed',labels:['ci-failure']}),true);
+ assert.equal(issueRecovered({
+  state:'open',
+  labels:[{name:'automation:resolved'}]
+ }),true);
+ assert.match(
+  workflow,
+  /async function queueExistingIssue\(issue\) \{\s*if \(issueRecovered\(issue\)\) return;/
+ );
 });
 
 test('new fallback PR bodies include the canonical marker',()=>{
