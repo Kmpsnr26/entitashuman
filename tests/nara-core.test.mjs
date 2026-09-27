@@ -63,3 +63,21 @@ test('orchestrator drives selection, work lifecycle and connection changes throu
   assert.equal(nara.snapshot().lifecycle,'offline');
   assert.equal(nara.snapshot().regions.NARA_CORE.status,'offline');
 });
+
+
+test('brain state records provider readiness and bounded autopilot status',()=>{
+  const nara=createOrchestrator();
+  nara.start();
+  nara.dispatch('provider.status',{id:'gemini',attached:true,configured:true,ready:true,mode:'gemini-api',model:'gemini-test'});
+  nara.dispatch('provider.status',{id:'copilot',attached:true,configured:true,ready:true,mode:'copilot-cli'});
+  nara.dispatch('autopilot.status',{ready:true,armed:true,mode:'bounded',projectRootReady:true,executors:['codex','github-copilot'],detail:'ready'});
+  const state=nara.snapshot();
+  assert.equal(state.providers.gemini.ready,true);
+  assert.equal(state.providers.copilot.ready,true);
+  assert.equal(state.autopilot.ready,true);
+  assert.equal(state.autopilot.armed,true);
+  assert.deepEqual(state.autopilot.executors,['codex','github-copilot']);
+  assert.equal(state.regions.COPILOT.status,'connected');
+  assert.equal(state.regions.AGENT_MANAGER.status,'ready');
+  nara.stop();
+});
