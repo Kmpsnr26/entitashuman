@@ -19,10 +19,139 @@ const desktopContextBridge=desktop&&desktopMemory&&window.HumanALEContextBridge?
  ?window.HumanALEContextBridge.create({runtime:desktopMemoryRuntime,memory:desktopMemory,storage:localStorage,maxEntries:6,maxChars:1600})
  :null;
 const MEMORY_SOURCE_KEY='humanale.nara.context-source.v1';
+let ownerState=Object.freeze({configured:false,unlocked:!desktop,username:null,sessionExpiresAt:0});
 let cloudMemoryState=Object.freeze({configured:false,authenticated:false,available:false});
 let cloudMemoryChecked=false;
 window.humanALEDesktopMemory=desktopMemory;
 window.humanALEDesktopContextBridge=desktopContextBridge;
+
+function applyOwnerState(next={}){
+ ownerState=Object.freeze({
+  configured:Boolean(next.configured),
+  unlocked:desktop?Boolean(next.unlocked):true,
+  username:String(next.username||''),
+  sessionExpiresAt:Number(next.sessionExpiresAt)||0,
+  error:String(next.error||'')
+ });
+ const gate=$('#ownerGate'),title=$('#ownerGateTitle'),hint=$('#ownerGateHint');
+ const username=$('#ownerUsername'),password=$('#ownerPassword');
+ const confirmRow=$('#ownerConfirmRow'),confirm=$('#ownerConfirmPassword');
+ const submit=$('#ownerSubmit'),status=$('#ownerGateStatus');
+ const security=$('#ownerSecurity'),identity=$('#ownerSecurityIdentity');
+ if(!desktop){
+  if(gate)gate.hidden=true;
+  if(security)security.hidden=true;
+  document.body.classList.remove('creator-locked');
+  return ownerState;
+ }
+ const locked=!ownerState.unlocked;
+ document.body.classList.toggle('creator-locked',locked);
+ if(gate)gate.hidden=!locked;
+ if(security)security.hidden=locked;
+ if(identity)identity.textContent=ownerState.username||'Creator';
+ if(username){
+  username.value=ownerState.username||username.value||'creator';
+  username.readOnly=ownerState.configured;
+ }
+ if(confirmRow)confirmRow.hidden=ownerState.configured;
+ if(confirm)confirm.required=!ownerState.configured;
+ if(title)title.textContent=ownerState.configured?'Creator Login':'Provision Creator';
+ if(hint)hint.textContent=ownerState.configured
+  ?'Unlock sesi HumanALE dengan identitas Creator perangkat ini.'
+  :'Buat identitas Creator pertama. Password disimpan sebagai verifier scrypt di main process, bukan di browser.';
+ if(submit)submit.textContent=ownerState.configured?'UNLOCK NARA':'PROVISION & UNLOCK';
+ if(status)status.textContent=ownerState.error||'';
+ if(password&&ownerState.unlocked)password.value='';
+ if(confirm&&ownerState.unlocked)confirm.value='';
+ return ownerState;
+}
+
+async function refreshOwnerState(){
+ if(!desktop?.ownerStatus)return applyOwnerState({configured:false,unlocked:true});
+ try{
+  const result=await desktop.ownerStatus();
+  applyOwnerState(result||{});
+  return ownerState;
+ }catch(error){
+  applyOwnerState({configured:true,unlocked:false,error:'Creator status gagal dibaca.'});
+  return ownerState;
+ }
+}
+
+async function resyncUnifiedRuntime(){
+ if(!desktop?.runtimeSnapshot||!ownerState.unlocked)return;
+ try{
+  const result=await desktop.runtimeSnapshot();
+  if(result?.runtime)syncHumanALERuntime(result.runtime);
+ }catch{}
+}
+
+$('#ownerGateForm')?.addEventListener('submit',async event=>{
+ event.preventDefault();
+ if(!desktop)return;
+ const status=$('#ownerGateStatus'),username=$('#ownerUsername'),password=$('#ownerPassword'),confirm=$('#ownerConfirmPassword');
+ if(status)status.textContent='Memverifikasi Creator…';
+ const secret=String(password?.value||'');
+ const confirmation=String(confirm?.value||'');
+ try{
+  const result=ownerState.configured
+   ?await desktop.ownerLogin({username:String(username?.value||''),password:secret})
+   :await desktop.ownerProvision({
+      username:String(username?.value||'creator'),
+      password:secret,
+      confirmPassword:confirmation
+    });
+  if(password)password.value='';
+  if(confirm)confirm.value='';
+  applyOwnerState(result||{});
+  if(result?.ok){
+   await refreshOwnerState();
+   await resyncUnifiedRuntime();
+  }else if(status){
+   status.textContent=result?.error||'Creator authentication gagal.';
+  }
+ }catch{
+  if(password)password.value='';
+  if(confirm)confirm.value='';
+  if(status)status.textContent='Creator authentication gagal.';
+ }
+});
+
+$('#ownerLogout')?.addEventListener('click',async()=>{
+ if(!desktop?.ownerLogout)return;
+ await desktop.ownerLogout().catch(()=>null);
+ await refreshOwnerState();
+});
+
+$('#ownerChangeLogin')?.addEventListener('click',async()=>{
+ if(!desktop?.ownerChangeLogin)return;
+ const current=$('#ownerCurrentPassword'),nextUser=$('#ownerNewUsername'),nextPass=$('#ownerNewPassword'),status=$('#ownerSecurityStatus');
+ if(status)status.textContent='Memverifikasi perubahan…';
+ const payload={
+  currentPassword:String(current?.value||''),
+  newUsername:String(nextUser?.value||ownerState.username||''),
+  newPassword:String(nextPass?.value||'')
+ };
+ try{
+  const result=await desktop.ownerChangeLogin(payload);
+  if(current)current.value='';
+  if(nextPass)nextPass.value='';
+  if(result?.ok){
+   if(status)status.textContent='Login Creator diperbarui. Silakan unlock kembali.';
+   await refreshOwnerState();
+  }else if(status)status.textContent=result?.error||'Perubahan login Creator gagal.';
+ }catch{
+  if(current)current.value='';
+  if(nextPass)nextPass.value='';
+  if(status)status.textContent='Perubahan login Creator gagal.';
+ }
+});
+
+desktop?.onOwnerState?.(state=>{
+ applyOwnerState(state||{});
+ if(ownerState.unlocked)resyncUnifiedRuntime();
+});
+refreshOwnerState();
 
 function selectedMemorySource(){
  const stored=localStorage.getItem(MEMORY_SOURCE_KEY);
