@@ -146,7 +146,10 @@ async function openPanel(view='controls'){
  panelWin.on('closed',()=>{panelWin=null;});
  try{
   await panelWin.loadURL(origin+'/?panel='+encodeURIComponent(target));
-  if(ownerGate?.isUnlocked(String(win?.webContents?.id||'')))ownerGate.unlock(String(panelWin.webContents.id));
+  if(ownerGate?.isUnlocked(String(win?.webContents?.id||''))){
+   ownerGate.unlock(String(panelWin.webContents.id));
+   panelWin.webContents.send('dudidam:owner-state',ownerGate.status(String(panelWin.webContents.id)));
+  }
   panelWin?.show();panelWin?.focus();
  }
  catch(error){console.error('HumanALE god egine panel failed:',error);throw error;}
