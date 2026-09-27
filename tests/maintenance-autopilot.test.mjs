@@ -289,3 +289,49 @@ test('autopilot history stores finding metadata but never the raw summary',async
     await rm(fx.root,{recursive:true,force:true});
   }
 });
+
+
+test('oversized finding fields fail closed instead of being truncated',async()=>{
+  const fx=await fixture();
+  try{
+    const autopilot=new SafeMaintenanceAutopilot({
+      agentHub:fx.agentHub,
+      verifier:fx.verifier
+    });
+    assert.throws(
+      ()=>autopilot.enqueue(finding({id:'x'.repeat(121)})),
+      /Finding id harus berisi/
+    );
+    assert.throws(
+      ()=>autopilot.enqueue(finding({summary:'x'.repeat(501)})),
+      /Finding summary harus berisi/
+    );
+  }finally{
+    await rm(fx.root,{recursive:true,force:true});
+  }
+});
+
+test('dedupe memory is bounded by queue plus history capacity',async()=>{
+  const fx=await fixture({hubBehavior:'boundary'});
+  try{
+    const autopilot=new SafeMaintenanceAutopilot({
+      agentHub:fx.agentHub,
+      verifier:fx.verifier,
+      limits:{queueLimit:2,historyLimit:2,maxAttempts:1}
+    });
+    for(let i=0;i<5;i++){
+      const id='bounded-'+i;
+      const accepted=autopilot.enqueue(finding({
+        id,
+        code:'FAIL_'+i,
+        summary:'bounded failure '+i
+      }));
+      assert.equal(accepted.accepted,true);
+      await autopilot.runNext();
+    }
+    assert.ok(autopilot.knownEntries.length<=4);
+    assert.ok(autopilot.known.size<=8);
+  }finally{
+    await rm(fx.root,{recursive:true,force:true});
+  }
+});
