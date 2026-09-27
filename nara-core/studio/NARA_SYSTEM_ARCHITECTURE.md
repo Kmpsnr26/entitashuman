@@ -282,3 +282,129 @@ Merge only by explicit release decision
 ## 9. Current release discipline
 
 PR #122 remains a stacked Draft release candidate until the latest voice/UI-sound revision completes automated and physical review. Passing CI does not automatically merge the PR.
+
+
+## 10. NARA Core Engine V2.1
+
+```mermaid
+flowchart TD
+    OWNER[Persistent Creator Owner] --> AUTH[Creator Auth]
+    AUTH --> CAP[Capability Broker]
+    CAP --> AUTOPILOT[Registered-handler Autopilot]
+
+    HOST[Own Host] --> OBS[System Observer]
+    OBS --> SENSORY[Sensory Fusion]
+    AUDIO[Microphone with OS permission] --> SENSORY
+    CAMERA[Camera with OS permission] --> SENSORY
+    SERVER[Configured / Loopback Server] --> SENSORY
+    FLOW[NARA App Data Flow] --> SENSORY
+
+    SENSORY --> INSTINCT[Operational Instinct]
+    INSTINCT --> CORE[NARA Orchestrator]
+
+    GOAL[Queued Task] --> SCHED[Task Scheduler]
+    SCHED --> AUTOPILOT
+    AUTOPILOT --> WATCH[Watchdog]
+    AUTOPILOT --> EXPERIENCE[Experience Model]
+    WATCH --> RECOVERY[Recovery Engine]
+    RECOVERY --> AUTOPILOT
+
+    AUTOPILOT --> BUS[Event Bus]
+    BUS --> BRAIN[Brain State]
+    BRAIN --> SAFETY[SAFETY Region]
+```
+
+### V2.1 identity and ownership
+
+NARA has a stable Core identity and a persistent per-device Creator Owner Store.
+
+The Owner Store keeps an immutable owner ID and device ID plus a salted scrypt password verifier. Plaintext passwords are not persisted. Credential changes require an authenticated Creator session and the existing password; changing credentials invalidates existing sessions.
+
+The standalone NARA Studio fails closed until an owner/password is provisioned. Once provisioned, the owner store survives restart.
+
+### V2.1 sensory fusion
+
+The Core can fuse these bounded channels:
+
+- hearing energy and frequency bands
+- vision activity
+- speech activity
+- own-host system health
+- configured / loopback server state
+- application-owned inbound/outbound data flow
+- permissioned device integration
+
+Own-host telemetry is limited to platform, release, architecture, hostname, CPU load, memory use, NARA process RSS and the IP addresses assigned to the host interfaces. MAC addresses are deliberately omitted.
+
+### V2.1 Capability Broker
+
+Sensitive operations are mediated by an explicit broker. Capabilities may require Creator approval, OS permission, or both.
+
+The architecture does **not** provide capabilities for credential bypass, authentication bypass, root exploits, exploit-based privilege escalation, arbitrary network discovery, packet capture or hidden persistence.
+
+Administrative OS operations are modeled as `os.privileged.action` and require both Creator approval and the operating system's confirmation/elevation path.
+
+### V2.1 safe autopilot
+
+The autopilot cannot accept arbitrary shell strings. It executes only handler functions registered by the trusted runtime.
+
+A task may specify:
+- priority
+- dependencies
+- registered handler
+- optional required capability
+
+Capability-protected tasks remain blocked/queued until the required authorization is present.
+
+### V2.1 watchdog and recovery
+
+The watchdog tracks task heartbeats and bounded timeouts. Recovery is policy-based:
+
+- bounded retries for runtime failures
+- exponential bounded retry delay
+- authentication, permission and policy failures escalate
+- exhausted retries may use an explicitly available fallback
+- otherwise the task is escalated for human/Creator attention
+
+### V2.1 operational instinct
+
+The Instinct Engine is not hidden reasoning. It exposes bounded operational signals:
+
+- urgency
+- risk
+- attention
+- confidence
+- named anomalies
+
+Inputs currently include CPU saturation, memory pressure, server health, failures, stalled tasks and sensory activity.
+
+### V2.1 adaptive experience
+
+The Experience Model records success/failure only for safe strategy IDs provided by the runtime. It can prefer a better-scoring registered strategy, but does not alter source code, model weights, credentials, permission policy or the capability boundary by itself.
+
+### V2.1 skill registry
+
+The Core currently exposes at least 19 operational skills, including:
+
+- Reasoning
+- Planning
+- Memory Read / Write
+- Agent Manager
+- Program Execution
+- Verification
+- Bug Analysis
+- Synchronization
+- Hearing Sensor
+- Vision Sensor
+- System Observer
+- Configured Server Observer
+- NARA Data Flow Observer
+- Device Integration
+- Capability Guard
+- Autopilot Control
+- Watchdog Monitor
+- Recovery Decision
+
+### V2.1 security principle
+
+NARA may integrate deeply with a device only through capabilities that the device and Creator permit. "Deep integration" means learning the host profile, using approved adapters, reading its own runtime state and calling explicit APIs. It does not mean bypassing the host security model.
