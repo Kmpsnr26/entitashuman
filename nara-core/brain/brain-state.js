@@ -189,6 +189,23 @@ export class NaraBrainState{
       this.setRegion('SAFETY',{status:'complete',activity:.3,message:'Capability disetujui creator'},event);
     }else if(event==='capability.denied'||event==='capability.revoked'){
       this.setRegion('SAFETY',{status:'paused',activity:.25,message:'Capability ditolak atau dicabut'},event);
+    }else if(event==='autopilot.task.queued'){
+      this.setRegion('PLANNER',{status:'ready',activity:.45,message:'Task autopilot masuk antrian'},event);
+    }else if(event==='autopilot.task.start'){
+      this.setRegion('AGENT_MANAGER',{status:'processing',activity:1,message:'Autopilot menjalankan handler terdaftar'},event);
+      this.setRegion('PROGRAM',{status:'processing',activity:.9,message:'Task autopilot berjalan'},event);
+    }else if(event==='autopilot.task.complete'){
+      this.setRegion('AGENT_MANAGER',{status:'complete',activity:.25,message:'Autopilot task selesai'},event);
+      this.setRegion('PROGRAM',{status:'complete',activity:.2,message:'Task autopilot selesai'},event);
+      this.setRegion('FOLLOW_UP',{status:'active',activity:.55,message:'Memverifikasi hasil autopilot'},event);
+    }else if(event==='autopilot.task.failed'){
+      this.setRegion('AGENT_MANAGER',{status:'error',activity:.85,message:'Autopilot task gagal'},event);
+      this.setRegion('ERROR_MONITOR',{status:'error',activity:1,message:'Autopilot membutuhkan recovery'},event);
+    }else if(event==='autopilot.task.stalled'){
+      this.setRegion('ERROR_MONITOR',{status:'error',activity:1,message:'Watchdog mendeteksi task macet'},event);
+      this.setRegion('FOLLOW_UP',{status:'processing',activity:.9,message:'Mengevaluasi task macet'},event);
+    }else if(event==='autopilot.task.blocked'){
+      this.setRegion('SAFETY',{status:'paused',activity:.8,message:'Autopilot menunggu capability Creator'},event);
     }else if(event==='report.created'){
       this.setRegion('REPORTING',{status:'complete',activity:.2,message:'Laporan dibuat'},event);
     }else if(event==='audio.energy'){
