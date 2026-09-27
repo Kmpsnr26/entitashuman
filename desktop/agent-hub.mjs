@@ -338,6 +338,15 @@ export class DeveloperAgentHub{
   return {id:'humanale-orchestrator',name:'HumanALE Orchestrator',mode,difficulty,stages,text:summary};
  }
  async run(value){
+  return this.runInternal(value,null);
+ }
+ async runMaintenanceVerified(value,trustedVerifier){
+  if(typeof trustedVerifier!=='function'){
+   throw new TypeError('Trusted maintenance verifier harus function internal.');
+  }
+  return this.runInternal(value,trustedVerifier);
+ }
+ async runInternal(value,trustedVerifier=null){
   if(this.pending)throw new Error('Tunggu agent sebelumnya selesai.');
   const id=String(value?.id||''),mode=value?.mode==='work'?'work':'analyze';
   let prompt=String(value?.prompt||'').trim();
@@ -362,11 +371,38 @@ export class DeveloperAgentHub{
     ?await this.runStructured(prompt,mode)
     :await this.runDirect(id,prompt,mode);
 
+   let trustedVerification=null;
    if(transaction){
+    const preVerificationInspection=await transaction.inspect();
+    if(!preVerificationInspection.allowed)throw maintenanceChangeSetError(preVerificationInspection);
+
+    if(trustedVerifier){
+     const report=await trustedVerifier(Object.freeze({
+      cwd:transaction.cwd,
+      transactionId:transaction.id,
+      changedFiles:preVerificationInspection.paths.length,
+      totalBytes:preVerificationInspection.totalBytes
+     }));
+     if(!report||report.ok!==true){
+      const verifyError=new Error('Trusted maintenance verification gagal.');
+      verifyError.code='AI_MAINTENANCE_TRUSTED_VERIFY_FAILED';
+      verifyError.verification=report||null;
+      throw verifyError;
+     }
+     trustedVerification=Object.freeze({
+      ok:true,
+      profile:String(report.profile||'trusted').slice(0,40),
+      durationMs:Number(report.durationMs)||0,
+      checkCount:Array.isArray(report.checks)?report.checks.length:0
+     });
+    }
+
     const finalInspection=await transaction.inspect();
     if(!finalInspection.allowed)throw maintenanceChangeSetError(finalInspection);
    }
-   return result;
+   return trustedVerification
+    ?{...result,trustedVerification}
+    :result;
   }catch(error){
    if(transaction&&!transaction.released){
     try{

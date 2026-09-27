@@ -103,6 +103,9 @@ test('Agent Hub enforces maintenance transaction, secret-free environment and po
  assert.match(hub,/beginMaintenanceTransaction\(cwd\)/);
  assert.match(hub,/sanitizeMaintenanceEnvironment\(process\.env\)\.env/);
  assert.match(hub,/maintenanceTransaction\.inspect\(\)/);
+ assert.match(hub,/runMaintenanceVerified\(value,trustedVerifier\)/);
+ assert.match(hub,/Trusted maintenance verifier harus function internal/);
+ assert.match(hub,/AI_MAINTENANCE_TRUSTED_VERIFY_FAILED/);
  assert.match(hub,/transaction\.rollback\('PIPELINE_FAILED'\)/);
  assert.match(hub,/Mode kerja agent wajib berjalan di dalam AI maintenance transaction/);
  assert.match(hub,/buildMaintenanceWorkPrompt\(prompt\)/);
@@ -110,4 +113,12 @@ test('Agent Hub enforces maintenance transaction, secret-free environment and po
  assert.match(hub,/--sandbox','workspace-write/);
  assert.match(hub,/--available-tools=view,grep,glob,edit,create,apply_patch/);
  assert.doesNotMatch(hub,/--dangerously-skip-permissions|bypassPermissions/);
+});
+
+
+test('trusted maintenance verifier hook is not exposed through Electron preload',async()=>{
+ const preload=await readFile(new URL('../desktop/preload.cjs',import.meta.url),'utf8');
+ assert.doesNotMatch(preload,/runMaintenanceVerified/);
+ assert.doesNotMatch(preload,/maintenance-verifier\.mjs/);
+ assert.doesNotMatch(preload,/maintenance-autopilot\.mjs/);
 });
