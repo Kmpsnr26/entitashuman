@@ -395,22 +395,22 @@ else{
    return {ok:true};
   };
   ipcMain.handle('dudidam:cloud-status',async e=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    try{return await cloudMemory.status();}catch(error){return {error:error.message};}
   });
   ipcMain.handle('dudidam:cloud-login',async e=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    return openCloudLogin();
   });
   ipcMain.handle('dudidam:cloud-context',async(e,value)=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    try{return await cloudMemory.context(value);}catch(error){return {error:error.message};}
   });
 
   const pickProvider=value=>['copilot','openai','grok','gemini','claude','deepseek','askcodi'].includes(value)?value:'chatgpt';
-  ipcMain.handle('dudidam:status',async(e,provider)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{const selected=pickProvider(provider),result=await bridges[selected].status();if(selected==='copilot')nara.connection('COPILOT',Boolean(result?.configured));return result;}catch(error){if(provider==='copilot')nara.connection('COPILOT',false);return {configured:false,error:error.message};}});
+  ipcMain.handle('dudidam:status',async(e,provider)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{const selected=pickProvider(provider),result=await bridges[selected].status();if(selected==='copilot')nara.connection('COPILOT',Boolean(result?.configured));return result;}catch(error){if(provider==='copilot')nara.connection('COPILOT',false);return {configured:false,error:error.message};}});
   ipcMain.handle('dudidam:ask',async(e,value)=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    dataFlowMeter?.recordIn(value);
    const provider=pickProvider(value?.provider);
    let memoryContext=null;
@@ -437,17 +437,17 @@ else{
     return {error:error.message};
    }
   });
-  ipcMain.handle('dudidam:login',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await bridges.chatgpt.login();}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:login-copilot',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await bridges.copilot.login();}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:stt-status',async e=>{if(!trusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianStt.status();});
-  ipcMain.handle('dudidam:transcribe',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await indonesianStt.transcribe(value);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:tts-status',async e=>{if(!trusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianTts.status();});
-  ipcMain.handle('dudidam:synthesize',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await indonesianTts.synthesize(value);}catch(error){return {error:error.message};}});
-  ipcMain.on('dudidam:panel-open',(e,view)=>{if(trusted(e))openPanel(view);});
+  ipcMain.handle('dudidam:login',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await bridges.chatgpt.login();}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:login-copilot',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await bridges.copilot.login();}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:stt-status',async e=>{if(!ownerTrusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianStt.status();});
+  ipcMain.handle('dudidam:transcribe',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await indonesianStt.transcribe(value);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:tts-status',async e=>{if(!ownerTrusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianTts.status();});
+  ipcMain.handle('dudidam:synthesize',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await indonesianTts.synthesize(value);}catch(error){return {error:error.message};}});
+  ipcMain.on('dudidam:panel-open',(e,view)=>{if(ownerTrusted(e))openPanel(view);});
   ipcMain.on('dudidam:panel-close',e=>{if(trusted(e))panelWin?.hide();});
-  ipcMain.handle('dudidam:agents',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await agentHub.status();}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:agents',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await agentHub.status();}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:project-root-choose',async e=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    const result=await dialog.showOpenDialog(panelWin?.isVisible()?panelWin:win,{title:'Pilih folder checkout proyek HumanALE god egine',properties:['openDirectory']});
    if(result.canceled||!result.filePaths?.[0])return {canceled:true};
    const selected=path.resolve(result.filePaths[0]);
@@ -456,7 +456,7 @@ else{
    return {ok:true,...await agentHub.status()};
   });
   ipcMain.handle('dudidam:agent-run',async(e,value)=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    let memoryContext=null;
    try{memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['planner','agent']});}
    catch(error){
@@ -470,26 +470,26 @@ else{
     return {error:error.message};
    }
   });
-  ipcMain.handle('dudidam:agent-open',async(e,id)=>{if(!trusted(e))return {error:'Akses ditolak.'};const url=agentLinks[String(id||'')];if(!url||!url.startsWith('https://'))return {error:'Tautan agent tidak valid.'};await shell.openExternal(url);return {ok:true};});
+  ipcMain.handle('dudidam:agent-open',async(e,id)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};const url=agentLinks[String(id||'')];if(!url||!url.startsWith('https://'))return {error:'Tautan agent tidak valid.'};await shell.openExternal(url);return {ok:true};});
   ipcMain.handle('dudidam:terminal-create',async(e,value)=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    const shellId=['auto','pwsh','powershell','cmd'].includes(String(value?.shell||''))?String(value.shell):'auto';
    const profileId=['claude','codex','cursor','gemini'].includes(String(value?.profile||''))?String(value.profile):undefined;
    const options={shell:shellId,profile:profileId,title:String(value?.title||'').slice(0,80),cols:value?.cols,rows:value?.rows};
    try{const result=await terminalManager.create(options);nara.dispatch('terminal.open',{source:'terminal-manager'});return result;}catch(error){nara.dispatch('error.detected',{message:error.message,source:'terminal'});return {error:error.message};}
   });
-  ipcMain.handle('dudidam:terminal-write',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.write(value?.sessionId,value?.data);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-resize',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.resize(value?.sessionId,value?.cols,value?.rows);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-kill',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.kill(value?.sessionId);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-restart',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.restart(value?.sessionId);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-clear',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return terminalManager.clear(value?.sessionId);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-list',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};return {sessions:terminalManager.list()};});
-  ipcMain.handle('dudidam:terminal-detect',async e=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.detect();}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-recent',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};return {output:terminalManager.getRecentOutput(value?.sessionId,value?.limit)};});
-  ipcMain.handle('dudidam:terminal-cwd',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.setCwd(value?.sessionId,value?.cwd);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-policy',async(e,value)=>{if(!trusted(e))return {error:'Akses ditolak.'};return terminalPolicy.classifyCommand(value?.command);});
+  ipcMain.handle('dudidam:terminal-write',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.write(value?.sessionId,value?.data);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-resize',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.resize(value?.sessionId,value?.cols,value?.rows);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-kill',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.kill(value?.sessionId);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-restart',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.restart(value?.sessionId);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-clear',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.clear(value?.sessionId);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-list',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};return {sessions:terminalManager.list()};});
+  ipcMain.handle('dudidam:terminal-detect',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.detect();}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-recent',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};return {output:terminalManager.getRecentOutput(value?.sessionId,value?.limit)};});
+  ipcMain.handle('dudidam:terminal-cwd',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.setCwd(value?.sessionId,value?.cwd);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-policy',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};return terminalPolicy.classifyCommand(value?.command);});
   ipcMain.handle('dudidam:terminal-execute',async(e,value)=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    const command=String(value?.command||'').trim(),decision=terminalPolicy.classifyCommand(command);
    if(decision.category==='BLOCK')return {error:decision.reason,category:'BLOCK'};
    if(decision.category==='CONFIRM'){
@@ -500,7 +500,7 @@ else{
    catch(error){return {error:error.message,category:decision.category};}
   });
   ipcMain.handle('dudidam:terminal-open',async e=>{
-   if(!trusted(e))return {error:'Akses ditolak.'};
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    try{
     const cwd=path.resolve(agentHub?.getProjectRoot?.()||process.env.DUDIDAM_PROJECT_ROOT||process.cwd());
     const child=spawn('powershell.exe',['-NoLogo','-NoExit'],{cwd,detached:true,stdio:'ignore',windowsHide:false});
@@ -522,9 +522,9 @@ else{
   win.webContents.setWindowOpenHandler(({url})=>{try{if(new URL(url).origin==='https://chatgpt.com')shell.openExternal(url);}catch{}return {action:'deny'};});
   win.webContents.on('will-navigate',(e,url)=>{if(!url.startsWith(origin+'/'))e.preventDefault();});
   win.webContents.on('will-attach-webview',e=>e.preventDefault());
-  win.webContents.session.setPermissionCheckHandler((contents,permission,requestingOrigin)=>(contents===win.webContents||contents===panelWin?.webContents)&&permission==='media'&&requestingOrigin===origin);
-  win.webContents.session.setDisplayMediaRequestHandler(async(request,callback)=>{if(request.securityOrigin!==origin||!request.userGesture||!request.audioRequested){callback({});return;}try{const sources=await desktopCapturer.getSources({types:['screen']});if(!sources.length){callback({});return;}callback({video:sources[0],audio:'loopback'});}catch{callback({});}});
-  win.webContents.session.setPermissionRequestHandler(async(contents,permission,callback,details)=>{if((contents!==win.webContents&&contents!==panelWin?.webContents)||!contents.getURL().startsWith(origin+'/')||permission!=='media'){callback(false);return;}const mediaTypes=details.mediaTypes||[];const result=await dialog.showMessageBox(panelWin?.isVisible()?panelWin:win,{type:'question',title:'Izin perangkat HumanALE god egine',message:'Izinkan '+(mediaTypes.includes('video')?'kamera':'mikrofon')+' untuk sesi ini?',detail:'Mikrofon dipakai hanya saat Wake ALE, dikte, atau reaksi suara yang kamu aktifkan; status Wake selalu terlihat di layar. Kamera hanya mengirim satu foto setelah tombol kirim foto ditekan.',buttons:['Izinkan','Batal'],defaultId:1,cancelId:1});callback(result.response===0);});
+  win.webContents.session.setPermissionCheckHandler((contents,permission,requestingOrigin)=>(contents===win.webContents||contents===panelWin?.webContents)&&ownerGate.isUnlocked(String(contents.id))&&permission==='media'&&requestingOrigin===origin);
+  win.webContents.session.setDisplayMediaRequestHandler(async(request,callback)=>{const ownerUnlocked=ownerGate.isUnlocked(String(win?.webContents?.id||''))||ownerGate.isUnlocked(String(panelWin?.webContents?.id||''));if(!ownerUnlocked||request.securityOrigin!==origin||!request.userGesture||!request.audioRequested){callback({});return;}try{const sources=await desktopCapturer.getSources({types:['screen']});if(!sources.length){callback({});return;}callback({video:sources[0],audio:'loopback'});}catch{callback({});}});
+  win.webContents.session.setPermissionRequestHandler(async(contents,permission,callback,details)=>{if((contents!==win.webContents&&contents!==panelWin?.webContents)||!ownerGate.isUnlocked(String(contents.id))||!contents.getURL().startsWith(origin+'/')||permission!=='media'){callback(false);return;}const mediaTypes=details.mediaTypes||[];const result=await dialog.showMessageBox(panelWin?.isVisible()?panelWin:win,{type:'question',title:'Izin perangkat HumanALE god egine',message:'Izinkan '+(mediaTypes.includes('video')?'kamera':'mikrofon')+' untuk sesi ini?',detail:'Mikrofon dipakai hanya saat Wake ALE, dikte, atau reaksi suara yang kamu aktifkan; status Wake selalu terlihat di layar. Kamera hanya mengirim satu foto setelah tombol kirim foto ditekan.',buttons:['Izinkan','Batal'],defaultId:1,cancelId:1});callback(result.response===0);});
 
   const trayIcon=nativeImage.createFromPath(path.join(root,'reference.png')).resize({width:20,height:20,quality:'best'});
   tray=new Tray(trayIcon);
