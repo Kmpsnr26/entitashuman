@@ -39,7 +39,10 @@ test('workspace broker creates an isolated deterministic maintenance branch',asy
     assert.notEqual(workspace.path,root);
     assert.equal(git(workspace.path,'rev-parse','HEAD'),workspace.baseHead);
     assert.equal(git(workspace.path,'branch','--show-current'),workspace.branchName);
-    assert.equal(await readFile(join(workspace.path,'app.js'),'utf8'),'export const value=1;\n');
+    assert.equal(
+      (await readFile(join(workspace.path,'app.js'),'utf8')).replace(/\r\n/g,'\n'),
+      'export const value=1;\n'
+    );
     await broker.discard(workspace);
   }finally{
     await rm(root,{recursive:true,force:true});
