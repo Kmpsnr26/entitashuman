@@ -40,7 +40,8 @@ function fakeRunner({existing=false,existingDraft=true}={}){
         url:'https://github.com/Kmpsnr26/entitashuman/pull/999',
         isDraft:existingDraft,
         baseRefName:receipt.baseBranch,
-        headRefName:receipt.branchName
+        headRefName:receipt.branchName,
+        headRefOid:receipt.commitSha
       }]:[];
       return {code:0,stdout:JSON.stringify(rows),stderr:''};
     }
@@ -161,4 +162,41 @@ test('broker public surface has no merge release signing or approval methods',()
   ]){
     assert.equal(typeof broker[method],'undefined',method);
   }
+});
+
+
+test('existing Draft PR with stale head SHA fails closed',async()=>{
+  const calls=[];
+  const runner=async(command,args)=>{
+    calls.push({command,args:[...args]});
+    if(command==='git'&&args[0]==='remote'){
+      return {code:0,stdout:'https://github.com/Kmpsnr26/entitashuman.git\n',stderr:''};
+    }
+    if(command==='git'&&args[0]==='rev-parse'){
+      if(args[1]==='refs/heads/'+receipt.branchName){
+        return {code:0,stdout:receipt.commitSha+'\n',stderr:''};
+      }
+      return {code:0,stdout:receipt.baseHead+'\n',stderr:''};
+    }
+    if(/gh(?:\.exe)?$/.test(command)&&args[1]==='list'){
+      return {code:0,stdout:JSON.stringify([{
+        number:999,
+        url:'https://github.com/Kmpsnr26/entitashuman/pull/999',
+        isDraft:true,
+        baseRefName:receipt.baseBranch,
+        headRefName:receipt.branchName,
+        headRefOid:'3'.repeat(40)
+      }]),stderr:''};
+    }
+    throw new Error('unexpected');
+  };
+  const broker=new TrustedDraftPRBroker({
+    expectedRepository:'Kmpsnr26/entitashuman',
+    runner
+  });
+  await assert.rejects(
+    ()=>broker.publish({repoRoot:'.',receipt}),
+    error=>error?.code==='MAINTENANCE_DRAFT_EXISTING_MISMATCH'
+  );
+  assert.equal(calls.some(call=>call.command==='git'&&call.args[0]==='push'),false);
 });
