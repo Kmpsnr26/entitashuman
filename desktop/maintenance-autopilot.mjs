@@ -64,7 +64,7 @@ function fingerprintOf(finding){
     .digest('hex');
 }
 
-function normalizeFinding(raw,now){
+export function normalizeMaintenanceFinding(raw,now=()=>Date.now()){
   if(raw===null||typeof raw!=='object'||Array.isArray(raw)){
     throw new TypeError('Autopilot finding harus object.');
   }
@@ -211,7 +211,7 @@ export class SafeMaintenanceAutopilot{
     this.known=new Set();
     this.knownEntries=[];
     this.active=null;
-    this.checkpointPending=false;
+    this.checkpointPending=null;
   }
 
   rememberFinding(finding){
@@ -230,9 +230,13 @@ export class SafeMaintenanceAutopilot{
     }
   }
 
+  hasFinding(finding){
+    return this.known.has(finding.id)||this.known.has(finding.fingerprint);
+  }
+
   enqueue(raw){
-    const finding=normalizeFinding(raw,this.now);
-    if(this.known.has(finding.id)||this.known.has(finding.fingerprint)){
+    const finding=normalizeMaintenanceFinding(raw,this.now);
+    if(this.hasFinding(finding)){
       return Object.freeze({accepted:false,reason:'DUPLICATE',id:finding.id});
     }
     if(this.queue.length>=this.limits.queueLimit){
@@ -248,7 +252,8 @@ export class SafeMaintenanceAutopilot{
       accepted:true,
       reason:'QUEUED',
       id:finding.id,
-      queueDepth:this.queue.length
+      queueDepth:this.queue.length,
+      fingerprint:finding.fingerprint
     });
   }
 
@@ -301,7 +306,13 @@ export class SafeMaintenanceAutopilot{
             verificationProfile:result?.trustedVerification?.profile||'full'
           });
           this.pushHistory(record);
-          this.checkpointPending=true;
+          this.checkpointPending=Object.freeze({
+            findingId:finding.id,
+            fingerprint:finding.fingerprint,
+            verifiedAt:endedAt,
+            verificationProfile:record.verificationProfile,
+            changedFiles:record.changedFiles
+          });
           return Object.freeze({
             status:MAINTENANCE_AUTOPILOT_STATUS.VERIFIED,
             findingId:finding.id,
@@ -357,13 +368,53 @@ export class SafeMaintenanceAutopilot{
     }
   }
 
+  acceptCheckpoint(receipt){
+    const pending=this.checkpointPending;
+    if(!pending){
+      const error=new Error('Tidak ada verified checkpoint yang menunggu Draft PR.');
+      error.code='AUTOPILOT_CHECKPOINT_NOT_PENDING';
+      throw error;
+    }
+    if(
+      !receipt||
+      receipt.verified!==true||
+      receipt.draft!==true||
+      receipt.findingId!==pending.findingId||
+      receipt.findingFingerprint!==pending.fingerprint||
+      !/^automation\/maintenance\//.test(String(receipt.branchName||''))||
+      !/^[a-f0-9]{40}$/i.test(String(receipt.commitSha||''))||
+      !/^https:\/\/github\.com\//i.test(String(receipt.url||''))
+    ){
+      const error=new Error('Draft PR checkpoint receipt tidak cocok verified finding.');
+      error.code='AUTOPILOT_CHECKPOINT_RECEIPT_MISMATCH';
+      throw error;
+    }
+    this.checkpointPending=null;
+    return Object.freeze({
+      accepted:true,
+      findingId:pending.findingId,
+      branchName:receipt.branchName,
+      commitSha:receipt.commitSha,
+      draftUrl:receipt.url
+    });
+  }
+
+  currentCheckpoint(){
+    return this.checkpointPending
+      ?Object.freeze({...this.checkpointPending})
+      :null;
+  }
+
   snapshot(){
     return Object.freeze({
       version:MAINTENANCE_AUTOPILOT_VERSION,
       realtime:false,
       queueDepth:this.queue.length,
       activeFindingId:this.active?.id||null,
-      checkpointPending:this.checkpointPending,
+      checkpointPending:Boolean(this.checkpointPending),
+      checkpoint:this.checkpointPending
+        ?Object.freeze({...this.checkpointPending})
+        :null,
       limits:this.limits,
       recent:Object.freeze(this.history.slice(-10))
     });

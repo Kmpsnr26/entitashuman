@@ -132,6 +132,7 @@ export function evaluateMaintenanceChangeSet({
  protectedAreas=[],
  symlinkPaths=[],
  stagedPaths=[],
+ secretPaths=[],
  totalBytes=0,
  branchChanged=false,
  headChanged=false,
@@ -142,6 +143,7 @@ export function evaluateMaintenanceChangeSet({
  const normalizedPaths=[...new Set((paths||[]).map(path=>normalizeMaintenanceRepoPath(path)))];
  const normalizedSymlinks=[...new Set((symlinkPaths||[]).map(path=>normalizeMaintenanceRepoPath(path)))];
  const normalizedStaged=[...new Set((stagedPaths||[]).map(path=>normalizeMaintenanceRepoPath(path)))];
+ const normalizedSecrets=[...new Set((secretPaths||[]).map(path=>normalizeMaintenanceRepoPath(path)))];
  const protectedPaths=normalizedPaths.filter(path=>isMaintenanceProtectedPath(path,protectedAreas));
  const patchInspection=inspectMaintenancePatchText(patch);
  const violations=[];
@@ -151,6 +153,7 @@ export function evaluateMaintenanceChangeSet({
  if(gitMetadataChanged)violations.push('GIT_METADATA_DRIFT');
  if(lockChanged)violations.push('REPO_LOCK_DRIFT');
  if(normalizedStaged.length)violations.push('STAGED_CHANGE');
+ if(normalizedSecrets.length)violations.push('SECRET_FILE_PRESENT');
  if(normalizedSymlinks.length)violations.push('SYMLINK_CHANGE');
  if(protectedPaths.length)violations.push('PROTECTED_PATH_CHANGE');
  if(normalizedPaths.length>AI_MAINTENANCE_MAX_CHANGED_FILES)violations.push('TOO_MANY_CHANGED_FILES');
@@ -166,6 +169,7 @@ export function evaluateMaintenanceChangeSet({
   protectedPaths:Object.freeze(protectedPaths),
   symlinkPaths:Object.freeze(normalizedSymlinks),
   stagedPaths:Object.freeze(normalizedStaged),
+  secretPaths:Object.freeze(normalizedSecrets),
   totalBytes,
   patch:Object.freeze({
    allowed:patchInspection.allowed,

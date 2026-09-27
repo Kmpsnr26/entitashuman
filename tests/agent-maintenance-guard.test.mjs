@@ -97,6 +97,7 @@ test('changeset blocks protected paths symlinks staging drift and excessive scop
   protectedAreas,
   symlinkPaths:['public/link.js'],
   stagedPaths:['public/app.js'],
+  secretPaths:['.env'],
   totalBytes:AI_MAINTENANCE_MAX_CHANGED_BYTES+1,
   branchChanged:true,
   headChanged:true,
@@ -107,7 +108,7 @@ test('changeset blocks protected paths symlinks staging drift and excessive scop
  assert.equal(result.allowed,false);
  for(const code of [
   'BRANCH_DRIFT','HEAD_DRIFT','GIT_METADATA_DRIFT','REPO_LOCK_DRIFT','STAGED_CHANGE',
-  'SYMLINK_CHANGE','PROTECTED_PATH_CHANGE','CHANGESET_TOO_LARGE'
+  'SECRET_FILE_PRESENT','SYMLINK_CHANGE','PROTECTED_PATH_CHANGE','CHANGESET_TOO_LARGE'
  ]){
   assert.ok(result.violations.includes(code),code);
  }

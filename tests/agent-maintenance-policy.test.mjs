@@ -26,6 +26,10 @@ test('AI maintenance policy is repair-only and denies all owner/release authorit
  assert.ok(snapshot.protectedAreas.includes('nara-core/permissions/**'));
  assert.ok(AI_MAINTENANCE_READ_DENIED_AREAS.includes('**/*.pfx'));
  assert.ok(AI_MAINTENANCE_PROTECTED_AREAS.includes('.github/workflows/**'));
+ assert.ok(AI_MAINTENANCE_PROTECTED_AREAS.includes('package.json'));
+ assert.ok(AI_MAINTENANCE_PROTECTED_AREAS.includes('package-lock.json'));
+ assert.ok(AI_MAINTENANCE_PROTECTED_AREAS.includes('build.mjs'));
+ assert.ok(AI_MAINTENANCE_PROTECTED_AREAS.includes('tests/**'));
 
  for(const capability of [
   'program.read','program.edit','program.test','program.build','program.debug',
@@ -121,4 +125,18 @@ test('trusted maintenance verifier hook is not exposed through Electron preload'
  assert.doesNotMatch(preload,/runMaintenanceVerified/);
  assert.doesNotMatch(preload,/maintenance-verifier\.mjs/);
  assert.doesNotMatch(preload,/maintenance-autopilot\.mjs/);
+});
+
+
+test('trusted workspace and Draft PR brokers are not exposed through Electron preload',async()=>{
+ const preload=await readFile(new URL('../desktop/preload.cjs',import.meta.url),'utf8');
+ for(const forbidden of [
+  'maintenance-workspace',
+  'maintenance-draft-pr-broker',
+  'maintenance-checkpoint-coordinator',
+  'runMaintenanceVerified',
+  'resumePending'
+ ]){
+  assert.equal(preload.includes(forbidden),false,forbidden);
+ }
 });
