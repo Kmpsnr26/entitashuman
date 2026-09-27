@@ -63,12 +63,8 @@ const FORBIDDEN_WORK_INTENTS=Object.freeze([
 ]);
 
 export const AI_MAINTENANCE_READ_DENIED_AREAS=Object.freeze([
- '.env',
- '**/.env',
- '.env.local',
- '**/.env.local',
- '.env.production',
- '**/.env.production',
+ '.env*',
+ '**/.env*',
  '.npmrc',
  '**/.npmrc',
  '.npmrc.*',
@@ -87,12 +83,8 @@ export const AI_MAINTENANCE_READ_DENIED_AREAS=Object.freeze([
 
 export const AI_MAINTENANCE_PROTECTED_AREAS=Object.freeze([
  '.git/**',
- '.env',
- '**/.env',
- '.env.local',
- '**/.env.local',
- '.env.production',
- '**/.env.production',
+ '.env*',
+ '**/.env*',
  '**/*.pem',
  '**/*.key',
  '**/*.p12',
