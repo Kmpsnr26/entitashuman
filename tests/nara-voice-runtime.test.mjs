@@ -10,7 +10,10 @@ test('NARA runtime publishes voice cues from the event bus without exposing arbi
     readFile(new URL('desktop/preload.cjs',root),'utf8')
   ]);
   assert.match(main,/createVoiceFeedback/);
-  assert.match(main,/nara\.bus\.onAny\(envelope=>consumeNaraVoice\(envelope\)\)/);
+  assert.match(main,/nara\.bus\.onAny\(envelope=>\{/);
+  assert.match(main,/consumeNaraVoice\(envelope\)/);
+  assert.match(main,/autopilot\.task\.complete/);
+  assert.match(main,/scheduleExperienceSave\(\)/);
   assert.match(main,/dudidam:nara-voice/);
   assert.match(main,/announceNaraEvent\('nara\.start'\)/);
   assert.match(main,/announceNaraEvent\('nara\.shutdown'\)/);
