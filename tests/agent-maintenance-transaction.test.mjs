@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
-import {mkdir,mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
+import {mkdir,mkdtemp,readFile,rm,symlink,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {
@@ -191,6 +191,53 @@ test('explicit rollback quarantines and removes otherwise safe partial worker ch
   assert.equal(git(root,'status','--porcelain'),'');
   await tx.release();
  }finally{
+  await rm(root,{recursive:true,force:true});
+ }
+});
+
+
+test('baseline symbolic links fail closed before any agent can run',async()=>{
+ const {root}=await repoFixture();
+ try{
+  const target=join(root,'app.js');
+  const link=join(root,'linked-app.js');
+  try{
+   await symlink(target,link,'file');
+  }catch(error){
+   if(process.platform==='win32'&&['EPERM','EACCES'].includes(error?.code))return;
+   throw error;
+  }
+  git(root,'add','linked-app.js');
+  git(root,'commit','-m','add baseline symlink');
+  await assert.rejects(
+   ()=>beginMaintenanceTransaction(root),
+   error=>error?.code==='AI_MAINTENANCE_BASELINE_SYMLINK_PRESENT'
+  );
+ }finally{
+  await rm(root,{recursive:true,force:true});
+ }
+});
+
+test('repository-global lock blocks a second maintenance session from another Git worktree',async()=>{
+ const {root}=await repoFixture();
+ const other=await mkdtemp(join(tmpdir(),'humanale-maintenance-worktree-parent-'));
+ const worktree=join(other,'wt');
+ try{
+  git(root,'branch','maintenance/other');
+  git(root,'worktree','add',worktree,'maintenance/other');
+
+  const first=await beginMaintenanceTransaction(root);
+  await assert.rejects(
+   ()=>beginMaintenanceTransaction(worktree),
+   error=>error?.code==='AI_MAINTENANCE_REPO_LOCKED'
+  );
+  await first.release();
+
+  const second=await beginMaintenanceTransaction(worktree);
+  await second.release();
+ }finally{
+  try{git(root,'worktree','remove','--force',worktree);}catch{}
+  await rm(other,{recursive:true,force:true});
   await rm(root,{recursive:true,force:true});
  }
 });
