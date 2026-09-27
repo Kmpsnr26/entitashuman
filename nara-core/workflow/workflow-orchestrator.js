@@ -29,12 +29,15 @@ function freezeClone(value){
 
 function summarizeDecision(decision){
   if(!decision||typeof decision!=='object')return null;
+  const reasonCodes=Array.isArray(decision.reasonCodes)
+    ?decision.reasonCodes.slice(0,16).map(code=>safeText(code,80)).filter(code=>SAFE_ID.test(code))
+    :[];
   return Object.freeze({
-    id:decision.id??null,
-    outcome:decision.outcome??null,
-    risk:decision.risk??null,
-    capability:decision.capability??null,
-    reasonCodes:Object.freeze([...(decision.reasonCodes||[])])
+    id:safeText(decision.id??'',120)||null,
+    outcome:safeText(decision.outcome??'',40)||null,
+    risk:safeText(decision.risk??'',40)||null,
+    capability:safeText(decision.capability??'',120)||null,
+    reasonCodes:Object.freeze(reasonCodes)
   });
 }
 
@@ -287,7 +290,14 @@ export class NaraWorkflowOrchestrator{
       executionSummary=summarizeExecution(execution);
 
       try{
-        this.learningEngine.observeExecution(execution,{authority:'system',tags:['workflow']});
+        this.learningEngine.observeExecution({
+          learningSignalId:'execution-'+wfId,
+          executionId:execution?.executionId??null,
+          skillId:execution?.skillId??normalizedSkillId,
+          status:execution?.status??null,
+          durationMs:execution?.durationMs??0,
+          endedAt:execution?.endedAt??this.now()
+        },{authority:'system',tags:['workflow']});
         learning.executionRecorded=true;
       }catch{
         learning.executionRecorded=false;
@@ -318,7 +328,11 @@ export class NaraWorkflowOrchestrator{
       const report=await this.verificationEngine.verify({
         verificationId:'verification-'+wfId,
         requestId:reqId,
-        execution,
+        execution:{
+          executionId:execution.executionId,
+          skillId:execution.skillId,
+          status:execution.status
+        },
         artifact:execution.output,
         verifierIds
       });
