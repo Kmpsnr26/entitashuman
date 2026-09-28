@@ -19,6 +19,11 @@ Write-Host "============================================================" -Foreg
 Write-Host " NARA Neural Space 3D - Physical GPU Acceptance" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Repository: $Root"
+$gitHead = $null
+if (Get-Command git -ErrorAction SilentlyContinue) {
+  try { $gitHead = (git rev-parse HEAD 2>$null).Trim() } catch {}
+}
+if ($gitHead) { Write-Host "Git HEAD   : $gitHead" }
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
   Fail "Node.js tidak ditemukan di PATH."
@@ -38,29 +43,29 @@ $electronExe = Join-Path $Root 'node_modules\electron\dist\electron.exe'
 
 if (-not $SkipInstall -and ((-not (Test-Path $electronPackage)) -or (-not (Test-Path $threePackage)))) {
   Write-Host ""
-  Write-Host "[1/4] Memasang dependency terkunci..." -ForegroundColor Yellow
+  Write-Host "[1/5] Memasang dependency terkunci..." -ForegroundColor Yellow
   & npm ci
   if ($LASTEXITCODE -ne 0) { Fail "npm ci gagal." }
 } else {
   Write-Host ""
-  Write-Host "[1/4] Dependency tersedia." -ForegroundColor Green
+  Write-Host "[1/5] Dependency tersedia." -ForegroundColor Green
 }
 
 if (-not (Test-Path $electronExe)) {
-  Write-Host "[2/4] Menyiapkan binary Electron..." -ForegroundColor Yellow
+  Write-Host "[2/5] Menyiapkan binary Electron..." -ForegroundColor Yellow
   $installer = Join-Path $Root 'node_modules\.bin\install-electron.cmd'
   if (-not (Test-Path $installer)) { Fail "install-electron.cmd tidak ditemukan. Jalankan npm ci." }
   & $installer --no
   if ($LASTEXITCODE -ne 0) { Fail "Download/install binary Electron gagal." }
 } else {
-  Write-Host "[2/4] Binary Electron tersedia." -ForegroundColor Green
+  Write-Host "[2/5] Binary Electron tersedia." -ForegroundColor Green
 }
 
 $artifactDir = Join-Path $Root 'artifacts'
 New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
 
 $env:NARA_GPU_MODE = 'hardware'
-Write-Host "[3/4] Menjalankan browser acceptance dengan GPU hardware..." -ForegroundColor Yellow
+Write-Host "[3/5] Menjalankan browser acceptance dengan GPU hardware..." -ForegroundColor Yellow
 & npm run smoke:neural-gpu
 $smokeExit = $LASTEXITCODE
 
@@ -73,7 +78,7 @@ if (-not (Test-Path $reportPath)) {
 
 $report = Get-Content $reportPath -Raw -Encoding UTF8 | ConvertFrom-Json
 Write-Host ""
-Write-Host "[4/4] Hasil acceptance" -ForegroundColor Cyan
+Write-Host "[4/5] Hasil GPU + Neural acceptance" -ForegroundColor Cyan
 Write-Host "Passed              : $($report.passed)"
 Write-Host "GPU mode requested  : $($report.gpu.requestedMode)"
 Write-Host "HW acceleration     : $($report.gpu.hardwareAcceleration)"
@@ -84,6 +89,15 @@ Write-Host "FPS                  : $($report.hud.performance)"
 Write-Host "Roots                : $($report.hud.roots)"
 Write-Host "Routes               : $($report.hud.routes)"
 Write-Host "Last route           : $($report.hud.lastRoute)"
+Write-Host "Custom panel         : $($report.checks.customSettingsPanel)"
+Write-Host "Brain/Binary default : $($report.checks.r4VisualDefaults)"
+Write-Host "Guardian runtime     : $($report.checks.customSettingsRuntime)"
+Write-Host "R5 audio controls    : $($report.checks.r5AudioControls)"
+Write-Host "R5 audio profile     : $($report.checks.r5AudioProfileRuntime)"
+Write-Host "R7 voice controls    : $($report.checks.r7VoiceIdentityControls)"
+Write-Host "R7 voice runtime     : $($report.checks.r7VoiceProfileRuntime)"
+Write-Host "R7 preview safe      : $($report.checks.r7VoicePreviewSafe)"
+Write-Host "Node voice narration : $($report.checks.nodeVoiceNarration)"
 Write-Host "Report               : $reportPath"
 Write-Host "Screenshot           : $screenshotPath"
 
@@ -94,7 +108,37 @@ foreach ($property in $report.checks.PSObject.Properties) {
   }
 }
 
-if ($smokeExit -ne 0 -or $report.passed -ne $true -or $report.gpu.modeMatched -ne $true -or $failed.Count -gt 0) {
+$requiredRevisionChecks = @(
+  'customSettingsPanel',
+  'r4VisualDefaults',
+  'customSettingsRuntime',
+  'customSettingsPersistence',
+  'r5AudioControls',
+  'r5AudioProfileRuntime',
+  'r7VoiceIdentityControls',
+  'r7VoiceProfileRuntime',
+  'r7VoicePreviewSafe',
+  'nodeVoiceNarration',
+  'mechanicalCoreRings',
+  'galacticEnvironment'
+)
+$missingRevisionChecks = @()
+foreach ($name in $requiredRevisionChecks) {
+  $property = $report.checks.PSObject.Properties[$name]
+  if ($null -eq $property -or $property.Value -ne $true) {
+    $missingRevisionChecks += $name
+  }
+}
+
+Write-Host ""
+Write-Host "[5/5] R7 release-candidate revision gates" -ForegroundColor Cyan
+if ($missingRevisionChecks.Count -eq 0) {
+  Write-Host "R4/R5/R7 gates       : PASS" -ForegroundColor Green
+} else {
+  Write-Host "R4/R5/R7 gates       : FAIL -> $($missingRevisionChecks -join ', ')" -ForegroundColor Red
+}
+
+if ($smokeExit -ne 0 -or $report.passed -ne $true -or $report.gpu.modeMatched -ne $true -or $failed.Count -gt 0 -or $missingRevisionChecks.Count -gt 0) {
   if ($failed.Count -gt 0) {
     Write-Host "Failed checks        : $($failed -join ', ')" -ForegroundColor Red
   }
@@ -102,5 +146,5 @@ if ($smokeExit -ne 0 -or $report.passed -ne $true -or $report.gpu.modeMatched -n
 }
 
 Write-Host ""
-Write-Host "[PASS] NARA Neural Space 3D lolos physical GPU acceptance." -ForegroundColor Green
+Write-Host "[PASS] NARA R7 release candidate lolos physical GPU + visual/voice/UI-audio acceptance." -ForegroundColor Green
 exit 0

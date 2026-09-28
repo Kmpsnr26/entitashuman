@@ -192,14 +192,21 @@ test('agent hub treats memory as reference data while preserving existing sandbo
 });
 
 test('desktop IPC validates context before provider or agent use and records context.used',async()=>{
-  const main=await read('desktop/main.cjs');
+  const [main,runtimeHost,agentCoordinator,runtimeContract]=await Promise.all([
+    read('desktop/main.cjs'),
+    read('desktop/humanale-runtime-host.mjs'),
+    read('desktop/nara-agent-coordinator.mjs'),
+    read('nara-core/runtime/unified-contract.js')
+  ]);
   assert.match(main,/import\('\.\/memory-context\.mjs'\)/);
   assert.match(main,/validateMemoryContext\(value\?\.memoryContext,\{allowedTargets:\['reasoner'\]\}\)/);
   assert.match(main,/validateMemoryContext\(value\?\.memoryContext,\{allowedTargets:\['planner','agent'\]\}\)/);
-  assert.match(main,/nara\.dispatch\('context\.used'/);
+  assert.match(agentCoordinator,/this\.nara\.dispatch\('context\.used'/);
   assert.match(main,/nara\.dispatch\('context\.blocked'/);
-  assert.match(main,/agentHub\.run\(\{\.\.\.value,memoryContext\}\)/);
-  const allowlist=(main.match(/const NARA_RENDERER_EVENTS=new Set\(\[([\s\S]*?)\]\);/)||[])[1]||'';
+  assert.match(main,/naraAgentCoordinator\.run\(\{\.\.\.value,memoryContext\}\)/);
+  assert.match(agentCoordinator,/this\.agentHub\.run\(\{/);
+  assert.match(runtimeHost,/DEFAULT_RENDERER_EVENTS=NARA_UNIFIED_RUNTIME_CONTRACT\.rendererEvents/);
+  const allowlist=(runtimeContract.match(/rendererEvents:Object\.freeze\(\[([\s\S]*?)\]\)/)||[])[1]||'';
   assert.doesNotMatch(allowlist,/context\.used|context\.approved|memory\.write/);
 });
 

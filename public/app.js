@@ -30,10 +30,139 @@ const desktopContextBridge=desktop&&desktopMemory&&window.HumanALEContextBridge?
  ?window.HumanALEContextBridge.create({runtime:desktopMemoryRuntime,memory:desktopMemory,storage:localStorage,maxEntries:6,maxChars:1600})
  :null;
 const MEMORY_SOURCE_KEY='humanale.nara.context-source.v1';
+let ownerState=Object.freeze({configured:false,unlocked:!desktop,username:null,sessionExpiresAt:0});
 let cloudMemoryState=Object.freeze({configured:false,authenticated:false,available:false});
 let cloudMemoryChecked=false;
 window.humanALEDesktopMemory=desktopMemory;
 window.humanALEDesktopContextBridge=desktopContextBridge;
+
+function applyOwnerState(next={}){
+ ownerState=Object.freeze({
+  configured:Boolean(next.configured),
+  unlocked:desktop?Boolean(next.unlocked):true,
+  username:String(next.username||''),
+  sessionExpiresAt:Number(next.sessionExpiresAt)||0,
+  error:String(next.error||'')
+ });
+ const gate=$('#ownerGate'),title=$('#ownerGateTitle'),hint=$('#ownerGateHint');
+ const username=$('#ownerUsername'),password=$('#ownerPassword');
+ const confirmRow=$('#ownerConfirmRow'),confirm=$('#ownerConfirmPassword');
+ const submit=$('#ownerSubmit'),status=$('#ownerGateStatus');
+ const security=$('#ownerSecurity'),identity=$('#ownerSecurityIdentity');
+ if(!desktop){
+  if(gate)gate.hidden=true;
+  if(security)security.hidden=true;
+  document.body.classList.remove('creator-locked');
+  return ownerState;
+ }
+ const locked=!ownerState.unlocked;
+ document.body.classList.toggle('creator-locked',locked);
+ if(gate)gate.hidden=!locked;
+ if(security)security.hidden=locked;
+ if(identity)identity.textContent=ownerState.username||'Creator';
+ if(username){
+  username.value=ownerState.username||username.value||'creator';
+  username.readOnly=ownerState.configured;
+ }
+ if(confirmRow)confirmRow.hidden=ownerState.configured;
+ if(confirm)confirm.required=!ownerState.configured;
+ if(title)title.textContent=ownerState.configured?'Creator Login':'Provision Creator';
+ if(hint)hint.textContent=ownerState.configured
+  ?'Unlock sesi HumanALE dengan identitas Creator perangkat ini.'
+  :'Buat identitas Creator pertama. Password disimpan sebagai verifier scrypt di main process, bukan di browser.';
+ if(submit)submit.textContent=ownerState.configured?'UNLOCK NARA':'PROVISION & UNLOCK';
+ if(status)status.textContent=ownerState.error||'';
+ if(password&&ownerState.unlocked)password.value='';
+ if(confirm&&ownerState.unlocked)confirm.value='';
+ return ownerState;
+}
+
+async function refreshOwnerState(){
+ if(!desktop?.ownerStatus)return applyOwnerState({configured:false,unlocked:true});
+ try{
+  const result=await desktop.ownerStatus();
+  applyOwnerState(result||{});
+  return ownerState;
+ }catch(error){
+  applyOwnerState({configured:true,unlocked:false,error:'Creator status gagal dibaca.'});
+  return ownerState;
+ }
+}
+
+async function resyncUnifiedRuntime(){
+ if(!desktop?.runtimeSnapshot||!ownerState.unlocked)return;
+ try{
+  const result=await desktop.runtimeSnapshot();
+  if(result?.runtime)syncHumanALERuntime(result.runtime);
+ }catch{}
+}
+
+$('#ownerGateForm')?.addEventListener('submit',async event=>{
+ event.preventDefault();
+ if(!desktop)return;
+ const status=$('#ownerGateStatus'),username=$('#ownerUsername'),password=$('#ownerPassword'),confirm=$('#ownerConfirmPassword');
+ if(status)status.textContent='Memverifikasi Creator…';
+ const secret=String(password?.value||'');
+ const confirmation=String(confirm?.value||'');
+ try{
+  const result=ownerState.configured
+   ?await desktop.ownerLogin({username:String(username?.value||''),password:secret})
+   :await desktop.ownerProvision({
+      username:String(username?.value||'creator'),
+      password:secret,
+      confirmPassword:confirmation
+    });
+  if(password)password.value='';
+  if(confirm)confirm.value='';
+  applyOwnerState(result||{});
+  if(result?.ok){
+   await refreshOwnerState();
+   await resyncUnifiedRuntime();
+  }else if(status){
+   status.textContent=result?.error||'Creator authentication gagal.';
+  }
+ }catch{
+  if(password)password.value='';
+  if(confirm)confirm.value='';
+  if(status)status.textContent='Creator authentication gagal.';
+ }
+});
+
+$('#ownerLogout')?.addEventListener('click',async()=>{
+ if(!desktop?.ownerLogout)return;
+ await desktop.ownerLogout().catch(()=>null);
+ await refreshOwnerState();
+});
+
+$('#ownerChangeLogin')?.addEventListener('click',async()=>{
+ if(!desktop?.ownerChangeLogin)return;
+ const current=$('#ownerCurrentPassword'),nextUser=$('#ownerNewUsername'),nextPass=$('#ownerNewPassword'),status=$('#ownerSecurityStatus');
+ if(status)status.textContent='Memverifikasi perubahan…';
+ const payload={
+  currentPassword:String(current?.value||''),
+  newUsername:String(nextUser?.value||ownerState.username||''),
+  newPassword:String(nextPass?.value||'')
+ };
+ try{
+  const result=await desktop.ownerChangeLogin(payload);
+  if(current)current.value='';
+  if(nextPass)nextPass.value='';
+  if(result?.ok){
+   if(status)status.textContent='Login Creator diperbarui. Silakan unlock kembali.';
+   await refreshOwnerState();
+  }else if(status)status.textContent=result?.error||'Perubahan login Creator gagal.';
+ }catch{
+  if(current)current.value='';
+  if(nextPass)nextPass.value='';
+  if(status)status.textContent='Perubahan login Creator gagal.';
+ }
+});
+
+desktop?.onOwnerState?.(state=>{
+ applyOwnerState(state||{});
+ if(ownerState.unlocked)resyncUnifiedRuntime();
+});
+refreshOwnerState();
 
 function selectedMemorySource(){
  const stored=localStorage.getItem(MEMORY_SOURCE_KEY);
@@ -200,7 +329,7 @@ const apiProviders=['copilot','openai','grok','gemini','claude','deepseek','askc
 const SUMMON_DURATION_MS=4200;
 const DISMISS_DURATION_MS=3000;
 const DEFAULT_AVATAR_SIZE=420;
-let panelZoomFactor=1,latestNaraBrainState=null,latestNaraSkillSnapshot=null,selectedBrainRegion='NARA_CORE',humanaleVisualFrame={fps:0,points:0},lastVisualStudioBroadcast=0,humanaleVisualEvents=[],lastHumanaleVisualEventId=null;
+let panelZoomFactor=1,latestNaraBrainState=null,latestNaraSkillSnapshot=null,latestHumanALERuntime=null,selectedBrainRegion='NARA_CORE',humanaleVisualFrame={fps:0,points:0},lastVisualStudioBroadcast=0,humanaleVisualEvents=[],lastHumanaleVisualEventId=null;
 let aiReady=false,savedProvider=desktop?localStorage.getItem('dudidam-provider'):'',aiProvider=apiProviders.includes(savedProvider)?savedProvider:'chatgpt',busy=false,voice=true,selectedVoiceURI=desktop?(localStorage.getItem('dudidam-voice-uri')||''):'',listening=false,recognition,cameraStream,cameraPending=false,history=[],toastTimer,bubbleTimer,speechTimer,drag,offset={x:0,y:0},ttsActive=false,ttsEnergy=0,audioEnergy=0,audioMode='',musicUrl='',wakeRecognition,wakeListening=false,wakeEnabled=desktop?localStorage.getItem('dudidam-wake-enabled')==='true':false,wakeRestartTimer,wakeHealthVerified=false,wakeRetryBlocked=false,wakeNetworkFailures=0,summoning=false,dismissing=false,transitionSerial=0,hold5Timer,hold5Fired=false;
 let wakeStartGeneration=0;
 let micProbeGeneration=0,micChecking=false;
@@ -292,6 +421,27 @@ function selectHumanALEVisualRegion(region){
  if(!latestNaraBrainState?.regions?.[region])return;
  naraDispatch('brain.region.select',{region}).then(result=>{if(result?.state)syncNaraBrainState(result.state);});
 }
+function syncHumanALERuntime(runtime){
+ if(!runtime||typeof runtime!=='object')return;
+ latestHumanALERuntime=runtime;
+ if(runtime.core&&runtime.core!==latestNaraBrainState)syncNaraBrainState(runtime.core);
+ if(panelOnly)return;
+ const body=runtime.humanale?.body;
+ if(!body)return;
+ const bodyState=String(body.state||'idle');
+ const avatarState=bodyState==='working'?'processing':bodyState==='warning'?'error':bodyState;
+ if(['idle','listening','thinking','speaking','processing','error'].includes(avatarState)){
+  avatar.setState?.(avatarState);
+ }
+ avatar.setListening?.(Boolean(body.hearing?.active)&&!Boolean(body.speech?.active));
+ avatar.setEarSpectrum?.({
+  low:Number(body.hearing?.low)||0,
+  mid:Number(body.hearing?.mid)||0,
+  high:Number(body.hearing?.high)||0
+ });
+ if(body.speech?.active)avatar.setSpeechEnergy?.(Math.max(.2,Number(body.speech?.energy)||.35));
+}
+
 function syncNaraHearing(){
  if(panelOnly||!desktop?.naraDispatch)return;
  const now=performance.now();if(now-lastNaraAudioSent<100)return;lastNaraAudioSent=now;
@@ -1005,8 +1155,15 @@ if(!panelOnly){
  desktop?.onDismiss?.(reason=>dismissAle(reason));
  desktop?.onNaraVoice?.(cue=>enqueueNaraVoice(cue));
  desktop?.onNaraState?.(snapshot=>syncNaraBrainState(snapshot));
- if(desktop?.naraSnapshot)desktop.naraSnapshot().then(result=>{if(result?.state)syncNaraBrainState(result.state);}).catch(()=>{});
  if(desktop?.naraSkillSnapshot)refreshNaraSkillSnapshot(false).catch(()=>{});
+ desktop?.onRuntimeState?.(runtime=>syncHumanALERuntime(runtime));
+ if(desktop?.naraSnapshot)desktop.naraSnapshot().then(result=>{
+  if(result?.state)syncNaraBrainState(result.state);
+  if(result?.runtime)syncHumanALERuntime(result.runtime);
+ }).catch(()=>{});
+ if(desktop?.runtimeSnapshot)desktop.runtimeSnapshot().then(result=>{
+  if(result?.runtime)syncHumanALERuntime(result.runtime);
+ }).catch(()=>{});
  desktop?.onGlobalPointer?.(point=>{if(!point||drag)return;avatar.gazePointer={x:Math.max(-1,Math.min(1,Number(point.x)||0)),y:Math.max(-1,Math.min(1,Number(point.y)||0))};avatar.gazeActive=true;});
  desktop?.onBackdrop?.(grid=>avatar.setBackdrop?.(grid));
 }

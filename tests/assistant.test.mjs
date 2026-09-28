@@ -581,12 +581,11 @@ test('cloud auto-repair closes stale fallback draft PRs after CI recovery',async
  const workflow=await readFile(new URL('../.github/workflows/cloud-auto-repair.yml',import.meta.url),'utf8');
  assert.match(workflow,/pull-requests: write/);
  assert.match(workflow,/async function closeFallbackPullRequest\(issueNumber\)/);
- assert.match(workflow,/head: owner \+ ':automation\/issue-' \+ issueNumber/);
+ assert.match(workflow,/head: owner \+ ':' \+ fallbackBranchFor\(issueNumber\)/);
+ assert.match(workflow,/function selectLatestFailedRuns\(runs, options\)/);
+ assert.match(workflow,/function isFallbackPullRequest\(pull, issueNumber\)/);
  assert.match(workflow,/cloud-fallback-request: issue-/);
- assert.match(workflow,/const marker = '<!-- cloud-fallback-request: issue-' \+ issueNumber \+ ' -->'/);
- assert.match(workflow,/const tracks = 'Tracks #' \+ issueNumber \+ '\.'/);
- assert.match(workflow,/!body\.includes\(marker\) && !body\.includes\(tracks\)/);
- assert.match(workflow,/'<!-- cloud-fallback-request: issue-' \+ issue\.number \+ ' -->'/);
+ assert.match(workflow,/pulls\.create\(\{[\s\S]*?fallbackMarkerFor\(issue\.number\)/);
  assert.match(workflow,/github\.rest\.pulls\.update/);
  assert.match(workflow,/if \(issue\.state === 'closed'\) \{[\s\S]*await closeFallbackPullRequest\(issue\.number\);[\s\S]*return;/);
  assert.match(workflow,/await removeLabel\(issue\.number, 'ai-fix-needed'\)/);

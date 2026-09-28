@@ -9,7 +9,20 @@ const DEFAULT_SKILLS=Object.freeze([
   {id:'program.execute',label:'Program Execution',category:'execution',region:'PROGRAM'},
   {id:'verify',label:'Verification',category:'workflow',region:'FOLLOW_UP'},
   {id:'bug.analyze',label:'Bug Analysis',category:'diagnostic',region:'BUG_HUNTER'},
-  {id:'sync',label:'Synchronization',category:'connection',region:'SYNC'}
+  {id:'sync',label:'Synchronization',category:'connection',region:'SYNC'},
+  {id:'sense.hearing',label:'Hearing Sensor',category:'sensory',region:'NARA_CORE'},
+  {id:'sense.vision',label:'Vision Sensor',category:'sensory',region:'NARA_CORE'},
+  {id:'system.observe',label:'System Observer',category:'system',region:'NARA_CORE'},
+  {id:'server.observe',label:'Configured Server Observer',category:'system',region:'NARA_CORE'},
+  {id:'dataflow.observe',label:'NARA Data Flow Observer',category:'system',region:'NARA_CORE'},
+  {id:'device.integrate',label:'Device Integration',category:'system',region:'NARA_CORE'},
+  {id:'capability.guard',label:'Capability Guard',category:'safety',region:'SAFETY'},
+  {id:'autopilot.control',label:'Autopilot Control',category:'control',region:'AGENT_MANAGER'},
+  {id:'watchdog.monitor',label:'Watchdog Monitor',category:'diagnostic',region:'ERROR_MONITOR'},
+  {id:'recovery.decide',label:'Recovery Decision',category:'diagnostic',region:'FOLLOW_UP'},
+  {id:'goal.manage',label:'Goal Manager',category:'cognitive',region:'PLANNER'},
+  {id:'metacognition.review',label:'Metacognition Review',category:'cognitive',region:'REASONER'},
+  {id:'experience.persist',label:'Persistent Experience',category:'memory',region:'MEMORY'}
 ]);
 
 const EVENT_MAP=Object.freeze({
@@ -29,7 +42,30 @@ const EVENT_MAP=Object.freeze({
   'bug.detected':['bug.analyze','start'],
   'bug.fixed':['bug.analyze','complete'],
   'sync.start':['sync','start'],
-  'sync.complete':['sync','complete']
+  'sync.complete':['sync','complete'],
+  'audio.energy':['sense.hearing','pulse'],
+  'vision.frame':['sense.vision','pulse'],
+  'system.telemetry':['system.observe','pulse'],
+  'server.observe':['server.observe','pulse'],
+  'dataflow.sample':['dataflow.observe','pulse'],
+  'device.integration':['device.integrate','pulse'],
+  'capability.requested':['capability.guard','start'],
+  'capability.approved':['capability.guard','complete'],
+  'capability.denied':['capability.guard','failed'],
+  'autopilot.task.start':['autopilot.control','start'],
+  'autopilot.task.complete':['autopilot.control','complete'],
+  'autopilot.task.failed':['autopilot.control','failed'],
+  'autopilot.task.stalled':['watchdog.monitor','pulse'],
+  'autopilot.task.blocked':['recovery.decide','pulse'],
+  'goal.created':['goal.manage','start'],
+  'goal.activated':['goal.manage','pulse'],
+  'goal.progress':['goal.manage','pulse'],
+  'goal.complete':['goal.manage','complete'],
+  'goal.blocked':['goal.manage','pulse'],
+  'goal.failed':['goal.manage','failed'],
+  'metacognition.review':['metacognition.review','pulse'],
+  'experience.persisted':['experience.persist','pulse'],
+  'experience.restored':['experience.persist','pulse']
 });
 
 const safeText=(value,max=160)=>String(value??'').replace(/[\r\n\t]+/g,' ').trim().slice(0,max);

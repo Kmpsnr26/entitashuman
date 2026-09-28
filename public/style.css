@@ -208,3 +208,31 @@ body.detached-panel .humanale-visual-studio-dialog{width:calc(100% - 18px);max-h
 .visual-studio-real-test-row[data-status="fail"],.visual-studio-real-test-row[data-status="blocked"]{border-color:rgba(255,112,112,.42)}
 .visual-studio-real-test-row select{min-width:112px}
 @media(max-width:700px){.visual-studio-real-test-row{grid-template-columns:1fr}.visual-studio-real-test-row select{width:100%}}
+/* V3.5 Creator Gate */
+.owner-gate{
+ position:fixed;inset:0;z-index:10000;display:grid;place-items:center;
+ padding:20px;background:rgba(1,5,8,.88);backdrop-filter:blur(18px);
+}
+.owner-gate[hidden]{display:none}
+.owner-gate__card{
+ width:min(360px,calc(100vw - 32px));padding:22px;border:1px solid rgba(91,226,255,.32);
+ border-radius:18px;background:linear-gradient(180deg,rgba(6,24,32,.97),rgba(2,10,15,.98));
+ box-shadow:0 20px 80px rgba(0,0,0,.48),inset 0 0 40px rgba(74,220,255,.035);
+}
+.owner-gate__card small{display:block;margin-bottom:8px;letter-spacing:.18em;color:#82eafa}
+.owner-gate__card h2{margin:0 0 8px;font-size:22px}
+.owner-gate__card p{color:#9ab3ba;line-height:1.45}
+.owner-gate__card label{display:grid;gap:6px;margin:12px 0;font-size:11px;letter-spacing:.06em;color:#a9c9d0}
+.owner-gate__card input,.owner-security input{
+ width:100%;box-sizing:border-box;border:1px solid rgba(85,205,229,.25);border-radius:10px;
+ padding:10px 11px;background:rgba(0,8,12,.8);color:#e5fbff;outline:none;
+}
+.owner-gate__card input:focus,.owner-security input:focus{border-color:rgba(108,234,255,.7)}
+.owner-gate__card button{width:100%;margin-top:8px;padding:11px;border-radius:10px}
+#ownerGateStatus{min-height:18px;margin:10px 0 0;color:#ffcf91}
+.creator-locked #assistantPopup,.creator-locked #reveal,.creator-locked dialog{pointer-events:none}
+.owner-security{margin:14px 0;padding:12px;border:1px solid rgba(84,210,236,.18);border-radius:12px;background:rgba(1,12,17,.34)}
+.owner-security[hidden]{display:none}
+.owner-security__head{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:10px;letter-spacing:.12em;color:#89dfea}
+.owner-security__head strong{color:#e7fbff;letter-spacing:.04em}
+.owner-security__grid{display:grid;gap:8px;margin:10px 0}

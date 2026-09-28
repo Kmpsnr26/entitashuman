@@ -90,22 +90,23 @@ test('cognitive ledger stores only sanitized operational metadata',async()=>{
   assert.ok(states.length>0);
 });
 
-test('desktop real AI and agent paths emit NARA cognitive lifecycle events without copying prompts into labels',async()=>{
-  const main=await read('desktop/main.cjs');
+test('desktop real AI and coordinated agent paths emit NARA cognitive lifecycle events without copying prompts into labels',async()=>{
+  const [main,coordinator]=await Promise.all([
+    read('desktop/main.cjs'),
+    read('desktop/nara-agent-coordinator.mjs')
+  ]);
   assert.match(main,/nara\.dispatch\('observe\.start'/);
   assert.match(main,/nara\.dispatch\('observe\.complete'/);
   assert.match(main,/nara\.dispatch\('reason\.start'/);
   assert.match(main,/nara\.dispatch\('reason\.complete'/);
-  assert.match(main,/nara\.dispatch\('plan\.start'/);
-  assert.match(main,/nara\.dispatch\('plan\.complete'/);
-  assert.match(main,/nara\.dispatch\('agent\.start'/);
-  assert.match(main,/nara\.dispatch\('agent\.complete'/);
-  assert.match(main,/nara\.dispatch\('agent\.failed'/);
-  assert.match(main,/nara\.dispatch\('work\.failed'/);
-  assert.match(main,/nara\.dispatch\('program\.start'/);
-  assert.match(main,/nara\.dispatch\('program\.complete'/);
-  assert.match(main,/const label='Agent '\+id\+' · '/);
+  for(const event of [
+    'plan.start','plan.complete','agent.start','agent.complete','agent.failed',
+    'work.failed','program.start','program.complete','verify.start','verify.complete'
+  ])assert.match(coordinator,new RegExp("this\\.nara\\.dispatch\\('"+event.replace('.','\\.')+"'"));
+  assert.match(coordinator,/const label='Agent '\+meta\.id\+' · '/);
+  assert.match(main,/naraAgentCoordinator\.run\(\{\.\.\.value,memoryContext\}\)/);
   assert.doesNotMatch(main,/reason\.start'\s*,\s*\{label\s*:\s*String\(value\?\.prompt/);
+  assert.doesNotMatch(coordinator,/label\s*:\s*meta\.prompt/);
 });
 
 test('canonical site loads cognition module and renders only stage/task/status metadata',async()=>{
