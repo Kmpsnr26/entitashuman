@@ -36,3 +36,29 @@ test('release workflows require final readiness and signed Windows artifacts',as
  assert.match(gate,/creatorApproval/);
  assert.match(gate,/githubRefName/);
 });
+
+test('signed candidate builds cannot publish and publication keeps its gate',async()=>{
+ const [verify,android]=await Promise.all([
+  readFile(new URL('.github/workflows/verify.yml',root),'utf8'),
+  readFile(new URL('.github/workflows/android-apk.yml',root),'utf8')
+ ]);
+ const windowsBuild=verify.split(/\r?\n  windows:\r?\n/)[1]?.split(/\r?\n  release-windows:\r?\n/)[0];
+ const windowsPublish=verify.split(/\r?\n  release-windows:\r?\n/)[1];
+ const androidBuild=android.split(/\r?\n  release:\r?\n/)[1]?.split(/\r?\n  publish-android:\r?\n/)[0];
+ const androidPublish=android.split(/\r?\n  publish-android:\r?\n/)[1];
+ for(const [workflow,build,publish] of [[verify,windowsBuild,windowsPublish],[android,androidBuild,androidPublish]]){
+  assert.match(workflow,/build_signed_artifact:[\s\S]*?default: false/);
+  assert.ok(build && publish,'separate signed-build and publication jobs are required');
+  assert.match(build,/inputs\.build_signed_artifact \|\| inputs\.publish_release/);
+  assert.match(build,/refs\/heads\/main/);
+  assert.doesNotMatch(build,/humanale-release-publication-gate\.mjs|gh release (create|upload)/);
+  assert.match(publish,/if: github\.event_name == 'workflow_dispatch' && inputs\.publish_release/);
+  assert.match(publish,/Enforce release publication gate[\s\S]*?Download/);
+  assert.match(publish,/humanale-release-publication-gate\.mjs/);
+  assert.match(publish,/gh release (create|upload)/);
+ }
+ assert.match(androidBuild,/permissions:\s*\n\s*contents: read/);
+ assert.match(androidPublish,/permissions:\s*\n\s*contents: write/);
+ assert.match(windowsBuild,/Verify Windows Authenticode/);
+ assert.match(androidBuild,/Sign and verify production APK/);
+});

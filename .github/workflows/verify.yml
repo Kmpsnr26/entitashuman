@@ -3,6 +3,11 @@ name: Verify and package
 on:
   workflow_dispatch:
     inputs:
+      build_signed_artifact:
+        description: "Build and verify signed Windows artifacts without publishing"
+        required: false
+        default: false
+        type: boolean
       publish_release:
         description: "Publish verified Windows artifacts to the GitHub release"
         required: false
@@ -28,6 +33,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+      - name: Require main for signed builds
+        if: github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release)
+        run: test "$GITHUB_REF_NAME" = main
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
@@ -50,6 +58,9 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+      - name: Require main for signed builds
+        if: github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release)
+        run: if ($env:GITHUB_REF -ne 'refs/heads/main') { throw 'Signed builds require main.' }
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
@@ -57,9 +68,6 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
-      - name: Enforce release publication gate
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
-        run: node scripts/humanale-release-publication-gate.mjs
       - name: Smoke interactive Windows terminal
         run: npm run smoke:terminal
       - name: Package portable desktop
@@ -67,7 +75,7 @@ jobs:
       - name: Smoke packaged desktop
         run: .\HumanALE-God-Engine-Desktop\HumanALE-God-Engine.exe --ci-smoke
       - name: Require Windows signing material
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        if: github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release)
         shell: pwsh
         env:
           WINDOWS_SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
@@ -80,7 +88,7 @@ jobs:
           [IO.File]::WriteAllBytes($pfx,$bytes)
           if (-not (Test-Path $pfx) -or (Get-Item $pfx).Length -lt 100) { throw "Windows signing certificate payload is invalid." }
       - name: Sign portable desktop executable
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        if: github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release)
         shell: pwsh
         env:
           WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
@@ -93,10 +101,10 @@ jobs:
           & $signtool.FullName sign /fd SHA256 /tr https://timestamp.digicert.com /td SHA256 /f $pfx /p $env:WINDOWS_SIGNING_PFX_PASSWORD $exe
           if ($LASTEXITCODE -ne 0) { throw "Portable HumanALE Authenticode signing failed." }
       - name: Build assisted Windows installer
-        if: github.event_name != 'workflow_dispatch' || inputs.publish_release != true
+        if: github.event_name != 'workflow_dispatch' || (inputs.build_signed_artifact != true && inputs.publish_release != true)
         run: npm run package:installer
       - name: Build signed Windows installer
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        if: github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release)
         env:
           CSC_LINK: ${{ runner.temp }}/humanale-signing.pfx
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
@@ -113,8 +121,8 @@ jobs:
           if (-not (Test-Path $zip)) { throw "Portable ZIP tidak ditemukan." }
           Write-Host "Installer ready: $($installer.FullName) ($($installer.Length) bytes)"
           Write-Host "Portable package: $zip"
-      - name: Verify Windows Authenticode for publication
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+      - name: Verify Windows Authenticode
+        if: github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release)
         shell: pwsh
         run: |
           $installer = Get-ChildItem release -Filter "HumanALE-God-Engine-Setup-*-x64.exe" | Select-Object -First 1
@@ -126,7 +134,7 @@ jobs:
             if (-not $signature.SignerCertificate) { throw "Signer certificate missing for $target." }
           }
       - name: Remove Windows signing material
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release) }}
         shell: pwsh
         run: Remove-Item (Join-Path $env:RUNNER_TEMP "humanale-signing.pfx") -Force -ErrorAction SilentlyContinue
       - name: Upload verified Windows artifacts
