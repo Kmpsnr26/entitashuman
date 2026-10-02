@@ -172,6 +172,9 @@ async function run(){
     await waitFor(win,"document.getElementById('neural3dStatus')?.textContent.includes('LIVE')");
     report.checks.canvasCreated=true;
     await sleep(500);
+    report.checks.visualQualityPinned=await evaluate(win,"(()=>{const quality=document.getElementById('neuralQuality');if(!quality)return false;quality.value='balanced';quality.dispatchEvent(new Event('change',{bubbles:true}));return true;})()");
+    if(!report.checks.visualQualityPinned)throw new Error('Neural quality control unavailable');
+    await waitFor(win,"(document.getElementById('neural3dPerf')?.textContent||'').includes('quality balanced')");
     report.checks.galacticEnvironment=await evaluate(win,"(()=>{const perf=document.getElementById('neural3dPerf')?.textContent||'';return perf.includes('galaxy on')&&perf.includes('aurora on');})()");
     report.checks.mechanicalCoreRings=await evaluate(win,"(document.getElementById('neural3dPerf')?.textContent||'').includes('core rings on')");
     report.checks.r4VisualDefaults=await evaluate(win,"(()=>{const perf=document.getElementById('neural3dPerf')?.textContent||'';return perf.includes('binary on')&&perf.includes('guardian A/B');})()");
