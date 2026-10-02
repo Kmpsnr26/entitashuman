@@ -47,6 +47,12 @@ function performanceResult(){
     generatedAt:100,
     state:'PERFORMANCE_STABILITY_PASS',
     fullyValidated:true,
+    artifactSourceVerified:true,
+    processIdentityVerified:true,
+    executableSha256:'d'.repeat(64),
+    runtimeSourceVerified:true,
+    runtimeSha256:'e'.repeat(64),
+    observeOnly:false,
     metrics:{
       allProcessesStayedAlive:true,
       responding:true,
@@ -84,7 +90,7 @@ function securityResult(){
     fullyValidated:true,
     artifactSourceVerified:true,
     windows:{pass:true,signatureStatus:'Valid',installerSha256:'b'.repeat(64)},
-    android:{pass:true,signatureStatus:'verified',productionSignerMatched:true,apkSha256:'a'.repeat(64)}
+    android:{pass:true,signatureStatus:'verified',productionSignerMatched:true,packageIdentityVerified:true,productionManifestVerified:true,apkSha256:'a'.repeat(64)}
   };
 }
 
@@ -107,6 +113,24 @@ test('valid technical evidence closes 9/9 gates but never infers creator approva
   assert.deepEqual(result.blockers,['creator-approval:PENDING']);
   assert.equal(result.safety.creatorApprovalInferred,false);
   assert.equal(result.safety.liveIntegrationActivated,false);
+});
+
+test('Windows stability cannot certify missing executable provenance, reused PID, or observation-only evidence',()=>{
+  for(const [field,value] of [['artifactSourceVerified',undefined],['processIdentityVerified',false],['executableSha256','bad-hash'],['runtimeSourceVerified',false],['runtimeSha256','bad-hash'],['observeOnly',true]]){
+    const performance=performanceResult();performance[field]=value;
+    const result=aggregateHumanALEFinalEvidence({certificate:baseCertificate(),performanceResult:performance,androidResult:androidResult(),securityResult:securityResult(),expectedBranch:branch,expectedCommit:commit});
+    assert.equal(result.technicalReady,false,field);
+    assert.equal(result.gates.find(g=>g.id==='performance-stability').status,'pending',field);
+  }
+});
+
+test('production signing cannot substitute for APK package and non-debuggable manifest validation',()=>{
+  for(const field of ['packageIdentityVerified','productionManifestVerified']){
+    const security=securityResult();delete security.android[field];
+    const result=aggregateHumanALEFinalEvidence({certificate:baseCertificate(),performanceResult:performanceResult(),androidResult:androidResult(),securityResult:security,expectedBranch:branch,expectedCommit:commit});
+    assert.equal(result.technicalReady,false,field);
+    assert.equal(result.gates.find(g=>g.id==='release-security').status,'pending',field);
+  }
 });
 
 test('explicit creator approval in existing certificate is preserved, never synthesized',()=>{

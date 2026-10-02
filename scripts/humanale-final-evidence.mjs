@@ -66,6 +66,12 @@ function validateIdentity(result,{expectedBranch,expectedCommit}){
 function evaluatePerformance(result){
   const reasons=[];
   const m=result?.metrics||{};
+  if(result?.artifactSourceVerified!==true)reasons.push('artifact-source-unverified');
+  if(result?.processIdentityVerified!==true)reasons.push('process-identity-not-pass');
+  if(result?.runtimeSourceVerified!==true)reasons.push('runtime-source-unverified');
+  if(!/^[0-9a-f]{64}$/i.test(String(result?.executableSha256||'')))reasons.push('executable-hash-invalid');
+  if(!/^[0-9a-f]{64}$/i.test(String(result?.runtimeSha256||'')))reasons.push('runtime-hash-invalid');
+  if(result?.observeOnly===true)reasons.push('observation-only-not-pass');
   if(result?.fullyValidated!==true)reasons.push('fullyValidated=false');
   if(result?.state!==TARGETS.performance.passState)reasons.push('state-not-pass');
   if(m.allProcessesStayedAlive!==true)reasons.push('process-liveness-not-pass');
@@ -93,6 +99,8 @@ function evaluateSecurity(result){
   const reasons=[];
   if(result?.artifactSourceVerified!==true)reasons.push('artifact-source-unverified');
   if(result?.android?.productionSignerMatched!==true)reasons.push('production-signer-not-pass');
+  if(result?.android?.packageIdentityVerified!==true)reasons.push('package-identity-not-pass');
+  if(result?.android?.productionManifestVerified!==true)reasons.push('production-manifest-not-pass');
   if(!/^[0-9a-f]{64}$/i.test(String(result?.windows?.installerSha256||''))||
       !/^[0-9a-f]{64}$/i.test(String(result?.android?.apkSha256||'')))reasons.push('artifact-hash-invalid');
   if(result?.fullyValidated!==true)reasons.push('fullyValidated=false');

@@ -46,12 +46,21 @@ PASS requires all of the following:
 - Android `apksigner verify` succeeds, reports one signer, and that signer's
   certificate SHA-256 equals the approved production fingerprint.
 - The Android certificate DN does not identify `Android Debug`.
+- SDK `aapt dump badging` verifies a readable manifest, package name matching
+  `capacitor.config.json`, version name matching `package.json`, and numeric
+  version code matching the mapping in `scripts/android-version.mjs`.
+- The manifest does not contain the `application-debuggable` flag. A production
+  certificate cannot turn a debuggable APK into a production candidate.
 
 Missing or mismatched source/hash inputs produce `artifactSourceVerified: false`,
 `candidate: "unknown"`, and `RELEASE_SECURITY_INCOMPLETE`. `checkoutCommit`
 records the checkout separately; it never substitutes for the artifact's build
 identity. A missing or mismatched production signer pin also prevents PASS.
-The result records actual artifact hashes and `android.productionSignerMatched`.
+The result records actual artifact hashes, `android.productionSignerMatched`,
+`android.packageIdentityVerified`, and `android.productionManifestVerified`.
+Both `apksigner` and `aapt` from Android SDK build-tools must be available in PATH.
+Missing aapt, failed inspection, wrong package/version, or a debuggable manifest
+keeps the release-security gate incomplete.
 An old result file is removed before validation so a failed rerun cannot reuse
 an earlier PASS.
 
@@ -61,8 +70,9 @@ but the validator cannot authenticate a forged or incorrectly supplied build
 record. A signature verifies the artifact's signature; it does not by itself
 prove which source commit produced the artifact. Windows publisher identity
 still relies on Windows Authenticode trust and the trusted artifact hash; this
-validator does not pin a Windows publisher certificate. APK manifest flags such
-as `debuggable` are not checked by this validator.
+validator does not pin a Windows publisher certificate. The manifest check
+covers package/version identity and debuggability; it is not a full Android
+permission, exported-component, or network-security audit.
 
 Tests run the validator with mock signature providers and no installation:
 
