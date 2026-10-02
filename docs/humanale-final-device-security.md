@@ -10,7 +10,13 @@ Requirements:
 
 Run:
 
-    .\scripts\humanale-android-runtime.ps1 -ApkPath "C:\path\HumanALE.apk" -ArtifactCommit $trustedBuildCommit -ExpectedApkSha256 $trustedApkSha256
+    .\scripts\humanale-android-runtime.ps1 -ApkPath "C:\path\HumanALE.apk" -ArtifactCommit $trustedBuildCommit -ExpectedApkSha256 $trustedApkSha256 -DeviceSerial $approvedDeviceSerial
+
+The validator requires one connected authorized device. When supplied, the
+approved serial must match before installation. It verifies the current Android
+user, explicitly installs and queries the package for that user, and rejects a
+user change or foreground activity belonging to another profile. This avoids
+Samsung protected-profile access errors without enumerating or reading profiles.
 
 PASS requires source/hash matching, successful install/launch, a live process in
 the foreground, and real-device operator validation. The expected values must
