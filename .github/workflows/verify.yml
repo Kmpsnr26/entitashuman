@@ -19,7 +19,8 @@ on:
         default: false
         type: boolean
   pull_request:
-    branches: [main]
+    # Dependent release-validation PRs also need the native Windows gates.
+    branches: [main, "codex/release-followup-*"]
   push:
     branches: [main]
 
