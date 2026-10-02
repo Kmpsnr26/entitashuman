@@ -2,6 +2,12 @@ name: Private source security
 
 on:
   workflow_dispatch:
+    inputs:
+      upload_report:
+        description: "Store the full security report as an Actions artifact"
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [main]
   pull_request:
@@ -40,7 +46,7 @@ jobs:
             --metrics=off \
             --json --output semgrep-full.json
       - name: Upload full security report
-        if: always()
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.upload_report }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: HumanALE-Security-${{ github.sha }}

@@ -29,6 +29,33 @@ export function issueRecovered(issue) {
   return issue.state !== 'open' || labels.includes('automation:resolved');
 }
 
+export function managedCiSource(issue, defaultBranch) {
+  const labels = (issue.labels || []).map((label) =>
+    typeof label === 'string' ? label : label.name
+  );
+  if (!labels.includes('automation:managed') || !labels.includes('ci-failure')) return null;
+  const body = issue.body || '';
+  const marker = body.match(
+    /^<!-- cloud-automation-key: workflow:(\d+):([^\r\n]+) -->$/m
+  );
+  const commit = body.match(/^- Commit: `([0-9a-f]{40})`$/m);
+  const run = body.match(/^- Run: https:\/\/github\.com\/[^\s]+\/actions\/runs\/(\d+)$/m);
+  if (!marker || !commit || !run || marker[2] === defaultBranch) return null;
+  if (!/^[A-Za-z0-9._/-]+$/.test(marker[2])) return null;
+  return {
+    workflowId: Number(marker[1]),
+    branch: marker[2],
+    headSha: commit[1],
+    runId: Number(run[1])
+  };
+}
+
+export function routeFallbackCandidates(candidates, canCreatePullRequests) {
+  return canCreatePullRequests
+    ? { fallback: candidates, queued: [] }
+    : { fallback: [], queued: candidates };
+}
+
 export function selectLatestFailedRuns(runs, options) {
   const {
     cutoff,

@@ -3,6 +3,11 @@ name: Verify and package
 on:
   workflow_dispatch:
     inputs:
+      upload_test_artifact:
+        description: "Store the unsigned test installer as an Actions artifact"
+        required: false
+        default: false
+        type: boolean
       build_signed_artifact:
         description: "Build and verify signed Windows artifacts without publishing"
         required: false
@@ -138,6 +143,7 @@ jobs:
         shell: pwsh
         run: Remove-Item (Join-Path $env:RUNNER_TEMP "humanale-signing.pfx") -Force -ErrorAction SilentlyContinue
       - name: Upload verified Windows artifacts
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release || inputs.upload_test_artifact) }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: HumanALE-Windows-${{ github.sha }}

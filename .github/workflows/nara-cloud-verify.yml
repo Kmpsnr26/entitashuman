@@ -2,6 +2,12 @@ name: NARA Cloud Verify
 
 on:
   workflow_dispatch:
+    inputs:
+      upload_evidence:
+        description: "Store live browser evidence as an Actions artifact"
+        required: false
+        default: false
+        type: boolean
 
   push:
     branches: [main]
@@ -178,7 +184,7 @@ jobs:
         run: xvfb-run -a --server-args="-screen 0 1440x960x24" npm run smoke:neural-live
 
       - name: Upload live browser evidence
-        if: always()
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.upload_evidence }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nara-neural-live-browser
