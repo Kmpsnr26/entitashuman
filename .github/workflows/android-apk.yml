@@ -3,6 +3,11 @@ name: Build Android APK
 on:
   workflow_dispatch:
     inputs:
+      build_signed_artifact:
+        description: "Build and verify a signed Android APK without publishing"
+        required: false
+        default: false
+        type: boolean
       publish_release:
         description: "Build, sign, verify, and publish the production Android APK"
         required: false
@@ -105,27 +110,27 @@ jobs:
           retention-days: 30
 
   release:
-    name: Build and publish signed Android release
-    if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+    name: Build and verify signed Android artifact
+    if: github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release) && github.ref == 'refs/heads/main'
     needs: apk
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
-      contents: write
+      contents: read
     steps:
       - name: Checkout release source
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
+      - name: Require main for signed builds
+        run: test "$GITHUB_REF" = refs/heads/main
+
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
-
-      - name: Enforce release publication gate
-        run: node scripts/humanale-release-publication-gate.mjs
 
       - name: Setup Java
         uses: actions/setup-java@v6
@@ -204,6 +209,28 @@ jobs:
           path: release/HumanALE-Android-*.apk
           if-no-files-found: error
           retention-days: 30
+
+  publish-android:
+    name: Publish verified Android release
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/main'
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release metadata
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Enforce release publication gate
+        run: node scripts/humanale-release-publication-gate.mjs
+
+      - name: Download signed Android artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: HumanALE-Android-Signed-${{ github.sha }}
+          path: release
 
       - name: Publish signed APK to versioned GitHub release
         shell: bash
