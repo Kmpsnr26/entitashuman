@@ -1,4 +1,4 @@
-name: CodeQL Security
+name: Private source security
 
 on:
   workflow_dispatch:
@@ -9,29 +9,59 @@ on:
 
 permissions:
   contents: read
-  actions: read
-  security-events: write
 
 concurrency:
-  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  group: private-security-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   analyze:
-    name: JavaScript / TypeScript
+    name: JavaScript and workflow security
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          languages: javascript-typescript
-          queries: security-extended
-
-      - name: Analyze
-        uses: github/codeql-action/analyze@v4
+          fetch-depth: 0
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
-          category: "/language:javascript-typescript"
+          python-version: "3.12"
+      - name: Install Semgrep Community Edition
+        run: python -m pip install semgrep==1.179.0
+      - name: Record full security scan
+        run: |
+          semgrep scan \
+            --config p/javascript \
+            --config p/github-actions \
+            --exclude 'dist/**' \
+            --exclude 'sites/**/dist/**' \
+            --metrics=off \
+            --json --output semgrep-full.json
+      - name: Upload full security report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: HumanALE-Security-${{ github.sha }}
+          path: semgrep-full.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Block newly introduced security findings
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: |
+          set -euo pipefail
+          baseline="$BASE_SHA"
+          if ! git cat-file -e "$baseline^{commit}" 2>/dev/null; then
+            baseline=$(git rev-parse HEAD^)
+          fi
+          semgrep scan \
+            --config p/javascript \
+            --config p/github-actions \
+            --exclude 'dist/**' \
+            --exclude 'sites/**/dist/**' \
+            --metrics=off \
+            --baseline-commit "$baseline" \
+            --error

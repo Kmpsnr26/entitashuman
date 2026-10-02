@@ -491,7 +491,8 @@ export async function decryptMemoryBackup(
       createDecipheriv(
         "aes-256-gcm",
         key,
-        iv
+        iv,
+        { authTagLength: 16 }
       );
 
     decipher.setAAD(

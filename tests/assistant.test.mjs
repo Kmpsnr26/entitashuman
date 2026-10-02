@@ -132,7 +132,7 @@ test('avatar structure uses binary and neural particles instead of continuous li
  assert.doesNotMatch(avatar,/context\.ellipse/);
 });
 test('build keeps private Sites identity optional in GitHub checkouts',async()=>{const build=await readFile(new URL('../build.mjs',import.meta.url),'utf8');assert.match(build,/error\.code!==['"]ENOENT['"]/);});
-test('windows packaging and CI verification stay wired',async()=>{const [pkgText,lockText,pack,workflow,builder,desktop]=await Promise.all([readFile(new URL('../package.json',import.meta.url),'utf8'),readFile(new URL('../package-lock.json',import.meta.url),'utf8'),readFile(new URL('../package-desktop.mjs',import.meta.url),'utf8'),readFile(new URL('../.github/workflows/verify.yml',import.meta.url),'utf8'),readFile(new URL('../electron-builder.yml',import.meta.url),'utf8'),readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8')]);const pkg=JSON.parse(pkgText),lock=JSON.parse(lockText);assert.equal(pkg.name,'humanale-god-egine');assert.match(pkg.version,/^\d+\.\d+\.\d+$/);assert.equal(lock.version,pkg.version);assert.equal(lock.packages?.['']?.version,pkg.version);assert.equal(pkg.main,'desktop/main.cjs');assert.equal(pkg.scripts.verify,'npm test && npm run build');assert.equal(pkg.scripts['package:desktop'],'install-electron --no && node package-desktop.mjs');assert.match(pkg.scripts['package:installer'],/electron-builder@26\.16\.1/);assert.match(pkg.scripts['package:installer'],/--publish never/);assert.match(pack,/HumanALE-God-Engine\.exe/);assert.match(pack,/path\.resolve\('node_modules','electron','dist'\)/);assert.match(pack,/await cp\('nara-core'/);assert.match(builder,/productName: HumanALE god egine/);assert.match(builder,/HumanALE-God-Engine-Setup/);assert.match(builder,/target: nsis/);assert.match(builder,/npmRebuild: false/);assert.match(builder,/oneClick: false/);assert.match(builder,/allowToChangeInstallationDirectory: true/);assert.match(builder,/nara-core\/\*\*\/\*/);assert.match(workflow,/npm run package:installer/);assert.match(workflow,/actions\/upload-artifact@v7/);assert.match(workflow,/HumanALE-Windows-/);assert.match(workflow,/gh release upload/);assert.match(workflow,/workflow_dispatch/);assert.match(workflow,/inputs\.publish_release/);assert.doesNotMatch(workflow,/github\.event_name == 'push'.*gh release/s);assert.match(desktop,/app\.setAppUserModelId\('id\.my\.aleprinting\.dudidam'\)/);});
+test('windows packaging and CI verification stay wired',async()=>{const [pkgText,lockText,pack,workflow,builder,desktop]=await Promise.all([readFile(new URL('../package.json',import.meta.url),'utf8'),readFile(new URL('../package-lock.json',import.meta.url),'utf8'),readFile(new URL('../package-desktop.mjs',import.meta.url),'utf8'),readFile(new URL('../.github/workflows/verify.yml',import.meta.url),'utf8'),readFile(new URL('../electron-builder.yml',import.meta.url),'utf8'),readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8')]);const pkg=JSON.parse(pkgText),lock=JSON.parse(lockText);assert.equal(pkg.name,'humanale-god-egine');assert.match(pkg.version,/^\d+\.\d+\.\d+$/);assert.equal(lock.version,pkg.version);assert.equal(lock.packages?.['']?.version,pkg.version);assert.equal(pkg.main,'desktop/main.cjs');assert.equal(pkg.scripts.verify,'npm test && npm run build');assert.equal(pkg.scripts['package:desktop'],'install-electron --no && node package-desktop.mjs');assert.match(pkg.scripts['package:installer'],/electron-builder@26\.16\.1/);assert.match(pkg.scripts['package:installer'],/--publish never/);assert.match(pack,/HumanALE-God-Engine\.exe/);assert.match(pack,/path\.resolve\('node_modules','electron','dist'\)/);assert.match(pack,/await cp\('nara-core'/);assert.match(builder,/productName: HumanALE god egine/);assert.match(builder,/HumanALE-God-Engine-Setup/);assert.match(builder,/target: nsis/);assert.match(builder,/npmRebuild: false/);assert.match(builder,/oneClick: false/);assert.match(builder,/allowToChangeInstallationDirectory: true/);assert.match(builder,/nara-core\/\*\*\/\*/);assert.match(workflow,/npm run package:installer/);assert.match(workflow,/actions\/upload-artifact@[0-9a-f]{40} # v7/);assert.match(workflow,/HumanALE-Windows-/);assert.match(workflow,/gh release upload/);assert.match(workflow,/workflow_dispatch/);assert.match(workflow,/inputs\.publish_release/);assert.doesNotMatch(workflow,/github\.event_name == 'push'.*gh release/s);assert.match(desktop,/app\.setAppUserModelId\('id\.my\.aleprinting\.dudidam'\)/);});
 test('safe launcher starts only the packaged HumanALE god egine application',async()=>{const launcher=await readFile(new URL('../Jalankan-entitasale170925-SAFE.bat',import.meta.url),'utf8');assert.match(launcher,/HumanALE-God-Engine-Desktop\\HumanALE-God-Engine\.exe/);assert.match(launcher,/if not exist/);assert.doesNotMatch(launcher,/runas|powershell|reg add|taskkill/i);});
 test('desktop CI smoke mode verifies the packaged renderer',async()=>{const [desktop,workflow]=await Promise.all([readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8'),readFile(new URL('../.github/workflows/verify.yml',import.meta.url),'utf8')]);assert.match(desktop,/--ci-smoke/);assert.match(desktop,/HumanALE god egine CI smoke passed/);assert.match(desktop,/executeJavaScript/);assert.match(desktop,/app\.exit\(1\)/);assert.match(workflow,/HumanALE-God-Engine\.exe --ci-smoke/);});
 test('avatar surface stays transparent and the detached panel is opaque',async()=>{const [css,surface,main,preload]=await Promise.all([readFile(new URL('../public/style.css',import.meta.url),'utf8'),readFile(new URL('../public/surface.js',import.meta.url),'utf8'),readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8'),readFile(new URL('../desktop/preload.cjs',import.meta.url),'utf8')]);assert.match(css,/body\.desktop,body\.popup-widget\{background:transparent!important\}/);assert.match(css,/html\.panel-surface,html\.panel-surface body\{background:#081610!important/);assert.match(surface,/\(isDesktop && !isPanel\) \|\| isPopup/);assert.match(main,/panelWin=new BrowserWindow/);assert.match(preload,/openPanel:view/);});
@@ -552,8 +552,8 @@ test('release workflows use least privilege, pinned Android tooling, signed publ
   readFile(new URL('../.github/workflows/cloud-auto-repair.yml',import.meta.url),'utf8')
  ]);
  assert.match(windows,/release-windows:/);
- assert.match(windows,/actions\/download-artifact@v7/);
- assert.match(windows,/actions\/upload-artifact@v7/);
+ assert.match(windows,/actions\/download-artifact@[0-9a-f]{40} # v7/);
+ assert.match(windows,/actions\/upload-artifact@[0-9a-f]{40} # v7/);
  assert.match(windows,/release-windows:[\s\S]*permissions:\s*\n\s*contents: write/);
  assert.match(android,/permissions:\s*\n\s*contents: read/);
  assert.match(android,/@capacitor\/core@7\.6\.9/);
@@ -561,8 +561,8 @@ test('release workflows use least privilege, pinned Android tooling, signed publ
  assert.match(android,/@capacitor\/android@7\.6\.9/);
  assert.match(android,/scripts\/android-version\.mjs/);
  assert.match(android,/package-lock\.json/);
- assert.match(android,/actions\/setup-java@v6/);
- assert.match(android,/actions\/upload-artifact@v7/);
+ assert.match(android,/actions\/setup-java@[0-9a-f]{40} # v6/);
+ assert.match(android,/actions\/upload-artifact@[0-9a-f]{40} # v7/);
  assert.match(android,/assembleDebug/);
  assert.match(android,/assembleRelease/);
  assert.match(android,/ANDROID_KEYSTORE_BASE64/);
@@ -574,7 +574,7 @@ test('release workflows use least privilege, pinned Android tooling, signed publ
  assert.match(android,/Publish signed APK to versioned GitHub release[\s\S]*?GH_TOKEN/);
  assert.doesNotMatch(android,/Publish rolling Android release/);
  assert.match(nara,/push:\s*\n\s*branches: \[main\]/);
- assert.match(repair,/workflows: \["Verify and package", "Build Android APK", "NARA Cloud Verify", "CodeQL Security"\]/);
+ assert.match(repair,/workflows: \["Verify and package", "Build Android APK", "NARA Cloud Verify", "Private source security"\]/);
 });
 
 test('cloud auto-repair closes stale fallback draft PRs after CI recovery',async()=>{
@@ -600,14 +600,16 @@ test('cloud auto-repair closes stale fallback draft PRs after CI recovery',async
 });
 
 
-test('explicit CodeQL workflow stays least-privilege and analyzes JavaScript/TypeScript',async()=>{
- const codeql=await readFile(new URL('../.github/workflows/codeql.yml',import.meta.url),'utf8');
- assert.match(codeql,/name: CodeQL Security/);
- assert.match(codeql,/security-events: write/);
- assert.match(codeql,/contents: read/);
- assert.match(codeql,/github\/codeql-action\/init@v4/);
- assert.match(codeql,/languages: javascript-typescript/);
- assert.match(codeql,/queries: security-extended/);
- assert.match(codeql,/github\/codeql-action\/analyze@v4/);
- assert.doesNotMatch(codeql,/contents: write|pull-requests: write|issues: write/);
+test('private source security scan stays least-privilege and blocks new findings',async()=>{
+ const security=await readFile(new URL('../.github/workflows/codeql.yml',import.meta.url),'utf8');
+ assert.match(security,/name: Private source security/);
+ assert.match(security,/contents: read/);
+ assert.match(security,/semgrep scan/);
+ assert.match(security,/--config p\/javascript/);
+ assert.match(security,/--config p\/github-actions/);
+ assert.match(security,/--baseline-commit "\$baseline"/);
+ assert.match(security,/--error/);
+ assert.match(security,/--metrics=off/);
+ assert.match(security,/Upload full security report/);
+ assert.doesNotMatch(security,/security-events: write|contents: write|pull-requests: write|issues: write/);
 });
