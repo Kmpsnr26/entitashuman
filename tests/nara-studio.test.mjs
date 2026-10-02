@@ -349,6 +349,17 @@ test('Stage 4 provides focus core explorer modes accessibility and quality contr
   assert.match(html,/id="neuralQuality"/);
 });
 
+test('Neural live smoke pins deterministic visual quality before galactic assertions',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const root=new URL('../',import.meta.url);
+  const smoke=await readFile(new URL('scripts/nara-neural-live-smoke.cjs',root),'utf8');
+
+  assert.match(smoke,/visualQualityPinned/);
+  assert.match(smoke,/quality\.value='balanced'/);
+  assert.match(smoke,/quality balanced/);
+  assert.match(smoke,/galacticEnvironment/);
+});
+
 test('Stage 5 uses adaptive cinematic resources and measured performance budgets',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
