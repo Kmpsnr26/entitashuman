@@ -574,7 +574,7 @@ test('release workflows use least privilege, pinned Android tooling, signed publ
  assert.match(android,/Publish signed APK to versioned GitHub release[\s\S]*?GH_TOKEN/);
  assert.doesNotMatch(android,/Publish rolling Android release/);
  assert.match(nara,/push:\s*\n\s*branches: \[main\]/);
- assert.match(repair,/workflows: \["Verify and package", "Build Android APK", "NARA Cloud Verify", "CodeQL Security"\]/);
+ assert.match(repair,/workflows: \["Verify and package", "Build Android APK", "NARA Cloud Verify", "Private source security"\]/);
 });
 
 test('cloud auto-repair closes stale fallback draft PRs after CI recovery',async()=>{
@@ -600,14 +600,16 @@ test('cloud auto-repair closes stale fallback draft PRs after CI recovery',async
 });
 
 
-test('explicit CodeQL workflow stays least-privilege and analyzes JavaScript/TypeScript',async()=>{
- const codeql=await readFile(new URL('../.github/workflows/codeql.yml',import.meta.url),'utf8');
- assert.match(codeql,/name: CodeQL Security/);
- assert.match(codeql,/security-events: write/);
- assert.match(codeql,/contents: read/);
- assert.match(codeql,/github\/codeql-action\/init@v4/);
- assert.match(codeql,/languages: javascript-typescript/);
- assert.match(codeql,/queries: security-extended/);
- assert.match(codeql,/github\/codeql-action\/analyze@v4/);
- assert.doesNotMatch(codeql,/contents: write|pull-requests: write|issues: write/);
+test('private source security scan stays least-privilege and blocks new findings',async()=>{
+ const security=await readFile(new URL('../.github/workflows/codeql.yml',import.meta.url),'utf8');
+ assert.match(security,/name: Private source security/);
+ assert.match(security,/contents: read/);
+ assert.match(security,/semgrep scan/);
+ assert.match(security,/--config p\/javascript/);
+ assert.match(security,/--config p\/github-actions/);
+ assert.match(security,/--baseline-commit "\$baseline"/);
+ assert.match(security,/--error/);
+ assert.match(security,/--metrics=off/);
+ assert.match(security,/Upload full security report/);
+ assert.doesNotMatch(security,/security-events: write|contents: write|pull-requests: write|issues: write/);
 });
