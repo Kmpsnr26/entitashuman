@@ -43,6 +43,16 @@ export const DEFAULT_AI_AUTOPILOT_LIMITS=Object.freeze({
 
 const SAFE_ID=/^[a-z0-9][a-z0-9._:-]{0,119}$/i;
 
+// Boundary refusals are terminal even if rollback succeeds. Retrying may only
+// repair ordinary reproduction/test/build failures, never renegotiate authority.
+function retryAllowed(step){
+ return !/^(?:AI_MAINTENANCE_|BLOCKED$|ABORTED$|PROTECTED_PATH_CHANGE$|MANUAL_RECOVERY_REQUIRED$|INVALID_|NO_ACTIVE_TRANSACTION$|SESSION_EXISTS$)/.test(step.code);
+}
+
+function failureReason(step,fallback){
+ return step.code==='ABORTED'?'ABORTED':fallback;
+}
+
 function safeText(value,max=240){
  return String(value??'').replace(/[\r\n\t]+/g,' ').trim().slice(0,max);
 }
@@ -98,7 +108,7 @@ function normalizeStepResult(name,raw,{maxSummaryLength}){
  const ok=raw.ok===true;
  const code=safeText(raw.code||(ok?'PASS':'FAILED'),80);
  const summary=redactAutopilotSummary(raw.summary||(ok?name+' passed.':name+' failed.'),maxSummaryLength);
- return {ok,code:SAFE_ID.test(code)?code:'INVALID_RESULT',summary};
+ return {ok:ok&&SAFE_ID.test(code),code:SAFE_ID.test(code)?code:'INVALID_RESULT',summary};
 }
 
 export class AIAutopilotTransaction{
@@ -135,10 +145,13 @@ export class AIAutopilotTransaction{
   return event;
  }
 
- async callStep(name,fn,attempt){
+ async callStep(name,fn,attempt,signal=null){
   const startedAt=this.now();
   try{
-   const raw=await fn();
+   let raw=signal?.aborted?{ok:false,code:'ABORTED',summary:name+' aborted.'}:await fn();
+   // verify owns its final commit/release point; the broker must check abort
+   // before releasing, since rollback is no longer possible after release.
+   if(signal?.aborted&&name!=='verify')raw={ok:false,code:'ABORTED',summary:name+' aborted.'};
    const normalized=normalizeStepResult(name,raw,this.limits);
    const endedAt=this.now();
    return Object.freeze({
@@ -155,7 +168,7 @@ export class AIAutopilotTransaction{
    return Object.freeze({
     name,
     ok:false,
-    code:'STEP_ERROR',
+    code:SAFE_ID.test(String(error?.code||''))?String(error.code):'STEP_ERROR',
     summary:redactAutopilotSummary(error?.message||error,this.limits.maxSummaryLength),
     attempt,
     startedAt,
@@ -216,10 +229,10 @@ export class AIAutopilotTransaction{
    this.transition(AI_AUTOPILOT_STATES.DETECTING,{attempt:0});
    const detect=await this.callStep('detect',()=>this.broker.detect({
     transactionId,signal
-   }),0);
+   }),0,signal);
    steps.push(detect);
    if(!detect.ok){
-    finalReason=detect.code==='NO_ISSUE'
+    finalReason=detect.code==='ABORTED'?'ABORTED':detect.code==='NO_ISSUE'
      ?AI_AUTOPILOT_REASONS.NO_ISSUE
      :AI_AUTOPILOT_REASONS.DETECTOR_ERROR;
     this.transition(
@@ -247,11 +260,11 @@ export class AIAutopilotTransaction{
      detection:detect.raw,
      attempt,
      signal
-    }),attempt);
+    }),attempt,signal);
     steps.push(reproduce);
     if(!reproduce.ok){
-     finalReason=AI_AUTOPILOT_REASONS.REPRODUCTION_FAILED;
-     if(attempt<this.limits.maxAttempts)continue;
+     finalReason=failureReason(reproduce,AI_AUTOPILOT_REASONS.REPRODUCTION_FAILED);
+     if(attempt<this.limits.maxAttempts&&retryAllowed(reproduce))continue;
      this.transition(AI_AUTOPILOT_STATES.FAILED,{attempt,reason:finalReason});
      break;
     }
@@ -264,17 +277,17 @@ export class AIAutopilotTransaction{
      reproduction:reproduce.raw,
      attempt,
      signal
-    }),attempt);
+    }),attempt,signal);
     steps.push(patch);
     if(!patch.ok){
-     finalReason=patch.code==='BLOCKED'
+     finalReason=patch.code==='ABORTED'?'ABORTED':!retryAllowed(patch)
       ?AI_AUTOPILOT_REASONS.PATCH_BLOCKED
       :AI_AUTOPILOT_REASONS.PATCH_FAILED;
      const rollback=await this.rollback({
       transactionId,reason:finalReason,attempt,steps
      });
      if(!rollback.ok)finalReason=AI_AUTOPILOT_REASONS.ROLLBACK_FAILED;
-     if(attempt<this.limits.maxAttempts&&rollback.ok)continue;
+     if(attempt<this.limits.maxAttempts&&rollback.ok&&retryAllowed(patch))continue;
      break;
     }
     this.transition(AI_AUTOPILOT_STATES.PATCHED,{attempt});
@@ -285,15 +298,15 @@ export class AIAutopilotTransaction{
      attempt,
      patch:patch.raw,
      signal
-    }),attempt);
+    }),attempt,signal);
     steps.push(inspect);
     if(!inspect.ok){
-     finalReason=AI_AUTOPILOT_REASONS.INSPECTION_BLOCKED;
+     finalReason=failureReason(inspect,AI_AUTOPILOT_REASONS.INSPECTION_BLOCKED);
      const rollback=await this.rollback({
       transactionId,reason:finalReason,attempt,steps
      });
      if(!rollback.ok)finalReason=AI_AUTOPILOT_REASONS.ROLLBACK_FAILED;
-     if(attempt<this.limits.maxAttempts&&rollback.ok)continue;
+     if(attempt<this.limits.maxAttempts&&rollback.ok&&retryAllowed(inspect))continue;
      break;
     }
     this.transition(AI_AUTOPILOT_STATES.INSPECTED,{attempt});
@@ -303,15 +316,15 @@ export class AIAutopilotTransaction{
      transactionId,
      attempt,
      signal
-    }),attempt);
+    }),attempt,signal);
     steps.push(test);
     if(!test.ok){
-     finalReason=AI_AUTOPILOT_REASONS.TEST_FAILED;
+     finalReason=failureReason(test,AI_AUTOPILOT_REASONS.TEST_FAILED);
      const rollback=await this.rollback({
       transactionId,reason:finalReason,attempt,steps
      });
      if(!rollback.ok)finalReason=AI_AUTOPILOT_REASONS.ROLLBACK_FAILED;
-     if(attempt<this.limits.maxAttempts&&rollback.ok)continue;
+     if(attempt<this.limits.maxAttempts&&rollback.ok&&retryAllowed(test))continue;
      break;
     }
     this.transition(AI_AUTOPILOT_STATES.TESTED,{attempt});
@@ -321,15 +334,15 @@ export class AIAutopilotTransaction{
      transactionId,
      attempt,
      signal
-    }),attempt);
+    }),attempt,signal);
     steps.push(verify);
     if(!verify.ok){
-     finalReason=AI_AUTOPILOT_REASONS.VERIFICATION_FAILED;
+     finalReason=failureReason(verify,AI_AUTOPILOT_REASONS.VERIFICATION_FAILED);
      const rollback=await this.rollback({
       transactionId,reason:finalReason,attempt,steps
      });
      if(!rollback.ok)finalReason=AI_AUTOPILOT_REASONS.ROLLBACK_FAILED;
-     if(attempt<this.limits.maxAttempts&&rollback.ok)continue;
+     if(attempt<this.limits.maxAttempts&&rollback.ok&&retryAllowed(verify))continue;
      break;
     }
 

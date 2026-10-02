@@ -35,6 +35,12 @@ v1 accepts only:
 
 Callers cannot replace these with arbitrary shell commands.
 
+On Windows these plans invoke an absolute Node executable and its installed `npm-cli.js`, because Node cannot spawn the `npm.cmd` batch launcher directly. The resolver uses the runtime installation and absolute PATH directories outside the checkout, and fails closed if the installation is unavailable. It never searches the patch's current directory for `npm.cmd` or invokes a shell; a worker-created launcher cannot shadow the verifier.
+
+A command timeout stops the complete lifecycle process tree before rollback is allowed (Windows `taskkill /T`, a separate process group on POSIX). If termination cannot be confirmed, automatic rollback and release are refused, and the repository lock remains active for manual recovery. The broker never reports that uncertain state as a verified patch.
+
+Cancellation is checked before commands, after they settle, and after final inspection before release. An already-running command is allowed to settle within its configured timeout before cancellation rolls the transaction back.
+
 ## Agent authority
 
 The Worker receives a maintenance prompt inside the already-active trusted transaction.

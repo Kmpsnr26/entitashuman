@@ -42,7 +42,11 @@ Draft PR will be a later **Trusted Git Broker** stage, not an Agent capability.
 
 Default maximum attempts: 2.
 
-A failure may retry only after rollback succeeds.
+A failure after patch may retry only after rollback succeeds. Ordinary reproduction, test and build failures may consume the bounded retry budget.
+
+Boundary refusals (including protected paths, credentials, authority, repository identity, lock/preflight errors and invalid evidence) never retry. Exception codes are preserved so a broker refusal cannot become a generic retryable error.
+
+An `AbortSignal` is checked between stages and after pending detection, reproduction, patch, inspection and test work completes. Cancellation after patch rolls back, does not invoke later commands and does not retry. Trusted verification checks cancellation before releasing the transaction; release is the final success point. Cancellation waits for already-running work to settle, rather than assuming the worker has stopped writing immediately.
 
 If rollback fails, the transaction terminates fail-closed.
 
