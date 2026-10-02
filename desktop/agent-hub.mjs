@@ -1,6 +1,6 @@
 import {spawn} from 'node:child_process';
 import {access} from 'node:fs/promises';
-import {join} from 'node:path';
+import {join,resolve} from 'node:path';
 import {validateMemoryContext,memoryContextBlock} from './memory-context.mjs';
 import {
  AI_MAINTENANCE_ALLOWED_CAPABILITIES,
@@ -339,6 +339,50 @@ export class DeveloperAgentHub{
   ].join('\n');
   return {id:'humanale-orchestrator',name:'HumanALE Orchestrator',mode,difficulty,stages,text:summary};
  }
+ async runTrustedMaintenanceWork(prompt,{transaction}={}){
+  if(this.pending)throw new Error('Tunggu agent sebelumnya selesai.');
+  const task=String(prompt||'').trim();
+  if(!task||task.length>4000)throw new Error('Prompt agent harus berisi 1–4000 karakter.');
+  assertMaintenanceTaskAllowed(task,{mode:'work'});
+  if(!transaction||transaction.released||typeof transaction.inspect!=='function'||typeof transaction.rollback!=='function'){
+   const error=new Error('Trusted maintenance work memerlukan transaction aktif yang valid.');
+   error.code='AI_MAINTENANCE_TRUSTED_TRANSACTION_REQUIRED';
+   throw error;
+  }
+  const projectRoot=this.getProjectRoot();
+  if(!await this.projectRootReady())throw new Error('AI maintenance memerlukan checkout Git proyek yang dipilih secara eksplisit.');
+  const transactionRoot=String(transaction.cwd||'').trim();
+  const normalizedProjectRoot=resolve(projectRoot);
+  const normalizedTransactionRoot=resolve(transactionRoot||'.');
+  const sameRoot=process.platform==='win32'
+   ?normalizedProjectRoot.toLowerCase()===normalizedTransactionRoot.toLowerCase()
+   :normalizedProjectRoot===normalizedTransactionRoot;
+  if(!transactionRoot||!sameRoot){
+   const error=new Error('Trusted maintenance transaction tidak cocok dengan project root Agent Hub.');
+   error.code='AI_MAINTENANCE_TRANSACTION_ROOT_MISMATCH';
+   throw error;
+  }
+
+  this.pending=true;
+  this.maintenanceTransaction=transaction;
+  try{
+   const result=await this.runStructured(task,'work');
+   const finalInspection=await transaction.inspect({rollbackOnViolation:false});
+   if(!finalInspection.allowed)throw maintenanceChangeSetError(finalInspection);
+   return {
+    ...result,
+    maintenance:Object.freeze({
+     transactionId:transaction.id,
+     changedFiles:finalInspection.paths.length,
+     totalBytes:finalInspection.totalBytes
+    })
+   };
+  }finally{
+   if(this.maintenanceTransaction===transaction)this.maintenanceTransaction=null;
+   this.pending=false;
+  }
+ }
+
  async run(value){
   if(this.pending)throw new Error('Tunggu agent sebelumnya selesai.');
   const id=String(value?.id||''),mode=value?.mode==='work'?'work':'analyze';
