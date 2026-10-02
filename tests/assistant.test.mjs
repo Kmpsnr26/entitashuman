@@ -10,7 +10,7 @@ import {parseAskCodiResponse} from '../desktop/askcodi.mjs';
 import {parseOpenAIResponse} from '../desktop/openai-api.mjs';
 import {parseClaudeResponse} from '../desktop/claude.mjs';
 import {parseDeepSeekResponse} from '../desktop/deepseek.mjs';
-import {agentDefinitions,isCodexLoggedIn,parseCodexJsonOutput,agentTimeoutMs} from '../desktop/agent-hub.mjs';
+import {DeveloperAgentHub,agentDefinitions,isCodexLoggedIn,parseCodexJsonOutput,agentTimeoutMs} from '../desktop/agent-hub.mjs';
 import {normalizedAudioLevel} from '../public/audio-reactor.js';
 import {isExplicitProjectWorkRequest} from '../public/work-intent.js';
 import {IndonesianStt} from '../desktop/indonesian-stt.mjs';
@@ -234,7 +234,8 @@ test('Codex agent requires login, parses JSON events and uses bounded work timeo
  assert.match(hub,/--json/);
  assert.match(hub,/HUMANALE_AGENT_TIMEOUT_MS/);
  assert.match(hub,/HUMANALE_PROJECT_ROOT/);
- assert.match(hub,/agentTimeoutMs\(mode\)/);
+ assert.equal(new DeveloperAgentHub().timeoutForMode,agentTimeoutMs);
+ assert.match(hub,/this\.timeoutForMode\(mode\)/);
  assert.match(hub,/workspace-write/);
  assert.match(hub,/read-only/);
 });

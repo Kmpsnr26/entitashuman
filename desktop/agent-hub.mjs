@@ -11,6 +11,7 @@ import {
 } from './agent-maintenance-policy.mjs';
 import {sanitizeMaintenanceEnvironment} from './agent-maintenance-guard.mjs';
 import {beginMaintenanceTransaction} from './agent-maintenance-transaction.mjs';
+import {maintenanceProcessRecoveryError,markMaintenanceProcessUnconfirmed,terminateMaintenanceProcessTree} from './agent-trusted-process-broker.mjs';
 
 const maintenanceBoundaryLegacyMarker='Jangan git push, git merge, publish';
 
@@ -150,7 +151,13 @@ function looksLikeCopilotTrustPrompt(text=''){
   value.includes('confirm that you trust');
 }
 export class DeveloperAgentHub{
- constructor(){this.child=null;this.pending=false;this.projectRoot='';this.maintenanceTransaction=null;}
+ constructor({processTerminator=terminateMaintenanceProcessTree,timeoutForMode=agentTimeoutMs,beforeExecutorSpawn=()=>{}}={}){
+  if(typeof processTerminator!=='function'||typeof timeoutForMode!=='function'||typeof beforeExecutorSpawn!=='function')throw new TypeError('Trusted process lifecycle hooks must be functions.');
+  this.child=null;this.pending=false;this.projectRoot='';this.maintenanceTransaction=null;
+  this.processTerminator=processTerminator;this.timeoutForMode=timeoutForMode;
+  this.beforeExecutorSpawn=beforeExecutorSpawn;
+  this.maintenanceSignal=null;this.maintenanceAbortController=null;this.activeProcessStop=null;
+ }
  setProjectRoot(value=''){this.projectRoot=String(value||'').trim();}
  getProjectRoot(){return (this.maintenanceTransaction?.cwd||this.projectRoot||process.env.HUMANALE_PROJECT_ROOT||process.env.DUDIDAM_PROJECT_ROOT||process.cwd()).trim();}
  async projectRootReady(){
@@ -210,12 +217,16 @@ export class DeveloperAgentHub{
   return result;
  }
  async runDirect(id,prompt,mode='analyze'){
+  const signal=this.maintenanceSignal;
+  const aborted=()=>Object.assign(new Error('Maintenance worker aborted.'),{code:'ABORTED'});
+  if(signal?.aborted)throw aborted();
   const agent=agents.find(item=>item.id===id&&item.canRun&&!item.internal);
   if(!agent)throw new Error('Executor agent tidak tersedia.');
   if(mode==='work'&&!['github-copilot','codex','cursor','claude'].includes(id))throw new Error('Mode Kerja executor tidak didukung.');
   const executable=await locate(agent);
   if(!executable)throw new Error(agent.name+' belum ditemukan di PATH atau environment path khusus.');
   const cwd=this.getProjectRoot();
+  this.beforeExecutorSpawn(Object.freeze({executable,id,mode,cwd}));
   if(mode==='work'&&!await this.projectRootReady())throw new Error('Folder proyek belum dipilih atau bukan checkout Git. Buka Developer agents → Pilih folder proyek, lalu pilih folder repo entitashuman.');
   if(mode==='work'&&!this.maintenanceTransaction)throw new Error('Mode kerja agent wajib berjalan di dalam AI maintenance transaction.');
   if(id==='codex'){
@@ -237,33 +248,60 @@ export class DeveloperAgentHub{
    :id==='claude'&&mode==='work'?['-p',safeWorkPrompt,'--model','claude-fable-5','--permission-mode','dontAsk','--tools','Read,Glob,Grep,Edit,Write,Bash','--allowedTools','Read,Glob,Grep,Edit,Write,Bash(npm test:*),Bash(npm run verify:*)','--output-format','text','--no-session-persistence']
    :id==='claude'?['-p',prompt,'--model','claude-fable-5','--permission-mode','plan','--tools','Read,Glob,Grep','--output-format','text','--no-session-persistence']
    :['-p',prompt,'--mode=ask','--output-format','text'];
-  const timeoutMs=agentTimeoutMs(mode);
+  if(signal?.aborted)throw aborted();
+  const timeoutMs=this.timeoutForMode(mode);
   const directResult=await new Promise((resolve,reject)=>{
+   const transaction=this.maintenanceTransaction;
    const maintenanceEnv=sanitizeMaintenanceEnvironment(process.env,{
     isolatedHome:this.maintenanceTransaction?.isolatedHome||''
    }).env;
-   const child=spawn(executable,args,{cwd,windowsHide:true,stdio:['ignore','pipe','pipe'],env:maintenanceEnv});
-   this.child=child;let stdout='',stderr='',settled=false;
-   const finish=(error,value)=>{if(settled)return;settled=true;clearTimeout(timer);if(this.child===child)this.child=null;error?reject(error):resolve(value);};
-   const timer=setTimeout(()=>{child.kill();finish(new Error(agent.name+' belum selesai dalam '+Math.round(timeoutMs/1000)+' detik.'));},timeoutMs);
+   const child=spawn(executable,args,{cwd,windowsHide:true,detached:process.platform!=='win32',stdio:['ignore','pipe','pipe'],env:maintenanceEnv});
+   this.child=child;let stdout='',stderr='',settled=false,stopping=false,stopPromise=null,terminationUnconfirmed=false;
+   const finish=(error,value)=>{
+    if(settled)return;settled=true;clearTimeout(timer);signal?.removeEventListener('abort',onAbort);
+    if(this.activeProcessStop===stop)this.activeProcessStop=null;
+    if(this.child===child&&!terminationUnconfirmed)this.child=null;
+    error?reject(error):resolve(value);
+   };
+   const stop=error=>{
+    if(settled)return stopPromise;
+    if(stopping)return stopPromise;
+    stopping=true;
+    stopPromise=(async()=>{
+     let result;
+     try{result=await this.processTerminator(child);}catch{result={terminationConfirmed:false};}
+     if(result?.terminationConfirmed!==true){
+      terminationUnconfirmed=true;
+      markMaintenanceProcessUnconfirmed(transaction);
+      finish(transaction?maintenanceProcessRecoveryError(error):Object.assign(new Error('Agent process termination is unconfirmed.'),{code:'WORKER_TERMINATION_UNCONFIRMED'}));
+     }
+     else finish(error);
+     return result;
+    })();
+    return stopPromise;
+   };
+   const onAbort=()=>stop(aborted());
+   this.activeProcessStop=stop;
+   const timer=setTimeout(()=>stop(Object.assign(new Error(agent.name+' belum selesai dalam '+Math.round(timeoutMs/1000)+' detik.'),{code:'WORKER_TIMEOUT'})),timeoutMs);
+   signal?.addEventListener('abort',onAbort,{once:true});
+   if(signal?.aborted)onAbort();
    child.stdout.on('data',data=>{
     stdout+=data;
     if(id==='github-copilot'&&looksLikeCopilotTrustPrompt(stdout)){
-     child.kill();
-     finish(new Error('GitHub Copilot meminta konfirmasi trust folder. Buka terminal di folder proyek, jalankan copilot sekali, trust folder tersebut, lalu jalankan lagi dari HumanALE god egine.'));
+     stop(new Error('GitHub Copilot meminta konfirmasi trust folder. Buka terminal di folder proyek, jalankan copilot sekali, trust folder tersebut, lalu jalankan lagi dari HumanALE god egine.'));
      return;
     }
-    if(stdout.length>400000){child.kill();finish(new Error('Output agent terlalu besar.'));}
+    if(stdout.length>400000)stop(new Error('Output agent terlalu besar.'));
    });
    child.stderr.on('data',data=>{
     stderr=(stderr+data).slice(-16000);
     if(id==='github-copilot'&&looksLikeCopilotTrustPrompt(stderr)){
-     child.kill();
-     finish(new Error('GitHub Copilot meminta konfirmasi trust folder. Buka terminal di folder proyek, jalankan copilot sekali, trust folder tersebut, lalu jalankan lagi dari HumanALE god egine.'));
+     stop(new Error('GitHub Copilot meminta konfirmasi trust folder. Buka terminal di folder proyek, jalankan copilot sekali, trust folder tersebut, lalu jalankan lagi dari HumanALE god egine.'));
     }
    });
-   child.on('error',()=>finish(new Error(agent.name+' tidak dapat dijalankan.')));
+   child.on('error',()=>{if(!stopping)finish(new Error(agent.name+' tidak dapat dijalankan.'));});
    child.on('close',code=>{
+    if(stopping)return;
     if(id==='codex'){
      const parsed=parseCodexJsonOutput(stdout);
      const combined=(stderr+'\n'+stdout).trim();
@@ -339,7 +377,8 @@ export class DeveloperAgentHub{
   ].join('\n');
   return {id:'humanale-orchestrator',name:'HumanALE Orchestrator',mode,difficulty,stages,text:summary};
  }
- async runTrustedMaintenanceWork(prompt,{transaction}={}){
+ async runTrustedMaintenanceWork(prompt,{transaction,signal=null}={}){
+  if(this.maintenanceTransaction?.processTerminationUnconfirmed)throw maintenanceProcessRecoveryError();
   if(this.pending)throw new Error('Tunggu agent sebelumnya selesai.');
   const task=String(prompt||'').trim();
   if(!task||task.length>4000)throw new Error('Prompt agent harus berisi 1–4000 karakter.');
@@ -380,6 +419,8 @@ export class DeveloperAgentHub{
 
   this.pending=true;
   this.maintenanceTransaction=transaction;
+  this.maintenanceAbortController=new AbortController();
+  this.maintenanceSignal=signal?AbortSignal.any([signal,this.maintenanceAbortController.signal]):this.maintenanceAbortController.signal;
   try{
    const result=await this.runStructured(task,'work');
    const finalInspection=await transaction.inspect({rollbackOnViolation:false});
@@ -393,12 +434,14 @@ export class DeveloperAgentHub{
     })
    };
   }finally{
-   if(this.maintenanceTransaction===transaction)this.maintenanceTransaction=null;
+   if(this.maintenanceTransaction===transaction&&!transaction.processTerminationUnconfirmed)this.maintenanceTransaction=null;
+   this.maintenanceSignal=null;this.maintenanceAbortController=null;
    this.pending=false;
   }
  }
 
  async run(value){
+  if(this.maintenanceTransaction?.processTerminationUnconfirmed)throw maintenanceProcessRecoveryError();
   if(this.pending)throw new Error('Tunggu agent sebelumnya selesai.');
   const id=String(value?.id||''),mode=value?.mode==='work'?'work':'analyze';
   let prompt=String(value?.prompt||'').trim();
@@ -413,6 +456,7 @@ export class DeveloperAgentHub{
     if(!await this.projectRootReady())throw new Error('AI maintenance memerlukan checkout Git proyek yang dipilih secara eksplisit.');
     transaction=await beginMaintenanceTransaction(cwd);
     this.maintenanceTransaction=transaction;
+    this.maintenanceAbortController=new AbortController();this.maintenanceSignal=this.maintenanceAbortController.signal;
    }
 
    if(mode==='work'&&value?.memoryContext!=null){
@@ -434,7 +478,8 @@ export class DeveloperAgentHub{
    }
    return result;
   }catch(error){
-   if(transaction&&!transaction.released){
+   if(transaction?.processTerminationUnconfirmed)throw maintenanceProcessRecoveryError(error);
+   if(transaction&&!transaction.released&&!transaction.processTerminationUnconfirmed){
     try{
      const rollback=await transaction.rollback('PIPELINE_FAILED');
      if(rollback?.rolledBack)error.maintenanceRollback=rollback;
@@ -454,14 +499,25 @@ export class DeveloperAgentHub{
    }
    throw error;
   }finally{
-   if(transaction&&!transaction.released){
+   if(transaction&&!transaction.released&&!transaction.processTerminationUnconfirmed){
     try{await transaction.release();}catch{}
    }
-   if(this.maintenanceTransaction===transaction)this.maintenanceTransaction=null;
+   if(this.maintenanceTransaction===transaction&&!transaction?.processTerminationUnconfirmed)this.maintenanceTransaction=null;
+   this.maintenanceSignal=null;this.maintenanceAbortController=null;
    this.pending=false;
   }
  }
- stop(){this.child?.kill();}
+ stop(){
+  this.maintenanceAbortController?.abort();
+  if(this.activeProcessStop)return this.activeProcessStop(Object.assign(new Error('Maintenance worker aborted.'),{code:'ABORTED'}));
+  if(this.child){
+   const child=this.child;
+   return Promise.resolve().then(()=>this.processTerminator(child)).then(result=>{
+    if(result?.terminationConfirmed===true&&this.child===child)this.child=null;
+    return result;
+   },()=>({terminationConfirmed:false}));
+  }
+ }
 }
 
 export const agentMaintenanceCapabilities=Object.freeze({
