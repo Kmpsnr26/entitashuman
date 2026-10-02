@@ -10,7 +10,7 @@ Read the source issue for the latest evidence and acceptance criteria.
 
 ## Guardrails
 
-- Start from `codex/ai-maintenance-boundary-v1`.
+- Start from `main`.
 - Make the smallest safe fix and add regression coverage.
 - Run `npm ci`, `npm run verify`, and relevant focused checks.
 - Never commit secrets or weaken Electron/browser security boundaries.
