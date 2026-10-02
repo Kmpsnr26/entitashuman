@@ -26,6 +26,7 @@ await cp('desktop',path.join(appDir,'desktop'),{recursive:true,filter:source=>!s
 await cp('nara-core',path.join(appDir,'nara-core'),{recursive:true});
 await cp('package.json',path.join(appDir,'package.json'));
 const runtimeModules=[
+ ['three'],
  ['node-pty'],
  ['node-addon-api'],
  ['@xterm','xterm'],

@@ -10,6 +10,7 @@ const $=id=>document.getElementById(id);
 let snapshot=null,regions={},telemetry=null,skillsSnapshot=null;
 let neural3d=null,neural3dLoading=null,studioView='2d';
 let eventBuffer=[],eventPaused=false,replayTimer=null;
+if(new URLSearchParams(location.search).get('embedded')==='1')document.body.classList.add('embedded-studio');
 const connectionIds=['GITHUB','COPILOT','WEB','TEAM','PR','SYNC','ONLINE','OWNER_EMAIL','DRIVE'];
 const eventSelect=$('eventSelect');
 const neuralEntry=createNeuralEntryExperience();
@@ -390,6 +391,11 @@ async function dispatch(event,payload={}){
 
 async function boot(){
   const data=await fetch('/api/snapshot').then(r=>r.json());
+  if(data.studio?.embedded){
+    document.body.classList.add('embedded-studio');
+    $('eventSelect').disabled=true;
+    $('eventLabel').hidden=true;
+  }
   regions=data.regions||{};
   $('brainSummary').textContent=Object.keys(regions).length+' regions';
   eventSelect.innerHTML=(data.studio?.eventAllowlist||[]).map(e=>'<option>'+escapeHtml(e)+'</option>').join('');

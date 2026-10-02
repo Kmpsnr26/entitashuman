@@ -77,6 +77,172 @@ function safeEventName(value=''){
   return allow.has(event)?event:'';
 }
 
+const SAFE_STATUSES=new Set([
+  'active','idle','ready','running','thinking','planning','executing','verifying',
+  'complete','completed','error','bug','blocked','offline','disconnected',
+  'listening','speaking','processing','waiting','learning','repairing','repaired',
+  'attention','analyzing','failed','enabled'
+]);
+const SAFE_LIFECYCLES=new Set(['active','stopped','starting','stopping']);
+const SAFE_STAGES=new Set(['reason','plan','agent','program','verify']);
+const SAFE_MEMORY_OPERATIONS=new Set([
+  'read','write','complete','context_prepare','context_approved','context_used','context_blocked'
+]);
+const SAFE_DIAGNOSTIC_EVENTS=new Set([
+  'error.detected','bug.detected','bug.fixed','work.failed','agent.failed','verify.start','verify.complete'
+]);
+
+function safeEnum(value,allowed,fallback='idle'){
+  const text=String(value||'');
+  return allowed.has(text)?text:fallback;
+}
+
+function safeCount(value){
+  const number=finiteNumber(value);
+  return Math.max(0,Math.min(1_000_000_000,Math.floor(number)));
+}
+
+function safeMetric(value){
+  return Math.max(0,Math.min(1_000_000_000,finiteNumber(value)));
+}
+
+function projectEmbeddedState(state={}){
+  const regions={};
+  for(const id of Object.keys(NARA_REGIONS)){
+    const source=state.regions?.[id]||{};
+    regions[id]={
+      status:safeEnum(source.status,SAFE_STATUSES,NARA_REGIONS[id].defaultStatus||'idle'),
+      lastEvent:safeEventName(source.lastEvent)
+    };
+  }
+  const selectedRegion=String(state.selectedRegion||'');
+  const sensory=state.sensory||{};
+  const humanale=state.humanale||{};
+  return {
+    lifecycle:safeEnum(state.lifecycle,SAFE_LIFECYCLES,'unknown'),
+    regions,
+    selectedRegion:Object.hasOwn(NARA_REGIONS,selectedRegion)?selectedRegion:'NARA_CORE',
+    currentTask:null,
+    lastEvent:null,
+    sensory:{
+      hearing:{active:Boolean(sensory.hearing?.active),energy:safeMetric(sensory.hearing?.energy)},
+      vision:{active:Boolean(sensory.vision?.active),activity:safeMetric(sensory.vision?.activity)},
+      speech:{active:Boolean(sensory.speech?.active),energy:safeMetric(sensory.speech?.energy)}
+    },
+    humanale:{
+      state:safeEnum(humanale.state,new Set(['idle','listening','thinking','speaking','processing','error']),'idle'),
+      rendererMode:safeEnum(humanale.rendererMode,new Set(['eco','active']),'eco'),
+      controlledBy:'NARA_CORE'
+    }
+  };
+}
+
+function projectEmbeddedTelemetry(data={}){
+  const decision=data.decision||{};
+  const active={};
+  for(const [stage,item] of Object.entries(decision.active||{})){
+    if(!SAFE_STAGES.has(stage))continue;
+    active[stage]={
+      stage,status:safeEnum(item.status,SAFE_STATUSES),label:'',
+      startedAt:safeMetric(item.startedAt),endedAt:null,durationMs:item.durationMs==null?null:safeMetric(item.durationMs)
+    };
+  }
+  const decisionHistory=(Array.isArray(decision.history)?decision.history:[]).slice(-80).map(item=>({
+    stage:safeEnum(item.stage,SAFE_STAGES,'reason'),
+    status:safeEnum(item.status,SAFE_STATUSES),
+    label:'',
+    startedAt:safeMetric(item.startedAt),
+    endedAt:safeMetric(item.endedAt),
+    durationMs:item.durationMs==null?null:safeMetric(item.durationMs)
+  }));
+  const memory=data.memory||{};
+  const memoryHistory=(Array.isArray(memory.history)?memory.history:[]).slice(-60).map(item=>({
+    operation:safeEnum(item.operation,SAFE_MEMORY_OPERATIONS),
+    event:'',
+    label:'',
+    target:'',
+    timestamp:safeMetric(item.timestamp)
+  }));
+  const diagnostics=data.diagnostics||{};
+  const diagnosticHistory=(Array.isArray(diagnostics.history)?diagnostics.history:[]).slice(-60).map(item=>({
+    event:SAFE_DIAGNOSTIC_EVENTS.has(item.event)?item.event:'',
+    message:'',
+    timestamp:safeMetric(item.timestamp),
+    status:safeEnum(item.status,SAFE_STATUSES)
+  }));
+  const perf=data.performance||{};
+  const counters=memory.counters||{};
+  const diagnosticCounters=diagnostics.counters||{};
+  return {
+    version:2,
+    decision:{
+      currentStage:SAFE_STAGES.has(decision.currentStage)?decision.currentStage:null,
+      currentLabel:'',
+      status:safeEnum(decision.status,new Set(['idle','running','complete','failed']),'idle'),
+      startedAt:safeMetric(decision.startedAt),
+      lastDurationMs:decision.lastDurationMs==null?null:safeMetric(decision.lastDurationMs),
+      completedStages:safeCount(decision.completedStages),
+      failedStages:safeCount(decision.failedStages),
+      active,history:decisionHistory
+    },
+    memory:{
+      active:Boolean(memory.active),
+      lastOperation:memory.lastOperation?{
+        operation:safeEnum(memory.lastOperation.operation,SAFE_MEMORY_OPERATIONS),
+        event:'',label:'',target:'',timestamp:safeMetric(memory.lastOperation.timestamp)
+      }:null,
+      counters:Object.fromEntries([...SAFE_MEMORY_OPERATIONS].map(key=>[key,safeCount(counters[key])])),
+      history:memoryHistory
+    },
+    diagnostics:{
+      active:Boolean(diagnostics.active),
+      status:safeEnum(diagnostics.status,new Set(['idle','analyzing','bug','repaired','attention','verifying','verified']),'idle'),
+      current:diagnostics.current?{
+        message:'',
+        detectedAt:safeMetric(diagnostics.current.detectedAt),
+        bugAt:safeMetric(diagnostics.current.bugAt),
+        fixedAt:safeMetric(diagnostics.current.fixedAt)
+      }:null,
+      lastRepairDurationMs:diagnostics.lastRepairDurationMs==null?null:safeMetric(diagnostics.lastRepairDurationMs),
+      counters:Object.fromEntries(['errors','bugs','fixed','workFailed','agentFailed','verified'].map(key=>[key,safeCount(diagnosticCounters[key])])),
+      history:diagnosticHistory
+    },
+    performance:{
+      totalEvents:safeCount(perf.totalEvents),
+      lastEventAt:safeMetric(perf.lastEventAt),
+      peakEvents10s:safeCount(perf.peakEvents10s),
+      startedAt:safeMetric(perf.startedAt),
+      uptimeMs:safeMetric(perf.uptimeMs),
+      events10s:safeCount(perf.events10s),
+      eventsPerSecond:safeMetric(perf.eventsPerSecond)
+    }
+  };
+}
+
+function projectEmbeddedSkills(data={}){
+  const skills=Array.isArray(data.skills)?data.skills:[];
+  const rows=skills.slice(0,200).map(skill=>({
+    id:String(skill.id||'').slice(0,80),
+    label:String(skill.label||'').slice(0,120),
+    region:Object.hasOwn(NARA_REGIONS,String(skill.region||''))?String(skill.region):'',
+    status:safeEnum(skill.status,SAFE_STATUSES),
+    enabled:Boolean(skill.enabled),
+    runs:safeCount(skill.runs),
+    successes:safeCount(skill.successes),
+    failures:safeCount(skill.failures),
+    lastEvent:safeEventName(skill.lastEvent),
+    lastLabel:'',
+    lastDurationMs:skill.lastDurationMs==null?null:safeMetric(skill.lastDurationMs)
+  }));
+  return {
+    total:safeCount(data.total??rows.length),
+    enabled:safeCount(data.enabled??rows.filter(item=>item.enabled).length),
+    running:safeCount(data.running??rows.filter(item=>item.status==='running').length),
+    failed:safeCount(data.failed??rows.filter(item=>item.status==='failed').length),
+    skills:rows
+  };
+}
+
 export function buildCreatorRegionMetadata({
   id,
   state={},
@@ -169,12 +335,18 @@ export function buildCreatorRegionMetadata({
   };
 }
 
-export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:creatorOptions={}}={}){
+export function createNaraStudioServer({
+  host='127.0.0.1',
+  port=4178,
+  creatorAuth:creatorOptions={},
+  nara:providedNara=null,
+  embedded=false
+}={}){
   const bootstrapUsername=creatorOptions.username||process.env.NARA_CREATOR_USERNAME||'creator';
   const bootstrapPassword=creatorOptions.password??process.env.NARA_CREATOR_PASSWORD??'';
   const ownerStorePath=String(creatorOptions.ownerStorePath||process.env.NARA_OWNER_STORE||'').trim();
-  let ownerStore=null,ownerStoreError='';
-  if(ownerStorePath){
+  let ownerStore=creatorOptions.credentialStore||null,ownerStoreError='';
+  if(!ownerStore&&ownerStorePath){
     try{
       const candidate=createOwnerStore({filePath:ownerStorePath});
       if(!candidate.configured()&&String(bootstrapPassword)){
@@ -200,7 +372,8 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
   });
   const creatorRequired=creatorOptions.required===false?false:(creator.configured||creatorOptions.required===true);
   const creatorMisconfigured=Boolean(ownerStoreError)||(creatorRequired&&!creator.configured);
-  const nara=createOrchestrator();
+  const nara=providedNara||createOrchestrator();
+  const ownsNara=!providedNara;
   const telemetry=createStudioTelemetry();
   const skills=createSkillRegistry();
   const clients=new Set();
@@ -212,15 +385,19 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
     }
   };
 
-  const stateOff=nara.state.subscribe(state=>broadcast('state',state));
+  const projectState=state=>embedded?projectEmbeddedState(state):state;
+  const projectTelemetry=data=>embedded?projectEmbeddedTelemetry(data):data;
+  const projectSkills=data=>embedded?projectEmbeddedSkills(data):data;
+  const stateOff=nara.state.subscribe(state=>broadcast('state',projectState(state)));
   const eventOff=nara.bus.onAny(envelope=>{
     telemetry.consume(envelope);
     skills.consume(envelope);
-    broadcast('event',envelope);
-    broadcast('telemetry',telemetry.snapshot());
-    broadcast('skills',skills.snapshot());
+    if(!embedded)broadcast('event',envelope);
+    if(embedded)broadcast('state',projectState(nara.snapshot()));
+    broadcast('telemetry',projectTelemetry(telemetry.snapshot()));
+    broadcast('skills',projectSkills(skills.snapshot()));
   });
-  nara.start();
+  if(ownsNara)nara.start();
 
   server=http.createServer(async(req,res)=>{
     try{
@@ -248,7 +425,7 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
           required:creatorRequired,
           misconfigured:creatorMisconfigured,
           persistentOwner:Boolean(ownerStore?.configured?.()),
-          owner:ownerStore?.publicProfile?.()||null
+          ...(embedded?{username:null,owner:null}:{owner:ownerStore?.publicProfile?.()||null})
         });
       }
 
@@ -268,6 +445,7 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
           res.setHeader('set-cookie',creator.sessionCookie(result.token,{secure}));
         }
         const {token,...publicResult}=result;
+        if(embedded)delete publicResult.username;
         return json(res,200,publicResult);
       }
 
@@ -279,6 +457,7 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
       }
 
       if(req.method==='POST'&&url.pathname==='/api/creator/change-login'){
+        if(embedded)return json(res,403,{ok:false,error:'Creator login changes are disabled in embedded Studio.'});
         const data=await bodyJson(req);
         const result=creator.changeCredentials(req,{
           currentPassword:String(data.currentPassword||'').slice(0,512),
@@ -295,6 +474,10 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
         });
       }
 
+      if(embedded&&req.method==='POST'&&url.pathname==='/api/reset'){
+        return json(res,403,{ok:false,error:'Reset is disabled in embedded Studio.'});
+      }
+
       const creatorSession=creator.getSession(req);
       if(creatorRequired&&!creatorSession&&url.pathname.startsWith('/api/')){
         return json(res,401,{ok:false,error:'Creator authentication required.'});
@@ -308,9 +491,9 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
         const actualPort=typeof address==='object'&&address?address.port:port;
         const metadata=buildCreatorRegionMetadata({
           id:regionId,
-          state:nara.snapshot(),
-          telemetry:telemetry.snapshot(),
-          skills:skills.snapshot(),
+          state:projectState(nara.snapshot()),
+          telemetry:projectTelemetry(telemetry.snapshot()),
+          skills:projectSkills(skills.snapshot()),
           host,
           port:actualPort
         });
@@ -319,17 +502,21 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
       }
 
       if(req.method==='GET'&&url.pathname==='/api/snapshot'){
+        const state=projectState(nara.snapshot());
+        const studioTelemetry=projectTelemetry(telemetry.snapshot());
+        const studioSkills=projectSkills(skills.snapshot());
         return json(res,200,{
-          state:nara.snapshot(),
+          state,
           regions:NARA_REGIONS,
-          events:nara.bus.recent({limit:50}),
-          telemetry:telemetry.snapshot(),
-          skills:skills.snapshot(),
+          events:embedded?[]:nara.bus.recent({limit:50}),
+          telemetry:studioTelemetry,
+          skills:studioSkills,
           studio:{
             mode:'live',
-            eventAllowlist:STUDIO_EVENT_ALLOWLIST,
+            ...(embedded?{embedded:true}:{}),
+            eventAllowlist:embedded?['brain.region.select']:STUDIO_EVENT_ALLOWLIST,
             creatorAuthRequired:creatorRequired,
-            creator:creatorSession?{username:creatorSession.username}:null
+            creator:creatorSession&&!embedded?{username:creatorSession.username}:null
           }
         });
       }
@@ -341,9 +528,9 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
           'connection':'keep-alive'
         });
         clients.add(res);
-        sendSse(res,'state',nara.snapshot());
-        sendSse(res,'telemetry',telemetry.snapshot());
-        sendSse(res,'skills',skills.snapshot());
+        sendSse(res,'state',projectState(nara.snapshot()));
+        sendSse(res,'telemetry',projectTelemetry(telemetry.snapshot()));
+        sendSse(res,'skills',projectSkills(skills.snapshot()));
         sendSse(res,'ready',{ok:true});
         const timer=setInterval(()=>res.write(': keepalive\n\n'),15000);
         req.on('close',()=>{clearInterval(timer);clients.delete(res);});
@@ -353,12 +540,19 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
       if(req.method==='POST'&&url.pathname==='/api/event'){
         const data=await bodyJson(req);
         const event=String(data.event||'');
-        if(!allow.has(event))return json(res,403,{ok:false,error:'Event tidak diizinkan dari NARA Studio.',event});
+        if(embedded&&event!=='brain.region.select')return json(res,403,{ok:false,error:'Only region selection is enabled in embedded Studio.'});
+        if(!allow.has(event))return json(res,403,embedded
+          ?{ok:false,error:'Event tidak diizinkan dari NARA Studio.'}
+          :{ok:false,error:'Event tidak diizinkan dari NARA Studio.',event});
+        if(embedded&&!Object.hasOwn(NARA_REGIONS,String(data.payload?.region||''))){
+          return json(res,400,{ok:false,error:'Region NARA tidak valid.'});
+        }
         const result=nara.dispatch(event,safePayload(data.payload));
-        return json(res,200,{ok:true,event:result.event,state:result.state});
+        return json(res,200,{ok:true,event:result.event,state:projectState(result.state)});
       }
 
       if(req.method==='POST'&&url.pathname==='/api/reset'){
+        if(embedded)return json(res,403,{ok:false,error:'Reset is disabled in embedded Studio.'});
         nara.stop();telemetry.reset();skills.reset();nara.start();
         return json(res,200,{ok:true,state:nara.snapshot(),telemetry:telemetry.snapshot(),skills:skills.snapshot()});
       }
@@ -377,7 +571,7 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
         json(res,404,{error:'Tidak ditemukan.'});
       }
     }catch(error){
-      json(res,error.statusCode||500,{error:error.message||'Studio error.'});
+      json(res,error.statusCode||500,{error:embedded?'Studio request failed.':error.message||'Studio error.'});
     }
   });
 
@@ -398,7 +592,7 @@ export function createNaraStudioServer({host='127.0.0.1',port=4178,creatorAuth:c
     },
     async stop(){
       stateOff();eventOff();
-      if(nara.running)nara.stop();
+      if(ownsNara&&nara.running)nara.stop();
       for(const res of [...clients])res.end();
       clients.clear();
       if(server.listening)await new Promise(resolve=>server.close(resolve));

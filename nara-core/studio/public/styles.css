@@ -546,3 +546,7 @@ button,select,input{background:#0c2732;color:#c9f5ff;border:1px solid #245365;bo
 #naraVoiceSelect{
   max-width:190px;
 }
+body.embedded-studio .event-panel,
+body.embedded-studio .console-panel{
+  display:none;
+}
