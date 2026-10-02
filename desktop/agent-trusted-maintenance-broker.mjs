@@ -3,6 +3,7 @@ import {existsSync,realpathSync} from 'node:fs';
 import {delimiter,dirname,isAbsolute,join,relative,sep} from 'node:path';
 import {beginMaintenanceTransaction} from './agent-maintenance-transaction.mjs';
 import {sanitizeMaintenanceEnvironment} from './agent-maintenance-guard.mjs';
+import {markMaintenanceProcessUnconfirmed,terminateMaintenanceProcessTree} from './agent-trusted-process-broker.mjs';
 
 export const TRUSTED_MAINTENANCE_BROKER_VERSION='1.0.0';
 
@@ -103,20 +104,7 @@ function defaultCommandRunner({command,args,cwd,env,timeoutMs=180000}){
   };
   const timer=setTimeout(async()=>{
    timedOut=true;
-   let terminationConfirmed=false;
-   if(windows){
-    // Killing cmd/npm alone leaves lifecycle scripts running. Wait for the
-    // entire tree to stop before allowing the controller to restore files.
-    terminationConfirmed=await new Promise(done=>{
-     const killer=spawn(join(process.env.SystemRoot||'C:\\Windows','System32','taskkill.exe'),['/pid',String(child.pid),'/t','/f'],{windowsHide:true,stdio:'ignore'});
-     const killTimer=setTimeout(()=>{killer.kill();done(false);},10000);
-     killer.on('error',()=>{clearTimeout(killTimer);done(false);});
-     killer.on('close',code=>{clearTimeout(killTimer);done(code===0);});
-    });
-   }else{
-    try{process.kill(-child.pid,'SIGKILL');terminationConfirmed=true;}
-    catch(error){terminationConfirmed=error?.code==='ESRCH';}
-   }
+   const {terminationConfirmed}=await terminateMaintenanceProcessTree(child);
    finish({ok:false,code:terminationConfirmed?'COMMAND_TIMEOUT':'COMMAND_TERMINATION_FAILED',terminationConfirmed,summary:command+' timed out.'});
   },timeoutMs);
   child.stdout.on('data',data=>{
@@ -282,7 +270,7 @@ export class TrustedMaintenanceBroker{
      reproduction:normalizedReproduction,
      attempt
     }),
-    {transaction}
+    {transaction,signal}
    );
    return {
     ok:true,
@@ -305,6 +293,9 @@ export class TrustedMaintenanceBroker{
   const session=this.session(transactionId);
   if(!session){
    return {ok:false,code:'NO_ACTIVE_TRANSACTION',summary:'No active maintenance transaction.'};
+  }
+  if(session.manualRecoveryRequired||session.transaction.processTerminationUnconfirmed){
+   return {ok:false,code:'MANUAL_RECOVERY_REQUIRED',summary:'Command termination is unconfirmed; inspection cannot authorize further work.'};
   }
   try{
    const result=await session.transaction.inspect({rollbackOnViolation:false});
@@ -349,6 +340,7 @@ export class TrustedMaintenanceBroker{
    return {ok:false,code:'INVALID_COMMAND_RESULT',summary:label+' command result invalid.'};
   }
   if(result.terminationConfirmed===false){
+   markMaintenanceProcessUnconfirmed(session.transaction);
    this.sessions.set(transactionId,Object.freeze({...session,manualRecoveryRequired:true}));
    return {ok:false,code:'MANUAL_RECOVERY_REQUIRED',summary:'Command termination is unconfirmed; repository lock retained for manual recovery.'};
   }
@@ -399,7 +391,7 @@ export class TrustedMaintenanceBroker{
     summary:'No active maintenance transaction.'
    };
   }
-  if(session.manualRecoveryRequired){
+  if(session.manualRecoveryRequired||session.transaction.processTerminationUnconfirmed){
    return {ok:false,code:'MANUAL_RECOVERY_REQUIRED',summary:'Automatic rollback blocked while command termination is unconfirmed.'};
   }
   try{

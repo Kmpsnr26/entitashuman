@@ -66,7 +66,7 @@ test('AI maintenance work mode blocks direct memory context handoff to Worker',a
 
 test('Agent Hub trusted maintenance entrypoint requires external active transaction and never owns its lifecycle',async()=>{
  const hub=await readFile(new URL('../desktop/agent-hub.mjs',import.meta.url),'utf8');
- assert.match(hub,/async runTrustedMaintenanceWork\(prompt,\{transaction\}=\{\}\)/);
+ assert.match(hub,/async runTrustedMaintenanceWork\(prompt,\{transaction,signal=null\}=\{\}\)/);
  assert.match(hub,/AI_MAINTENANCE_TRUSTED_TRANSACTION_REQUIRED/);
  assert.match(hub,/AI_MAINTENANCE_TRANSACTION_ROOT_MISMATCH/);
  assert.match(hub,/transaction\.inspect\(\{rollbackOnViolation:false\}\)/);
