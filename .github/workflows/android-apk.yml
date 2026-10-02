@@ -15,6 +15,9 @@ on:
       - "sites/humanale-hologram/dist/**"
       - "capacitor.config.json"
       - "scripts/prepare-android.mjs"
+      - "scripts/android-version.mjs"
+      - "scripts/humanale-release-publication-gate.mjs"
+      - "package-lock.json"
       - ".github/workflows/android-apk.yml"
       - "build.mjs"
       - "package.json"
@@ -25,6 +28,9 @@ on:
       - "sites/humanale-hologram/dist/**"
       - "capacitor.config.json"
       - "scripts/prepare-android.mjs"
+      - "scripts/android-version.mjs"
+      - "scripts/humanale-release-publication-gate.mjs"
+      - "package-lock.json"
       - ".github/workflows/android-apk.yml"
       - "build.mjs"
       - "package.json"
@@ -52,7 +58,7 @@ jobs:
           cache: npm
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
@@ -91,7 +97,7 @@ jobs:
           ls -lh release/*.apk
 
       - name: Upload verified debug APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: HumanALE-Android-Debug-APK
           path: release/*-debug.apk
@@ -118,8 +124,11 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Enforce release publication gate
+        run: node scripts/humanale-release-publication-gate.mjs
+
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
@@ -189,7 +198,7 @@ jobs:
           ls -lh "$signed"
 
       - name: Upload signed Android artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: HumanALE-Android-Signed-${{ github.sha }}
           path: release/HumanALE-Android-*.apk

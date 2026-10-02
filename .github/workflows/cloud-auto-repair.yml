@@ -843,7 +843,9 @@ jobs:
                     '- [ ] Run \`npm run verify\`.',
                     '- [ ] Review security-sensitive changes manually.',
                     '',
-                    'This PR must not be merged automatically.'
+                    'This PR must not be merged automatically.',
+                    '',
+                    '<!-- cloud-fallback-request: issue-' + issue.number + ' -->'
                   ].join('\n')
                 });
                 pull = created.data;

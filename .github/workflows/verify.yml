@@ -42,13 +42,14 @@ jobs:
 
   windows:
     name: Windows runtime and package
-    if: github.event_name != 'pull_request'
     needs: quality
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
@@ -56,13 +57,49 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
+      - name: Enforce release publication gate
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        run: node scripts/humanale-release-publication-gate.mjs
       - name: Smoke interactive Windows terminal
         run: npm run smoke:terminal
       - name: Package portable desktop
         run: npm run package:desktop
       - name: Smoke packaged desktop
         run: .\HumanALE-God-Engine-Desktop\HumanALE-God-Engine.exe --ci-smoke
+      - name: Require Windows signing material
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_BASE64)) { throw "Missing required Actions secret: WINDOWS_SIGNING_PFX_BASE64" }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_PASSWORD)) { throw "Missing required Actions secret: WINDOWS_SIGNING_PFX_PASSWORD" }
+          $bytes = [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX_BASE64)
+          $pfx = Join-Path $env:RUNNER_TEMP "humanale-signing.pfx"
+          [IO.File]::WriteAllBytes($pfx,$bytes)
+          if (-not (Test-Path $pfx) -or (Get-Item $pfx).Length -lt 100) { throw "Windows signing certificate payload is invalid." }
+      - name: Sign portable desktop executable
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "humanale-signing.pfx"
+          $exe = "HumanALE-God-Engine-Desktop\HumanALE-God-Engine.exe"
+          if (-not (Test-Path $exe)) { throw "Portable HumanALE executable not found for signing." }
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe not found on Windows runner." }
+          & $signtool.FullName sign /fd SHA256 /tr https://timestamp.digicert.com /td SHA256 /f $pfx /p $env:WINDOWS_SIGNING_PFX_PASSWORD $exe
+          if ($LASTEXITCODE -ne 0) { throw "Portable HumanALE Authenticode signing failed." }
       - name: Build assisted Windows installer
+        if: github.event_name != 'workflow_dispatch' || inputs.publish_release != true
+        run: npm run package:installer
+      - name: Build signed Windows installer
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        env:
+          CSC_LINK: ${{ runner.temp }}/humanale-signing.pfx
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
         run: npm run package:installer
       - name: Prepare and validate release files
         shell: pwsh
@@ -76,8 +113,24 @@ jobs:
           if (-not (Test-Path $zip)) { throw "Portable ZIP tidak ditemukan." }
           Write-Host "Installer ready: $($installer.FullName) ($($installer.Length) bytes)"
           Write-Host "Portable package: $zip"
+      - name: Verify Windows Authenticode for publication
+        if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem release -Filter "HumanALE-God-Engine-Setup-*-x64.exe" | Select-Object -First 1
+          $portableExe = "HumanALE-God-Engine-Desktop\HumanALE-God-Engine.exe"
+          foreach ($target in @($installer.FullName,$portableExe)) {
+            $signature = Get-AuthenticodeSignature -FilePath $target
+            Write-Host "Authenticode $target => $($signature.Status)"
+            if ($signature.Status -ne "Valid") { throw "Authenticode verification failed for $target: $($signature.Status)" }
+            if (-not $signature.SignerCertificate) { throw "Signer certificate missing for $target." }
+          }
+      - name: Remove Windows signing material
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+        shell: pwsh
+        run: Remove-Item (Join-Path $env:RUNNER_TEMP "humanale-signing.pfx") -Force -ErrorAction SilentlyContinue
       - name: Upload verified Windows artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: HumanALE-Windows-${{ github.sha }}
           path: |
@@ -98,8 +151,10 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+      - name: Enforce release publication gate
+        run: node scripts/humanale-release-publication-gate.mjs
       - name: Download verified Windows artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: HumanALE-Windows-${{ github.sha }}
           path: release

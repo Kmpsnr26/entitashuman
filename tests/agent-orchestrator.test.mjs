@@ -44,10 +44,35 @@ test('structured HumanALE orchestrator keeps planning, work and review bounded',
  assert.match(hub,/DEGRADED SINGLE-EXECUTOR/);
  assert.match(hub,/INDEPENDENT REVIEW/);
  assert.match(hub,/runProcess\(executable,\['--version'\]/);
- assert.match(hub,/Jangan git push, git merge, publish/);
+ assert.match(hub,/buildMaintenanceWorkPrompt\(prompt\)/);
+ const policy=await readFile(new URL('../desktop/agent-maintenance-policy.mjs',import.meta.url),'utf8');
+ assert.match(policy,/Jangan git push, git merge, publish/);
  assert.match(hub,/validateMemoryContext\(value\?\.memoryContext/);
  assert.match(hub,/memoryContextBlock\(memoryContext\)/);
- assert.match(hub,/if\(id==='humanale-orchestrator'\)return await this\.runStructured/);
+ assert.match(hub,/id==='humanale-orchestrator'/);
+ assert.match(hub,/await this\.runStructured\(prompt,mode\)/);
  assert.match(app,/\['humanale-orchestrator','github-copilot','codex','cursor','claude'\]\.includes\(id\)/);
  assert.match(html,/Planner → Worker → Reviewer/);
+});
+
+
+test('AI maintenance work mode blocks direct memory context handoff to Worker',async()=>{
+ const hub=await readFile(new URL('../desktop/agent-hub.mjs',import.meta.url),'utf8');
+ assert.match(hub,/AI_MAINTENANCE_WORK_MEMORY_BLOCKED/);
+ assert.match(hub,/Mode kerja AI maintenance tidak menerima memory context langsung/);
+ assert.match(hub,/mode==='work'&&value\?\.memoryContext!=null/);
+});
+
+
+test('Agent Hub trusted maintenance entrypoint requires external active transaction and never owns its lifecycle',async()=>{
+ const hub=await readFile(new URL('../desktop/agent-hub.mjs',import.meta.url),'utf8');
+ assert.match(hub,/async runTrustedMaintenanceWork\(prompt,\{transaction\}=\{\}\)/);
+ assert.match(hub,/AI_MAINTENANCE_TRUSTED_TRANSACTION_REQUIRED/);
+ assert.match(hub,/AI_MAINTENANCE_TRANSACTION_ROOT_MISMATCH/);
+ assert.match(hub,/transaction\.inspect\(\{rollbackOnViolation:false\}\)/);
+ assert.match(hub,/this\.maintenanceTransaction=transaction/);
+ assert.doesNotMatch(
+  hub.match(/async runTrustedMaintenanceWork[\s\S]*?\n \}\n\n async run\(/)?.[0]||'',
+  /beginMaintenanceTransaction\(|transaction\.release\(/
+ );
 });

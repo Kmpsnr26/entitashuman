@@ -1,3 +1,9 @@
+import {
+ AVATAR_STUDIO_DEFAULTS,
+ normalizeAvatarStudioProfile,
+ transformAvatarStudioPoint
+} from './avatar-studio-profile.js';
+
 const BaseAvatar=window.NeuralAvatar;
 if(!BaseAvatar)throw new Error('Mesin avatar HumanALE belum dimuat.');
 
@@ -16,11 +22,16 @@ export class HumanALEAvatar extends BaseAvatar{
   this.persona='chatgpt';
   this.mode='mixed';
   this.state='idle';
+  this.naraPolicy={version:1,controlledBy:'NARA_CORE',state:'idle',rendererMode:'active',activity:0,reason:'startup'};
   this.listening=false;
   this._thinking=false;
   this._evolving=false;
   this.earSpectrum={low:0,mid:0,high:0};
   this.flowEnergy=1;
+  this.studioProfile=normalizeAvatarStudioProfile(options.studioProfile||AVATAR_STUDIO_DEFAULTS);
+  this.studioLightIntensity=this.studioProfile.lightIntensity;
+  this.studioParticleScale=this.studioProfile.particleScale;
+  this.setDensity(this.studioProfile.density*100);
   this._gazePointer={x:0,y:0};
   this._gazeActive=false;
   this.onRender=(context,time)=>this.drawAudioSensors(context,time);
@@ -54,6 +65,26 @@ export class HumanALEAvatar extends BaseAvatar{
   if(this._gazeActive&&this.track)this.setPointer(this._gazePointer.x,this._gazePointer.y,true,false);
  }
  get gazeActive(){return this._gazeActive;}
+
+ setStudioProfile(value={}){
+  this.studioProfile=normalizeAvatarStudioProfile(value);
+  this.studioLightIntensity=this.studioProfile.lightIntensity;
+  this.studioParticleScale=this.studioProfile.particleScale;
+  this.setDensity(this.studioProfile.density*100);
+  return this.getStudioProfile();
+ }
+ getStudioProfile(){return {...this.studioProfile};}
+ resetStudioProfile(){return this.setStudioProfile(AVATAR_STUDIO_DEFAULTS);}
+ transformFacePoint(point={}){
+  return transformAvatarStudioPoint(point,this.studioProfile,window.FaceRig);
+ }
+ faceVisualTuning(){
+  return {
+   lightIntensity:this.studioLightIntensity||1,
+   particleScale:this.studioParticleScale||1
+  };
+ }
+
  set thinking(value){
   this._thinking=Boolean(value);
   if(this._thinking)this.setState('thinking');
@@ -87,6 +118,21 @@ export class HumanALEAvatar extends BaseAvatar{
   this.state=['idle','listening','thinking','speaking','processing','error'].includes(value)?value:'idle';
   this.flowEnergy={idle:1,listening:1.45,thinking:1.7,speaking:1.8,processing:2,error:2.2}[this.state];
   if(this.state==='speaking')this.speaking=true;
+ }
+ applyNaraPolicy(value={}){
+  const state=['idle','listening','thinking','speaking','processing','error'].includes(value?.state)?value.state:'idle';
+  const rendererMode=['eco','balanced','active'].includes(value?.rendererMode)?value.rendererMode:'active';
+  this.naraPolicy={
+   version:1,
+   controlledBy:'NARA_CORE',
+   state,
+   rendererMode,
+   activity:clamp(value?.activity),
+   reason:String(value?.reason||'nara.policy').slice(0,120)
+  };
+  this.setState(state);
+  this.setRenderPolicy?.(rendererMode);
+  return {...this.naraPolicy};
  }
  setEvolving(value=false){
   this._evolving=Boolean(value);

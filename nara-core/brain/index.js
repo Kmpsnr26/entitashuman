@@ -2,4 +2,19 @@ export * from './regions.js';
 export * from './event-bus.js';
 export * from './brain-state.js';
 export * from './orchestrator.js';
+export * from './humanale-policy.js';
+
+export * from './humanale-test-lab.js';
+
+export * from './skill-registry.js';
+
+export * from './workflow-engine.js';
+
+export * from './authority-policy.js';
+
+export * from './integration-readiness.js';
+
+export * from './humanale-integration-contract.js';
+
+export * from './humanale-integration-router.js';
 export * from '../engine/index.js';

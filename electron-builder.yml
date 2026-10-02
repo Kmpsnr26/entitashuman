@@ -6,6 +6,7 @@ directories:
 files:
   - public/**/*
   - desktop/**/*
+  - nara-core/**/*
   - sites/humanale-hologram/dist/face-rig.js
   - sites/humanale-hologram/dist/neural-core.js
   - sites/humanale-hologram/dist/avatar.js

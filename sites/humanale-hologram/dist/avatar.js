@@ -62,6 +62,9 @@
       this.last = performance.now();
       this.fps = 60;
       this.frame = 0;
+      this.renderPolicy = 'active';
+      this.renderInterval = 1000 / 60;
+      this.lastPaint = 0;
       this.running = !this.paused;
       this.frameRequest = null;
       this.streams = Array.from({ length: 46 }, () => ({
@@ -155,6 +158,26 @@
         const y = MOUTH_Y + (hash() - 0.5) * 0.012;
         add(x, y, 0.08, 'mouth-cavity', { z: depthAt(x, y) - 0.048, size: 0.62 });
       }
+      // Discrete binary ear shells: no continuous path or image asset.
+      for (const side of [-1, 1]) {
+        const cx = side * 0.418, cy = 0.015;
+        for (let ring = 0; ring < 2; ring++) {
+          const rx = 0.038 - ring * 0.012, ry = 0.105 - ring * 0.026;
+          for (let i = 0; i < 28; i++) {
+            const angle = i / 28 * TAU;
+            const x = cx + Math.cos(angle) * rx;
+            const y = cy + Math.sin(angle) * ry;
+            const rim = 0.5 + Math.cos(angle) * 0.5;
+            add(x, y, 0.18 + rim * 0.11, 'ear-shell', {
+              earSide: side,
+              z: 0.105 + rim * 0.026 - ring * 0.008,
+              size: ring ? 0.58 : 0.68,
+              binary: true,
+              normal: { x: side * 0.34, y: Math.sin(angle) * 0.18, z: 0.92 }
+            });
+          }
+        }
+      }
     }
 
     buildFallback() {
@@ -220,7 +243,14 @@
       this.running = !this.paused && !document.hidden;
       cancelAnimationFrame(this.frameRequest);
       this.frameRequest = null;
-      if (this.running) { this.last = performance.now(); this.frameRequest = requestAnimationFrame(t=>this.render(t)); }
+      if (this.running) { this.last = performance.now(); this.lastPaint = 0; this.frameRequest = requestAnimationFrame(t=>this.render(t)); }
+    }
+    setRenderPolicy(value = 'active') {
+      const mode = ['eco','balanced','active'].includes(value) ? value : 'active';
+      this.renderPolicy = mode;
+      this.renderInterval = mode === 'eco' ? 1000 / 20 : mode === 'balanced' ? 1000 / 30 : 1000 / 60;
+      this.lastPaint = 0;
+      return mode;
     }
     destroy() {
       this.disposed = true; this.running = false;
@@ -642,7 +672,12 @@
     }
     render(time) {
       if (!this.running || this.disposed) return;
-      const elapsed = Math.min(50, Math.max(1, time - this.last));
+      if (this.lastPaint && time - this.lastPaint < this.renderInterval) {
+        this.frameRequest = requestAnimationFrame((t) => this.render(t));
+        return;
+      }
+      this.lastPaint = time;
+      const elapsed = Math.min(80, Math.max(1, time - this.last));
       this.last = time;
       this.fps = lerp(this.fps, 1000 / elapsed, 0.07);
       this.frame++;
@@ -760,8 +795,17 @@
       }
       c.globalAlpha=1;
     }
+    transformFacePoint(point) {
+      return point;
+    }
+    faceVisualTuning() {
+      return { lightIntensity:1, particleScale:1 };
+    }
     drawFace(c, time) {
       const points = this.facePoints;
+      const visual = this.faceVisualTuning?.() || {};
+      const lightIntensity = clamp(Number(visual.lightIntensity) || 1, .7, 1.3);
+      const particleScale = clamp(Number(visual.particleScale) || 1, .75, 1.25);
       const shell = 1 - smooth(1.28, 2.65, this.zoom);
       if (shell < 0.003) return;
       const cosYaw = Math.cos(this.headPose.yaw), sinYaw = Math.sin(this.headPose.yaw);
@@ -830,6 +874,14 @@
             x += dx / d * magnet; y += dy / d * magnet;
           }
         }
+        const tuned = this.transformFacePoint({
+          x, y, z, feature,
+          baseX: pt.baseX, baseY: pt.baseY,
+          eyeSide: pt.eyeSide, earSide: pt.earSide
+        }) || { x, y, z };
+        x = Number.isFinite(tuned.x) ? tuned.x : x;
+        y = Number.isFinite(tuned.y) ? tuned.y : y;
+        z = Number.isFinite(tuned.z) ? tuned.z : z;
         const p = this.project(x, y, z, time, true);
         const light = this.lightAt(p.x, p.y);
         const glyph = this.glyphCache[light ? 'light' : 'dark'];
@@ -842,11 +894,11 @@
         const lighting = 0.36 + diffuse * 0.64;
         const intensity = pt.intensity;
         let shade = clamp(Math.round(4 + intensity * 8 + diffuse * 3), 0, 15);
-        let alpha = (0.17 + intensity * 0.82) * lighting * localPresence * opacity;
+        let alpha = (0.17 + intensity * 0.82) * lighting * localPresence * opacity * lightIntensity;
         if (pt.outer) alpha *= 0.34;
         if (y > 0.52) alpha *= 1 - smooth(0.52, 0.81, y) * 0.53;
         if (feature === 'mouth-cavity') { shade = light ? 15 : 0; alpha = 0.22; }
-        const depthScale = p.scale * (pt.size || 1);
+        const depthScale = p.scale * (pt.size || 1) * particleScale;
         c.globalAlpha = clamp(alpha * shell * localPresence * (light && !pt.outer ? 1.55 : 1), 0, 0.97);
         if (useBinary) {
           const size = clamp(this.scale * 0.0175 * depthScale, feature ? 2.1 : 3.6, 11.4);

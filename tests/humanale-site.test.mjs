@@ -25,7 +25,9 @@ test('Site renderer presents complete frames without rapid whole-face flashing',
   assert.doesNotMatch(source, /desynchronized:\s*true/);
   assert.match(source, /if \(this\.canvas\.width !== width\) this\.canvas\.width = width/);
   assert.match(source, /if \(this\.canvas\.height !== height\) this\.canvas\.height = height/);
-  assert.equal((source.match(/this\.frameRequest = requestAnimationFrame\(/g) ?? []).length, 4);
+  const frameSchedulers=(source.match(/this\.frameRequest = requestAnimationFrame\(/g) ?? []).length;
+  assert.ok(frameSchedulers>=4&&frameSchedulers<=5,'renderer keeps a bounded animation scheduler');
+  assert.match(source,/this\.lastPaint && time - this\.lastPaint < this\.renderInterval/,'adaptive idle throttling skips expensive redraws without adding another render loop');
   assert.match(source, /blinkValue\(time\)/, 'natural eye blinking remains available');
 });
 

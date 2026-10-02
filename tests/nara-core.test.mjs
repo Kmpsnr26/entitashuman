@@ -4,6 +4,7 @@ import {NARA_REGION_IDS,NARA_REGIONS,isRegionId} from '../nara-core/brain/region
 import {createEventBus} from '../nara-core/brain/event-bus.js';
 import {createBrainState} from '../nara-core/brain/brain-state.js';
 import {createOrchestrator} from '../nara-core/brain/orchestrator.js';
+import {NARA_SKILL_IDS,NARA_SKILLS,isSkillId,createSkillSnapshot,skillTestScenario,validateSkillDependencyGraph} from '../nara-core/brain/skill-registry.js';
 
 test('NARA brain exposes the required Phase 1 regions with 3D positions',()=>{
   const required=['NARA_CORE','REASONER','PLANNER','MEMORY','BUG_HUNTER','AGENT_MANAGER','TOOLS','TERMINAL','GITHUB','COPILOT','WEB','TEAM','PR','SYNC','ONLINE','SAFETY','OWNER_EMAIL','DRIVE','REPORTING','FOLLOW_UP','PROGRAM','ERROR_MONITOR'];
@@ -62,4 +63,106 @@ test('orchestrator drives selection, work lifecycle and connection changes throu
   nara.stop();
   assert.equal(nara.snapshot().lifecycle,'offline');
   assert.equal(nara.snapshot().regions.NARA_CORE.status,'offline');
+});
+
+
+test('NARA Core owns HumanALE state and renderer policy',()=>{
+  const nara=createOrchestrator();
+  nara.start();
+  assert.equal(nara.snapshot().humanale.controlledBy,'NARA_CORE');
+  assert.equal(nara.snapshot().humanale.state,'idle');
+  assert.equal(nara.snapshot().humanale.rendererMode,'eco');
+
+  nara.dispatch('hearing.start');
+  assert.equal(nara.snapshot().humanale.state,'listening');
+  assert.equal(nara.snapshot().humanale.rendererMode,'active');
+
+  nara.dispatch('hearing.stop');
+  assert.equal(nara.snapshot().humanale.state,'idle');
+  assert.equal(nara.snapshot().humanale.rendererMode,'eco');
+
+  nara.dispatch('reason.start',{label:'Analisis'});
+  assert.equal(nara.snapshot().humanale.state,'thinking');
+  assert.equal(nara.snapshot().humanale.rendererMode,'active');
+
+  nara.dispatch('reason.complete');
+  assert.equal(nara.snapshot().humanale.state,'idle');
+
+  nara.startWork({id:'phase-4',label:'Sinkronisasi HumanALE'});
+  assert.equal(nara.snapshot().humanale.state,'processing');
+  assert.equal(nara.snapshot().humanale.rendererMode,'balanced');
+
+  nara.completeWork();
+  assert.equal(nara.snapshot().humanale.state,'idle');
+  assert.equal(nara.snapshot().humanale.rendererMode,'eco');
+
+  nara.dispatch('error.detected',{message:'Test error'});
+  assert.equal(nara.snapshot().humanale.state,'error');
+  assert.equal(nara.snapshot().humanale.rendererMode,'active');
+});
+
+
+test('NARA skill registry exposes bounded capabilities, dependencies and permissions',()=>{
+  const required=['hearing','voice','vision','memory','reasoning','planner','agents','terminal','program','bug-hunter','web','github','copilot','drive','reporting','safety'];
+  assert.deepEqual(NARA_SKILL_IDS,required);
+  for(const id of required){
+    assert.equal(isSkillId(id),true);
+    assert.ok(NARA_SKILLS[id].region);
+    assert.ok(Array.isArray(NARA_SKILLS[id].dependencies));
+    assert.ok(Array.isArray(NARA_SKILLS[id].permissions));
+  }
+  for(const key of ['__proto__','constructor','prototype'])assert.equal(isSkillId(key),false);
+  assert.equal(skillTestScenario('reasoning'),'thinking');
+  assert.equal(skillTestScenario('terminal'),null);
+});
+
+test('NARA skill snapshot derives runtime health and blocks unhealthy dependencies',()=>{
+  const nara=createOrchestrator();
+  nara.start();
+  let snapshot=createSkillSnapshot({brainState:nara.snapshot(),agents:[]});
+  assert.equal(snapshot.controlledBy,'NARA_CORE');
+  assert.equal(snapshot.skills.hearing.state,'ready');
+  assert.equal(snapshot.skills.voice.state,'ready');
+  assert.equal(snapshot.skills.vision.state,'ready');
+  assert.equal(snapshot.skills.terminal.state,'ready');
+  assert.equal(snapshot.skills.agents.state,'setup');
+
+  nara.dispatch('hearing.start');
+  snapshot=createSkillSnapshot({brainState:nara.snapshot(),agents:[]});
+  assert.equal(snapshot.skills.hearing.state,'running');
+  assert.equal(snapshot.skills.voice.state,'ready');
+  nara.dispatch('hearing.stop');
+
+  nara.dispatch('speech.start',{energy:.6});
+  snapshot=createSkillSnapshot({brainState:nara.snapshot(),agents:[]});
+  assert.equal(snapshot.skills.voice.state,'running');
+  nara.dispatch('speech.stop');
+
+  nara.dispatch('vision.frame',{activity:.8,frameId:'skill-test'});
+  snapshot=createSkillSnapshot({brainState:nara.snapshot(),agents:[]});
+  assert.equal(snapshot.skills.vision.state,'running');
+  nara.dispatch('vision.stop');
+
+  snapshot=createSkillSnapshot({brainState:nara.snapshot(),agents:[]});
+  assert.equal(snapshot.skills.hearing.state,'ready');
+  assert.equal(snapshot.skills.voice.state,'ready');
+  assert.equal(snapshot.skills.vision.state,'ready');
+
+  nara.dispatch('github.disconnected');
+  snapshot=createSkillSnapshot({brainState:nara.snapshot(),agents:[]});
+  assert.equal(snapshot.skills.github.state,'offline');
+
+  nara.dispatch('error.detected',{message:'Synthetic registry test'});
+  snapshot=createSkillSnapshot({brainState:nara.snapshot(),agents:[]});
+  assert.equal(snapshot.skills['bug-hunter'].state,'running');
+  assert.ok(snapshot.counts.total===NARA_SKILL_IDS.length);
+});
+
+
+test('NARA skill dependency graph is acyclic and all dependencies are known',()=>{
+  const result=validateSkillDependencyGraph();
+  assert.equal(result.ok,true,JSON.stringify(result));
+  assert.deepEqual(result.cycle,[]);
+  assert.deepEqual(NARA_SKILLS.program.dependencies,['terminal','safety']);
+  assert.deepEqual(NARA_SKILLS['bug-hunter'].dependencies,['reasoning','terminal']);
 });
