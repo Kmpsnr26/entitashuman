@@ -49,6 +49,8 @@ function applyOwnerState(next={}){
  const confirmRow=$('#ownerConfirmRow'),confirm=$('#ownerConfirmPassword');
  const submit=$('#ownerSubmit'),status=$('#ownerGateStatus');
  const security=$('#ownerSecurity'),identity=$('#ownerSecurityIdentity');
+ const networkButton=$('#naraNetworkOpen');
+ if(networkButton)networkButton.hidden=!desktop||!ownerState.unlocked;
  if(!desktop){
   if(gate)gate.hidden=true;
   if(security)security.hidden=true;
@@ -132,6 +134,20 @@ $('#ownerLogout')?.addEventListener('click',async()=>{
  if(!desktop?.ownerLogout)return;
  await desktop.ownerLogout().catch(()=>null);
  await refreshOwnerState();
+});
+
+$('#naraNetworkOpen')?.addEventListener('click',async()=>{
+ const button=$('#naraNetworkOpen');
+ if(!desktop?.openNaraNetwork||!ownerState.unlocked)return;
+ if(button)button.disabled=true;
+ try{
+  const result=await desktop.openNaraNetwork();
+  if(!result?.ok)toast(result?.error||'NARA Core Network Studio gagal dibuka.');
+ }catch{
+  toast('NARA Core Network Studio gagal dibuka.');
+ }finally{
+  if(button)button.disabled=false;
+ }
 });
 
 $('#ownerChangeLogin')?.addEventListener('click',async()=>{

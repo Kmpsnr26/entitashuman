@@ -47,6 +47,8 @@ test('Electron main owns and starts the NARA orchestrator with renderer event al
   assert.match(main,/humanaleRuntime\.start\(\)/);
   assert.match(main,/humanaleRuntime\?\.stop\(\)/);
   assert.match(main,/app\.on\('before-quit'.*nara\?\.stop/s);
+  assert.match(main,/naraDispatch\('audio\.energy',\{energy:\.5,low:\.2,mid:\.4,high:\.6\}\)/);
+  assert.match(main,/wakeIndicator'\)\?\.dataset\.active==='false'/);
 });
 
 test('HumanALE runtime forwards real audio and camera lifecycle into NARA',async()=>{

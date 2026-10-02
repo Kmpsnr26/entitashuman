@@ -7,9 +7,10 @@ const {tmpdir,homedir}=require('node:os');
 const {randomUUID}=require('node:crypto');
 const {spawn}=require('node:child_process');
 
-let win,panelWin,cloudLoginWin,server,origin,bridges,cloudMemory,agentHub,naraAgentCoordinator,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,humanaleRuntime,ownerStore,ownerGate,systemObserver,dataFlowMeter,experienceStore,experienceSaveTimer,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer,naraVisualTestRunning=false,naraSkillCache={at:0,agents:[]};
+let win,panelWin,cloudLoginWin,naraNetworkWin,naraNetworkStudio,createNaraStudioServer,server,origin,bridges,cloudMemory,agentHub,naraAgentCoordinator,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,humanaleRuntime,ownerStore,ownerGate,systemObserver,dataFlowMeter,experienceStore,experienceSaveTimer,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer,naraVisualTestRunning=false,naraSkillCache={at:0,agents:[]};
 let cloudAllowedOrigins=new Set();
 let announceNaraEvent=()=>{};
+let networkStudioStopPromise=null,networkStudioOpenPromise=null,networkStudioQuitReady=false,ciSmokeOwnerPassword='';
 let baseWindowSize={width:420,height:480};
 let panelZoomFactor=1;
 let quitting=false;
@@ -22,7 +23,15 @@ const summonShortcut='CommandOrControl+Alt+5';
 const ciSmoke=process.argv.includes('--ci-smoke');
 if(process.platform==='win32')app.setAppUserModelId('id.my.aleprinting.dudidam');
 if(ciSmoke)app.setPath('userData',mkdtempSync(path.join(tmpdir(),'dudidam-ci-smoke-')));
-app.on('before-quit',()=>{
+app.on('before-quit',event=>{
+ if(!networkStudioQuitReady&&(naraNetworkStudio||networkStudioStopPromise||networkStudioOpenPromise)){
+  event.preventDefault();
+  void Promise.resolve(networkStudioOpenPromise)
+   .catch(error=>{console.error('[NARA STUDIO OPEN]',error?.message||'Open failed.');})
+   .then(()=>stopNaraNetworkStudio())
+   .finally(()=>{networkStudioQuitReady=true;app.quit();});
+  return;
+ }
  try{stopSystemObserver?.();}catch{}
  try{if(dataFlowTimer)clearInterval(dataFlowTimer);}catch{}
  try{if(experienceSaveTimer)clearTimeout(experienceSaveTimer);}catch{}
@@ -68,6 +77,79 @@ function requestDismiss(reason='hide'){
  pendingDismiss=reason==='quit'?'quit':'hide';
  if(!win.isVisible()||win.webContents.isLoading()){finishDismiss();return;}
  win.webContents.send('dudidam:dismiss',pendingDismiss);
+}
+async function stopNaraNetworkStudio(){
+ if(networkStudioStopPromise)return networkStudioStopPromise;
+ const studio=naraNetworkStudio;
+ naraNetworkStudio=null;
+ networkStudioStopPromise=studio
+  ?Promise.resolve().then(()=>studio.stop()).catch(error=>{console.error('[NARA STUDIO SHUTDOWN]',error?.message||'Shutdown failed.');})
+  :Promise.resolve();
+ return networkStudioStopPromise;
+}
+function openNaraNetworkWindow(){
+ if(naraNetworkWin&&!naraNetworkWin.isDestroyed()){
+  naraNetworkWin.show();naraNetworkWin.focus();return Promise.resolve({ok:true});
+ }
+ if(networkStudioOpenPromise)return networkStudioOpenPromise;
+ const previousStop=networkStudioStopPromise;
+ networkStudioOpenPromise=(async()=>{
+  let studio=null;
+  try{
+   if(previousStop)await previousStop;
+   networkStudioStopPromise=null;
+   studio=createNaraStudioServer({
+    host:'127.0.0.1',
+    port:0,
+    nara,
+    embedded:true,
+    creatorAuth:{required:true,credentialStore:ownerStore}
+   });
+   const address=await studio.start();
+   naraNetworkStudio=studio;
+   const studioOrigin='http://127.0.0.1:'+address.port;
+   const networkWindow=new BrowserWindow({
+    width:1360,height:900,minWidth:860,minHeight:620,
+    backgroundColor:'#030706',show:false,
+    title:'HumanALE · NARA Core Network',
+    webPreferences:{
+     nodeIntegration:false,contextIsolation:true,sandbox:true,
+     partition:'nara-network-studio'
+    }
+   });
+   naraNetworkWin=networkWindow;
+   const allowStudioUrl=value=>{
+    try{return new URL(value).origin===studioOrigin;}
+    catch{return false;}
+   };
+   networkWindow.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+   networkWindow.webContents.on('will-navigate',(event,url)=>{
+    if(!allowStudioUrl(url))event.preventDefault();
+   });
+   networkWindow.webContents.on('will-frame-navigate',(event,url)=>{
+    if(!allowStudioUrl(url))event.preventDefault();
+   });
+   networkWindow.webContents.on('will-redirect',(event,url)=>{
+    if(!allowStudioUrl(url))event.preventDefault();
+   });
+   networkWindow.webContents.session.setPermissionRequestHandler((_contents,_permission,callback)=>callback(false));
+   networkWindow.once('closed',()=>{
+    if(naraNetworkWin===networkWindow)naraNetworkWin=null;
+    void stopNaraNetworkStudio();
+   });
+   await networkWindow.webContents.session.clearStorageData({storages:['cookies']});
+   await networkWindow.loadURL(studioOrigin+'/?embedded=1');
+   networkWindow.show();
+   return {ok:true};
+  }catch(error){
+   if(naraNetworkStudio===studio)await stopNaraNetworkStudio();
+   else if(studio)await studio.stop();
+   if(naraNetworkWin&&!naraNetworkWin.isDestroyed())naraNetworkWin.close();
+   naraNetworkWin=null;
+   return {ok:false,error:'NARA Core Network Studio gagal dibuka.'};
+  }
+ })().finally(()=>{networkStudioOpenPromise=null;});
+ return networkStudioOpenPromise;
 }
 function rebuildTrayMenu(){
  if(!tray||tray.isDestroyed())return;
@@ -120,7 +202,23 @@ async function openPanel(view='controls'){
  const width=Math.min(terminalView?900:visualStudioView?920:studioView?520:460,area.width),height=Math.min(terminalView?720:visualStudioView?740:studioView?760:680,area.height);
  if(panelWin&&!panelWin.isDestroyed()){
   const current=panelWin.getBounds();
-  const x=Math.max(area.x,Math.min(area.x+area.width-width,current.x));
+  let x=Math.max(area.x,Math.min(area.x+area.width-width,current.x));
+  if(area.width>=bounds.width+width+16){
+   const overlapsAvatar=x<bounds.x+bounds.width&&x+width>bounds.x;
+   if(overlapsAvatar){
+    const rightX=bounds.x+bounds.width+16,leftX=bounds.x-width-16;
+    if(rightX+width<=area.x+area.width)x=rightX;
+    else if(leftX>=area.x)x=leftX;
+    else{
+     const leftAvatarX=area.x+width+16;
+     const rightAvatarX=area.x+area.width-width-16-bounds.width;
+     const putPanelLeft=Math.abs(bounds.x-leftAvatarX)<=Math.abs(bounds.x-rightAvatarX);
+     const avatarX=putPanelLeft?leftAvatarX:rightAvatarX;
+     win.setPosition(avatarX,bounds.y);
+     x=putPanelLeft?area.x:avatarX+bounds.width+16;
+    }
+   }
+  }
   const y=Math.max(area.y,Math.min(area.y+area.height-height,current.y));
   panelWin.setBounds({x,y,width,height},false);
   panelWin.show();panelWin.focus();panelWin.webContents.send('dudidam:panel-view',target);return;
@@ -215,15 +313,17 @@ else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
   const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
-  const [{createOrchestrator,createExperienceModel,getHumanALETestScenario,listHumanALETestScenarios,createSkillSnapshot},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createNaraAgentCoordinator},{createHumanALEOwnerGate,isOwnerTargetUnlocked,authorizedDisplayMediaTarget}]=await Promise.all([
+  const [{createOrchestrator,createExperienceModel,getHumanALETestScenario,listHumanALETestScenarios,createSkillSnapshot},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createNaraAgentCoordinator},{createHumanALEOwnerGate,isOwnerTargetUnlocked,authorizedDisplayMediaTarget},{createNaraStudioServer:studioServerFactory}]=await Promise.all([
    import('../nara-core/brain/index.js'),
    import('../nara-core/voice/index.js'),
    import('../nara-core/persistence/experience-store.mjs'),
    import('../nara-core/security/owner-store.mjs'),
    import('./humanale-runtime-host.mjs'),
    import('./nara-agent-coordinator.mjs'),
-   import('./humanale-owner-gate.mjs')
+   import('./humanale-owner-gate.mjs'),
+   import('../nara-core/studio/server.mjs')
   ]);
+  createNaraStudioServer=studioServerFactory;
   naraVoice=createVoiceFeedback();
   systemObserver=createSystemObserver({intervalMs:5000});
   dataFlowMeter=createDataFlowMeter();
@@ -331,12 +431,16 @@ else{
   const trusted=e=>(e.sender===win?.webContents||e.sender===panelWin?.webContents)&&e.senderFrame?.url?.startsWith(origin+'/');
   const ownerActor=e=>String(e?.sender?.id||'');
   const ownerTrusted=e=>trusted(e)&&ownerGate?.isUnlocked(ownerActor(e));
+  ipcMain.handle('dudidam:nara-network-open',e=>{
+   if(!ownerTrusted(e))return {ok:false,error:'Creator unlock diperlukan.'};
+   return openNaraNetworkWindow();
+  });
   if(ciSmoke&&!ownerStore.configured()){
-   const ciPassword='CI-'+randomUUID()+'-Nara!';
+   ciSmokeOwnerPassword='CI-'+randomUUID()+'-Nara!';
    const provisioned=ownerGate.provision(String(win.webContents.id),{
     username:'ci-owner',
-    password:ciPassword,
-    confirmPassword:ciPassword
+    password:ciSmokeOwnerPassword,
+    confirmPassword:ciSmokeOwnerPassword
    });
    if(!provisioned.ok)throw new Error('CI Creator provisioning gagal: '+provisioned.error);
   }
@@ -639,12 +743,12 @@ else{
    await new Promise(resolve=>setTimeout(resolve,120));
    const humanaleIdlePolicy=await win.webContents.executeJavaScript("(()=>{const p=window.dudidamAvatar?.getNaraHumanALEPolicy?.();return Boolean(p&&p.controlledBy==='NARA_CORE'&&p.state==='idle'&&p.rendererMode==='eco');})()");
    if(!humanaleIdlePolicy)throw new Error('HumanALE tidak menerima policy idle/eco dari NARA Core.');
-   const hearingPolicy=await win.webContents.executeJavaScript("window.dudidamDesktop.naraDispatch('hearing.start',{}).then(result=>Boolean(result?.ok&&result.state?.humanale?.state==='listening'&&result.state?.humanale?.rendererMode==='active'))");
+   const hearingPolicy=await win.webContents.executeJavaScript("window.dudidamDesktop.naraDispatch('audio.energy',{energy:.5,low:.2,mid:.4,high:.6}).then(result=>Boolean(result?.ok&&result.state?.humanale?.state==='listening'&&result.state?.humanale?.rendererMode==='active'))");
    if(!hearingPolicy)throw new Error('NARA Core gagal mengubah HumanALE ke listening/active.');
    await new Promise(resolve=>setTimeout(resolve,120));
    const humanaleListeningPolicy=await win.webContents.executeJavaScript("(()=>{const p=window.dudidamAvatar?.getNaraHumanALEPolicy?.();return Boolean(p&&p.state==='listening'&&p.rendererMode==='active');})()");
    if(!humanaleListeningPolicy)throw new Error('HumanALE tidak mengikuti policy listening/active dari NARA Core.');
-   const hearingStopped=await win.webContents.executeJavaScript("window.dudidamDesktop.naraDispatch('hearing.stop',{}).then(result=>Boolean(result?.ok&&result.state?.humanale?.state==='idle'&&result.state?.humanale?.rendererMode==='eco'))");
+   const hearingStopped=await win.webContents.executeJavaScript("window.dudidamDesktop.naraDispatch('audio.energy',{energy:0,low:0,mid:0,high:0}).then(result=>Boolean(result?.ok&&result.state?.humanale?.state==='idle'&&result.state?.humanale?.rendererMode==='eco'))");
    if(!hearingStopped)throw new Error('NARA Core gagal mengembalikan HumanALE ke idle/eco.');
    const naraRegionReady=await win.webContents.executeJavaScript("window.dudidamDesktop.naraDispatch('brain.region.select',{region:'MEMORY'}).then(result=>Boolean(result?.ok&&result.state?.selectedRegion==='MEMORY'&&result.state?.regions?.MEMORY?.status==='active'))");
    if(!naraRegionReady)throw new Error('NARA IPC gagal memilih region MEMORY.');
@@ -674,7 +778,7 @@ else{
     })()
    `);
    if(!unifiedRuntimeReady)throw new Error('Unified NARA + HumanALE runtime V3 belum siap.');
-   const wakeIdle=await win.webContents.executeJavaScript("Boolean(document.querySelector('#wakeToggle')) && !document.querySelector('#wakeToggle').checked && document.querySelector('#wakeIndicator')?.textContent?.includes('nonaktif')");
+   const wakeIdle=await win.webContents.executeJavaScript("Boolean(document.querySelector('#wakeToggle')) && !document.querySelector('#wakeToggle').checked && document.querySelector('#wakeIndicator')?.dataset.active==='false'");
    if(!wakeIdle)throw new Error('Wake mic harus nonaktif saat HumanALE god egine mulai.');
    await openPanel('controls');
    const panelReady=await panelWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+2500;const check=()=>{const ready=document.body.classList.contains('detached-panel')&&document.querySelector('#controls')?.open&&document.documentElement.classList.contains('panel-surface');if(ready||Date.now()>deadline)resolve(Boolean(ready));else setTimeout(check,50);};check();})");
@@ -706,6 +810,38 @@ else{
    await new Promise(resolve=>setTimeout(resolve,180));
    const visualRegionApplied=await win.webContents.executeJavaScript("window.dudidamDesktop.naraSnapshot().then(result=>result?.state?.selectedRegion==='REASONER')");
    if(!visualRegionApplied)throw new Error('HumanALE Visual Studio v2 region map tidak tersinkron ke NARA Core.');
+   const networkButtonReady=await win.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+2500;const check=()=>{const button=document.querySelector('#naraNetworkOpen');if(button&&!button.hidden||Date.now()>deadline)resolve(Boolean(button&&!button.hidden));else setTimeout(check,50);};check();})");
+   if(!networkButtonReady)throw new Error('Tombol NARA Core Network tidak dibuka setelah Creator unlock.');
+   await win.webContents.executeJavaScript("document.querySelector('#controls').showModal();document.querySelector('#naraNetworkOpen').click()");
+   const networkOpenDeadline=Date.now()+5000;
+   while(!naraNetworkWin&&Date.now()<networkOpenDeadline)await new Promise(resolve=>setTimeout(resolve,50));
+   if(!naraNetworkWin||!naraNetworkStudio)throw new Error('NARA Core Network window/server tidak terbuka dari tombol owner-gated.');
+   if(naraNetworkStudio.nara!==nara||naraNetworkStudio.ownerStore!==ownerStore)throw new Error('NARA Core Network tidak memakai runtime/Owner Store desktop yang sama.');
+   const networkCreatorLogin=await naraNetworkWin.webContents.executeJavaScript(`
+    fetch('/api/creator/login',{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',body:JSON.stringify({username:'ci-owner',password:${JSON.stringify(ciSmokeOwnerPassword)}})}).then(response=>response.ok)
+   `);
+   if(!networkCreatorLogin)throw new Error('Creator login NARA Core Network tidak memakai identitas desktop.');
+   const networkReloaded=new Promise(resolve=>naraNetworkWin.webContents.once('did-finish-load',resolve));
+   naraNetworkWin.webContents.reload();
+   await networkReloaded;
+   const networkCreatorReady=await naraNetworkWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+5000;const check=()=>{const ready=Boolean(document.querySelector('#creatorAccessPanel')&&!document.querySelector('#creatorAccessPanel').hidden);if(ready||Date.now()>deadline)resolve(ready);else setTimeout(check,50);};check();})");
+   if(!networkCreatorReady)throw new Error('Creator session NARA Core Network tidak dipulihkan oleh Creator Gateway.');
+   await naraNetworkWin.webContents.executeJavaScript("document.querySelector('#creatorEnter').click()");
+   const networkStudioReady=await naraNetworkWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+6000;const check=()=>{const ready=document.body.classList.contains('creator-session-active');if(ready||Date.now()>deadline)resolve(ready);else setTimeout(check,50);};check();})");
+   if(!networkStudioReady)throw new Error('Creator gateway tidak membuka NARA Core Live Studio.');
+   const network3dReady=await naraNetworkWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+8000;const check=()=>{const status=document.querySelector('#neural3dStatus')?.textContent||'';if(status==='LIVE · ROOT FLOW'||status==='3D UNAVAILABLE'||Date.now()>deadline)resolve(status==='LIVE · ROOT FLOW');else setTimeout(check,80);};check();})");
+   if(!network3dReady)throw new Error('NARA Core Live Studio 3D scene tidak aktif.');
+   await naraNetworkWin.webContents.executeJavaScript("document.querySelector('#view2d')?.click()");
+   const networkRegionButton=await naraNetworkWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+3500;const check=()=>{const button=document.querySelector('#brainNodes [data-region=\"GITHUB\"]');if(button||Date.now()>deadline)resolve(Boolean(button));else setTimeout(check,50);};check();})");
+   if(!networkRegionButton)throw new Error('Region map 2D NARA Core Network tidak siap.');
+   await naraNetworkWin.webContents.executeJavaScript("document.querySelector('#brainNodes [data-region=\"GITHUB\"]').click()");
+   const networkRegionSynced=await win.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+2500;const check=()=>{window.dudidamDesktop.naraSnapshot().then(result=>{if(result?.state?.selectedRegion==='GITHUB'||Date.now()>deadline)resolve(result?.state?.selectedRegion==='GITHUB');else setTimeout(check,50);});};check();})");
+   if(!networkRegionSynced||nara.snapshot().selectedRegion!=='GITHUB')throw new Error('Pilihan region Studio tidak tersinkron ke HumanALE/NARA runtime utama.');
+   naraNetworkWin.close();
+   await new Promise(resolve=>setTimeout(resolve,80));
+   await stopNaraNetworkStudio();
+   if(!nara.running)throw new Error('Menutup embedded Studio menghentikan NARA desktop.');
+   console.log('HumanALE NARA Core Network smoke passed: Creator gate, shared runtime, live region selection, and isolated shutdown.');
    await new Promise(resolve=>setTimeout(resolve,1100));
    const visualHistoryReady=await panelWin.webContents.executeJavaScript("document.querySelectorAll('#visualStudioPerformanceHistory i').length>=1");
    if(!visualHistoryReady)throw new Error('HumanALE Visual Studio v2 performance history tidak menerima sampel bounded.');
@@ -731,7 +867,7 @@ else{
    const reasoningSkillRestored=await win.webContents.executeJavaScript("window.dudidamDesktop.naraSnapshot().then(result=>Boolean(result?.ok&&result.state?.humanale?.state==='idle'&&result.state?.humanale?.rendererMode==='eco'&&!result.state?.currentTask))");
    if(!reasoningSkillRestored)throw new Error('HumanALE Visual Studio v4 skill test tidak mengembalikan NARA ke IDLE/ECO.');
    await panelWin.webContents.executeJavaScript("document.querySelector('#visualStudioRealTestPreflight')?.click()");
-   const visualRealTestReady=await panelWin.webContents.executeJavaScript("(()=>{const status=document.querySelector('#visualStudioRealTestStatus')?.textContent||'';const rows=[...document.querySelectorAll('#visualStudioRealTestChecks .visual-studio-real-test-row')];const realPending=rows.filter(row=>row.dataset.kind==='real-device'&&row.dataset.status==='pending').length;const automatedPass=rows.filter(row=>row.dataset.kind==='automated'&&row.dataset.status==='pass').length;return status.startsWith('READY_FOR_REAL_TEST')&&automatedPass===5&&realPending===5;})()");
+   const visualRealTestReady=await panelWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+3000;const check=()=>{const status=document.querySelector('#visualStudioRealTestStatus')?.textContent||'';const rows=[...document.querySelectorAll('#visualStudioRealTestChecks .visual-studio-real-test-row')];const realPending=rows.filter(row=>row.dataset.kind==='real-device'&&row.dataset.status==='pending').length;const automatedPass=rows.filter(row=>row.dataset.kind==='automated'&&row.dataset.status==='pass').length;const ready=status.startsWith('READY_FOR_REAL_TEST')&&automatedPass===5&&realPending===5;if(ready||Date.now()>deadline)resolve(Boolean(ready));else setTimeout(check,80);};check();})");
    if(!visualRealTestReady)throw new Error('HumanALE Visual Studio v5 belum mencapai READY_FOR_REAL_TEST atau bukti real-device terisi otomatis.');
    const avatarBounds=win.getBounds(),panelBounds=panelWin.getBounds(),workArea=screen.getDisplayNearestPoint({x:avatarBounds.x+avatarBounds.width/2,y:avatarBounds.y+avatarBounds.height/2}).workArea;
    if(workArea.width>=avatarBounds.width+panelBounds.width+16&&avatarBounds.x<panelBounds.x+panelBounds.width&&panelBounds.x<avatarBounds.x+avatarBounds.width&&avatarBounds.y<panelBounds.y+panelBounds.height&&panelBounds.y<avatarBounds.y+avatarBounds.height)throw new Error(`Panel menutupi avatar walau layar cukup lebar: ${JSON.stringify({avatarBounds,panelBounds,workArea})}`);
