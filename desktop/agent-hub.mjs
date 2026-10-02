@@ -1,6 +1,6 @@
 import {spawn} from 'node:child_process';
-import {access} from 'node:fs/promises';
-import {join,resolve} from 'node:path';
+import {access,realpath,stat} from 'node:fs/promises';
+import {join} from 'node:path';
 import {validateMemoryContext,memoryContextBlock} from './memory-context.mjs';
 import {
  AI_MAINTENANCE_ALLOWED_CAPABILITIES,
@@ -152,7 +152,7 @@ function looksLikeCopilotTrustPrompt(text=''){
 export class DeveloperAgentHub{
  constructor(){this.child=null;this.pending=false;this.projectRoot='';this.maintenanceTransaction=null;}
  setProjectRoot(value=''){this.projectRoot=String(value||'').trim();}
- getProjectRoot(){return (this.projectRoot||process.env.HUMANALE_PROJECT_ROOT||process.env.DUDIDAM_PROJECT_ROOT||process.cwd()).trim();}
+ getProjectRoot(){return (this.maintenanceTransaction?.cwd||this.projectRoot||process.env.HUMANALE_PROJECT_ROOT||process.env.DUDIDAM_PROJECT_ROOT||process.cwd()).trim();}
  async projectRootReady(){
   const root=this.getProjectRoot();
   try{await access(root);await access(join(root,'.git'));return true;}catch{return false;}
@@ -352,11 +352,26 @@ export class DeveloperAgentHub{
   const projectRoot=this.getProjectRoot();
   if(!await this.projectRootReady())throw new Error('AI maintenance memerlukan checkout Git proyek yang dipilih secara eksplisit.');
   const transactionRoot=String(transaction.cwd||'').trim();
-  const normalizedProjectRoot=resolve(projectRoot);
-  const normalizedTransactionRoot=resolve(transactionRoot||'.');
-  const sameRoot=process.platform==='win32'
-   ?normalizedProjectRoot.toLowerCase()===normalizedTransactionRoot.toLowerCase()
-   :normalizedProjectRoot===normalizedTransactionRoot;
+  let sameRoot=false;
+  if(transactionRoot){
+   try{
+    // A selected checkout can use a Windows junction/drive alias while the
+    // transaction stores Git's canonical root. Resolve both before comparison.
+    const [selected,active]=await Promise.all([realpath(projectRoot),realpath(transactionRoot)]);
+    const samePath=process.platform==='win32'
+     ?selected.toLowerCase()===active.toLowerCase()
+     :selected===active;
+    const [selectedDirectory,activeDirectory]=await Promise.all([
+     stat(selected,{bigint:true}),stat(active,{bigint:true})
+    ]);
+    // File identity also rejects distinct case-sensitive Windows directories
+    // even if their canonical path spellings match after case folding.
+    sameRoot=samePath&&selectedDirectory.isDirectory()&&activeDirectory.isDirectory()&&
+     selectedDirectory.dev===activeDirectory.dev&&selectedDirectory.ino===activeDirectory.ino;
+   }catch{
+    // Unresolvable or inaccessible identity remains a refusal before work.
+   }
+  }
   if(!transactionRoot||!sameRoot){
    const error=new Error('Trusted maintenance transaction tidak cocok dengan project root Agent Hub.');
    error.code='AI_MAINTENANCE_TRANSACTION_ROOT_MISMATCH';

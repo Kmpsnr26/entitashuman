@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
-import {mkdtemp,mkdir,writeFile,readFile,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,readFile,realpath,rm,symlink} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {setTimeout as delay} from 'node:timers/promises';
@@ -38,6 +38,7 @@ function pipeline(root,worker,{signal,commandRunner,commandTimeoutMs,limits,dete
   assert.match(prompt,/Jangan commit, push, merge, publish/);
   const transaction=hub.maintenanceTransaction;
   assert.equal(transaction.released,false);
+  assert.equal(hub.getProjectRoot(),transaction.cwd);
   await worker({attempt:++attempts,transaction});
   return {text:'bounded fixture executor'};
  };
@@ -116,6 +117,43 @@ test('actual Agent Hub rejects a transaction for a different selected Git checko
  const result=await p.run();
  assert.equal(result.attempts,1);
  assert.equal(result.steps.find(step=>step.name==='patch').code,'AI_MAINTENANCE_TRANSACTION_ROOT_MISMATCH');
+ assert.equal(git(root,'status','--porcelain'),'');
+ assert.equal(git(other.root,'status','--porcelain'),'');
+ await released(p,root,head);
+});
+
+test('actual Agent Hub accepts a canonical transaction through a junction alias and Windows drive casing',async t=>{
+ const {root,head}=await fixture(t);
+ const container=await mkdtemp(join(tmpdir(),'humanale-root-alias-'));
+ t.after(()=>rm(container,{recursive:true,force:true}));
+ const alias=join(container,'selected-repo');
+ await symlink(root,alias,process.platform==='win32'?'junction':'dir');
+ assert.equal(await realpath(alias),await realpath(root));
+ const selected=process.platform==='win32'?alias[0].toLowerCase()+alias.slice(1):alias;
+ const p=pipeline(alias,async({transaction})=>{
+  assert.equal(transaction.cwd,await realpath(root));
+  await writeFile(join(transaction.cwd,'app.mjs'),'export const value=2;\n');
+ },{selectedRoot:selected,commandRunner:async()=>({ok:true,code:'PASS'})});
+ const result=await p.run();
+ assert.equal(result.status,'PASSED',JSON.stringify(result));
+ assert.equal(p.attempts(),1);
+ assert.equal(p.hub.getProjectRoot(),selected);
+ await released(p,root,head);
+});
+
+test('actual Agent Hub still rejects a junction that resolves to another checkout',async t=>{
+ const {root,head}=await fixture(t);
+ const other=await fixture(t);
+ const container=await mkdtemp(join(tmpdir(),'humanale-root-alias-other-'));
+ t.after(()=>rm(container,{recursive:true,force:true}));
+ const alias=join(container,'selected-other-repo');
+ await symlink(other.root,alias,process.platform==='win32'?'junction':'dir');
+ const p=pipeline(root,async()=>assert.fail('different checkout must not run worker'),{
+  selectedRoot:alias,commandRunner:async()=>assert.fail('different checkout must not run verifier')
+ });
+ const result=await p.run();
+ assert.equal(result.steps.find(step=>step.name==='patch').code,'AI_MAINTENANCE_TRANSACTION_ROOT_MISMATCH');
+ assert.equal(result.attempts,1);
  assert.equal(git(root,'status','--porcelain'),'');
  assert.equal(git(other.root,'status','--porcelain'),'');
  await released(p,root,head);
