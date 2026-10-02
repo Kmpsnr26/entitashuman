@@ -34,8 +34,17 @@ const fs=require('node:fs');
 const args=process.argv.slice(2), mode=process.env.HUMANALE_ADB_TEST_CASE;
 fs.appendFileSync(process.env.HUMANALE_ADB_TEST_LOG,JSON.stringify(args)+'\\n');
 if(args[0]==='devices'){console.log('List of devices attached\\nfixture-device\\tdevice');}
-else if(args.includes('install')){console.log('Success');}
-else if(args.includes('path')){console.log('package:/data/app/fixture/base.apk');}
+else if(args.includes('get-current-user')){
+ const log=fs.readFileSync(process.env.HUMANALE_ADB_TEST_LOG,'utf8');
+ if(mode==='user-invalid')console.log('unverified');
+ else if(mode==='user-exit'){console.log('0');process.exitCode=1;}
+ else if(mode==='user-changed'&&log.split('get-current-user').length>2)console.log('10');
+ else console.log(mode==='nonzero-user'?'10':'0');
+}
+else if(args.includes('install')||args.includes('path')){
+ if(!args.includes('--user')){console.error('Protected profile 150 cannot be accessed');process.exitCode=1;}
+ else console.log(args.includes('install')?'Success':'package:/data/app/fixture/base.apk');
+}
 else if(args.includes('monkey')){
  if(mode==='launch-exit'){console.log('Events injected: 1');process.exitCode=1;}
  else if(mode==='launch-empty'){console.log('No activity launched');}
@@ -47,7 +56,7 @@ else if(args.includes('pidof')){
 }
 else if(args.includes('dumpsys')){
  if(mode==='wrong-focus'||mode==='stale-focused-app')console.log('mCurrentFocus=Window{abc u0 another.app/MainActivity}');
- else console.log('mCurrentFocus=Window{abc u0 id.my.aleprinting.humanale/MainActivity}');
+ else console.log('mCurrentFocus=Window{abc u'+(mode==='nonzero-user'?'10':mode==='wrong-user-focus'?'150':'0')+' id.my.aleprinting.humanale/MainActivity}');
  if(mode==='stale-focused-app')console.log('mFocusedApp=ActivityRecord{abc u0 id.my.aleprinting.humanale/MainActivity}');
  if(mode==='focus-exit')process.exitCode=1;
 }
@@ -55,7 +64,7 @@ else {console.error('Unexpected mock ADB invocation');process.exitCode=1;}
 `);
   writeFileSync(path.join(scratch,'adb.cmd'),`@echo off\r\n"${process.execPath}" "${fakeAdb}" %*\r\n`);
   const harness=path.join(scratch,'harness.ps1');
-  writeFileSync(harness,`param($Target, $Apk, $Output)\nfunction global:Start-Sleep { param($Seconds) }\nfunction global:Read-Host { param($Prompt) return $env:HUMANALE_ADB_TEST_ANSWER }\n& $Target -ApkPath $Apk -OutputPath $Output -ArtifactCommit $env:HUMANALE_ADB_TEST_COMMIT -ExpectedApkSha256 $env:HUMANALE_ADB_TEST_HASH\nexit $LASTEXITCODE\n`);
+  writeFileSync(harness,`param($Target, $Apk, $Output)\nfunction global:Start-Sleep { param($Seconds) }\nfunction global:Read-Host { param($Prompt) return $env:HUMANALE_ADB_TEST_ANSWER }\n$serial=if($env:HUMANALE_ADB_TEST_CASE -eq 'wrong-serial'){'different-device'}else{'fixture-device'}\n& $Target -ApkPath $Apk -OutputPath $Output -ArtifactCommit $env:HUMANALE_ADB_TEST_COMMIT -ExpectedApkSha256 $env:HUMANALE_ADB_TEST_HASH -DeviceSerial $serial\nexit $LASTEXITCODE\n`);
   const scenarios=[
    ['launch-exit','Y',1,'Peluncuran HumanALE gagal'],
    ['launch-empty','Y',1,'Peluncuran HumanALE gagal'],
@@ -64,6 +73,12 @@ else {console.error('Unexpected mock ADB invocation');process.exitCode=1;}
    ['wrong-focus','Y',1,'aplikasi foreground'],
    ['stale-focused-app','Y',1,'aplikasi foreground'],
    ['focus-exit','Y',1,'aplikasi foreground'],
+   ['wrong-user-focus','Y',1,'aplikasi foreground'],
+   ['user-invalid','Y',1,'User Android aktif tidak dapat diverifikasi'],
+   ['user-exit','Y',1,'User Android aktif tidak dapat diverifikasi'],
+   ['user-changed','Y',1,'User Android aktif berubah'],
+   ['wrong-serial','Y',1,'DeviceSerial yang dipilih'],
+   ['nonzero-user','Y',0,'ANDROID_RUNTIME_PASS'],
    ['success','N',2,'ANDROID_RUNTIME_INCOMPLETE'],
    ['success','Y',0,'ANDROID_RUNTIME_PASS']
   ];
@@ -77,8 +92,12 @@ else {console.error('Unexpected mock ADB invocation');process.exitCode=1;}
    });
    assert.equal(run.status,exitCode,`${mode}: ${run.error||''}\n${run.stdout}\n${run.stderr}`);
    assert.match(run.stdout+run.stderr,new RegExp(message),mode);
-   assert.ok(readFileSync(log,'utf8').includes('fixture-device'),'all device commands must target the mock');
-   if(exitCode===1){assert.equal(existsSync(output),false,'failed reruns cannot retain an earlier PASS');}
+   const deviceCalls=readFileSync(log,'utf8').trim().split('\n').map(line=>JSON.parse(line)).filter(args=>args[0]!=='devices');
+   for(const args of deviceCalls){assert.equal(args[0],'-s');assert.equal(args[1],'fixture-device','all device commands must target the mock');}
+   if(exitCode===1){
+    assert.equal(existsSync(output),false,'failed reruns cannot retain an earlier PASS');
+    if(['wrong-serial','user-invalid','user-exit'].includes(mode))assert.ok(!readFileSync(log,'utf8').includes('install'),'device preflight must fail before installation');
+   }
    else{
     const evidence=JSON.parse(readFileSync(output,'utf8').replace(/^\uFEFF/,''));
     assert.equal(evidence.launchSuccess,true);
@@ -88,6 +107,11 @@ else {console.error('Unexpected mock ADB invocation');process.exitCode=1;}
     assert.equal(evidence.operatorPass,answer==='Y');
     assert.equal(evidence.artifactSourceVerified,true);
     assert.equal(evidence.apkSha256,apkHash);
+    assert.equal(evidence.deviceUserId,mode==='nonzero-user'?10:0);
+    const calls=readFileSync(log,'utf8').trim().split('\n').map(line=>JSON.parse(line));
+    for(const args of calls.filter(args=>args.includes('install')||args.includes('path'))){
+     assert.equal(args[args.indexOf('--user')+1],mode==='nonzero-user'?'10':'0');
+    }
    }
   }
   for(const [mode,sourceCommit,hash] of [['old-source','0'.repeat(40),apkHash],['wrong-bytes',candidate,'0'.repeat(64)],['missing-source','',apkHash]]){

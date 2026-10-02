@@ -2,6 +2,7 @@ param(
   [string]$ApkPath,
   [string]$ArtifactCommit,
   [string]$ExpectedApkSha256,
+  [string]$DeviceSerial,
   [string]$PackageName = "id.my.aleprinting.humanale",
   [string]$OutputPath = "$PSScriptRoot\humanale-android-runtime-result.json"
 )
@@ -37,6 +38,13 @@ $deviceLines = @($devicesRaw | Select-Object -Skip 1 | Where-Object { $_ -match 
 if ($deviceLines.Count -eq 0) { throw "Tidak ada Android device berstatus device. Aktifkan USB debugging dan otorisasi komputer ini." }
 if ($deviceLines.Count -gt 1) { throw "Hubungkan satu perangkat Android saja untuk validator final." }
 $serial = ($deviceLines[0] -split "\s+")[0]
+if ($DeviceSerial -and $DeviceSerial -cne $serial) { throw "Perangkat terhubung tidak cocok dengan DeviceSerial yang dipilih." }
+$userRaw = (& adb -s $serial shell am get-current-user 2>&1) -join " "
+$deviceUserId = 0
+if ($LASTEXITCODE -ne 0 -or $userRaw.Trim() -notmatch '^\d{1,6}$' -or
+    -not [int]::TryParse($userRaw.Trim(), [ref]$deviceUserId)) {
+  throw "User Android aktif tidak dapat diverifikasi."
+}
 
 Write-Host "HumanALE Android Runtime Validator" -ForegroundColor Green
 Write-Host "Candidate: $candidate"
@@ -44,21 +52,25 @@ Write-Host "Branch: $branch"
 Write-Host "Device: $serial"
 Write-Host "APK: $ApkPath"
 
-$installOutput = & adb -s $serial install -r $ApkPath 2>&1
+$installOutput = & adb -s $serial install -r --user $deviceUserId $ApkPath 2>&1
 if ($LASTEXITCODE -ne 0 -or ($installOutput -join " ") -notmatch "Success") { throw "Instalasi APK gagal." }
-$installed = (& adb -s $serial shell pm path $PackageName 2>&1) -join " "
+$installed = (& adb -s $serial shell pm path --user $deviceUserId $PackageName 2>&1) -join " "
 if ($LASTEXITCODE -ne 0 -or $installed -notmatch "package:") { throw "Package HumanALE tidak terdeteksi setelah instalasi." }
 $launch = (& adb -s $serial shell monkey -p $PackageName -c android.intent.category.LAUNCHER 1 2>&1) -join " "
 if ($LASTEXITCODE -ne 0 -or $launch -notmatch "Events injected:\s*1\b" -or $launch -match "(?i)crash|aborted|no activities found") {
   throw "Peluncuran HumanALE gagal; monkey tidak mengonfirmasi satu launch event yang berhasil."
 }
 Start-Sleep -Seconds 5
+$currentUser = (& adb -s $serial shell am get-current-user 2>&1) -join " "
+if ($LASTEXITCODE -ne 0 -or $currentUser.Trim() -cne [string]$deviceUserId) {
+  throw "User Android aktif berubah selama pengujian."
+}
 $processEvidence = (& adb -s $serial shell pidof $PackageName 2>&1) -join " "
 if ($LASTEXITCODE -ne 0 -or $processEvidence.Trim() -notmatch "^\d+(\s+\d+)*$") {
   throw "Proses HumanALE tidak hidup setelah peluncuran."
 }
 $focused = (& adb -s $serial shell dumpsys window windows 2>&1 | Select-String -Pattern "mCurrentFocus" | Select-Object -First 5) -join " "
-if ($LASTEXITCODE -ne 0 -or $focused -notmatch ("(?:\s|\{)" + [regex]::Escape($PackageName) + "/")) {
+if ($LASTEXITCODE -ne 0 -or $focused -notmatch ("\bu" + $deviceUserId + "\s+" + [regex]::Escape($PackageName) + "/")) {
   throw "HumanALE tidak terdeteksi sebagai aplikasi foreground setelah peluncuran."
 }
 
@@ -73,6 +85,7 @@ $payload = [ordered]@{
   generatedAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
   packageName = $PackageName
   deviceSerial = $serial
+  deviceUserId = $deviceUserId
   apkPath = $ApkPath
   apkSha256 = $apkSha256
   artifactSourceVerified = $true
