@@ -69,7 +69,8 @@ $processEvidence = (& adb -s $serial shell pidof $PackageName 2>&1) -join " "
 if ($LASTEXITCODE -ne 0 -or $processEvidence.Trim() -notmatch "^\d+(\s+\d+)*$") {
   throw "Proses HumanALE tidak hidup setelah peluncuran."
 }
-$focused = (& adb -s $serial shell dumpsys window windows 2>&1 | Select-String -Pattern "mCurrentFocus" | Select-Object -First 5) -join " "
+# Android 16 may omit current focus from the restricted 'windows' subcommand.
+$focused = (& adb -s $serial shell dumpsys window 2>&1 | Select-String -Pattern "mCurrentFocus" | Select-Object -First 5) -join " "
 if ($LASTEXITCODE -ne 0 -or $focused -notmatch ("\bu" + $deviceUserId + "\s+" + [regex]::Escape($PackageName) + "/")) {
   throw "HumanALE tidak terdeteksi sebagai aplikasi foreground setelah peluncuran."
 }

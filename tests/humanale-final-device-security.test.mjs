@@ -55,9 +55,11 @@ else if(args.includes('pidof')){
  if(mode==='dead-process'){process.exitCode=1;}else console.log('1234');
 }
 else if(args.includes('dumpsys')){
+ if(args[args.length-1]!=='window'){console.error('Android 16 windows subcommand omits current focus');process.exit(1);}
  if(mode==='wrong-focus'||mode==='stale-focused-app')console.log('mCurrentFocus=Window{abc u0 another.app/MainActivity}');
+ else if(mode==='notification-shade')console.log('mCurrentFocus=Window{abc u0 NotificationShade}');
  else console.log('mCurrentFocus=Window{abc u'+(mode==='nonzero-user'?'10':mode==='wrong-user-focus'?'150':'0')+' id.my.aleprinting.humanale/MainActivity}');
- if(mode==='stale-focused-app')console.log('mFocusedApp=ActivityRecord{abc u0 id.my.aleprinting.humanale/MainActivity}');
+ if(mode==='stale-focused-app'||mode==='notification-shade')console.log('mFocusedApp=ActivityRecord{abc u0 id.my.aleprinting.humanale/MainActivity}');
  if(mode==='focus-exit')process.exitCode=1;
 }
 else {console.error('Unexpected mock ADB invocation');process.exitCode=1;}
@@ -72,6 +74,7 @@ else {console.error('Unexpected mock ADB invocation');process.exitCode=1;}
    ['dead-process','Y',1,'Proses HumanALE tidak hidup'],
    ['wrong-focus','Y',1,'aplikasi foreground'],
    ['stale-focused-app','Y',1,'aplikasi foreground'],
+   ['notification-shade','Y',1,'aplikasi foreground'],
    ['focus-exit','Y',1,'aplikasi foreground'],
    ['wrong-user-focus','Y',1,'aplikasi foreground'],
    ['user-invalid','Y',1,'User Android aktif tidak dapat diverifikasi'],
@@ -94,6 +97,7 @@ else {console.error('Unexpected mock ADB invocation');process.exitCode=1;}
    assert.match(run.stdout+run.stderr,new RegExp(message),mode);
    const deviceCalls=readFileSync(log,'utf8').trim().split('\n').map(line=>JSON.parse(line)).filter(args=>args[0]!=='devices');
    for(const args of deviceCalls){assert.equal(args[0],'-s');assert.equal(args[1],'fixture-device','all device commands must target the mock');}
+   for(const args of deviceCalls.filter(args=>args.includes('dumpsys'))){assert.deepEqual(args.slice(-3),['shell','dumpsys','window'],'read full window service focus on Android 16');}
    if(exitCode===1){
     assert.equal(existsSync(output),false,'failed reruns cannot retain an earlier PASS');
     if(['wrong-serial','user-invalid','user-exit'].includes(mode))assert.ok(!readFileSync(log,'utf8').includes('install'),'device preflight must fail before installation');
