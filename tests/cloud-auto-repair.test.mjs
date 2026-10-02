@@ -6,6 +6,8 @@ import {
  fallbackMarkerFor,
  isFallbackPullRequest,
  issueRecovered,
+ managedCiSource,
+ routeFallbackCandidates,
  selectLatestFailedRuns
 } from './helpers/cloud-auto-repair-logic.mjs';
 
@@ -174,4 +176,48 @@ test('new fallback PR bodies include the canonical marker',()=>{
   workflow,
   /pulls\.create\(\{[\s\S]*?body:\s*\[[\s\S]*?fallbackMarkerFor\(issue\.number\)/
  );
+});
+
+test('Actions PR creation disabled leaves candidates queued and skips fallback job',()=>{
+ const blocks=extractBlocks('fallback-permission-routing');
+ assert.equal(blocks.length,1);
+ assert.equal(normalizeSource(blocks[0]),normalizeSource(routeFallbackCandidates.toString()));
+ const candidates=[{issue_number:182,branch:'main'}];
+
+ assert.deepEqual(routeFallbackCandidates(candidates,false),{
+  fallback:[],queued:candidates
+ });
+ assert.deepEqual(routeFallbackCandidates(candidates,true),{
+  fallback:candidates,queued:[]
+ });
+ assert.match(workflow,/can_approve_pull_request_reviews === true/);
+ assert.match(workflow,/core\.setOutput\('queued_issues', JSON\.stringify\(route\.queued\)\)/);
+ assert.match(workflow,/if: needs\.triage\.outputs\.fallback_issues != '\[\]'/);
+});
+
+test('stale CI retirement identifies only managed non-default source branches',()=>{
+ const blocks=extractBlocks('managed-ci-source');
+ assert.equal(blocks.length,1);
+ assert.equal(normalizeSource(blocks[0]),normalizeSource(managedCiSource.toString()));
+ const issue={
+  labels:['automation:managed','ci-failure'],
+  body:'<!-- cloud-automation-key: workflow:367664414:codex/old-branch -->\n'+
+   '- Commit: `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`\n'+
+   '- Run: https://github.com/Kmpsnr26/entitashuman/actions/runs/12345'
+ };
+
+ assert.deepEqual(managedCiSource(issue,'main'),{
+  workflowId:367664414,
+  branch:'codex/old-branch',
+  headSha:'a'.repeat(40),
+  runId:12345
+ });
+ assert.equal(managedCiSource({...issue,body:issue.body.replace('codex/old-branch','main')},'main'),null);
+ assert.equal(managedCiSource({...issue,labels:['ci-failure']},'main'),null);
+ assert.equal(managedCiSource({...issue,body:'unrelated issue'},'main'),null);
+ assert.equal(managedCiSource({...issue,body:issue.body.replace('old-branch','bad branch')},'main'),null);
+ assert.equal(managedCiSource({...issue,body:issue.body.replace('a'.repeat(40),'unknown')},'main'),null);
+ assert.match(workflow,/if \(error\.status !== 404\) throw error;/);
+ assert.match(workflow,/run\.head_sha !== source\.headSha/);
+ assert.match(workflow,/state_reason: 'not_planned'/);
 });
