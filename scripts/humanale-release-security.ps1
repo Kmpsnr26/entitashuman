@@ -40,6 +40,14 @@ $androidVerifier = ""
 $apkSha256 = ""
 $androidSignerSha256 = ""
 $productionSignerMatched = $false
+$manifestStatus = 'missing-artifact'
+$manifestVerified = $false
+$apkNonDebuggable = $false
+$packageIdentityVerified = $false
+$productionManifestVerified = $false
+$apkPackage = ''
+$apkVersion = ''
+$apkVersionCode = ''
 if($ApkPath -and (Test-Path -LiteralPath $ApkPath -PathType Leaf)){
   $ApkPath = (Resolve-Path -LiteralPath $ApkPath).Path
   $apkSha256 = (Get-FileHash -LiteralPath $ApkPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -61,6 +69,38 @@ if($ApkPath -and (Test-Path -LiteralPath $ApkPath -PathType Leaf)){
   } else {
     $androidSignature = "apksigner-unavailable"
   }
+  $aapt = Get-Command aapt -ErrorAction SilentlyContinue
+  if ($aapt) {
+    $badging = (& aapt dump badging $ApkPath 2>&1) -join "`n"
+    $aaptExit = $LASTEXITCODE
+    $packages = [regex]::Matches($badging, "(?m)^package: name='([^']+)' versionCode='([0-9]+)' versionName='([^']*)'")
+    $manifestVerified = $aaptExit -eq 0 -and $packages.Count -eq 1
+    if ($manifestVerified) {
+      $apkPackage = $packages[0].Groups[1].Value
+      $apkVersionCode = $packages[0].Groups[2].Value
+      $apkVersion = $packages[0].Groups[3].Value
+      try {
+        $config = Get-Content -LiteralPath (Join-Path $repoRoot 'capacitor.config.json') -Raw | ConvertFrom-Json
+        $package = Get-Content -LiteralPath (Join-Path $repoRoot 'package.json') -Raw | ConvertFrom-Json
+        # Same numeric semver mapping as scripts/android-version.mjs.
+        $versionParts = [regex]::Match([string]$package.version,'^(\d+)\.(\d+)\.(\d+)$')
+        $major = [long]$versionParts.Groups[1].Value
+        $minor = [long]$versionParts.Groups[2].Value
+        $patch = [long]$versionParts.Groups[3].Value
+        $expectedVersionCode = $major * 1000000 + $minor * 1000 + $patch
+        $packageIdentityVerified = -not [string]::IsNullOrWhiteSpace([string]$config.appId) -and
+          $versionParts.Success -and $minor -le 999 -and $patch -le 999 -and
+          $expectedVersionCode -ge 1 -and $expectedVersionCode -le 2100000000 -and
+          [long]$apkVersionCode -eq $expectedVersionCode -and
+          $apkPackage -ceq $config.appId -and $apkVersion -ceq $package.version
+      } catch { $packageIdentityVerified = $false }
+    }
+    $apkNonDebuggable = $manifestVerified -and $badging -notmatch '(?m)^application-debuggable(?:\s|$)'
+    $productionManifestVerified = $packageIdentityVerified -and $apkNonDebuggable
+    $manifestStatus = if (-not $manifestVerified) { 'invalid-manifest' } elseif (-not $apkNonDebuggable) { 'debuggable' } elseif (-not $packageIdentityVerified) { 'package-identity-mismatch' } else { 'production-manifest' }
+  } else {
+    $manifestStatus = 'aapt-unavailable'
+  }
 }
 
 $installerHashMatched = $ExpectedInstallerSha256 -match '^[a-f0-9]{64}$' -and $installerSha256 -eq $ExpectedInstallerSha256
@@ -72,7 +112,7 @@ $sourceVerified = $ArtifactCommit -match '^[a-f0-9]{40}$' -and
   $installerHashMatched -and $apkHashMatched
 if ($sourceVerified) { $candidate = $ArtifactCommit.ToLowerInvariant() }
 $windowsPass = $sourceVerified -and $windowsSignature -eq "Valid"
-$androidPass = $sourceVerified -and $androidSignature -eq "verified" -and $productionSignerMatched
+$androidPass = $sourceVerified -and $androidSignature -eq "verified" -and $productionSignerMatched -and $productionManifestVerified
 $pass = $windowsPass -and $androidPass
 $payload=[ordered]@{
   protocol="humanale-release-security/1"
@@ -82,7 +122,7 @@ $payload=[ordered]@{
   branch=$branch
   generatedAt=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
   windows=[ordered]@{installerPath=$InstallerPath;installerSha256=$installerSha256;expectedSha256=$ExpectedInstallerSha256;hashMatched=$installerHashMatched;signatureStatus=$windowsSignature;signer=$windowsSigner;pass=$windowsPass}
-  android=[ordered]@{apkPath=$ApkPath;apkSha256=$apkSha256;expectedSha256=$ExpectedApkSha256;hashMatched=$apkHashMatched;signatureStatus=$androidSignature;signerCertificateSha256=$androidSignerSha256;productionSignerMatched=$productionSignerMatched;verifier=$androidVerifier;pass=$androidPass}
+  android=[ordered]@{apkPath=$ApkPath;apkSha256=$apkSha256;expectedSha256=$ExpectedApkSha256;hashMatched=$apkHashMatched;signatureStatus=$androidSignature;signerCertificateSha256=$androidSignerSha256;productionSignerMatched=$productionSignerMatched;manifestStatus=$manifestStatus;manifestVerified=$manifestVerified;packageName=$apkPackage;versionName=$apkVersion;versionCode=$apkVersionCode;packageIdentityVerified=$packageIdentityVerified;productionManifestVerified=$productionManifestVerified;nonDebuggable=$apkNonDebuggable;verifier=$androidVerifier;pass=$androidPass}
   state=$(if($pass){"RELEASE_SECURITY_PASS"}else{"RELEASE_SECURITY_INCOMPLETE"})
   fullyValidated=$pass
 }

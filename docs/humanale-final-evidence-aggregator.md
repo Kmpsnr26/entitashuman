@@ -40,6 +40,11 @@ PASS requires:
 
 - `PERFORMANCE_STABILITY_PASS`
 - `fullyValidated=true`
+- `artifactSourceVerified=true`, `runtimeSourceVerified=true`, and
+  `processIdentityVerified=true`
+- valid executable and full `resources/app` runtime SHA-256 hashes matched to
+  an independent trusted build record; executable bytes alone do not bind source
+- observation-only measurements cannot grant acceptance
 - every selected process stayed alive
 - process windows stayed responding
 - operator explicitly confirmed stable/no repeated crash/error/flicker
@@ -68,6 +73,8 @@ PASS requires:
 - both validator pass booleans true
 - artifact source/hash checks accepted against an independently trusted build record
 - Android signer matches a separately supplied production certificate fingerprint
+- Android package/version identity and non-debuggable production manifest checks
+  are explicitly verified; legacy evidence without those flags is rejected
 - Android runtime and release-security evidence use the same APK SHA-256
 
 ## Creator approval cannot be inferred
