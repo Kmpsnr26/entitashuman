@@ -52,7 +52,7 @@ test('no issue exits without patching',async()=>{
  assert.deepEqual(b.calls,['detect']);
 });
 
-test('inspection failure forces rollback before retry',async()=>{
+test('protected inspection forces rollback and forbids retry',async()=>{
  let attempt=0;
  const b=broker({
   async inspect(){
@@ -68,13 +68,37 @@ test('inspection failure forces rollback before retry',async()=>{
   limits:{maxAttempts:2}
  });
  const result=await auto.runOnce({requestId:'auto-inspect-retry'});
- assert.equal(result.status,AI_AUTOPILOT_STATES.PASSED);
+ assert.equal(result.status,AI_AUTOPILOT_STATES.ROLLED_BACK);
  assert.deepEqual(b.calls,[
   'detect',
-  'reproduce','patch','inspect','rollback',
-  'reproduce','patch','inspect','test','verify'
+  'reproduce','patch','inspect','rollback'
  ]);
- assert.equal(result.attempts,2);
+ assert.equal(result.attempts,1);
+});
+
+test('thrown authority error preserves its code and never retries',async()=>{
+ const b=broker({async patch(){b.calls.push('patch');throw Object.assign(new Error('boundary'),{code:'AI_MAINTENANCE_BOUNDARY_BLOCKED'});}});
+ const result=await createAIAutopilotTransaction({broker:b}).runOnce();
+ assert.equal(result.attempts,1);
+ assert.equal(result.steps.find(step=>step.name==='patch').code,'AI_MAINTENANCE_BOUNDARY_BLOCKED');
+ assert.deepEqual(b.calls,['detect','reproduce','patch','rollback']);
+});
+
+test('abort during patch rolls back before inspection and never retries',async()=>{
+ const controller=new AbortController();
+ const b=broker({async patch(){b.calls.push('patch');controller.abort();return {ok:true,code:'PATCHED'};}});
+ const result=await createAIAutopilotTransaction({broker:b}).runOnce({signal:controller.signal});
+ assert.equal(result.reason,'ABORTED');
+ assert.equal(result.status,'ROLLED_BACK');
+ assert.equal(result.attempts,1);
+ assert.deepEqual(b.calls,['detect','reproduce','patch','rollback']);
+});
+
+test('invalid success evidence cannot advance the pipeline',async()=>{
+ const b=broker({async inspect(){return {ok:true,code:'invalid code'};}});
+ const result=await createAIAutopilotTransaction({broker:b}).runOnce();
+ assert.equal(result.status,'ROLLED_BACK');
+ assert.equal(b.calls.includes('test'),false);
 });
 
 test('test failure forces rollback and stops when retry budget exhausted',async()=>{

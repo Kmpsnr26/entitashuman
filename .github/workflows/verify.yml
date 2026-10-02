@@ -73,6 +73,8 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
+      - name: Verify bounded maintenance on real Windows Git workspaces
+        run: node --test tests/agent-autopilot-transaction.test.mjs tests/agent-autopilot-real-transaction.test.mjs tests/agent-autopilot-broker-integration.test.mjs tests/agent-trusted-maintenance-broker.test.mjs
       - name: Smoke interactive Windows terminal
         run: npm run smoke:terminal
       - name: Verify Windows device and acceptance evidence regressions
