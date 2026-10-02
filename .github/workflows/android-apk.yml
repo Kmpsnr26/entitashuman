@@ -3,6 +3,11 @@ name: Build Android APK
 on:
   workflow_dispatch:
     inputs:
+      upload_debug_artifact:
+        description: "Store the debug APK as an Actions artifact"
+        required: false
+        default: false
+        type: boolean
       build_signed_artifact:
         description: "Build and verify a signed Android APK without publishing"
         required: false
@@ -102,6 +107,7 @@ jobs:
           ls -lh release/*.apk
 
       - name: Upload verified debug APK artifact
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.upload_debug_artifact && !inputs.build_signed_artifact && !inputs.publish_release }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: HumanALE-Android-Debug-APK
