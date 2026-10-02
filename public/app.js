@@ -353,6 +353,8 @@ let remoteSpeechEnergy=0;
 let localRecorder,localStream,localChunks=[],localTimer,localCaptureGeneration=0;
 let onlineSpeech,onlineSpeechUrl,speechGeneration=0,localTtsConfigured=false,localTtsRejected=false;
 let activeSpeechSource='',naraVoiceQueue=[],naraVoiceActive=false,naraVoiceDrainTimer,lastNaraSpeechSent=0;
+let naraVisualTestActive=false,visualTestRequestSequence=0;
+const pendingVisualTests=new Map();
 let voiceStyle=desktop?localStorage.getItem('dudidam-voice-style')||'baby-robot':'baby-robot',emotionChoice=desktop?localStorage.getItem('dudidam-emotion')||'auto':'auto',lastBandsSent=0;
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 let naraAudioBands={low:0,mid:0,high:0},lastNaraAudioSent=0,lastNaraHearingActive=null;
@@ -415,9 +417,45 @@ async function refreshNaraSkillSnapshot(force=false){
 }
 async function runHumanALEVisualTest(scenario){
  if(!desktop?.naraTestScenario)return {error:'Controlled Test Lab hanya tersedia pada HumanALE Desktop.',scenario,trace:[]};
- const result=await desktop.naraTestScenario(scenario);
- if(result?.finalState)syncNaraBrainState(result.finalState);
- return result||{error:'Controlled Test Lab tidak mengembalikan hasil.',scenario,trace:[]};
+ if(panelOnly){
+  if(!panelChannel)return {error:'Avatar runtime tidak tersambung.',scenario,trace:[]};
+  const requestId='visual-test-'+Date.now()+'-'+(++visualTestRequestSequence);
+  return new Promise(resolve=>{
+   const timeout=setTimeout(()=>{pendingVisualTests.delete(requestId);resolve({error:'Avatar runtime tidak menjawab controlled test.',scenario,trace:[]});},10000);
+   pendingVisualTests.set(requestId,{resolve,timeout});
+   panelChannel.postMessage({type:'humanale-visual-studio-test',requestId,scenario});
+  });
+ }
+ if(naraVisualTestActive)return {error:'Test HumanALE lain masih berjalan.',scenario,trace:[]};
+ if(naraSpeechBusy()&&activeSpeechSource!=='nara')return {error:'Controlled test menunggu aktivitas suara selesai.',scenario,trace:[]};
+ naraVisualTestActive=true;
+ clearTimeout(naraVoiceDrainTimer);
+ try{
+  // The avatar owns queued narration. Cancel only automatic NARA audio, including
+  // synthesis that has not started playback, before the main-process idle check.
+  if(activeSpeechSource==='nara'){
+   stopSpeech(false);
+   await naraDispatch('speech.stop');
+  }
+  const result=await desktop.naraTestScenario(scenario);
+  if(result?.finalState)syncNaraBrainState(result.finalState);
+  return result||{error:'Controlled Test Lab tidak mengembalikan hasil.',scenario,trace:[]};
+ }finally{
+  naraVisualTestActive=false;
+  scheduleNaraVoiceDrain();
+ }
+}
+function handleHumanALEVisualTestMessage(data){
+ if(data.type==='humanale-visual-studio-test-result'&&panelOnly){
+  const pending=pendingVisualTests.get(data.requestId);
+  if(pending){clearTimeout(pending.timeout);pendingVisualTests.delete(data.requestId);pending.resolve(data.result);}
+  return true;
+ }
+ if(data.type==='humanale-visual-studio-test'&&!panelOnly){
+  runHumanALEVisualTest(data.scenario).then(result=>panelChannel.postMessage({type:'humanale-visual-studio-test-result',requestId:data.requestId,result})).catch(error=>panelChannel.postMessage({type:'humanale-visual-studio-test-result',requestId:data.requestId,result:{error:error?.message||'Controlled test gagal.',scenario:data.scenario,trace:[]}}));
+  return true;
+ }
+ return false;
 }
 function applyHumanALEVisualScene(name,value){
  if(panelOnly){panelChannel?.postMessage({type:'humanale-visual-studio-scene',name,value});return;}
@@ -665,6 +703,7 @@ function enqueueNaraVoice(cue){
 function drainNaraVoiceQueue(){
  clearTimeout(naraVoiceDrainTimer);
  if(!naraVoiceQueue.length||panelOnly||!voice)return;
+ if(naraVisualTestActive)return;
  if(naraVoiceActive||naraSpeechBusy()){scheduleNaraVoiceDrain(350);return;}
  const cue=naraVoiceQueue.shift();naraVoiceActive=true;
  if(!speak(cue.text,{style:cue.style,source:'nara',interrupt:false})){naraVoiceActive=false;scheduleNaraVoiceDrain(120);}
@@ -1139,6 +1178,7 @@ function cancelHold5(){clearTimeout(hold5Timer);hold5Timer=null;hold5Fired=false
 window.addEventListener('blur',cancelHold5);
 if(panelChannel)panelChannel.onmessage=event=>{
  const data=event.data||{};
+ if(handleHumanALEVisualTestMessage(data))return;
  if(humanaleVisualStudio.handleMessage(data))return;
  if(avatarStudio.handleMessage(data))return;
  if(data.type==='message'){message(String(data.text||''),data.role==='user'?'user':'assistant',false,false);return;}

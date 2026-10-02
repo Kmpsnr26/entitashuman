@@ -863,7 +863,10 @@ else{
    if(!reasoningInspectorReady)throw new Error('HumanALE Visual Studio v4 inspector dependency/permission Reasoning tidak siap.');
    await panelWin.webContents.executeJavaScript("document.querySelector('#visualStudioSkillInspector [data-skill-test=\"reasoning\"]')?.click()");
    const reasoningSkillTestPass=await panelWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+3500;const check=()=>{const status=document.querySelector('#visualStudioTestStatus')?.textContent||'';const history=[...document.querySelectorAll('#visualStudioTestHistory .visual-studio-test-history-row')];const ready=status.startsWith('PASS')&&history.some(row=>row.textContent.includes('SKILL:REASONING')&&row.textContent.includes('PASS'));if(ready||Date.now()>deadline)resolve(Boolean(ready));else setTimeout(check,80);};check();})");
-   if(!reasoningSkillTestPass)throw new Error('HumanALE Visual Studio v4 controlled Reasoning skill test gagal.');
+    if(!reasoningSkillTestPass){
+     const evidence=await panelWin.webContents.executeJavaScript("({status:document.querySelector('#visualStudioTestStatus')?.textContent,history:[...document.querySelectorAll('#visualStudioTestHistory .visual-studio-test-history-row')].map(row=>row.textContent),trace:[...document.querySelectorAll('#visualStudioTestTrace .visual-studio-test-step')].map(row=>row.textContent),inspector:document.querySelector('#visualStudioSkillInspector')?.textContent})");
+     throw new Error('HumanALE Visual Studio v4 controlled Reasoning skill test gagal. '+JSON.stringify(evidence));
+    }
    const reasoningSkillRestored=await win.webContents.executeJavaScript("window.dudidamDesktop.naraSnapshot().then(result=>Boolean(result?.ok&&result.state?.humanale?.state==='idle'&&result.state?.humanale?.rendererMode==='eco'&&!result.state?.currentTask))");
    if(!reasoningSkillRestored)throw new Error('HumanALE Visual Studio v4 skill test tidak mengembalikan NARA ke IDLE/ECO.');
    await panelWin.webContents.executeJavaScript("document.querySelector('#visualStudioRealTestPreflight')?.click()");

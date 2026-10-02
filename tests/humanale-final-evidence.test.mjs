@@ -5,7 +5,7 @@ import {
 } from '../scripts/humanale-final-evidence.mjs';
 
 const branch='codex/release-2.5.0-final-candidate';
-const commit='abcdef123456';
+const commit='a'.repeat(40);
 
 function baseCertificate({approved=false}={}){
   const ids=[
@@ -21,7 +21,7 @@ function baseCertificate({approved=false}={}){
     protocol:'humanale-final-readiness/1',
     finalState:'LOCKED',
     integrationUnlocked:false,
-    build:{version:'2.5.0',commit:'old',branch},
+    build:{version:'2.5.0',commit,branch},
     creatorApproval:{
       approved,
       by:approved?'CREATOR':'',
@@ -63,8 +63,13 @@ function androidResult(){
     generatedAt:110,
     state:'ANDROID_RUNTIME_PASS',
     fullyValidated:true,
+    artifactSourceVerified:true,
+    apkSha256:'a'.repeat(64),
     installSuccess:true,
     packageDetected:true,
+    launchSuccess:true,
+    processAlive:true,
+    foregroundMatches:true,
     operatorPass:true
   };
 }
@@ -77,8 +82,9 @@ function securityResult(){
     generatedAt:120,
     state:'RELEASE_SECURITY_PASS',
     fullyValidated:true,
-    windows:{pass:true,signatureStatus:'Valid'},
-    android:{pass:true,signatureStatus:'verified'}
+    artifactSourceVerified:true,
+    windows:{pass:true,signatureStatus:'Valid',installerSha256:'b'.repeat(64)},
+    android:{pass:true,signatureStatus:'verified',productionSignerMatched:true,apkSha256:'a'.repeat(64)}
   };
 }
 
@@ -219,4 +225,95 @@ test('technical result files cannot inject creator approval',()=>{
   });
   assert.equal(result.creatorApproved,false);
   assert.equal(result.integrationUnlocked,false);
+});
+
+test('old certificate gates and creator approval cannot be relabeled as a new candidate',()=>{
+  for(const change of [{commit:'old'}, {branch:'old-branch'}]){
+    const certificate=baseCertificate({approved:true});
+    Object.assign(certificate.build,change);
+    const result=aggregateHumanALEFinalEvidence({
+      certificate,
+      performanceResult:performanceResult(),
+      androidResult:androidResult(),
+      securityResult:securityResult(),
+      expectedBranch:branch,
+      expectedCommit:commit
+    });
+    assert.equal(result.technicalReady,false);
+    assert.equal(result.creatorApproved,false);
+    assert.equal(result.integrationUnlocked,false);
+    assert.equal(result.summary.blocked,6);
+    assert.equal(result.summary.pass,3);
+    assert.equal(result.safety.certificateIdentityMatched,false);
+    assert.equal(result.gates.find(g=>g.id==='visual-avatar').status,'blocked');
+    assert.match(result.gates.find(g=>g.id==='visual-avatar').note,/mismatch/);
+    assert.equal(certificate.creatorApproval.approved,true,'input certificate must remain unchanged');
+  }
+});
+
+test('wrong certificate protocol blocks inherited gates and approval',()=>{
+  const certificate=baseCertificate({approved:true});
+  certificate.protocol='unknown/1';
+  const result=aggregateHumanALEFinalEvidence({certificate,expectedBranch:branch,expectedCommit:commit});
+  assert.equal(result.creatorApproved,false);
+  assert.equal(result.technicalReady,false);
+  assert.equal(result.safety.certificateIdentityMatched,false);
+  assert.match(result.gates.find(g=>g.id==='runtime-core').note,/certificate-protocol-mismatch/);
+});
+
+test('missing current Git identity cannot accept apparently green evidence',()=>{
+  const result=aggregateHumanALEFinalEvidence({
+    certificate:baseCertificate({approved:true}),
+    performanceResult:performanceResult(),
+    androidResult:androidResult(),
+    securityResult:securityResult()
+  });
+  assert.equal(result.technicalReady,false);
+  assert.equal(result.creatorApproved,false);
+  assert.equal(result.summary.blocked,9);
+});
+
+test('Android operator PASS cannot override missing launch, liveness or foreground evidence',()=>{
+  for(const field of ['launchSuccess','processAlive','foregroundMatches']){
+    const android=androidResult();
+    delete android[field];
+    const result=aggregateHumanALEFinalEvidence({
+      certificate:baseCertificate(),
+      performanceResult:performanceResult(),
+      androidResult:android,
+      securityResult:securityResult(),
+      expectedBranch:branch,
+      expectedCommit:commit
+    });
+    assert.equal(result.technicalReady,false,field);
+    assert.equal(result.gates.find(g=>g.id==='android-runtime').status,'pending',field);
+  }
+});
+
+test('runtime and security must validate the same APK bytes',()=>{
+  const security=securityResult();
+  security.android.apkSha256='c'.repeat(64);
+  const result=aggregateHumanALEFinalEvidence({
+    certificate:baseCertificate(),performanceResult:performanceResult(),
+    androidResult:androidResult(),securityResult:security,expectedBranch:branch,expectedCommit:commit
+  });
+  assert.equal(result.technicalReady,false);
+  for(const id of ['android-runtime','release-security']){
+    assert.equal(result.gates.find(g=>g.id===id).status,'blocked');
+    assert.match(result.gates.find(g=>g.id===id).note,/different APK hashes/);
+  }
+});
+
+test('cryptographic signature validity alone does not prove approved production signing or artifact source',()=>{
+  for(const field of ['artifactSourceVerified','productionSignerMatched']){
+    const security=securityResult();
+    if(field==='artifactSourceVerified')delete security[field];
+    else delete security.android[field];
+    const result=aggregateHumanALEFinalEvidence({
+      certificate:baseCertificate(),performanceResult:performanceResult(),
+      androidResult:androidResult(),securityResult:security,expectedBranch:branch,expectedCommit:commit
+    });
+    assert.equal(result.technicalReady,false);
+    assert.notEqual(result.gates.find(g=>g.id==='release-security').status,'pass');
+  }
 });

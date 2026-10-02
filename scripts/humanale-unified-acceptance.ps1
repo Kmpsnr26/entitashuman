@@ -16,6 +16,46 @@ function Fail([string]$Message) {
   exit 1
 }
 
+function Read-CurrentPhysicalGpuEvidence {
+  param(
+    [string]$Path,
+    [DateTimeOffset]$StartedAt,
+    [DateTimeOffset]$CompletedAt
+  )
+
+  $evidence = [ordered]@{ accepted = $false; report = $null; reason = 'missing-report' }
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $evidence }
+  try {
+    $report = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
+    $evidence.report = $report
+    $reportStarted = [DateTimeOffset]::MinValue
+    $reportCompleted = [DateTimeOffset]::MinValue
+    if (-not [DateTimeOffset]::TryParse([string]$report.startedAt, [ref]$reportStarted) -or
+        -not [DateTimeOffset]::TryParse([string]$report.completedAt, [ref]$reportCompleted) -or
+        $reportStarted -lt $StartedAt -or $reportCompleted -lt $reportStarted -or
+        $reportCompleted -gt $CompletedAt) {
+      $evidence.reason = 'report-outside-current-run'
+      return $evidence
+    }
+    $strictPass = $report.passed -is [bool] -and $report.passed -eq $true
+    $strictMode = $report.gpu.modeMatched -is [bool] -and $report.gpu.modeMatched -eq $true
+    $hardware = $report.gpu.hardwareAcceleration -is [bool] -and $report.gpu.hardwareAcceleration -eq $true
+    $renderer = [string]$report.webgl.renderer
+    if (-not $strictPass -or -not $strictMode -or -not $hardware -or
+        $report.gpu.requestedMode -ne 'hardware' -or
+        [string]::IsNullOrWhiteSpace($renderer) -or
+        $renderer -match 'swiftshader|llvmpipe|software rasterizer|microsoft basic render|\bwarp\b') {
+      $evidence.reason = 'physical-gpu-check-not-pass'
+      return $evidence
+    }
+    $evidence.accepted = $true
+    $evidence.reason = ''
+  } catch {
+    $evidence.reason = 'invalid-report'
+  }
+  return $evidence
+}
+
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host " NARA + HumanALE V3 Unified Physical Acceptance" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -73,14 +113,16 @@ if ($desktopPassed) {
 
 Write-Host "[4/6] Menjalankan NARA Neural physical GPU acceptance..." -ForegroundColor Yellow
 $gpuScript = Join-Path $PSScriptRoot 'nara-neural-gpu-acceptance.ps1'
+# A prior successful report must never substitute for this invocation's evidence.
+Remove-Item -LiteralPath $neuralReportPath -Force -ErrorAction SilentlyContinue
+$gpuStartedAt = [DateTimeOffset]::UtcNow
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $gpuScript -SkipInstall
 $gpuExit = $LASTEXITCODE
+$gpuCompletedAt = [DateTimeOffset]::UtcNow
 $gpuPassed = $gpuExit -eq 0
 
-$neuralReport = $null
-if (Test-Path $neuralReportPath) {
-  try { $neuralReport = Get-Content $neuralReportPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch {}
-}
+$neuralEvidence = Read-CurrentPhysicalGpuEvidence -Path $neuralReportPath -StartedAt $gpuStartedAt -CompletedAt $gpuCompletedAt
+$neuralReport = $neuralEvidence.report
 
 Write-Host ""
 Write-Host "[5/6] Unified result" -ForegroundColor Cyan
@@ -89,18 +131,14 @@ Write-Host "Creator Gate smoke     : $desktopPassed"
 Write-Host "NARA Core V2/V3 bridge : $desktopPassed"
 Write-Host "Renderer sensory gate  : $desktopPassed"
 Write-Host "Physical GPU gate      : $gpuPassed"
+Write-Host "Current GPU evidence   : $($neuralEvidence.accepted) $($neuralEvidence.reason)"
 if ($neuralReport) {
   Write-Host "GPU mode matched       : $($neuralReport.gpu.modeMatched)"
   Write-Host "Renderer               : $($neuralReport.webgl.renderer)"
   Write-Host "Performance            : $($neuralReport.hud.performance)"
 }
 
-$passed = $desktopPassed -and $gpuPassed -and (
-  $null -eq $neuralReport -or (
-    $neuralReport.passed -eq $true -and
-    $neuralReport.gpu.modeMatched -eq $true
-  )
-)
+$passed = $desktopPassed -and $gpuPassed -and $neuralEvidence.accepted
 
 $report = [ordered]@{
   version = 1
@@ -122,8 +160,12 @@ $report = [ordered]@{
     )
   }
   neural = [ordered]@{
-    passed = $gpuPassed
+    passed = $gpuPassed -and $neuralEvidence.accepted
     exitCode = $gpuExit
+    evidenceAccepted = $neuralEvidence.accepted
+    evidenceFailure = $neuralEvidence.reason
+    startedAt = $gpuStartedAt.ToString('o')
+    completedAt = $gpuCompletedAt.ToString('o')
     report = $neuralReportPath
     gpuModeMatched = if ($neuralReport) { $neuralReport.gpu.modeMatched } else { $null }
     renderer = if ($neuralReport) { $neuralReport.webgl.renderer } else { $null }

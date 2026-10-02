@@ -64,19 +64,47 @@ if (-not (Test-Path $electronExe)) {
 $artifactDir = Join-Path $Root 'artifacts'
 New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
 
-$env:NARA_GPU_MODE = 'hardware'
-Write-Host "[3/5] Menjalankan browser acceptance dengan GPU hardware..." -ForegroundColor Yellow
-& npm run smoke:neural-gpu
-$smokeExit = $LASTEXITCODE
-
 $reportPath = Join-Path $artifactDir 'nara-neural-live-report.json'
 $screenshotPath = Join-Path $artifactDir 'nara-neural-live.png'
+# Fail rather than reusing evidence if the exact prior report cannot be removed.
+if (Test-Path -LiteralPath $reportPath) { Remove-Item -LiteralPath $reportPath -Force }
+$previousGpuMode = $env:NARA_GPU_MODE
+$smokeStartedAt = [DateTimeOffset]::UtcNow
+try {
+  $env:NARA_GPU_MODE = 'hardware'
+  Write-Host "[3/5] Menjalankan browser acceptance dengan GPU hardware..." -ForegroundColor Yellow
+  & npm run smoke:neural-gpu
+  $smokeExit = $LASTEXITCODE
+} finally {
+  $smokeCompletedAt = [DateTimeOffset]::UtcNow
+  if ($null -eq $previousGpuMode) {
+    Remove-Item Env:NARA_GPU_MODE -ErrorAction SilentlyContinue
+  } else {
+    $env:NARA_GPU_MODE = $previousGpuMode
+  }
+}
 
 if (-not (Test-Path $reportPath)) {
   Fail "Report tidak dibuat. Exit code smoke: $smokeExit"
 }
 
-$report = Get-Content $reportPath -Raw -Encoding UTF8 | ConvertFrom-Json
+try {
+  $report = Get-Content -LiteralPath $reportPath -Raw -Encoding UTF8 | ConvertFrom-Json
+} catch { Fail "Report GPU tidak valid." }
+$reportStartedAt = [DateTimeOffset]::MinValue
+$reportCompletedAt = [DateTimeOffset]::MinValue
+if (-not [DateTimeOffset]::TryParse([string]$report.startedAt, [ref]$reportStartedAt) -or
+    -not [DateTimeOffset]::TryParse([string]$report.completedAt, [ref]$reportCompletedAt) -or
+    $reportStartedAt -lt $smokeStartedAt -or $reportCompletedAt -lt $reportStartedAt -or
+    $reportCompletedAt -gt $smokeCompletedAt) {
+  Fail "Report GPU bukan bukti dari invocation saat ini."
+}
+$physicalGpuPassed = $report.passed -is [bool] -and $report.passed -eq $true -and
+  $report.gpu.modeMatched -is [bool] -and $report.gpu.modeMatched -eq $true -and
+  $report.gpu.hardwareAcceleration -is [bool] -and $report.gpu.hardwareAcceleration -eq $true -and
+  $report.gpu.requestedMode -eq 'hardware' -and
+  -not [string]::IsNullOrWhiteSpace([string]$report.webgl.renderer) -and
+  $report.webgl.renderer -notmatch 'swiftshader|llvmpipe|software rasterizer|microsoft basic render|\bwarp\b'
 Write-Host ""
 Write-Host "[4/5] Hasil GPU + Neural acceptance" -ForegroundColor Cyan
 Write-Host "Passed              : $($report.passed)"
@@ -103,7 +131,7 @@ Write-Host "Screenshot           : $screenshotPath"
 
 $failed = @()
 foreach ($property in $report.checks.PSObject.Properties) {
-  if ($property.Value -ne $true) {
+  if ($property.Value -isnot [bool] -or $property.Value -ne $true) {
     $failed += $property.Name
   }
 }
@@ -125,7 +153,7 @@ $requiredRevisionChecks = @(
 $missingRevisionChecks = @()
 foreach ($name in $requiredRevisionChecks) {
   $property = $report.checks.PSObject.Properties[$name]
-  if ($null -eq $property -or $property.Value -ne $true) {
+  if ($null -eq $property -or $property.Value -isnot [bool] -or $property.Value -ne $true) {
     $missingRevisionChecks += $name
   }
 }
@@ -138,7 +166,7 @@ if ($missingRevisionChecks.Count -eq 0) {
   Write-Host "R4/R5/R7 gates       : FAIL -> $($missingRevisionChecks -join ', ')" -ForegroundColor Red
 }
 
-if ($smokeExit -ne 0 -or $report.passed -ne $true -or $report.gpu.modeMatched -ne $true -or $failed.Count -gt 0 -or $missingRevisionChecks.Count -gt 0) {
+if ($smokeExit -ne 0 -or -not $physicalGpuPassed -or $failed.Count -gt 0 -or $missingRevisionChecks.Count -gt 0) {
   if ($failed.Count -gt 0) {
     Write-Host "Failed checks        : $($failed -join ', ')" -ForegroundColor Red
   }
