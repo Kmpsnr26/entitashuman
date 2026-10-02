@@ -31,6 +31,7 @@ jobs:
     outputs:
       candidates: ${{ steps.triage.outputs.candidates }}
       fallback_issues: ${{ steps.delegate.outputs.fallback_issues }}
+      queued_issues: ${{ steps.delegate.outputs.queued_issues }}
       delegated_issues: ${{ steps.delegate.outputs.delegated_issues }}
     steps:
       - name: Create or update deduplicated issues
@@ -71,6 +72,10 @@ jobs:
               'automation:resolved': {
                 color: '5319e7',
                 description: 'The tracked failure has recovered'
+              },
+              'automation:superseded': {
+                color: 'c5def5',
+                description: 'The tracked CI source branch no longer exists'
               },
               'ci-failure': {
                 color: 'b60205',
@@ -221,12 +226,113 @@ jobs:
               await closeFallbackPullRequest(issue.number);
             }
 
+            // cloud-auto-repair-test:start managed-ci-source
+            function managedCiSource(issue, defaultBranch) {
+              const labels = (issue.labels || []).map((label) =>
+                typeof label === 'string' ? label : label.name
+              );
+              if (!labels.includes('automation:managed') || !labels.includes('ci-failure')) return null;
+              const body = issue.body || '';
+              const marker = body.match(
+                /^<!-- cloud-automation-key: workflow:(\d+):([^\r\n]+) -->$/m
+              );
+              const commit = body.match(/^- Commit: `([0-9a-f]{40})`$/m);
+              const run = body.match(/^- Run: https:\/\/github\.com\/[^\s]+\/actions\/runs\/(\d+)$/m);
+              if (!marker || !commit || !run || marker[2] === defaultBranch) return null;
+              if (!/^[A-Za-z0-9._/-]+$/.test(marker[2])) return null;
+              return {
+                workflowId: Number(marker[1]),
+                branch: marker[2],
+                headSha: commit[1],
+                runId: Number(run[1])
+              };
+            }
+            // cloud-auto-repair-test:end managed-ci-source
+
+            async function retireMissingSourceIssue(issue) {
+              if (issueRecovered(issue)) return false;
+              const source = managedCiSource(
+                issue,
+                context.payload.repository.default_branch
+              );
+              if (!source) return false;
+              try {
+                await github.rest.repos.getBranch({ owner, repo, branch: source.branch });
+                return false;
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+
+              let response;
+              try {
+                response = await github.rest.actions.getWorkflowRun({
+                  owner,
+                  repo,
+                  run_id: source.runId
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                core.warning('Historical CI run #' + source.runId + ' is unavailable; leaving issue queued.');
+                return false;
+              }
+              const run = response.data;
+              if (
+                run.workflow_id !== source.workflowId ||
+                run.head_branch !== source.branch ||
+                run.head_sha !== source.headSha
+              ) return false;
+
+              const note = [
+                '',
+                '## Source superseded',
+                '',
+                'The exact CI source branch `' + source.branch + '` no longer exists on GitHub.',
+                'Historical run: ' + run.html_url + ' at `' + source.headSha + '`.',
+                'This historical run cannot be repaired on its original branch. No passing run is claimed.'
+              ].join('\n');
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issue.number,
+                state: 'closed',
+                state_reason: 'not_planned',
+                body: (issue.body || '') + note
+              });
+              await addLabels(issue.number, ['automation:superseded']);
+              await removeLabel(issue.number, 'automation:queued');
+              await removeLabel(issue.number, 'automation:fallback');
+              await removeLabel(issue.number, 'automation:delegated');
+              await removeLabel(issue.number, 'ai-fix-needed');
+              return true;
+            }
+
+            async function retireMissingSourceIssues() {
+              const issues = await github.paginate(github.rest.issues.listForRepo, {
+                owner,
+                repo,
+                state: 'open',
+                labels: 'automation:managed,ci-failure',
+                per_page: 100
+              });
+              for (const issue of issues) await retireMissingSourceIssue(issue);
+            }
+
             const candidates = [];
 
             async function upsertFailure(run) {
               const branch = run.head_branch || context.payload.repository.default_branch;
               if (!branch || branch.startsWith('automation/')) return;
               if (run.name === 'Cloud Auto Repair') return;
+
+              if (branch !== context.payload.repository.default_branch) {
+                try {
+                  await github.rest.repos.getBranch({ owner, repo, branch });
+                } catch (error) {
+                  if (error.status !== 404) throw error;
+                  core.info('Skipping CI run from deleted source branch ' + branch + '.');
+                  return;
+                }
+              }
 
               const key = 'workflow:' + run.workflow_id + ':' + branch;
               const marker = markerFor(key);
@@ -305,6 +411,7 @@ jobs:
 
             async function queueExistingIssue(issue) {
               if (issueRecovered(issue)) return;
+              if (await retireMissingSourceIssue(issue)) return;
               const labels = (issue.labels || []).map((label) =>
                 typeof label === 'string' ? label : label.name
               );
@@ -484,8 +591,10 @@ jobs:
             } else if (context.eventName === 'pull_request') {
               await queuePullRequest(context.payload.pull_request);
             } else if (context.eventName === 'schedule') {
+              await retireMissingSourceIssues();
               await scanRecentFailures(24);
             } else if (context.eventName === 'workflow_dispatch') {
+              await retireMissingSourceIssues();
               await scanRecentFailures(168);
             }
 
@@ -506,9 +615,35 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
+            // cloud-auto-repair-test:start fallback-permission-routing
+            function routeFallbackCandidates(candidates, canCreatePullRequests) {
+              return canCreatePullRequests
+                ? { fallback: candidates, queued: [] }
+                : { fallback: [], queued: candidates };
+            }
+            // cloud-auto-repair-test:end fallback-permission-routing
+
+            async function actionsCanCreatePullRequests() {
+              try {
+                const response = await github.request(
+                  'GET /repos/{owner}/{repo}/actions/permissions/workflow',
+                  { owner, repo }
+                );
+                return response.data.can_approve_pull_request_reviews === true;
+              } catch (error) {
+                core.warning('Cannot verify Actions PR creation setting: ' + error.message);
+                return false;
+              }
+            }
+
             if (process.env.COPILOT_TOKEN_CONFIGURED !== 'true') {
-              core.info('COPILOT_ASSIGN_TOKEN is not configured; using safe fallback.');
-              core.setOutput('fallback_issues', JSON.stringify(candidates));
+              core.info('COPILOT_ASSIGN_TOKEN is not configured; retaining or routing the issue queue.');
+              const route = routeFallbackCandidates(
+                candidates,
+                await actionsCanCreatePullRequests()
+              );
+              core.setOutput('fallback_issues', JSON.stringify(route.fallback));
+              core.setOutput('queued_issues', JSON.stringify(route.queued));
               core.setOutput('delegated_issues', '[]');
               return;
             }
@@ -580,13 +715,19 @@ jobs:
               }
             }
 
-            core.setOutput('fallback_issues', JSON.stringify(fallback));
+            const route = routeFallbackCandidates(
+              fallback,
+              fallback.length > 0 && await actionsCanCreatePullRequests()
+            );
+            core.setOutput('fallback_issues', JSON.stringify(route.fallback));
+            core.setOutput('queued_issues', JSON.stringify(route.queued));
             core.setOutput('delegated_issues', JSON.stringify(delegated));
 
       - name: Record delegation state
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
         env:
           FALLBACK_ISSUES: ${{ steps.delegate.outputs.fallback_issues }}
+          QUEUED_ISSUES: ${{ steps.delegate.outputs.queued_issues }}
           DELEGATED_ISSUES: ${{ steps.delegate.outputs.delegated_issues }}
         with:
           github-token: ${{ github.token }}
@@ -594,6 +735,7 @@ jobs:
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const fallback = JSON.parse(process.env.FALLBACK_ISSUES || '[]');
+            const queued = JSON.parse(process.env.QUEUED_ISSUES || '[]');
             const delegated = JSON.parse(process.env.DELEGATED_ISSUES || '[]');
 
             async function add(issueNumber, labels) {
@@ -626,6 +768,12 @@ jobs:
 
             for (const candidate of fallback) {
               await add(candidate.issue_number, ['automation:fallback', 'ai-fix-needed']);
+              await remove(candidate.issue_number, 'automation:delegated');
+            }
+
+            for (const candidate of queued) {
+              await add(candidate.issue_number, ['automation:queued', 'ai-fix-needed']);
+              await remove(candidate.issue_number, 'automation:fallback');
               await remove(candidate.issue_number, 'automation:delegated');
             }
 
