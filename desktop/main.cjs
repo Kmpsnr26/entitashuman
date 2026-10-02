@@ -313,7 +313,7 @@ else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
   const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
-  const [{createOrchestrator,createExperienceModel,getHumanALETestScenario,listHumanALETestScenarios,createSkillSnapshot},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createNaraAgentCoordinator},{createHumanALEOwnerGate,isOwnerTargetUnlocked,authorizedDisplayMediaTarget},{createNaraStudioServer:studioServerFactory}]=await Promise.all([
+  const [{createOrchestrator,createExperienceModel,getHumanALETestScenario,listHumanALETestScenarios,createSkillSnapshot},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createNaraAgentCoordinator},{createHumanALEOwnerGate,isOwnerTargetUnlocked,authorizedDisplayMediaTarget},{createNaraStudioServer:studioServerFactory},{bootstrapNaraConnections,recordNaraProviderStatus}]=await Promise.all([
    import('../nara-core/brain/index.js'),
    import('../nara-core/voice/index.js'),
    import('../nara-core/persistence/experience-store.mjs'),
@@ -321,7 +321,8 @@ else{
    import('./humanale-runtime-host.mjs'),
    import('./nara-agent-coordinator.mjs'),
    import('./humanale-owner-gate.mjs'),
-   import('../nara-core/studio/server.mjs')
+   import('../nara-core/studio/server.mjs'),
+   import('./startup-connections.mjs')
   ]);
   createNaraStudioServer=studioServerFactory;
   naraVoice=createVoiceFeedback();
@@ -383,6 +384,9 @@ else{
   agentHub=new DeveloperAgentHub();
   naraAgentCoordinator=createNaraAgentCoordinator({nara,agentHub}).bind();
   const savedProjectRoot=await readProjectRoot();if(savedProjectRoot)agentHub.setProjectRoot(savedProjectRoot);
+  void bootstrapNaraConnections({bridges,agentHub,nara}).catch(()=>{
+   try{nara.dispatch('startup.connections',{pending:false},{source:'startup-connections'});}catch{}
+  });
   terminalPolicy=policyModule;
   const emitTerminal=(channel,...args)=>{for(const target of [win,panelWin]){if(isOwnerTargetUnlocked(target,ownerGate)&&!target.webContents.isLoading())target.webContents.send(channel,...args);}};
   terminalManager=new TerminalManager({
@@ -602,7 +606,16 @@ else{
   });
 
   const pickProvider=value=>['copilot','openai','grok','gemini','claude','deepseek','askcodi'].includes(value)?value:'chatgpt';
-  ipcMain.handle('dudidam:status',async(e,provider)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{const selected=pickProvider(provider),result=await bridges[selected].status();if(selected==='copilot')nara.connection('COPILOT',Boolean(result?.configured));return result;}catch(error){if(provider==='copilot')nara.connection('COPILOT',false);return {configured:false,error:error.message};}});
+  ipcMain.handle('dudidam:status',async(e,provider)=>{
+   if(!ownerTrusted(e))return {error:'Akses ditolak.'};
+   const selected=pickProvider(provider);
+   try{
+    const raw=await bridges[selected].status();
+    return recordNaraProviderStatus({nara,id:selected,raw,busy:bridges[selected].pending===true});
+   }catch{
+    return recordNaraProviderStatus({nara,id:selected,statusError:'STATUS_FAILED'});
+   }
+  });
   ipcMain.handle('dudidam:ask',async(e,value)=>{
    if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    dataFlowMeter?.recordIn(value);
@@ -617,22 +630,27 @@ else{
    try{
     const payload={...value,memoryContext};delete payload.provider;
     const result=await bridges[provider].ask(payload);
-    if(result?.error){
+    const usableResponse=!result?.error&&typeof result?.text==='string'&&Boolean(result.text.trim());
+    if(!usableResponse){
+     recordNaraProviderStatus({nara,id:provider,requestFailed:true});
      nara.dispatch('reason.complete',{source:'chat'});
-     nara.dispatch('error.detected',{message:String(result.error).slice(0,300),source:'chat'});
+     nara.dispatch('error.detected',{message:'Permintaan provider belum berhasil.',source:'chat'});
+     return {error:'Provider belum memberikan balasan teks yang dapat digunakan.'};
     }else{
+     recordNaraProviderStatus({nara,id:provider,raw:{configured:true},requestSucceeded:true});
      nara.dispatch('reason.complete',{source:'chat'});
     }
     dataFlowMeter?.recordOut(result);
     return result;
    }catch(error){
+    recordNaraProviderStatus({nara,id:provider,requestFailed:true});
     nara.dispatch('reason.complete',{source:'chat'});
-    nara.dispatch('error.detected',{message:error.message,source:'chat'});
+    nara.dispatch('error.detected',{message:'Permintaan provider belum berhasil.',source:'chat'});
     return {error:error.message};
    }
   });
-  ipcMain.handle('dudidam:login',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await bridges.chatgpt.login();}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:login-copilot',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await bridges.copilot.login();}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:login',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};recordNaraProviderStatus({nara,id:'chatgpt',clearEvidence:true});try{return await bridges.chatgpt.login();}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:login-copilot',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};recordNaraProviderStatus({nara,id:'copilot',clearEvidence:true});try{return await bridges.copilot.login();}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:stt-status',async e=>{if(!ownerTrusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianStt.status();});
   ipcMain.handle('dudidam:transcribe',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await indonesianStt.transcribe(value);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:tts-status',async e=>{if(!ownerTrusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianTts.status();});

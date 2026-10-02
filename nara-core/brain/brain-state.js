@@ -1,6 +1,7 @@
 import {NARA_REGIONS,isRegionId} from './regions.js';
 import {createHumanALEPolicy,reduceHumanALEPolicy} from './humanale-policy.js';
 import {getSkill} from './skill-registry.js';
+import {normalizeProviderStatus,normalizeStartupConnections} from './provider-state.js';
 
 const clamp01=value=>Math.max(0,Math.min(1,Number(value)||0));
 const connectionEvents=Object.freeze({
@@ -44,6 +45,8 @@ export class NaraBrainState{
         speech:{active:false,energy:0}
       },
       humanale:createHumanALEPolicy(),
+      providers:{},
+      startupConnections:normalizeStartupConnections({pending:true}),
       lastEvent:null
     };
   }
@@ -64,6 +67,8 @@ export class NaraBrainState{
       },
       currentTask:this.state.currentTask?{...this.state.currentTask}:null,
       humanale:{...this.state.humanale},
+      providers:Object.fromEntries(Object.entries(this.state.providers).map(([id,value])=>[id,{...value}])),
+      startupConnections:{...this.state.startupConnections,authenticatedExecutors:[...this.state.startupConnections.authenticatedExecutors]},
       lastEvent:this.state.lastEvent?{...this.state.lastEvent}:null
     };
   }
@@ -213,6 +218,24 @@ export class NaraBrainState{
       this.setRegion('BUG_HUNTER',{status:'bug',activity:1,message:String(payload.message||'Bug terdeteksi')},event);
     }else if(event==='bug.fixed'){
       this.setRegion('BUG_HUNTER',{status:'complete',activity:.25,message:'Perbaikan selesai dan siap diverifikasi'},event);
+    }else if(event==='provider.status'){
+      const provider=normalizeProviderStatus(payload);
+      if(provider){
+        this.state.providers={...this.state.providers,[provider.id]:provider};
+        if(provider.id==='copilot'){
+          this.setRegion('COPILOT',{
+            status:provider.ready?'connected':provider.statusError?'paused':provider.configured?'paused':'disconnected',
+            activity:provider.ready?.55:provider.attached?.15:0,
+            message:provider.ready?'GitHub Copilot terverifikasi pada permintaan sebelumnya':
+              provider.statusError?'Status GitHub Copilot belum dapat dipastikan':
+              provider.configured?'Copilot terpasang; autentikasi belum diverifikasi':'Copilot belum terdeteksi'
+          },event);
+        }
+        this.notify({type:'provider',id:provider.id,value:{...provider}});
+      }
+    }else if(event==='startup.connections'){
+      this.state.startupConnections=normalizeStartupConnections(payload);
+      this.notify({type:'startup-connections',value:{...this.state.startupConnections}});
     }else if(event==='terminal.open'){
       this.setRegion('TERMINAL',{status:'active',activity:1,message:'Terminal aktif'},event);
     }else if(connectionEvents[event]){
