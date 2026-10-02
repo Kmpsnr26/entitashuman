@@ -91,3 +91,13 @@ Statistik pada partikel adalah efek visual generatif, bukan metrik sistem. Tidak
 # Avatar, telinga, emosi, dan suara Indonesia
 
 Kontrol avatar menyediakan **Karakter emosi** (otomatis dari balasan, netral, bahagia, marah, kesal, sedih) dan **Efek suara** (bayi robot atau natural). Preset bayi robot memakai model suara Indonesia lokal Piper bila tersedia; suara Windows Indonesia menjadi cadangan. Telinga biner bereaksi terhadap pita frekuensi rendah, menengah, dan tinggi dari Mikrofon visual, Audio perangkat, atau file musik yang dipilih. Mikrofon tetap memerlukan izin pengguna.
+
+## NARA startup provider observations
+
+Desktop startup checks existing ChatGPT/Codex login status, the Copilot CLI version, and local OpenAI/Gemini configuration. It never starts login or sends provider prompts. Each status check is bounded to 15 seconds and publishes fixed public metadata in the NARA `providers` snapshot; credentials, provider models, CLI output, and raw errors are excluded.
+
+API key presence and a Copilot executable mean configured/installed, with authentication unverified. ChatGPT/Codex login status can establish a local session; Copilot is verified only after a successful existing user request. None of these observations proves that an isolated maintenance worker can authenticate or that paid provider inference works.
+
+A successful owner-requested text reply records `successful-request` evidence for that provider in the current process. Configuration-only polls preserve that observation; a failed or empty reply clears it and reports unknown status. API configuration alone cannot clear that uncertainty; a later successful request can. Missing configuration and starting a new login also clear prior evidence. Local ChatGPT login checks can revalidate a session without proving another inference succeeded. No extra provider request is made to update these observations.
+
+`startupConnections` records project availability and authenticated local executors separately from the existing `engine.autopilot` scheduler. Startup does not arm maintenance or start a realtime loop. Agent work still requires an explicit task and the existing capability, repository, and maintenance boundaries.
