@@ -11,6 +11,8 @@ function fakeTransaction(id='tx-1'){
   id,
   cwd:'/repo',
   isolatedHome:'/isolated',
+  baseHead:'1'.repeat(40),
+  baseBranch:'maintenance/test',
   released:false,
   calls,
   async inspect(){
@@ -56,6 +58,7 @@ function setup(overrides={}){
    commandCalls.push(call);
    return {ok:true,code:'PASS',summary:'ok'};
   },
+  checkpointInspector:async()=>({empty:false,changeFingerprint:'a'.repeat(64),changedFiles:1,totalBytes:120}),
   ...overrides
  });
  return {broker,txs,hubCalls,commandCalls};
@@ -81,12 +84,29 @@ test('broker holds one maintenance transaction from patch through inspect test a
 
  const verified=await s.broker.verify({transactionId:'auto-1'});
  assert.equal(verified.ok,true);
+ assert.equal(verified.baseHead,'1'.repeat(40));
+ assert.equal(verified.baseBranch,'maintenance/test');
+ assert.equal(verified.changeFingerprint,'a'.repeat(64));
+ assert.equal(verified.changedFiles,1);
  assert.equal(session.transaction.released,true);
  assert.equal(s.broker.session('auto-1'),null);
  assert.deepEqual(
   s.commandCalls.map(call=>[call.command,...call.args]),
   [['npm','test'],['npm','run','build']]
  );
+});
+
+test('verification fingerprint mismatch stays active for rollback and never releases',async()=>{
+ const s=setup({checkpointInspector:async()=>({empty:false,changeFingerprint:'b'.repeat(64),changedFiles:2,totalBytes:120})});
+ const detection=await s.broker.detect({transactionId:'auto-fingerprint'});
+ const reproduction=await s.broker.reproduce({transactionId:'auto-fingerprint',detection,attempt:1});
+ await s.broker.patch({transactionId:'auto-fingerprint',detection,reproduction,attempt:1});
+ const result=await s.broker.verify({transactionId:'auto-fingerprint'});
+ assert.equal(result.ok,false);
+ assert.equal(result.code,'CHECKPOINT_EVIDENCE_MISMATCH');
+ assert.ok(s.broker.session('auto-fingerprint'));
+ assert.equal(s.txs[0].released,false);
+ assert.equal((await s.broker.rollback({transactionId:'auto-fingerprint',reason:'VERIFICATION_FAILED'})).ok,true);
 });
 
 test('broker never accepts arbitrary test or verify command plans',()=>{
