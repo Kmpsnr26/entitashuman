@@ -42,7 +42,7 @@ test('adult robot style is available in UI, local Piper and native Indonesian fa
     readFile(new URL('desktop/indonesian-tts.mjs',root),'utf8'),
     readFile(new URL('desktop/speak_id.py',root),'utf8')
   ]);
-  assert.match(html,/value="adult-robot">Dewasa robot · Indonesia/);
+  assert.match(html,/value="adult-robot">Laki-laki tegas · bas &amp; gema/);
   assert.match(app,/\['baby-robot','adult-robot','natural'\]/);
   assert.match(app,/style==='adult-robot'/);
   assert.match(app,/source==='nara'&&!localTtsRejected&&desktop\?\.synthesize/);
