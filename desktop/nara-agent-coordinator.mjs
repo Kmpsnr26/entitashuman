@@ -88,6 +88,10 @@ export class NaraAgentCoordinator{
       });
       heartbeat();
       if(result?.error)throw new Error(String(result.error));
+      if(meta.mode==='work'&&result?.maintenance?.changedFiles===0){
+        const error=new Error('Mode Kerja belum menghasilkan perubahan berkas. Periksa hasil executor dan izin sandbox; gunakan Analisis untuk tugas baca saja.');
+        error.code='AGENT_WORK_NO_CHANGES';error.category='blocked';throw error;
+      }
 
       this.nara.dispatch('plan.complete',{source:'nara-agent-coordinator'});
       if(meta.mode==='work')this.nara.dispatch('program.complete',{source:'nara-agent-coordinator'});

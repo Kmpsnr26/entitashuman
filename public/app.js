@@ -6,6 +6,7 @@ import {parseCommand} from './commands.js';
 import {AudioReactor} from './audio-reactor.js';
 import {containsAleWakeWord,HOLD_TO_SUMMON_MS} from './wake-utils.js';
 import {isExplicitProjectWorkRequest} from './work-intent.js';
+import {WORK_AGENT_IDS,workReadinessError,selectWorkAgent,createAgentTaskPayload,hasAppliedWorkChanges} from './agent-task.js';
 import {emotionFromText,emotions} from './avatar-emotion.js';
 import {createRobotVoicePlayer,HUMANALE_VOICE} from './robot-voice.js';
 const $=s=>document.querySelector(s),desktop=window.dudidamDesktop,params=new URLSearchParams(location.search),popup=params.get('popup')==='1',panelOnly=Boolean(desktop&&params.has('panel')),avatar=new HumanALEAvatar($('#avatar'),{popup,panelOnly});
@@ -823,19 +824,19 @@ async function playMusic(file){if(!file)return;stopReactiveAudio();const player=
 function message(text,role='assistant',say=true,broadcast=true){const a=document.createElement('article');a.className='message '+role;const b=document.createElement('b');b.textContent=role==='assistant'?'HUMANALE GOD ENGINE':'KAMU';const p=document.createElement('p');p.textContent=text;a.append(b,p);$('#messages').append(a);$('#messages').scrollTop=$('#messages').scrollHeight;if(role==='assistant'){$('#bubble').textContent=text;$('#bubble').hidden=!panelOnly&&$('#chatDialog').open;clearTimeout(bubbleTimer);bubbleTimer=setTimeout(()=>$('#bubble').hidden=true,15000);if(emotionChoice==='auto')applyEmotion(emotionFromText(text),broadcast);if(say)speak(text);}if(broadcast)panelChannel?.postMessage({type:'message',text,role});}
 async function submit(text,image){text=text.trim();if(!text||busy)return;message(text,'user',false);const cmd=!image&&parseCommand(text);if(cmd){let answer='';if(['blink','nod','shake'].includes(cmd)){avatar.trigger(cmd);answer={blink:'Saya berkedip.',nod:'Baik, saya mengangguk.',shake:'Saya menggelengkan kepala.'}[cmd];}if(cmd==='stop'){stopSpeech();stopListening();answer='Baik. Suara dihentikan.';}if(cmd==='hello'){avatar.trigger('nod');answer='Halo, saya HumanALE god egine. Saya mendengarkan.';}if(cmd==='help')answer='Klik kanan atau tekan H untuk kontrol, Enter untuk percakapan. B berkedip, N mengangguk, G menggeleng, M mikrofon, R tengahkan. Tombol 1 sampai 5 mengganti gaya biner dan neural. Ukuran avatar dapat diatur dari kontrol. Seret wajah untuk memindahkan.';if(cmd==='time')answer='Sekarang pukul '+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})+'.';if(cmd==='date')answer='Hari ini '+new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'.';if(cmd==='pet'){document.querySelectorAll('dialog[open]').forEach(d=>d.close());answer='Panel disembunyikan.';}message(answer,'assistant',cmd!=='stop');return;}
  if(!desktop){message('Login Sites hanya mengenali akun. Untuk percakapan model gunakan HumanALE god egine Desktop.','assistant',false);return;}
- if(aiProvider==='copilot'&&!image&&isExplicitProjectWorkRequest(text)){
-  busy=true;stopSpeech();$('#send').disabled=true;$('#look').disabled=true;state('GitHub Copilot mengerjakan proyek…');$('#liveText').textContent='Copilot Work mode sedang mengedit checkout proyek…';
+ if(!image&&isExplicitProjectWorkRequest(text)){
+  busy=true;stopSpeech();$('#send').disabled=true;$('#look').disabled=true;state('Memeriksa executor CLI…');$('#liveText').textContent='Memeriksa kesiapan Mode Kerja dan koneksi agent…';
   let workSucceeded=false;setEvolutionVisual('start');
   try{
-   const result=await runCopilotProjectWork(text);
+   const result=await runProjectWork(text);
    if(result?.error)throw new Error(result.error);
-   const answer=result?.text||'Copilot selesai tanpa output teks.';
+   const answer=result?.text||'Agent selesai tanpa output teks.';
    history.push({role:'user',content:text},{role:'assistant',content:answer});history=history.slice(-10);panelChannel?.postMessage({type:'history',history});message(answer);
-   workSucceeded=true;
-  }catch(error){message(error?.message||'Copilot Work mode gagal menjalankan tugas.','assistant',false);}
+   workSucceeded=hasAppliedWorkChanges(result);
+  }catch(error){message(error?.message||'Agent CLI gagal menjalankan tugas.','assistant',false);}
   finally{
    setEvolutionVisual(workSucceeded?'complete':'stop');
-   busy=false;avatar.thinking=false;$('#send').disabled=false;$('#look').disabled=false;$('#liveText').textContent='';if(!avatar.speaking&&!listening&&workSucceeded)state('EVOLUTION COMPLETE · upgrade diterapkan');
+   busy=false;avatar.thinking=false;$('#send').disabled=false;$('#look').disabled=false;$('#liveText').textContent='';if(!avatar.speaking&&!listening)state(workSucceeded?'Perubahan proyek selesai · periksa hasil agent':'');
   }
   return;
  }
@@ -877,12 +878,45 @@ async function checkAI(){
   }
  }catch{$('#aiStatus').textContent='Status belum tersedia';$('#apiDetail').textContent='Periksa koneksi lalu coba lagi.';aiReady=false;}
 }
-async function loadAgents(){if(!desktop)return;const list=$('#agentList'),select=$('#agentSelect');list.replaceChildren();select.replaceChildren();$('#agentOutput').hidden=true;$('#agentRun').disabled=true;const data=await desktop.agents();if(data?.error){$('#agentProject').textContent=data.error;return;}$('#agentProject').textContent=(data.projectRootReady?'Project checkout siap: ':'Folder kerja belum siap: ')+data.projectRoot;for(const item of data.agents||[]){const card=document.createElement('article');card.className='agent-card';card.setAttribute('role','listitem');const head=document.createElement('div');head.className='agent-card-head';const title=document.createElement('strong');title.textContent=item.name;const state=document.createElement('span');state.className='agent-state';state.textContent=item.state;head.append(title,state);const method=document.createElement('small');method.textContent=item.method;const detail=document.createElement('p');detail.textContent=item.detail;const actions=document.createElement('div');actions.className='actions';const open=document.createElement('button');open.type='button';open.textContent='Dokumentasi ↗';open.onclick=async()=>{const result=await desktop.openAgent(item.id);if(result?.error)toast(result.error);};actions.append(open);if(['claude','codex','cursor','gemini'].includes(item.id)&&item.executable){const terminal=document.createElement('button');terminal.type='button';terminal.textContent='Open Terminal';terminal.onclick=()=>window.dudidamTerminalUI?.open(item.id);actions.append(terminal);}card.append(head,method,detail,actions);list.append(card);if(item.canRun){const option=document.createElement('option');option.value=item.id;option.textContent=item.name;select.append(option);}}$('#agentRun').disabled=!select.options.length;if(!select.options.length){const option=document.createElement('option');option.textContent='Tidak ada CLI agent terdeteksi';option.disabled=true;select.append(option);}syncAgentMode();}
+let latestAgentStatus=null,selectedDeveloperAgentId='';
+async function loadAgents(){
+ if(!desktop)return;
+ const list=$('#agentList'),select=$('#agentSelect');
+ list.replaceChildren();select.replaceChildren();$('#agentOutput').hidden=true;$('#agentRun').disabled=true;
+ try{
+  const data=await desktop.agents();latestAgentStatus=data;
+  if(data?.error){$('#agentProject').textContent=data.error;return;}
+  const blocker=workReadinessError(data);
+  $('#agentProject').textContent=(blocker?'Mode Kerja diblokir: '+blocker:'Mode Kerja siap')+' · '+(data.projectRoot||'Folder proyek belum dipilih');
+  for(const item of data.agents||[]){
+   const card=document.createElement('article');card.className='agent-card';card.setAttribute('role','listitem');
+   const head=document.createElement('div');head.className='agent-card-head';
+   const title=document.createElement('strong');title.textContent=item.name;
+   const state=document.createElement('span');state.className='agent-state';state.textContent=item.state;head.append(title,state);
+   const method=document.createElement('small');method.textContent=item.method;
+   const detail=document.createElement('p');detail.textContent=item.detail;
+   const actions=document.createElement('div');actions.className='actions';
+   const open=document.createElement('button');open.type='button';open.textContent='Dokumentasi ↗';
+   open.onclick=async()=>{const result=await desktop.openAgent(item.id);if(result?.error)toast(result.error);};actions.append(open);
+   if(['claude','codex','cursor','gemini'].includes(item.id)&&item.executable){
+    const terminal=document.createElement('button');terminal.type='button';terminal.textContent='Open Terminal';
+    terminal.onclick=()=>window.dudidamTerminalUI?.open(item.id);actions.append(terminal);
+   }
+   card.append(head,method,detail,actions);list.append(card);
+   if(item.canRun){const option=document.createElement('option');option.value=item.id;option.textContent=item.name;select.append(option);}
+  }
+  if(!select.options.length){const option=document.createElement('option');option.textContent='Tidak ada CLI agent siap';option.disabled=true;select.append(option);}
+  if(selectedDeveloperAgentId&&[...select.options].some(option=>option.value===selectedDeveloperAgentId&&!option.disabled))select.value=selectedDeveloperAgentId;
+  syncAgentMode();
+ }catch(error){latestAgentStatus=null;$('#agentProject').textContent=error?.message||'Status agent belum dapat diperiksa.';}
+}
 function syncAgentMode(){
  const id=$('#agentSelect').value,mode=$('#agentMode'),work=mode?.querySelector('option[value="work"]');
  const allowed=['humanale-orchestrator','github-copilot','codex','cursor','claude'].includes(id);
  if(work)work.disabled=!allowed;
  if(mode&&!allowed&&mode.value==='work')mode.value='analyze';
+ const runnable=(latestAgentStatus?.agents||[]).some(agent=>agent.id===id&&agent.canRun===true);
+ $('#agentRun').disabled=!runnable||(mode?.value==='work'&&Boolean(workReadinessError(latestAgentStatus)));
 }
 function setEvolutionVisual(mode='start'){
  if(panelOnly){panelChannel?.postMessage({type:'evolution',mode});return;}
@@ -900,8 +934,14 @@ async function runDeveloperAgent(event){
  let workSucceeded=false;
  if(mode==='work')setEvolutionVisual('start');
  try{
-  const memoryContext=await prepareEffectiveMemoryContext(prompt,mode==='work'?'agent':'planner');
-  const result=await desktop.runAgent({id,prompt,mode,memoryContext});
+  if(mode==='work'){
+   const status=await desktop.agents();latestAgentStatus=status;
+   selectWorkAgent(status,aiProvider,id);
+   if(!(status.agents||[]).some(agent=>agent.id===id&&agent.canRun&&WORK_AGENT_IDS.includes(id)))throw new Error('Executor yang dipilih belum siap. Periksa koneksi di Developer agents.');
+  }
+  selectedDeveloperAgentId=id;
+  const payload=await createAgentTaskPayload({id,prompt,mode,prepareMemory:prepareEffectiveMemoryContext});
+  const result=await desktop.runAgent(payload);
   if(result?.error)throw new Error(result.error);
   $('#agentOutput').textContent=result?.text||'Agent selesai tanpa output.';
   desktopMemory?.remember({
@@ -912,7 +952,7 @@ async function runDeveloperAgent(event){
    source:'desktop-agent'
   },{emit:false});
   updateDesktopMemoryContextUi();
-  workSucceeded=mode==='work';
+  workSucceeded=hasAppliedWorkChanges(result);
  }catch(error){
   $('#agentOutput').textContent=error?.message||'Agent gagal dijalankan.';
   desktopMemory?.remember({
@@ -925,7 +965,7 @@ async function runDeveloperAgent(event){
   updateDesktopMemoryContextUi();
  }finally{
   if(mode==='work')setEvolutionVisual(workSucceeded?'complete':'stop');
-  $('#agentRun').disabled=false;
+  syncAgentMode();
  }
 }
 async function chooseProjectFolder(){
@@ -935,7 +975,7 @@ async function chooseProjectFolder(){
   const result=await desktop.chooseProjectRoot();
   if(result?.error){toast(result.error);return;}
   if(result?.canceled)return;
-  toast(result?.projectRootReady?'Folder proyek siap untuk Mode Kerja.':'Folder dipilih, tetapi bukan checkout Git. Pilih folder repo yang memiliki .git.');
+  toast(workReadinessError(result)||'Folder proyek siap untuk Mode Kerja.');
   await loadAgents();
  }catch(error){toast(error?.message||'Folder proyek belum dapat dipilih.');}
  finally{button.disabled=false;}
@@ -945,31 +985,32 @@ function buildProjectWorkPrompt(text){
  const prompt='Pengguna secara eksplisit meminta perubahan proyek dari percakapan HumanALE god egine. Gunakan konteks berikut untuk memahami target visual/bug, lalu benar-benar edit file yang relevan di checkout proyek. Jangan hanya memberi rencana.\n\n'+(context?context+'\n':'')+'PENGGUNA SEKARANG: '+text+'\n\nSetelah mengedit, jalankan test yang relevan dan laporkan file yang diubah serta hasilnya.';
  return prompt.slice(-3900);
 }
-async function runCopilotProjectWork(text){
+async function runProjectWork(text){
  const status=await desktop.agents();
- if(status?.error)throw new Error(status.error);
- if(!status?.projectRootReady){
+ latestAgentStatus=status;
+ let executor;
+ try{executor=selectWorkAgent(status,aiProvider,selectedDeveloperAgentId);}
+ catch(error){
   desktop.openPanel?.('agentDialog');
-  throw new Error('Folder checkout proyek belum dipilih. Buka Developer agents → Pilih folder proyek, pilih folder repo entitashuman yang memiliki .git, lalu kirim perintah kerja lagi.');
+  throw error;
  }
- const copilot=(status.agents||[]).find(item=>item.id==='github-copilot');
- if(!copilot?.canRun)throw new Error('GitHub Copilot Work mode belum siap. Pastikan Copilot CLI terpasang dan login, lalu Periksa koneksi di Developer agents.');
+ state(executor.name+' mengerjakan proyek…');$('#liveText').textContent=executor.name+' · Mode Kerja';
  const prompt=buildProjectWorkPrompt(text);
- const memoryContext=await prepareEffectiveMemoryContext(text,'agent');
  try{
-  const result=await desktop.runAgent({id:'github-copilot',mode:'work',prompt,memoryContext});
+  const payload=await createAgentTaskPayload({id:executor.id,mode:'work',prompt});
+  const result=await desktop.runAgent(payload);
   if(!result?.error)desktopMemory?.remember({
-   type:'task',title:'GitHub Copilot · mode kerja',
-   summary:'Pekerjaan proyek melalui Copilot selesai. Prompt dan output mentah tidak disimpan otomatis.',
-   tags:['agent','work','complete'],source:'desktop-copilot'
+   type:'task',title:executor.name+' · mode kerja',
+   summary:'Permintaan kerja agent selesai. Prompt dan output mentah tidak disimpan otomatis.',
+   tags:['agent','work','complete'],source:'desktop-agent'
   },{emit:false});
   updateDesktopMemoryContextUi();
   return result;
  }catch(error){
   desktopMemory?.remember({
-   type:'result',title:'GitHub Copilot · mode kerja',
-   summary:'Pekerjaan proyek melalui Copilot gagal dan memerlukan tindak lanjut.',
-   tags:['agent','work','failed'],source:'desktop-copilot'
+   type:'result',title:executor.name+' · mode kerja',
+   summary:'Pekerjaan proyek melalui agent gagal dan memerlukan tindak lanjut.',
+   tags:['agent','work','failed'],source:'desktop-agent'
   },{emit:false});
   updateDesktopMemoryContextUi();
   throw error;
@@ -1195,7 +1236,8 @@ $('#provider').onchange=e=>{aiProvider=['chatgpt',...apiProviders].includes(e.ta
 $('#agentHub').onclick=async()=>{if(!desktop)return;showDialog('#agentDialog');await loadAgents();};
 $('#agentRefresh').onclick=loadAgents;
 $('#projectPick').onclick=chooseProjectFolder;
-$('#agentSelect').onchange=syncAgentMode;
+$('#agentSelect').onchange=()=>{selectedDeveloperAgentId=$('#agentSelect').value;syncAgentMode();};
+$('#agentMode').onchange=syncAgentMode;
 $('#agentForm').onsubmit=runDeveloperAgent;
 $('#audioMic').onclick=startMicrophoneVisual;$('#systemAudio').onclick=startSystemAudio;$('#stopAudio').onclick=stopReactiveAudio;$('#musicFile').onchange=e=>playMusic(e.target.files?.[0]);$('#musicPlayer').onended=stopReactiveAudio;
 $('#popup').onclick=()=>{const pop=window.open(location.origin+'/?popup=1','dudidam-presence','popup=yes,width=420,height=480,left='+Math.round((screen.width-420)/2)+',top='+Math.round((screen.height-480)/2));if(!pop)toast('Browser memblokir pop-up. Izinkan pop-up untuk situs ini.');else toast('Widget pop-up dibuka dengan permukaan transparan. Transparansi hingga menembus desktop tersedia di HumanALE god egine Desktop.');};

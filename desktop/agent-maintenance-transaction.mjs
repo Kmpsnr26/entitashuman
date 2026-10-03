@@ -39,7 +39,7 @@ async function runGit(cwd,args,{timeout=12000,maxOutput=8*1024*1024}={}){
    cwd,
    windowsHide:true,
    stdio:['ignore','pipe','pipe'],
-   env:{...safeEnv,NO_COLOR:'1'}
+   env:{...safeEnv,NO_COLOR:'1',GIT_OPTIONAL_LOCKS:'0'}
   });
   let stdout='',stderr='',settled=false;
   const finish=(error,value)=>{
@@ -244,7 +244,7 @@ function isProtectedBranch(branch){
   /^codex\/release-/i.test(branch);
 }
 
-async function beginTransaction(cwd){
+async function maintenanceRepositoryIdentity(cwd){
  const requestedRoot=await realpath(cwd);
  const gitRootRaw=await gitText(requestedRoot,['rev-parse','--show-toplevel']);
  const gitRoot=await realpath(gitRootRaw);
@@ -267,6 +267,49 @@ async function beginTransaction(cwd){
   throw error;
  }
 
+ return {gitRoot,baseHead,baseBranch};
+}
+
+async function assertMaintenanceBaseline(gitRoot){
+ const status=await gitText(gitRoot,['status','--porcelain=v1','-z','--untracked-files=all']);
+ if(status){
+  const error=new Error('AI maintenance hanya boleh dimulai dari Git worktree bersih.');
+  error.code='AI_MAINTENANCE_DIRTY_WORKTREE';
+  throw error;
+ }
+ const secretFiles=await scanSecretFiles(gitRoot);
+ if(secretFiles.length){
+  const error=new Error('AI maintenance diblokir karena checkout mengandung file secret lokal: '+secretFiles.join(', '));
+  error.code='AI_MAINTENANCE_SECRET_FILE_PRESENT';error.paths=secretFiles;throw error;
+ }
+ const baselineSymlinks=await scanRepositorySymlinks(gitRoot);
+ if(baselineSymlinks.length){
+  const error=new Error('AI maintenance diblokir karena repository mengandung symbolic link: '+baselineSymlinks.join(', '));
+  error.code='AI_MAINTENANCE_BASELINE_SYMLINK_PRESENT';error.paths=baselineSymlinks;throw error;
+ }
+}
+
+// Advisory only: opening the UI must not acquire a lock, create an isolated
+// home, or refresh Git's index. Actual work repeats these checks under a lock.
+export async function inspectMaintenanceReadiness(cwd){
+ try{
+  const identity=await maintenanceRepositoryIdentity(cwd);
+  const commonDir=resolve(identity.gitRoot,await gitText(identity.gitRoot,['rev-parse','--git-common-dir']));
+  try{
+   await lstat(join(commonDir,AI_MAINTENANCE_LOCK_FILE));
+   const error=new Error('Repository sedang dikunci oleh maintenance transaction lain.');
+   error.code='AI_MAINTENANCE_REPO_LOCKED';throw error;
+  }catch(error){if(error?.code!=='ENOENT')throw error;}
+  await assertMaintenanceBaseline(identity.gitRoot);
+  return Object.freeze({ready:true,code:null,error:null,branch:identity.baseBranch,projectRoot:identity.gitRoot});
+ }catch(error){
+  return Object.freeze({ready:false,code:error?.code||'AI_MAINTENANCE_PREFLIGHT_FAILED',error:String(error?.message||'Folder proyek tidak siap untuk AI maintenance.'),projectRoot:String(cwd||'')});
+ }
+}
+
+async function beginTransaction(cwd){
+ const {gitRoot,baseHead,baseBranch}=await maintenanceRepositoryIdentity(cwd);
+
  const gitDirRaw=await gitText(gitRoot,['rev-parse','--git-dir']);
  const commonGitDirRaw=await gitText(gitRoot,['rev-parse','--git-common-dir']);
  const gitDir=resolve(gitRoot,gitDirRaw);
@@ -275,28 +318,7 @@ async function beginTransaction(cwd){
  let transaction;
  let isolatedHome='';
  try{
-  const status=await gitText(gitRoot,['status','--porcelain=v1','-z','--untracked-files=all']);
-  if(status){
-   const error=new Error('AI maintenance hanya boleh dimulai dari Git worktree bersih.');
-   error.code='AI_MAINTENANCE_DIRTY_WORKTREE';
-   throw error;
-  }
-
-  const secretFiles=await scanSecretFiles(gitRoot);
-  if(secretFiles.length){
-   const error=new Error('AI maintenance diblokir karena checkout mengandung file secret lokal: '+secretFiles.join(', '));
-   error.code='AI_MAINTENANCE_SECRET_FILE_PRESENT';
-   error.paths=secretFiles;
-   throw error;
-  }
-
-  const baselineSymlinks=await scanRepositorySymlinks(gitRoot);
-  if(baselineSymlinks.length){
-   const error=new Error('AI maintenance diblokir karena repository mengandung symbolic link: '+baselineSymlinks.join(', '));
-   error.code='AI_MAINTENANCE_BASELINE_SYMLINK_PRESENT';
-   error.paths=baselineSymlinks;
-   throw error;
-  }
+  await assertMaintenanceBaseline(gitRoot);
 
   isolatedHome=await mkdtemp(join(tmpdir(),'humanale-ai-home-'));
 

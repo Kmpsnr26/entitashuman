@@ -4,6 +4,18 @@ import assert from 'node:assert/strict';
 import {createOrchestrator} from '../nara-core/brain/orchestrator.js';
 import {createNaraAgentCoordinator} from '../desktop/nara-agent-coordinator.mjs';
 
+test('write refusal with zero changes blocks work instead of claiming completion or retrying',async()=>{
+  let calls=0;const nara=createOrchestrator();nara.start();
+  try{
+    const agentHub={run:async()=>{calls++;return {mode:'work',text:'Tidak dapat menulis.',maintenance:{changedFiles:0}};}};
+    const result=await createNaraAgentCoordinator({nara,agentHub}).run({id:'codex',mode:'work',prompt:'Edit program'});
+    assert.match(result.error,/belum menghasilkan perubahan/);
+    assert.equal(calls,1);
+    assert.notEqual(result.nara.goalStatus,'complete');
+    assert.notEqual(nara.snapshot().regions.PROGRAM.status,'complete');
+  }finally{nara.stop();}
+});
+
 test('V3.2 coordinator turns a HumanALE agent request into Goal → Task → Autopilot → result',async()=>{
   const calls=[];
   const agentHub={

@@ -10,7 +10,7 @@ import {
  maintenancePolicySnapshot
 } from './agent-maintenance-policy.mjs';
 import {sanitizeMaintenanceEnvironment} from './agent-maintenance-guard.mjs';
-import {beginMaintenanceTransaction} from './agent-maintenance-transaction.mjs';
+import {beginMaintenanceTransaction,inspectMaintenanceReadiness} from './agent-maintenance-transaction.mjs';
 import {maintenanceProcessRecoveryError,markMaintenanceProcessUnconfirmed,terminateMaintenanceProcessTree} from './agent-trusted-process-broker.mjs';
 
 const maintenanceBoundaryLegacyMarker='Jangan git push, git merge, publish';
@@ -71,15 +71,16 @@ export function isCodexLoggedIn(text=''){
  return !/\bnot logged in\b/i.test(value)&&/\blogged in\b/i.test(value);
 }
 export function parseCodexJsonOutput(stdout=''){
- let text='',failure=false;
+ let text='',failure=false,completed=false;
  for(const line of String(stdout).split(/\r?\n/)){
   try{
    const event=JSON.parse(line);
    if(event.type==='item.completed'&&event.item?.type==='agent_message'&&typeof event.item.text==='string')text=event.item.text;
    if(event.type==='turn.failed'||event.type==='error')failure=true;
+   if(event.type==='turn.completed')completed=true;
   }catch{}
  }
- return {text:text.trim(),failure};
+ return {text:text.trim(),failure:failure||!completed||!text.trim()};
 }
 export function agentTimeoutMs(mode='analyze',env=process.env){
  const fallback=mode==='work'?600000:120000;
@@ -99,9 +100,21 @@ function runProcess(executable,args,{cwd,timeout=12000}={}){
   child.on('close',code=>finish({code,stdout,stderr}));
  });
 }
+export function codexLoginProbe(result={}){
+ const output=String(result.stdout||'')+'\n'+String(result.stderr||'');
+ const ready=result.code===0&&isCodexLoggedIn(output);
+ const errorCode=ready?null:result.error?.code?'CODEX_PROBE_'+result.error.code:result.timedOut?'CODEX_PROBE_TIMEOUT':result.code===0?'CODEX_PROBE_UNRECOGNIZED':/\bnot logged in\b/i.test(output)?'CODEX_NOT_LOGGED_IN':'CODEX_PROBE_FAILED';
+ return {ready,errorCode};
+}
+function codexProbeMessage(auth){
+ if(auth?.errorCode==='CODEX_NOT_LOGGED_IN')return 'Codex CLI terdeteksi tetapi belum login. Jalankan codex login lalu coba lagi.';
+ if(auth?.errorCode==='CODEX_PROBE_ENOENT')return 'Pemeriksaan Codex gagal: folder proyek atau executable tidak tersedia. Pilih folder proyek yang masih ada.';
+ if(auth?.errorCode==='CODEX_PROBE_TIMEOUT')return 'Pemeriksaan login Codex melewati batas waktu. Jalankan codex login status di terminal.';
+ return 'Status login Codex belum dapat diperiksa. Jalankan codex login status di terminal untuk diagnosis.';
+}
 async function codexLoginStatus(executable,cwd){
  const result=await runProcess(executable,['login','status'],{cwd,timeout:12000});
- return {ready:result.code===0&&isCodexLoggedIn(result.stdout+'\n'+result.stderr),...result};
+ return {...result,...codexLoginProbe(result)};
 }
 export function agentDefinitions(){return agents.map(({commands,envPath,configEnv,configEnvs,secondaryEnv,...agent})=>({...agent}));}
 
@@ -166,6 +179,7 @@ export class DeveloperAgentHub{
  }
  async status(){
   const projectRoot=this.getProjectRoot(),projectRootReady=await this.projectRootReady();
+  const workReadiness=await inspectMaintenanceReadiness(projectRoot);
   const rows=await Promise.all(agents.map(async agent=>{
    if(agent.internal)return {id:agent.id,name:agent.name,method:agent.method,state:'setup',detail:'Menunggu executor lokal yang aman.',canRun:false,url:agent.url,executable:true};
    const executable=await locate(agent);
@@ -178,10 +192,10 @@ export class DeveloperAgentHub{
    else if(agent.id==='replit'){state='mcp-client';detail='Replit Agent menerima remote MCP dari halaman Integrations.';}
    else if(agent.id==='pieces'){state=configured?'configured':executable?'installed':'setup';detail=configured?'PIECES_MCP_URL terdeteksi.':executable?'PiecesOS terdeteksi; salin URL MCP ke PIECES_MCP_URL bila ingin dipakai lintas agent.':'Install PiecesOS lalu ambil URL MCP lokal.';}
    else if(agent.id==='askcodi'){state=configured?'configured':'setup';detail=configured?'AskCodi API siap dipakai dari provider HumanALE god egine.':'Atur ASKCODI_API_KEY dan ASKCODI_MODEL.';}
-   else if(agent.id==='codex'&&executable){state=codexAuth?.ready?'configured':'installed';detail=codexAuth?.ready?'Codex CLI terdeteksi dan login aktif.':'Codex CLI terdeteksi tetapi belum login. Jalankan codex login lalu coba lagi.';}
+   else if(agent.id==='codex'&&executable){state=codexAuth?.ready?'configured':'installed';detail=codexAuth?.ready?'Codex CLI terdeteksi dan login aktif.':codexProbeMessage(codexAuth);}
    else if(executable){state='installed';detail='CLI/aplikasi lokal terdeteksi.';}
    else{state='setup';detail=agent.method.includes('MCP')?'Belum terdeteksi lokal; integrasi MCP tetap didukung oleh produknya.':'Belum dikonfigurasi.';}
-   return {id:agent.id,name:agent.name,method:agent.method,state,detail,canRun:Boolean(agent.canRun&&executable&&(agent.id!=='codex'||codexAuth?.ready)),url:agent.url,executable:executable?true:false};
+   return {id:agent.id,name:agent.name,method:agent.method,state,detail,canRun:Boolean(agent.canRun&&executable&&(agent.id!=='codex'||codexAuth?.ready)),url:agent.url,executable:executable?true:false,...(codexAuth?.errorCode?{errorCode:codexAuth.errorCode}:{})};
   }));
   const structuredExecutors=rows.filter(row=>['github-copilot','codex','cursor','claude'].includes(row.id)&&row.canRun);
   const orchestrator=rows.find(row=>row.id==='humanale-orchestrator');
@@ -195,6 +209,8 @@ export class DeveloperAgentHub{
   return {
    projectRoot,
    projectRootReady,
+   workReady:workReadiness.ready,workReadiness,
+   workBlockReason:workReadiness.error,workBlockCode:workReadiness.code,
    maintenancePolicy:maintenancePolicySnapshot(),
    agents:rows
   };
@@ -232,8 +248,8 @@ export class DeveloperAgentHub{
   if(id==='codex'){
    const auth=await codexLoginStatus(executable,cwd);
    if(!auth.ready){
-    if(auth.timedOut)throw new Error('Pemeriksaan login Codex melewati batas waktu. Jalankan codex login status di terminal.');
-    throw new Error('Codex CLI terpasang tetapi belum login. Jalankan codex login di terminal lalu coba lagi.');
+    const error=new Error(auth.errorCode==='CODEX_NOT_LOGGED_IN'?'Codex CLI terpasang tetapi belum login. Jalankan codex login di terminal lalu coba lagi.':codexProbeMessage(auth));
+    error.code=auth.errorCode;throw error;
    }
   }
   const safeWorkPrompt=mode==='work'?buildMaintenanceWorkPrompt(prompt):prompt;
@@ -475,6 +491,8 @@ export class DeveloperAgentHub{
    if(transaction){
     const finalInspection=await transaction.inspect();
     if(!finalInspection.allowed)throw maintenanceChangeSetError(finalInspection);
+    return {...result,maintenance:Object.freeze({transactionId:transaction.id,
+     changedFiles:finalInspection.paths.length,totalBytes:finalInspection.totalBytes})};
    }
    return result;
   }catch(error){
