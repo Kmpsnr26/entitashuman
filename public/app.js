@@ -734,7 +734,7 @@ async function speakLocal(text,style=voiceStyle){
   if(typeof result.audio!=='string'||result.audio.length>20000000)throw new Error('Audio suara tidak valid.');
   const bytes=Uint8Array.from(atob(result.audio),character=>character.charCodeAt(0));
   await robotVoicePlayer.play(bytes,{style,
-   onstart:()=>{ttsActive=true;ttsEnergy=.55;syncFaceAudio();naraDispatch('speech.start',{energy:ttsEnergy,source:activeSpeechSource||'tts'});avatar.trigger('nod');state('Berbicara · '+(style==='natural'?'Indonesia':style==='adult-robot'?'Laki-laki tegas':'Robot Indonesia'));setMicStatus('Memutar suara · '+(result.engine||'lokal'));if($('#voiceStatus'))$('#voiceStatus').textContent='Suara Indonesia aktif · '+(result.engine||'lokal');},
+   onstart:()=>{ttsActive=true;ttsEnergy=.55;syncFaceAudio();naraDispatch('speech.start',{energy:ttsEnergy,source:activeSpeechSource||'tts'});avatar.trigger('nod');state('Berbicara · '+(style==='natural'?'Indonesia':style==='adult-robot'?(result.voiceGender==='male'?'Laki-laki tegas':'Suara berat'):'Robot Indonesia'));setMicStatus('Memutar suara · '+(result.engine||'lokal'));if($('#voiceStatus'))$('#voiceStatus').textContent='Suara Indonesia aktif · '+(result.engine||'lokal');},
    onenergy:energy=>{ttsEnergy=energy;syncFaceAudio();const now=performance.now();if(now-lastNaraSpeechSent>140){lastNaraSpeechSent=now;naraDispatch('speech.energy',{energy:ttsEnergy,source:activeSpeechSource||'tts'});}},
    onend:()=>{setMicStatus('Suara selesai.');stopSpeech();}
   });
