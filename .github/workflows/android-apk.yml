@@ -27,6 +27,7 @@ on:
       - "scripts/prepare-android.mjs"
       - "scripts/android-version.mjs"
       - "scripts/humanale-release-publication-gate.mjs"
+      - "scripts/humanale-certified-artifact-run.mjs"
       - "package-lock.json"
       - ".github/workflows/android-apk.yml"
       - "build.mjs"
@@ -40,6 +41,7 @@ on:
       - "scripts/prepare-android.mjs"
       - "scripts/android-version.mjs"
       - "scripts/humanale-release-publication-gate.mjs"
+      - "scripts/humanale-certified-artifact-run.mjs"
       - "package-lock.json"
       - ".github/workflows/android-apk.yml"
       - "build.mjs"
@@ -117,7 +119,7 @@ jobs:
 
   release:
     name: Build and verify signed Android artifact
-    if: github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release) && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && inputs.build_signed_artifact && github.ref == 'refs/heads/main'
     needs: apk
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -219,10 +221,11 @@ jobs:
   publish-android:
     name: Publish verified Android release
     if: github.event_name == 'workflow_dispatch' && inputs.publish_release && github.ref == 'refs/heads/main'
-    needs: release
+    needs: apk
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     steps:
       - name: Checkout release metadata
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -232,11 +235,21 @@ jobs:
       - name: Enforce release publication gate
         run: node scripts/humanale-release-publication-gate.mjs
 
+      - name: Resolve certified Android build run
+        id: certified-artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/humanale-certified-artifact-run.mjs --platform android
+
       - name: Download signed Android artifact
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          name: HumanALE-Android-Signed-${{ github.sha }}
+          name: ${{ steps.certified-artifact.outputs.artifact-name }}
+          run-id: ${{ steps.certified-artifact.outputs.run-id }}
+          github-token: ${{ github.token }}
           path: release
+      - name: Match Android artifact to device acceptance certificate
+        run: node scripts/humanale-release-publication-gate.mjs --artifacts release --platform android
 
       - name: Publish signed APK to versioned GitHub release
         shell: bash

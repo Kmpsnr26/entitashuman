@@ -19,7 +19,8 @@ on:
         default: false
         type: boolean
   pull_request:
-    branches: [main]
+    # Dependent release-validation PRs also need the native Windows gates.
+    branches: [main, "codex/release-followup-*"]
   push:
     branches: [main]
 
@@ -39,7 +40,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Require main for signed builds
-        if: github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release)
+        if: github.event_name == 'workflow_dispatch' && inputs.build_signed_artifact
         run: test "$GITHUB_REF_NAME" = main
       - name: Setup Node
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
@@ -64,7 +65,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Require main for signed builds
-        if: github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release)
+        if: github.event_name == 'workflow_dispatch' && inputs.build_signed_artifact
         run: if ($env:GITHUB_REF -ne 'refs/heads/main') { throw 'Signed builds require main.' }
       - name: Setup Node
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
@@ -73,14 +74,21 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
+      - name: Verify bounded maintenance on real Windows Git workspaces
+        run: node --test tests/agent-autopilot-transaction.test.mjs tests/agent-autopilot-real-transaction.test.mjs tests/agent-autopilot-broker-integration.test.mjs tests/agent-trusted-maintenance-broker.test.mjs tests/agent-trusted-process-broker.test.mjs
       - name: Smoke interactive Windows terminal
         run: npm run smoke:terminal
+      - name: Verify Windows device and acceptance evidence regressions
+        run: node --test tests/humanale-final-device-security.test.mjs tests/humanale-release-security.test.mjs tests/humanale-performance-stability-runner.test.mjs tests/humanale-unified-acceptance.test.mjs tests/nara-neural-gpu-acceptance.test.mjs
       - name: Package portable desktop
         run: npm run package:desktop
       - name: Smoke packaged desktop
-        run: .\HumanALE-God-Engine-Desktop\HumanALE-God-Engine.exe --ci-smoke
+        shell: pwsh
+        run: |
+          $smoke = Start-Process -FilePath '.\HumanALE-God-Engine-Desktop\HumanALE-God-Engine.exe' -ArgumentList '--ci-smoke' -PassThru -Wait -WindowStyle Hidden
+          if ($smoke.ExitCode -ne 0) { throw "Packaged desktop smoke failed with exit code $($smoke.ExitCode)." }
       - name: Require Windows signing material
-        if: github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release)
+        if: github.event_name == 'workflow_dispatch' && inputs.build_signed_artifact
         shell: pwsh
         env:
           WINDOWS_SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
@@ -93,7 +101,7 @@ jobs:
           [IO.File]::WriteAllBytes($pfx,$bytes)
           if (-not (Test-Path $pfx) -or (Get-Item $pfx).Length -lt 100) { throw "Windows signing certificate payload is invalid." }
       - name: Sign portable desktop executable
-        if: github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release)
+        if: github.event_name == 'workflow_dispatch' && inputs.build_signed_artifact
         shell: pwsh
         env:
           WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
@@ -106,10 +114,10 @@ jobs:
           & $signtool.FullName sign /fd SHA256 /tr https://timestamp.digicert.com /td SHA256 /f $pfx /p $env:WINDOWS_SIGNING_PFX_PASSWORD $exe
           if ($LASTEXITCODE -ne 0) { throw "Portable HumanALE Authenticode signing failed." }
       - name: Build assisted Windows installer
-        if: github.event_name != 'workflow_dispatch' || (inputs.build_signed_artifact != true && inputs.publish_release != true)
+        if: github.event_name != 'workflow_dispatch' || inputs.build_signed_artifact != true
         run: npm run package:installer
       - name: Build signed Windows installer
-        if: github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release)
+        if: github.event_name == 'workflow_dispatch' && inputs.build_signed_artifact
         env:
           CSC_LINK: ${{ runner.temp }}/humanale-signing.pfx
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
@@ -127,7 +135,7 @@ jobs:
           Write-Host "Installer ready: $($installer.FullName) ($($installer.Length) bytes)"
           Write-Host "Portable package: $zip"
       - name: Verify Windows Authenticode
-        if: github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release)
+        if: github.event_name == 'workflow_dispatch' && inputs.build_signed_artifact
         shell: pwsh
         run: |
           $installer = Get-ChildItem release -Filter "HumanALE-God-Engine-Setup-*-x64.exe" | Select-Object -First 1
@@ -139,11 +147,11 @@ jobs:
             if (-not $signature.SignerCertificate) { throw "Signer certificate missing for $target." }
           }
       - name: Remove Windows signing material
-        if: ${{ always() && github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release) }}
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.build_signed_artifact }}
         shell: pwsh
         run: Remove-Item (Join-Path $env:RUNNER_TEMP "humanale-signing.pfx") -Force -ErrorAction SilentlyContinue
       - name: Upload verified Windows artifacts
-        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.publish_release || inputs.upload_test_artifact) }}
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.build_signed_artifact || inputs.upload_test_artifact) }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: HumanALE-Windows-${{ github.sha }}
@@ -160,6 +168,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     steps:
       - name: Checkout release metadata
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -167,11 +176,20 @@ jobs:
           fetch-depth: 0
       - name: Enforce release publication gate
         run: node scripts/humanale-release-publication-gate.mjs
+      - name: Resolve certified Windows build run
+        id: certified-artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/humanale-certified-artifact-run.mjs --platform windows
       - name: Download verified Windows artifacts
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          name: HumanALE-Windows-${{ github.sha }}
+          name: ${{ steps.certified-artifact.outputs.artifact-name }}
+          run-id: ${{ steps.certified-artifact.outputs.run-id }}
+          github-token: ${{ github.token }}
           path: release
+      - name: Match Windows artifacts to device acceptance certificate
+        run: node scripts/humanale-release-publication-gate.mjs --artifacts release --platform windows
       - name: Validate and publish Windows release
         shell: bash
         env:

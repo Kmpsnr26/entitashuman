@@ -40,6 +40,7 @@ function fallbackPolicy(runtime={},reason='nara.idle'){
 
 export function reduceHumanALEPolicy(previous=createHumanALEPolicy(),event='',payload={},runtime={}){
   const name=String(event||'');
+  if(name==='provider.status'||name==='startup.connections')return previous;
   if(name==='nara.start')return basePolicy('idle',name,.12);
   if(name==='nara.shutdown')return basePolicy('idle',name,0);
 

@@ -1,6 +1,9 @@
 import {spawn} from 'node:child_process';
+import {existsSync,realpathSync} from 'node:fs';
+import {delimiter,dirname,isAbsolute,join,relative,sep} from 'node:path';
 import {beginMaintenanceTransaction} from './agent-maintenance-transaction.mjs';
 import {sanitizeMaintenanceEnvironment} from './agent-maintenance-guard.mjs';
+import {markMaintenanceProcessUnconfirmed,terminateMaintenanceProcessTree} from './agent-trusted-process-broker.mjs';
 
 export const TRUSTED_MAINTENANCE_BROKER_VERSION='1.0.0';
 
@@ -52,24 +55,57 @@ function requireFn(value,name){
  if(typeof value!=='function')throw new TypeError(name+' must be a function');
 }
 
+function windowsNpmLauncher(cwd){
+ const checkout=realpathSync(cwd);
+ const outsideCheckout=path=>{
+  let canonical;
+  try{canonical=realpathSync(path);}catch{return false;}
+  const rel=relative(checkout,canonical);
+  return rel==='..'||rel.startsWith('..'+sep)||isAbsolute(rel);
+ };
+ const pathValue=Object.entries(process.env).find(([key])=>key.toLowerCase()==='path')?.[1]||'';
+ const directories=[dirname(process.execPath),...pathValue.split(delimiter)]
+  .map(path=>path.replace(/^"|"$/g,''))
+  .filter(path=>isAbsolute(path)&&outsideCheckout(path));
+ const node=directories.map(path=>join(path,'node.exe')).find(path=>existsSync(path)&&outsideCheckout(path));
+ const cli=directories.map(path=>join(path,'node_modules','npm','bin','npm-cli.js')).find(path=>existsSync(path)&&outsideCheckout(path));
+ // Never fall back to shell/PATHEXT lookup in a worker-controlled checkout.
+ if(!node||!cli)throw new Error('Trusted Windows Node/npm installation unavailable.');
+ return {executable:node,args:[cli]};
+}
+
 function defaultCommandRunner({command,args,cwd,env,timeoutMs=180000}){
  return new Promise(resolve=>{
-  const child=spawn(command,args,{
+  const windows=process.platform==='win32';
+  let executable=command,launchArgs=args;
+  if(windows){
+   try{
+    const launcher=windowsNpmLauncher(cwd);
+    executable=launcher.executable;
+    launchArgs=[...launcher.args,...args];
+   }catch{
+    resolve({ok:false,code:'COMMAND_START_FAILED',summary:'Trusted Windows Node/npm launcher unavailable.'});
+    return;
+   }
+  }
+  const child=spawn(executable,launchArgs,{
    cwd,
    env,
    windowsHide:true,
+   detached:!windows,
    stdio:['ignore','pipe','pipe']
   });
-  let stdout='',stderr='',settled=false;
+  let stdout='',stderr='',settled=false,timedOut=false;
   const finish=result=>{
    if(settled)return;
    settled=true;
    clearTimeout(timer);
    resolve(result);
   };
-  const timer=setTimeout(()=>{
-   child.kill();
-   finish({ok:false,code:'COMMAND_TIMEOUT',summary:command+' timed out.'});
+  const timer=setTimeout(async()=>{
+   timedOut=true;
+   const {terminationConfirmed}=await terminateMaintenanceProcessTree(child);
+   finish({ok:false,code:terminationConfirmed?'COMMAND_TIMEOUT':'COMMAND_TERMINATION_FAILED',terminationConfirmed,summary:command+' timed out.'});
   },timeoutMs);
   child.stdout.on('data',data=>{
    stdout=(stdout+data).slice(-32000);
@@ -82,16 +118,19 @@ function defaultCommandRunner({command,args,cwd,env,timeoutMs=180000}){
    code:'COMMAND_START_FAILED',
    summary:command+' could not start.'
   }));
-  child.on('close',code=>finish({
-   ok:code===0,
-   code:code===0?'COMMAND_PASS':'COMMAND_FAILED',
-   summary:code===0
-    ?command+' completed successfully.'
-    :command+' failed with exit code '+String(code)+'.',
-   exitCode:code,
-   stdoutTail:stdout,
-   stderrTail:stderr
-  }));
+  child.on('close',code=>{
+   if(timedOut)return;
+   finish({
+    ok:code===0,
+    code:code===0?'COMMAND_PASS':'COMMAND_FAILED',
+    summary:code===0
+     ?command+' completed successfully.'
+     :command+' failed with exit code '+String(code)+'.',
+    exitCode:code,
+    stdoutTail:stdout,
+    stderrTail:stderr
+   });
+  });
  });
 }
 
@@ -231,7 +270,7 @@ export class TrustedMaintenanceBroker{
      reproduction:normalizedReproduction,
      attempt
     }),
-    {transaction}
+    {transaction,signal}
    );
    return {
     ok:true,
@@ -243,19 +282,24 @@ export class TrustedMaintenanceBroker{
   }catch(error){
    return {
     ok:false,
-    code:error?.code==='AI_MAINTENANCE_CHANGESET_BLOCKED'?'BLOCKED':'PATCH_FAILED',
+    code:SAFE_ID.test(String(error?.code||''))?String(error.code):'PATCH_FAILED',
     summary:redact(error?.message||error)
    };
   }
  }
 
- async inspect({transactionId}={}){
+ async inspect({transactionId,signal}={}){
+  if(signal?.aborted)return {ok:false,code:'ABORTED',summary:'Inspection aborted.'};
   const session=this.session(transactionId);
   if(!session){
    return {ok:false,code:'NO_ACTIVE_TRANSACTION',summary:'No active maintenance transaction.'};
   }
+  if(session.manualRecoveryRequired||session.transaction.processTerminationUnconfirmed){
+   return {ok:false,code:'MANUAL_RECOVERY_REQUIRED',summary:'Command termination is unconfirmed; inspection cannot authorize further work.'};
+  }
   try{
    const result=await session.transaction.inspect({rollbackOnViolation:false});
+   if(signal?.aborted)return {ok:false,code:'ABORTED',summary:'Inspection aborted.'};
    return {
     ok:result.allowed===true,
     code:result.allowed?'SAFE_CHANGESET':'BLOCKED',
@@ -266,19 +310,25 @@ export class TrustedMaintenanceBroker{
     totalBytes:result.totalBytes
    };
   }catch(error){
-   return {ok:false,code:'INSPECTION_ERROR',summary:redact(error?.message||error)};
+   return {ok:false,code:SAFE_ID.test(String(error?.code||''))?String(error.code):'INSPECTION_ERROR',summary:redact(error?.message||error)};
   }
  }
 
- async runFixedPlan(label,transactionId){
+ async runFixedPlan(label,transactionId,signal){
+  if(signal?.aborted)return {ok:false,code:'ABORTED',summary:label+' aborted.'};
   const session=this.session(transactionId);
   if(!session){
    return {ok:false,code:'NO_ACTIVE_TRANSACTION',summary:'No active maintenance transaction.'};
   }
   const plan=label==='test'?this.testPlan:this.verifyPlan;
-  const env=sanitizeMaintenanceEnvironment(process.env,{
+  const env={...sanitizeMaintenanceEnvironment(process.env,{
    isolatedHome:session.transaction.isolatedHome||''
-  }).env;
+  }).env};
+  // Runtime preload and npm config can redirect an otherwise fixed verifier.
+  // Normal project configuration remains protected by transaction inspection.
+  for(const key of Object.keys(env)){
+   if(/^(?:NODE_OPTIONS|NODE_PATH|NPM_CONFIG_.*|NPM_EXECPATH|NPM_NODE_EXECPATH|ELECTRON_RUN_AS_NODE)$/i.test(key))delete env[key];
+  }
   const result=await this.commandRunner({
    command:plan.command,
    args:[...plan.args],
@@ -289,27 +339,29 @@ export class TrustedMaintenanceBroker{
   if(!result||typeof result!=='object'){
    return {ok:false,code:'INVALID_COMMAND_RESULT',summary:label+' command result invalid.'};
   }
-  return {
-   ok:result.ok===true,
-   code:safeText(result.code||(result.ok?'PASS':'FAILED'),80),
-   summary:redact(result.summary||(result.ok?label+' passed.':label+' failed.'))
-  };
+  if(result.terminationConfirmed===false){
+   markMaintenanceProcessUnconfirmed(session.transaction);
+   this.sessions.set(transactionId,Object.freeze({...session,manualRecoveryRequired:true}));
+   return {ok:false,code:'MANUAL_RECOVERY_REQUIRED',summary:'Command termination is unconfirmed; repository lock retained for manual recovery.'};
+  }
+  if(signal?.aborted)return {ok:false,code:'ABORTED',summary:label+' aborted.'};
+  return normalizeEvidence(result,label);
  }
 
- async test({transactionId}={}){
-  const before=await this.inspect({transactionId});
+ async test({transactionId,signal}={}){
+  const before=await this.inspect({transactionId,signal});
   if(!before.ok)return before;
-  return this.runFixedPlan('test',transactionId);
+  return this.runFixedPlan('test',transactionId,signal);
  }
 
- async verify({transactionId}={}){
-  const before=await this.inspect({transactionId});
+ async verify({transactionId,signal}={}){
+  const before=await this.inspect({transactionId,signal});
   if(!before.ok)return before;
 
-  const command=await this.runFixedPlan('verify',transactionId);
+  const command=await this.runFixedPlan('verify',transactionId,signal);
   if(!command.ok)return command;
 
-  const after=await this.inspect({transactionId});
+  const after=await this.inspect({transactionId,signal});
   if(!after.ok)return after;
 
   const session=this.session(transactionId);
@@ -338,6 +390,9 @@ export class TrustedMaintenanceBroker{
     code:'ROLLBACK_NOT_NEEDED',
     summary:'No active maintenance transaction.'
    };
+  }
+  if(session.manualRecoveryRequired||session.transaction.processTerminationUnconfirmed){
+   return {ok:false,code:'MANUAL_RECOVERY_REQUIRED',summary:'Automatic rollback blocked while command termination is unconfirmed.'};
   }
   try{
    const result=await session.transaction.rollback(safeText(reason,80));

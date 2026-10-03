@@ -1,9 +1,83 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {runInNewContext} from 'node:vm';
 import {createHumanALEVisualStudio,HUMANALE_VISUAL_STUDIO_SNAPSHOT_KEY,HUMANALE_VISUAL_REAL_TEST_EVIDENCE_KEY} from '../public/humanale-visual-studio.js';
 
 const root=new URL('../',import.meta.url);
+
+async function visualTestRuntime(overrides={}){
+ const app=await readFile(new URL('public/app.js',root),'utf8');
+ const functions=['runHumanALEVisualTest','handleHumanALEVisualTestMessage','drainNaraVoiceQueue'].map(name=>{
+  const source=app.match(new RegExp('(?:async )?function '+name+'\\([^]*?\\n\\}'))?.[0];
+  assert.ok(source,name+' missing');return source;
+ }).join('\n');
+ const context={
+  desktop:{naraTestScenario:async()=>({ok:true,restored:true})},
+  panelOnly:false,panelChannel:null,pendingVisualTests:new Map(),visualTestRequestSequence:0,
+  activeSpeechSource:'',naraVisualTestActive:false,naraVoiceDrainTimer:null,naraVoiceActive:false,
+  naraVoiceQueue:[{text:'NARA cue'}],voice:true,Date,setTimeout,clearTimeout,
+  naraSpeechBusy:()=>false,stopSpeech:()=>{},naraDispatch:async()=>({ok:true}),
+  syncNaraBrainState:()=>{},scheduleNaraVoiceDrain:()=>{},speak:()=>true,...overrides
+ };
+ runInNewContext(functions,context);
+ return context;
+}
+
+test('controlled test cancels pending automatic narration and holds voice cues until restoration',async()=>{
+ const events=[];
+ let finish;
+ let runtime;
+ runtime=await visualTestRuntime({
+  activeSpeechSource:'nara',naraSpeechBusy:()=>true,
+  stopSpeech:()=>{events.push('cancel-narration');runtime.activeSpeechSource='';},
+  naraDispatch:async event=>{events.push(event);},
+  desktop:{naraTestScenario:async()=>{events.push('start-test');return new Promise(resolve=>{finish=resolve;});}},
+  scheduleNaraVoiceDrain:()=>events.push('resume-narration'),
+  speak:()=>{events.push('speak');return true;}
+ });
+ const pending=runtime.runHumanALEVisualTest('thinking');
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(events,['cancel-narration','speech.stop','start-test']);
+ assert.equal(runtime.naraVisualTestActive,true);
+ runtime.drainNaraVoiceQueue();
+ assert.equal(runtime.naraVoiceQueue.length,1);
+ assert.equal(events.includes('speak'),false);
+ finish({ok:true,restored:true});
+ assert.equal((await pending).restored,true);
+ assert.equal(runtime.naraVisualTestActive,false);
+ assert.equal(events.at(-1),'resume-narration');
+});
+
+test('controlled test preserves assistant speech and releases narration hold after failure',async()=>{
+ const events=[];
+ const runtime=await visualTestRuntime({
+  activeSpeechSource:'assistant',naraSpeechBusy:()=>true,
+  stopSpeech:()=>events.push('cancel'),desktop:{naraTestScenario:async()=>{events.push('test');}}
+ });
+ assert.match((await runtime.runHumanALEVisualTest('thinking')).error,/suara/);
+ assert.deepEqual(events,[]);
+ runtime.naraSpeechBusy=()=>false;
+ runtime.desktop.naraTestScenario=async()=>{throw new Error('real-test-failure');};
+ runtime.scheduleNaraVoiceDrain=()=>events.push('resumed');
+ await assert.rejects(runtime.runHumanALEVisualTest('thinking'),/real-test-failure/);
+ assert.equal(runtime.naraVisualTestActive,false);
+ assert.deepEqual(events,['resumed']);
+});
+
+test('detached panel runs controlled test through avatar narration owner and correlates the result',async()=>{
+ let runs=0;
+ const avatar=await visualTestRuntime({desktop:{naraTestScenario:async scenario=>{runs++;return {ok:true,restored:true,scenario};}}});
+ const panel=await visualTestRuntime({panelOnly:true,desktop:{naraTestScenario:()=>assert.fail('panel bypassed avatar narration coordinator')}});
+ avatar.panelChannel={postMessage:data=>panel.handleHumanALEVisualTestMessage(data)};
+ panel.panelChannel={postMessage:data=>avatar.handleHumanALEVisualTestMessage(data)};
+ const result=await panel.runHumanALEVisualTest('thinking');
+ assert.equal(runs,1);
+ assert.equal(result.scenario,'thinking');
+ assert.equal(result.restored,true);
+ assert.equal(panel.pendingVisualTests.size,0);
+ assert.equal(avatar.naraVisualTestActive,false);
+});
 
 test('HumanALE Visual Studio normalizes bounded runtime telemetry without a renderer',()=>{
  const dom={querySelector:()=>null};

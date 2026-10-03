@@ -265,3 +265,20 @@ test('duplicate active transaction id is rejected',async()=>{
  assert.equal(duplicate.code,'SESSION_EXISTS');
  await s.broker.rollback({transactionId:'auto-dup'});
 });
+
+test('fixed verifier removes inherited Node preload and npm configuration redirects',async()=>{
+ const keys=['NODE_OPTIONS','NODE_PATH','NPM_CONFIG_USERCONFIG','npm_config_script_shell','npm_execpath','npm_node_execpath','ELECTRON_RUN_AS_NODE'];
+ const prior=keys.map(key=>[key,process.env[key]]);
+ try{
+  for(const key of keys)process.env[key]='fixture-redirect';
+  const s=setup();
+  const detection=await s.broker.detect({transactionId:'auto-env-redirect'});
+  const reproduction=await s.broker.reproduce({transactionId:'auto-env-redirect',detection,attempt:1});
+  await s.broker.patch({transactionId:'auto-env-redirect',detection,reproduction,attempt:1});
+  await s.broker.test({transactionId:'auto-env-redirect'});
+  for(const key of Object.keys(s.commandCalls[0].env))assert.equal(keys.some(blocked=>blocked.toLowerCase()===key.toLowerCase()),false,key);
+  await s.broker.rollback({transactionId:'auto-env-redirect'});
+ }finally{
+  for(const [key,value] of prior){if(value===undefined)delete process.env[key];else process.env[key]=value;}
+ }
+});

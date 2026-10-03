@@ -52,6 +52,8 @@ function gateMapFromCertificate(certificate={}){
 
 function validateIdentity(result,{expectedBranch,expectedCommit}){
   const reasons=[];
+  if(!expectedBranch)reasons.push('expected-branch-missing');
+  if(!/^[0-9a-f]{40}$/i.test(String(expectedCommit||'')))reasons.push('expected-candidate-invalid');
   if(expectedBranch&&result?.branch!==expectedBranch){
     reasons.push('branch-mismatch');
   }
@@ -64,6 +66,12 @@ function validateIdentity(result,{expectedBranch,expectedCommit}){
 function evaluatePerformance(result){
   const reasons=[];
   const m=result?.metrics||{};
+  if(result?.artifactSourceVerified!==true)reasons.push('artifact-source-unverified');
+  if(result?.processIdentityVerified!==true)reasons.push('process-identity-not-pass');
+  if(result?.runtimeSourceVerified!==true)reasons.push('runtime-source-unverified');
+  if(!/^[0-9a-f]{64}$/i.test(String(result?.executableSha256||'')))reasons.push('executable-hash-invalid');
+  if(!/^[0-9a-f]{64}$/i.test(String(result?.runtimeSha256||'')))reasons.push('runtime-hash-invalid');
+  if(result?.observeOnly===true)reasons.push('observation-only-not-pass');
   if(result?.fullyValidated!==true)reasons.push('fullyValidated=false');
   if(result?.state!==TARGETS.performance.passState)reasons.push('state-not-pass');
   if(m.allProcessesStayedAlive!==true)reasons.push('process-liveness-not-pass');
@@ -74,16 +82,27 @@ function evaluatePerformance(result){
 
 function evaluateAndroid(result){
   const reasons=[];
+  if(result?.artifactSourceVerified!==true)reasons.push('artifact-source-unverified');
+  if(!/^[0-9a-f]{64}$/i.test(String(result?.apkSha256||'')))reasons.push('artifact-hash-invalid');
   if(result?.fullyValidated!==true)reasons.push('fullyValidated=false');
   if(result?.state!==TARGETS.android.passState)reasons.push('state-not-pass');
   if(result?.installSuccess!==true)reasons.push('install-not-pass');
   if(result?.packageDetected!==true)reasons.push('package-not-detected');
+  if(result?.launchSuccess!==true)reasons.push('launch-not-pass');
+  if(result?.processAlive!==true)reasons.push('process-liveness-not-pass');
+  if(result?.foregroundMatches!==true)reasons.push('foreground-not-pass');
   if(result?.operatorPass!==true)reasons.push('operator-device-validation-not-pass');
   return reasons;
 }
 
 function evaluateSecurity(result){
   const reasons=[];
+  if(result?.artifactSourceVerified!==true)reasons.push('artifact-source-unverified');
+  if(result?.android?.productionSignerMatched!==true)reasons.push('production-signer-not-pass');
+  if(result?.android?.packageIdentityVerified!==true)reasons.push('package-identity-not-pass');
+  if(result?.android?.productionManifestVerified!==true)reasons.push('production-manifest-not-pass');
+  if(!/^[0-9a-f]{64}$/i.test(String(result?.windows?.installerSha256||''))||
+      !/^[0-9a-f]{64}$/i.test(String(result?.android?.apkSha256||'')))reasons.push('artifact-hash-invalid');
   if(result?.fullyValidated!==true)reasons.push('fullyValidated=false');
   if(result?.state!==TARGETS.security.passState)reasons.push('state-not-pass');
   if(result?.windows?.pass!==true)reasons.push('windows-authenticode-not-pass');
@@ -172,6 +191,19 @@ export function aggregateHumanALEFinalEvidence({
   }
 
   const checks=gateMapFromCertificate(certificate);
+  const certificateIdentityReasons=validateIdentity({
+    branch:certificate.build?.branch,
+    candidate:certificate.build?.commit
+  },{expectedBranch,expectedCommit});
+  if(certificate.protocol!=='humanale-final-readiness/1'){
+    certificateIdentityReasons.push('certificate-protocol-mismatch');
+  }
+  if(certificateIdentityReasons.length){
+    for(const check of Object.values(checks)){
+      check.status='blocked';
+      check.note=bounded('Existing certificate not accepted: '+certificateIdentityReasons.join(', '));
+    }
+  }
   checks[TARGETS.performance.gate]=technicalCheck(
     'performance',
     performanceResult,
@@ -187,9 +219,16 @@ export function aggregateHumanALEFinalEvidence({
     securityResult,
     {expectedBranch,expectedCommit}
   );
+  if(checks[TARGETS.android.gate].status==='pass'&&checks[TARGETS.security.gate].status==='pass'&&
+      androidResult.apkSha256.toLowerCase()!==securityResult.android.apkSha256.toLowerCase()){
+    for(const id of [TARGETS.android.gate,TARGETS.security.gate]){
+      checks[id].status='blocked';
+      checks[id].note='Runtime and release-security evidence refer to different APK hashes.';
+    }
+  }
 
   const creatorApproval={
-    approved:certificate?.creatorApproval?.approved===true,
+    approved:certificateIdentityReasons.length===0&&certificate?.creatorApproval?.approved===true,
     by:bounded(certificate?.creatorApproval?.by,80),
     note:bounded(certificate?.creatorApproval?.note,240),
     timestamp:Number(certificate?.creatorApproval?.timestamp)||0
@@ -223,6 +262,7 @@ export function aggregateHumanALEFinalEvidence({
     summary:Object.freeze({...evaluated.summary}),
     blockers:Object.freeze([...evaluated.blockers]),
     safety:Object.freeze({
+      certificateIdentityMatched:certificateIdentityReasons.length===0,
       creatorApprovalInferred:false,
       liveIntegrationActivated:false,
       certificateAutoMerged:false

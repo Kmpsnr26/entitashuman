@@ -25,6 +25,13 @@ Evidence is accepted only when its recorded:
 
 A branch/commit/protocol mismatch becomes `BLOCKED`, not PASS.
 
+The existing certificate must also match the current branch and commit. When it
+does not, its six inherited gates become `BLOCKED` and its Creator approval is
+not accepted for this candidate. The aggregator never transfers old device
+acceptance or approval simply by changing `build.commit`. Missing Git identity
+also blocks evidence. Prepare a reviewed certificate for the tested candidate
+before aggregating its remaining results.
+
 ## Technical gates
 
 ### performance-stability
@@ -33,6 +40,11 @@ PASS requires:
 
 - `PERFORMANCE_STABILITY_PASS`
 - `fullyValidated=true`
+- `artifactSourceVerified=true`, `runtimeSourceVerified=true`, and
+  `processIdentityVerified=true`
+- valid executable and full `resources/app` runtime SHA-256 hashes matched to
+  an independent trusted build record; executable bytes alone do not bind source
+- observation-only measurements cannot grant acceptance
 - every selected process stayed alive
 - process windows stayed responding
 - operator explicitly confirmed stable/no repeated crash/error/flicker
@@ -45,7 +57,11 @@ PASS requires:
 - `fullyValidated=true`
 - APK install success
 - package detected after install
+- launcher command succeeded without crash/abort
+- package process stayed alive after launch
+- package was the foreground application
 - real-device operator validation PASS
+- APK SHA-256 and source commit match an independently trusted build record
 
 ### release-security
 
@@ -55,12 +71,17 @@ PASS requires:
 - Windows Authenticode `Valid`
 - Android signature `verified`
 - both validator pass booleans true
+- artifact source/hash checks accepted against an independently trusted build record
+- Android signer matches a separately supplied production certificate fingerprint
+- Android package/version identity and non-debuggable production manifest checks
+  are explicitly verified; legacy evidence without those flags is rejected
+- Android runtime and release-security evidence use the same APK SHA-256
 
 ## Creator approval cannot be inferred
 
 The aggregator never creates creator approval.
 
-It preserves only the `creatorApproval` already present in the existing readiness certificate. Technical result JSON files cannot inject or override it.
+It preserves only the `creatorApproval` already present in a matching readiness certificate. Technical result JSON files cannot inject or override it.
 
 Therefore 9/9 technical gates can produce:
 
@@ -92,3 +113,22 @@ The command exits:
 - 1 on aggregator/runtime error.
 
 The generated result is evidence for review. It does not merge branches, change the official certificate, or activate NARA integration.
+
+## Publication source identity
+
+The publication gate compares the certified commit to the commit being published.
+The certified commit must be an ancestor, and only
+`docs/humanale-final-readiness-certificate.json` and
+`docs/humanale-final-readiness-status.md` may differ. This permits a subsequent
+commit recording the reviewed certificate without requiring a self-referential
+Git hash. Changes to runtime code, workflows, build configuration, dependencies,
+or other files require a fresh tested candidate and reviewed certificate.
+
+The reviewed certificate must also record `artifacts.windowsInstaller`,
+`artifacts.windowsPortable`, and `artifacts.androidApk`. Each contains the final
+`fileName`, byte `size`, `sha256`, `sourceCommit`, and the trusted Actions `runId`. Record hashes after signing
+and ZIP creation, using the artifacts actually tested. Publication verifies the
+downloaded files against those identities before uploading a release. A rebuild
+with different bytes requires new artifact validation even if its source is
+identical. Expected hashes/commits and signer pins must come from a trusted build
+record reviewed independently; these checks are not a cryptographic build attestation.

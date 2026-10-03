@@ -1,4 +1,7 @@
 import {readFile} from 'node:fs/promises';
+import {createReadStream} from 'node:fs';
+import {stat} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {resolve} from 'node:path';
@@ -16,6 +19,12 @@ export const HUMANALE_PUBLICATION_GATES=Object.freeze([
 ]);
 
 const HEX40=/^[0-9a-f]{40}$/i;
+const HEX64=/^[0-9a-f]{64}$/i;
+const artifactNames=version=>({
+  windowsInstaller:`HumanALE-God-Engine-Setup-${version}-x64.exe`,
+  windowsPortable:`HumanALE-God-Engine-Portable-${version}-x64.zip`,
+  androidApk:`HumanALE-Android-${version}.apk`
+});
 
 export function evaluateHumanALEReleasePublicationGate({
   certificate,
@@ -49,6 +58,14 @@ export function evaluateHumanALEReleasePublicationGate({
   }
   if(!HEX40.test(String(cert.build?.commit||''))){
     errors.push('readiness build.commit must be a full 40-character Git SHA');
+  }
+  for(const [id,fileName] of Object.entries(artifactNames(packageVersion))){
+    const artifact=cert.artifacts?.[id];
+    if(!artifact||artifact.fileName!==fileName||!HEX64.test(String(artifact.sha256||''))||
+        !Number.isSafeInteger(artifact.size)||artifact.size<=0||!Number.isSafeInteger(artifact.runId)||artifact.runId<=0||
+        artifact.sourceCommit!==cert.build?.commit){
+      errors.push('missing or invalid certified artifact identity: '+id);
+    }
   }
   if(githubRefName&&githubRefName!=='main'){
     errors.push('release publication must run from main');
@@ -93,12 +110,48 @@ export function evaluateHumanALEReleasePublicationGate({
   });
 }
 
-export function certificateCommitIsAncestor(certificateCommit,githubSha){
+// The certificate is committed after the tested build, so permit only the
+// certificate and its status note to differ. An arbitrary ancestor is unsafe:
+// it can certify runtime changes that have never received device acceptance.
+export function certificateSourceMatchesPublication(certificateCommit,githubSha,{repoRoot}={}){
   if(!HEX40.test(String(certificateCommit||''))||!HEX40.test(String(githubSha||'')))return false;
+  const options={cwd:repoRoot,encoding:'utf8'};
   const result=spawnSync('git',['merge-base','--is-ancestor',certificateCommit,githubSha],{
+    ...options,
     stdio:'ignore'
   });
-  return result.status===0;
+  if(result.status!==0)return false;
+  const diff=spawnSync('git',['diff','--name-only','-z',certificateCommit,githubSha],options);
+  if(diff.status!==0)return false;
+  const metadataPaths=new Set([
+    'docs/humanale-final-readiness-certificate.json',
+    'docs/humanale-final-readiness-status.md'
+  ]);
+  return diff.stdout.split('\0').filter(Boolean).every(file=>metadataPaths.has(file));
+}
+
+export async function verifyHumanALEPublicationArtifacts({certificate,artifactDirectory,platform}={}){
+  const ids=platform==='windows'?['windowsInstaller','windowsPortable']:platform==='android'?['androidApk']:[];
+  if(ids.length===0)return {ok:false,errors:['artifact platform must be windows or android']};
+  const errors=[];
+  const names=artifactNames(certificate?.build?.version);
+  for(const id of ids){
+    const expected=certificate?.artifacts?.[id];
+    if(!expected||expected.fileName!==names[id]||!HEX64.test(String(expected.sha256||''))||
+        !Number.isSafeInteger(expected.size)||expected.size<=0||expected.sourceCommit!==certificate?.build?.commit){
+      errors.push('missing or invalid certified artifact identity: '+id);
+      continue;
+    }
+    const file=resolve(artifactDirectory,expected.fileName);
+    try{
+      const info=await stat(file);
+      if(!info.isFile()||info.size!==expected.size){errors.push('certified artifact size mismatch: '+id);continue;}
+      const hash=createHash('sha256');
+      for await(const chunk of createReadStream(file))hash.update(chunk);
+      if(hash.digest('hex')!==expected.sha256.toLowerCase())errors.push('certified artifact SHA-256 mismatch: '+id);
+    }catch{errors.push('certified artifact unavailable: '+id);}
+  }
+  return {ok:errors.length===0,errors};
 }
 
 async function main(){
@@ -116,9 +169,23 @@ async function main(){
   });
   const errors=[...result.errors];
 
-  const githubSha=String(process.env.GITHUB_SHA||'');
-  if(githubSha&&!certificateCommitIsAncestor(certificate?.build?.commit,githubSha)){
-    errors.push('readiness build.commit is not an ancestor of GITHUB_SHA');
+  const repoRoot=fileURLToPath(root);
+  const currentHead=spawnSync('git',['rev-parse','HEAD'],{cwd:repoRoot,encoding:'utf8'});
+  const githubSha=String(process.env.GITHUB_SHA||currentHead.stdout?.trim()||'');
+  if(!certificateSourceMatchesPublication(certificate?.build?.commit,githubSha,{repoRoot})){
+    errors.push('publication source differs from the certified build (only certificate/status metadata may change)');
+  }
+  const artifactFlag=process.argv.indexOf('--artifacts');
+  if(artifactFlag!==-1){
+    const platformFlag=process.argv.indexOf('--platform');
+    const artifactDirectory=process.argv[artifactFlag+1];
+    const platform=platformFlag===-1?'':process.argv[platformFlag+1];
+    if(!artifactDirectory||artifactDirectory.startsWith('--')){
+      errors.push('artifact directory is required');
+    }else{
+      const artifactResult=await verifyHumanALEPublicationArtifacts({certificate,artifactDirectory,platform});
+      errors.push(...artifactResult.errors);
+    }
   }
 
   if(errors.length){
