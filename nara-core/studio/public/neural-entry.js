@@ -1,6 +1,6 @@
 import {createCinematicSoundEngine} from './cinematic-sound.js';
 import {createMatrixTransitionField} from './matrix-transition.js';
-import {chooseNaraVoice,broadcastVoiceSpeaking} from './voice-identity.js';
+import {studioVoice,voiceProfilePatch} from './voice-identity.js';
 
 const PHASES=[
   ['CREATOR VERIFIED','IDENTITY CHANNEL SECURED','sweep'],
@@ -15,29 +15,8 @@ function reducedMotion(){
 }
 
 function speakCoreOnline(profile={}){
-  if(!('speechSynthesis' in window)||typeof SpeechSynthesisUtterance==='undefined')return false;
-  try{
-    window.speechSynthesis.cancel();
-    const utterance=new SpeechSynthesisUtterance(
-      'NARA Core online. Akses pencipta terverifikasi. Neural Space tiga dimensi diaktifkan.'
-    );
-    const voice=chooseNaraVoice(profile);
-    if(voice)utterance.voice=voice;
-    utterance.lang=voice?.lang||'id-ID';
-    const rate=Number(profile.voiceRate);
-    const pitch=Number(profile.voicePitch);
-    const volume=Number(profile.voiceVolume);
-    utterance.rate=Number.isFinite(rate)?Math.max(.72,Math.min(1.15,rate)):.86;
-    utterance.pitch=Number.isFinite(pitch)?Math.max(.5,Math.min(1.2,pitch)):.68;
-    utterance.volume=Number.isFinite(volume)?Math.max(0,Math.min(1,volume)):.9;
-    utterance.onstart=()=>broadcastVoiceSpeaking(true);
-    utterance.onend=()=>broadcastVoiceSpeaking(false);
-    utterance.onerror=()=>broadcastVoiceSpeaking(false);
-    window.speechSynthesis.speak(utterance);
-    return true;
-  }catch{
-    return false;
-  }
+  void studioVoice().speak('NARA Core online. Akses pencipta terverifikasi. Neural Space tiga dimensi diaktifkan.',{volume:profile.voiceVolume}).catch(()=>{});
+  return true;
 }
 
 export function createNeuralEntryExperience(){
@@ -50,7 +29,7 @@ export function createNeuralEntryExperience(){
   let audioEnabled=true;
   let audioProfile={
     masterVolume:.78,transitionFx:.82,coreFx:.86,voiceVolume:.9,
-    voiceRate:.86,voicePitch:.68,voiceProfile:'deep',voiceURI:'auto',droidCharacter:true
+    ...voiceProfilePatch()
   };
   const timers=new Set();
   const sound=createCinematicSoundEngine({enabled:()=>audioEnabled});
@@ -78,7 +57,7 @@ export function createNeuralEntryExperience(){
   audioButton?.addEventListener('click',()=>{
     audioEnabled=!audioEnabled;
     if(!audioEnabled){
-      if('speechSynthesis' in window)window.speechSynthesis.cancel();
+      void studioVoice().stop().catch(()=>{});
       sound.stop();
     }
     updateAudioButton();
@@ -144,7 +123,7 @@ export function createNeuralEntryExperience(){
     play,
     setAudioEnabled(value){
       audioEnabled=Boolean(value);
-      if(!audioEnabled)sound.stop();
+      if(!audioEnabled){sound.stop();void studioVoice().stop().catch(()=>{});}
       updateAudioButton();
     },
     applyAudioSettings(settings={}){
@@ -161,7 +140,7 @@ export function createNeuralEntryExperience(){
         voicePitch:number('voicePitch',.5,1.2,audioProfile.voicePitch),
         voiceProfile:typeof settings.voiceProfile==='string'?settings.voiceProfile:audioProfile.voiceProfile,
         voiceURI:typeof settings.voiceURI==='string'?settings.voiceURI:audioProfile.voiceURI,
-        droidCharacter:typeof settings.droidCharacter==='boolean'?settings.droidCharacter:audioProfile.droidCharacter
+        ...voiceProfilePatch()
       };
       sound.setProfile(audioProfile);
       return {...audioProfile};

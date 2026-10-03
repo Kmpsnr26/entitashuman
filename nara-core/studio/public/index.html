@@ -31,7 +31,7 @@
         <label>Access Key
           <input id="creatorPassword" name="password" type="password" autocomplete="current-password" maxlength="512" required>
         </label>
-        <button type="submit">VERIFY CREATOR</button>
+        <p>Gunakan Creator ID dan Access Key Owner server ini. Login PC lain atau akun GitHub/ChatGPT tidak otomatis berlaku di sini.</p><button type="submit">VERIFY CREATOR</button>
         <output id="creatorLoginStatus">Awaiting creator authentication.</output>
       </form>
 
@@ -179,11 +179,8 @@
           <label class="custom-range"><span>Core FX <b data-visual-value="coreFx"></b></span><input type="range" min="0" max="1" step=".02" data-visual-setting="coreFx"></label>
 
           <label class="custom-select"><span>Voice Character</span>
-            <select data-visual-setting="voiceProfile">
-              <option value="deep">NARA Deep</option>
-              <option value="calm">NARA Calm</option>
-              <option value="droid">NARA Droid</option>
-              <option value="natural">NARA Natural</option>
+            <select data-visual-setting="voiceProfile" disabled>
+              <option value="adult">Pria dewasa - gema HumanALE</option>
             </select>
           </label>
 
@@ -193,12 +190,12 @@
             </select>
           </label>
 
-          <button id="naraVoicePreview" class="custom-preview-button" type="button" data-ui-sound-managed="true">▶ PREVIEW VOICE</button>
+          <p id="naraVoiceStatus" aria-live="polite">Satu karakter suara HumanALE untuk semua model dan narasi.</p><button id="naraVoicePreview" class="custom-preview-button" type="button" data-ui-sound-managed="true">▶ PREVIEW VOICE</button>
 
           <label class="custom-range"><span>Voice Volume <b data-visual-value="voiceVolume"></b></span><input type="range" min="0" max="1" step=".02" data-visual-setting="voiceVolume"></label>
-          <label class="custom-range"><span>Voice Rate <b data-visual-value="voiceRate"></b></span><input type="range" min=".72" max="1.15" step=".01" data-visual-setting="voiceRate"></label>
-          <label class="custom-range"><span>Voice Pitch <b data-visual-value="voicePitch"></b></span><input type="range" min=".5" max="1.2" step=".01" data-visual-setting="voicePitch"></label>
-          <label class="custom-toggle"><span>Droid Character</span><input type="checkbox" data-visual-setting="droidCharacter"></label>
+          <label class="custom-range"><span>Voice Rate <b data-visual-value="voiceRate"></b></span><input type="range" min=".72" max="1.15" step=".01" data-visual-setting="voiceRate" disabled></label>
+          <label class="custom-range"><span>Voice Pitch <b data-visual-value="voicePitch"></b></span><input type="range" min=".5" max="1.2" step=".01" data-visual-setting="voicePitch" disabled></label>
+          <label class="custom-toggle"><span>Droid Character</span><input type="checkbox" data-visual-setting="droidCharacter" disabled></label>
           <label class="custom-select"><span>Quality</span>
             <select data-visual-setting="quality">
               <option value="auto">Auto</option>

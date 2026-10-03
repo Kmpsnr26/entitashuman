@@ -58,18 +58,35 @@ export class HumanALEOwnerGate{
 
   status(actor){
     this.cleanup();
-    const profile=this.store.publicProfile();
+    let profile;
+    try{profile=this.store.publicProfile();}
+    catch{return this.storeFailure();}
     const session=this.sessions.get(this.key(actor));
+    const retryAfterMs=this.retryAfterMs(actor);
     return {
       configured:Boolean(profile.configured),
       unlocked:Boolean(session&&session.expiresAt>Date.now()),
       username:profile.username||null,
-      sessionExpiresAt:session?.expiresAt||0
+      sessionExpiresAt:session?.expiresAt||0,
+      retryAfterMs,
+      errorCode:retryAfterMs?'rate_limited':''
     };
   }
 
+  storeFailure(){
+    this.sessions.clear();
+    return {ok:false,configured:true,unlocked:false,username:null,sessionExpiresAt:0,retryAfterMs:0,errorCode:'owner_store_unavailable',error:'Penyimpanan Owner tidak dapat dibaca. Data login dipertahankan; periksa akses penyimpanan sebelum mencoba lagi.'};
+  }
+
+  retryAfterMs(actor){
+    const item=this.attempts.get(this.key(actor));
+    return item&&item.count>=this.maxAttempts?Math.max(0,this.attemptWindowMs-(Date.now()-item.startedAt)+1):0;
+  }
+
   failure(actor,error,extra={}){
-    return {ok:false,...this.status(actor),...extra,error:String(error||'Akses Creator gagal.')};
+    const status=this.status(actor);
+    if(status.errorCode==='owner_store_unavailable')return status;
+    return {ok:false,...status,...extra,error:String(error||'Akses Creator gagal.')};
   }
 
   recordFailure(actor){
@@ -109,12 +126,16 @@ export class HumanALEOwnerGate{
   }
 
   login(actor,{username='',password=''}={}){
+    const status=this.status(actor);
+    if(status.errorCode==='owner_store_unavailable')return status;
     if(!this.store.configured())return this.failure(actor,'Creator HumanALE belum diprovision.');
-    if(this.rateLimited(actor))return this.failure(actor,'Terlalu banyak percobaan login. Coba lagi nanti.',{rateLimited:true});
-    const ok=this.store.verify({username:String(username),password:String(password)});
+    if(this.rateLimited(actor))return this.failure(actor,'Terlalu banyak percobaan login. Tunggu hitung mundur sebelum mencoba lagi.',{rateLimited:true,errorCode:'rate_limited',retryAfterMs:this.retryAfterMs(actor)});
+    let ok;
+    try{ok=this.store.verify({username:String(username),password:String(password)});}
+    catch{return this.storeFailure();}
     if(!ok){
       this.recordFailure(actor);
-      return this.failure(actor,'Identitas Creator tidak valid.');
+      return this.failure(actor,'Creator ID atau Access Key tidak cocok dengan Owner PC ini.',{errorCode:this.rateLimited(actor)?'rate_limited':'invalid_credentials',retryAfterMs:this.retryAfterMs(actor)});
     }
     const sessionExpiresAt=this.unlock(actor);
     return {ok:true,configured:true,unlocked:true,username:this.store.publicProfile().username,sessionExpiresAt};

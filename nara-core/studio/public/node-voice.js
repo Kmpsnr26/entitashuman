@@ -1,5 +1,5 @@
 import {createCinematicSoundEngine} from './cinematic-sound.js';
-import {chooseNaraVoice,broadcastVoiceSpeaking} from './voice-identity.js';
+import {studioVoice,voiceProfilePatch} from './voice-identity.js';
 
 function readable(value=''){
   return String(value??'').replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim();
@@ -102,7 +102,7 @@ export function createNodeVoice(){
   let pendingTimer=null;
   let voiceProfile={
     masterVolume:.78,transitionFx:.82,coreFx:.86,voiceVolume:.9,
-    voiceRate:.86,voicePitch:.68,voiceProfile:'deep',voiceURI:'auto',droidCharacter:true
+    ...voiceProfilePatch()
   };
   const droidSound=createCinematicSoundEngine({enabled:audioEnabled});
   droidSound.setProfile(voiceProfile);
@@ -128,44 +128,15 @@ export function createNodeVoice(){
     lastKey=key;
     lastSpokenAt=now;
 
-    if(!audioEnabled()||!('speechSynthesis' in window)||typeof SpeechSynthesisUtterance==='undefined'){
+    if(!audioEnabled()){
       setSpeaking(false);
       return false;
     }
 
-    try{
-      if(pendingTimer){
-        clearTimeout(pendingTimer);
-        pendingTimer=null;
-      }
-      window.speechSynthesis.cancel();
-      const utterance=new SpeechSynthesisUtterance(narration);
-      const voice=chooseNaraVoice(voiceProfile);
-      if(voice)utterance.voice=voice;
-      utterance.lang=voice?.lang||'id-ID';
-      utterance.rate=voiceProfile.voiceRate;
-      utterance.pitch=voiceProfile.voicePitch;
-      utterance.volume=voiceProfile.voiceVolume;
-      utterance.onstart=()=>{setSpeaking(true);broadcastVoiceSpeaking(true);};
-      utterance.onend=()=>{setSpeaking(false);broadcastVoiceSpeaking(false);};
-      utterance.onerror=()=>{setSpeaking(false);broadcastVoiceSpeaking(false);};
-
-      const begin=()=>{
-        pendingTimer=null;
-        if(!audioEnabled())return setSpeaking(false);
-        window.speechSynthesis.speak(utterance);
-      };
-      if(voiceProfile.droidCharacter){
-        droidSound.cue('voiceBoot');
-        pendingTimer=setTimeout(begin,110);
-      }else{
-        begin();
-      }
-      return true;
-    }catch{
-      setSpeaking(false);
-      return false;
-    }
+    void studioVoice().speak(narration,{volume:voiceProfile.voiceVolume,
+      onstart:()=>setSpeaking(true),onend:()=>setSpeaking(false)
+    }).catch(()=>setSpeaking(false));
+    return true;
   }
 
   replay?.addEventListener('click',()=>{if(current)speak(current,{force:true});});
@@ -186,7 +157,7 @@ export function createNodeVoice(){
         voicePitch:bounded('voicePitch',.5,1.2,voiceProfile.voicePitch),
         voiceProfile:typeof settings.voiceProfile==='string'?settings.voiceProfile:voiceProfile.voiceProfile,
         voiceURI:typeof settings.voiceURI==='string'?settings.voiceURI:voiceProfile.voiceURI,
-        droidCharacter:typeof settings.droidCharacter==='boolean'?settings.droidCharacter:voiceProfile.droidCharacter
+        ...voiceProfilePatch()
       };
       droidSound.setProfile(voiceProfile);
       return {...voiceProfile};
@@ -208,7 +179,7 @@ export function createNodeVoice(){
           voicePitch:bounded('voicePitch',.5,1.2,voiceProfile.voicePitch),
           voiceProfile:typeof settings.voiceProfile==='string'?settings.voiceProfile:voiceProfile.voiceProfile,
           voiceURI:typeof settings.voiceURI==='string'?settings.voiceURI:voiceProfile.voiceURI,
-          droidCharacter:typeof settings.droidCharacter==='boolean'?settings.droidCharacter:voiceProfile.droidCharacter
+          ...voiceProfilePatch()
         };
         droidSound.setProfile(voiceProfile);
       }
@@ -235,8 +206,7 @@ export function createNodeVoice(){
         pendingTimer=null;
       }
       droidSound.stop();
-      if('speechSynthesis' in window)window.speechSynthesis.cancel();
-      broadcastVoiceSpeaking(false);
+      void studioVoice().stop().catch(()=>{});
       setSpeaking(false);
     },
     getCurrent:()=>current
