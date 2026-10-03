@@ -21,7 +21,7 @@ const appDir=path.join(output,'resources','app');
 await mkdir(appDir,{recursive:true});
 await cp('public',path.join(appDir,'public'),{recursive:true});
 await mkdir(path.join(appDir,'public','humanale'),{recursive:true});
-for(const file of ['face-rig.js','neural-core.js','avatar.js'])await cp(path.join('sites','humanale-hologram','dist',file),path.join(appDir,'public','humanale',file));
+for(const file of ['face-rig.js','neural-core.js','nara-memory.js','nara-context-bridge.js','avatar.js'])await cp(path.join('sites','humanale-hologram','dist',file),path.join(appDir,'public','humanale',file));
 await cp('desktop',path.join(appDir,'desktop'),{recursive:true,filter:source=>!source.includes('__pycache__')});
 await cp('nara-core',path.join(appDir,'nara-core'),{recursive:true});
 await cp('package.json',path.join(appDir,'package.json'));

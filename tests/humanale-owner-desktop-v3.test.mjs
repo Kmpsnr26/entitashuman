@@ -39,7 +39,7 @@ test('V3.5 high-impact HumanALE IPC surfaces require Creator unlock',async()=>{
   const handlers=[
     'dudidam:cloud-status','dudidam:cloud-login','dudidam:cloud-context',
     'dudidam:status','dudidam:ask','dudidam:login','dudidam:login-copilot',
-    'dudidam:stt-status','dudidam:transcribe','dudidam:tts-status','dudidam:synthesize',
+    'dudidam:stt-status','dudidam:transcribe','dudidam:tts-status','dudidam:tts-stop','dudidam:synthesize',
     'dudidam:agents','dudidam:project-root-choose','dudidam:agent-run','dudidam:agent-open',
     'dudidam:terminal-create','dudidam:terminal-write','dudidam:terminal-resize',
     'dudidam:terminal-kill','dudidam:terminal-restart','dudidam:terminal-clear',
