@@ -26,6 +26,75 @@ async function fixture(t,{check}={}){
  const head=git(root,'rev-parse','HEAD');
  return {root,head};
 }
+
+async function structuredExecutorFixture(t){
+ const root=await mkdtemp(join(tmpdir(),'humanale-orchestrator-cli-'));
+ t.after(()=>rm(root,{recursive:true,force:true}));
+ let executable;
+ if(process.platform==='win32'){
+  executable=join(root,'humanale-agent-fixture.exe');
+  const source=join(root,'humanale-agent-fixture.cs');
+  const program=[
+   'using System;',
+   'using System.IO;',
+   'class HumanALEAgentFixture {',
+   ' static int Main(string[] args) {',
+   '  var joined=String.Join(" ",args);',
+   '  if(joined.Contains("--version")) { Console.WriteLine("HumanALE fixture 1.0"); return 0; }',
+   '  if(joined.Contains("Planner HumanALE")) { Console.WriteLine("PLAN: edit app.mjs, then test and review."); return 0; }',
+   '  if(joined.Contains("Final Reviewer HumanALE") || joined.Contains("Reviewer HumanALE")) { Console.WriteLine("Review passed.\\nVERDICT: PASS"); return 0; }',
+   '  if(joined.Contains("Repair Worker HumanALE") || joined.Contains("Worker HumanALE")) {',
+   '   var value=Environment.GetEnvironmentVariable("HUMANALE_ACCEPTANCE_VALUE") ?? "2";',
+   '   File.WriteAllText("app.mjs","export const value="+value+";\\n");',
+   '   Console.WriteLine("Updated app.mjs to value="+value+".");',
+   '   return 0;',
+   '  }',
+   '  if(joined.Contains("login status")) { Console.WriteLine("Not logged in"); return 1; }',
+   '  Console.WriteLine("HumanALE fixture idle.");',
+   '  return 0;',
+   ' }',
+   '}'
+  ].join('\n');
+  await writeFile(source,program,'utf8');
+  const compiler=['Framework64','Framework'].map(dir=>join(process.env.SystemRoot||'C:\\Windows','Microsoft.NET',dir,'v4.0.30319','csc.exe')).find(path=>{
+   try{execFileSync(path,['/help'],{stdio:'ignore',windowsHide:true});return true;}catch{return false;}
+  });
+  assert.ok(compiler,'Windows orchestrator acceptance requires the installed .NET Framework C# compiler');
+  execFileSync(compiler,['/nologo','/target:exe','/out:'+executable,source],{encoding:'utf8',windowsHide:true});
+ }else{
+  executable=join(root,'humanale-agent-fixture.sh');
+  await writeFile(executable,[
+   '#!/bin/sh',
+   'joined="$*"',
+   'case "$joined" in',
+   ' *"--version"*) echo "HumanALE fixture 1.0"; exit 0 ;;',
+   ' *"Planner HumanALE"*) echo "PLAN: edit app.mjs, then test and review."; exit 0 ;;',
+   ' *"Final Reviewer HumanALE"*|*"Reviewer HumanALE"*) printf "Review passed.\\nVERDICT: PASS\\n"; exit 0 ;;',
+   ' *"Repair Worker HumanALE"*|*"Worker HumanALE"*) value="${HUMANALE_ACCEPTANCE_VALUE:-2}"; printf "export const value=%s;\\n" "$value" > app.mjs; echo "Updated app.mjs to value=$value."; exit 0 ;;',
+   ' *"login status"*) echo "Not logged in"; exit 1 ;;',
+   'esac',
+   'echo "HumanALE fixture idle."'
+  ].join('\n'),'utf8');
+  execFileSync('chmod',['700',executable]);
+ }
+ return {executable};
+}
+
+function bindStructuredExecutorFixture(t,{executable,value='2'}){
+ const keys=['GITHUB_COPILOT_CLI_PATH','CURSOR_AGENT_PATH','CLAUDE_CLI_PATH','CODEX_CLI_PATH','HUMANALE_ACCEPTANCE_VALUE'];
+ const previous=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
+ process.env.GITHUB_COPILOT_CLI_PATH=executable;
+ process.env.CURSOR_AGENT_PATH=executable;
+ process.env.CLAUDE_CLI_PATH=executable;
+ process.env.CODEX_CLI_PATH=executable;
+ process.env.HUMANALE_ACCEPTANCE_VALUE=String(value);
+ t.after(()=>{
+  for(const key of keys){
+   if(previous[key]===undefined)delete process.env[key];
+   else process.env[key]=previous[key];
+  }
+ });
+}
 function pipeline(root,worker,{signal,commandRunner,commandTimeoutMs,limits,detectionSummary='',selectedRoot=root}={}){
  let attempts=0;
  const transactions=[];
@@ -69,6 +138,66 @@ async function released(p,root,head){
  if(next)await next.release();
 }
 
+test('real HumanALE Orchestrator runs Planner → Worker → Reviewer and retains a verified uncommitted patch',async t=>{
+ const {root,head}=await fixture(t);
+ const executors=await structuredExecutorFixture(t);
+ bindStructuredExecutorFixture(t,{...executors,value:'2'});
+ const spawns=[];
+ const hub=new DeveloperAgentHub({beforeExecutorSpawn:info=>spawns.push({id:info.id,mode:info.mode})});
+ hub.setProjectRoot(root);
+ const transactions=[];
+ const broker=createTrustedMaintenanceBroker({
+  projectRoot:root,
+  detector:async()=>({ok:true,code:'BUG_FOUND',summary:'app.mjs value must become 2',fileHints:['app.mjs']}),
+  reproducer:async()=>({ok:true,code:'REPRODUCED',summary:'value is still 1',fileHints:['app.mjs']}),
+  transactionFactory:async cwd=>{const tx=await beginMaintenanceTransaction(cwd);transactions.push(tx);return tx;},
+  agentHub:hub
+ });
+ const auto=createAIAutopilotTransaction({broker,limits:{maxAttempts:1}});
+ const result=await auto.runOnce({requestId:'orchestrator-real-acceptance'});
+ assert.equal(result.status,'PASSED',JSON.stringify(result));
+ assert.equal(result.attempts,1);
+ assert.equal(await readFile(join(root,'app.mjs'),'utf8'),'export const value=2;\n');
+ assert.equal(await readFile(join(root,'dist','result.txt'),'utf8'),'2');
+ assert.match(git(root,'status','--porcelain'),/M app\.mjs/);
+ assert.equal(git(root,'rev-parse','HEAD'),head,'verified maintenance must not create a checkpoint commit yet');
+ assert.ok(spawns.some(item=>item.id==='github-copilot'&&item.mode==='analyze'),'Planner/Reviewer must use a read-only executor');
+ assert.ok(spawns.some(item=>item.id==='cursor'&&item.mode==='work'),'Worker must use the writable bounded executor');
+ assert.ok(spawns.filter(item=>item.id==='github-copilot'&&item.mode==='analyze').length>=2,'Planner and Reviewer must both run');
+ assert.ok(Object.values(result.authority).every(value=>value===false));
+ assert.equal(broker.snapshot().activeSessions,0);
+ assert.ok(transactions.every(tx=>tx.released));
+ await released({broker,hub,transactions},root,head);
+});
+
+test('real HumanALE Orchestrator rolls back a worker patch when trusted npm test fails',async t=>{
+ const {root,head}=await fixture(t);
+ const executors=await structuredExecutorFixture(t);
+ bindStructuredExecutorFixture(t,{...executors,value:'3'});
+ const spawns=[];
+ const hub=new DeveloperAgentHub({beforeExecutorSpawn:info=>spawns.push({id:info.id,mode:info.mode})});
+ hub.setProjectRoot(root);
+ const transactions=[];
+ const broker=createTrustedMaintenanceBroker({
+  projectRoot:root,
+  detector:async()=>({ok:true,code:'BUG_FOUND',summary:'exercise rollback',fileHints:['app.mjs']}),
+  reproducer:async()=>({ok:true,code:'REPRODUCED',fileHints:['app.mjs']}),
+  transactionFactory:async cwd=>{const tx=await beginMaintenanceTransaction(cwd);transactions.push(tx);return tx;},
+  agentHub:hub
+ });
+ const auto=createAIAutopilotTransaction({broker,limits:{maxAttempts:1}});
+ const result=await auto.runOnce({requestId:'orchestrator-real-rollback'});
+ assert.equal(result.status,'ROLLED_BACK',JSON.stringify(result));
+ assert.equal(result.reason,'TEST_FAILED');
+ assert.equal(result.steps.find(step=>step.name==='test')?.code,'COMMAND_FAILED');
+ assert.equal(result.steps.find(step=>step.name==='rollback')?.code,'ROLLBACK_OK');
+ assert.equal(await readFile(join(root,'app.mjs'),'utf8'),'export const value=1;\n');
+ assert.equal(git(root,'status','--porcelain'),'');
+ assert.equal(git(root,'rev-parse','HEAD'),head);
+ assert.ok(spawns.some(item=>item.id==='cursor'&&item.mode==='work'));
+ assert.ok(Object.values(result.authority).every(value=>value===false));
+ await released({broker,hub,transactions},root,head);
+});
 test('real Git transaction runs the default npm test/build on Windows and retains only a verified uncommitted patch',async t=>{
  const {root,head}=await fixture(t);
  const p=pipeline(root,async()=>writeFile(join(root,'app.mjs'),'export const value=2;\n'));
