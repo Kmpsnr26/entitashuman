@@ -1,9 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
+import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
 import {
  createTrustedMaintenanceBroker,
  trustedMaintenanceFixedCommands
 } from '../desktop/agent-trusted-maintenance-broker.mjs';
+import {TrustedCheckpointBroker,computeMaintenanceCheckpointState} from '../desktop/agent-trusted-checkpoint-broker.mjs';
 
 function fakeTransaction(id='tx-1'){
  const calls=[];
@@ -301,4 +306,103 @@ test('fixed verifier removes inherited Node preload and npm configuration redire
  }finally{
   for(const [key,value] of prior){if(value===undefined)delete process.env[key];else process.env[key]=value;}
  }
+});
+
+
+const checkpointGit=(cwd,...args)=>execFileSync('git',args,{cwd,encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();
+async function checkpointFixture(t){
+ const root=await mkdtemp(join(tmpdir(),'humanale-checkpoint-source-'));
+ const temp=await mkdtemp(join(tmpdir(),'humanale-checkpoint-workspaces-'));
+ t.after(async()=>{await rm(root,{recursive:true,force:true});await rm(temp,{recursive:true,force:true});});
+ checkpointGit(root,'init');
+ checkpointGit(root,'config','core.autocrlf','false');
+ checkpointGit(root,'config','user.name','HumanALE Test');
+ checkpointGit(root,'config','user.email','humanale-test@example.invalid');
+ await writeFile(join(root,'app.js'),'export const value=1;\n','utf8');
+ checkpointGit(root,'add','.');
+ checkpointGit(root,'commit','-m','baseline');
+ checkpointGit(root,'switch','-c','maintenance/checkpoint-source');
+ return {root,temp,head:checkpointGit(root,'rev-parse','HEAD')};
+}
+const checkpointFinding=Object.freeze({id:'render-failure-1',fingerprint:'c'.repeat(64)});
+
+test('trusted verification receipt checkpoints exactly the verified diff as one local commit',async t=>{
+ const {root,temp,head}=await checkpointFixture(t);
+ const checkpointBroker=new TrustedCheckpointBroker({temporaryRoot:temp,now:(()=>{let n=100;return()=>++n;})()});
+ const workspace=await checkpointBroker.prepare({repoRoot:root,finding:checkpointFinding});
+ const maintenance=createTrustedMaintenanceBroker({
+  projectRoot:workspace.path,
+  agentHub:{
+   async runTrustedMaintenanceWork(_prompt,{transaction}){
+    await writeFile(join(transaction.cwd,'app.js'),'export const value=2;\n','utf8');
+    return {maintenance:{changedFiles:1,totalBytes:22}};
+   }
+  },
+  detector:async()=>({ok:true,code:'BUG_FOUND',summary:'render regression'}),
+  reproducer:async()=>({ok:true,code:'REPRODUCED',summary:'fixture'}),
+  commandRunner:async()=>({ok:true,code:'PASS',summary:'trusted command pass'})
+ });
+ const detection=await maintenance.detect({transactionId:'checkpoint-e2e'});
+ const reproduction=await maintenance.reproduce({transactionId:'checkpoint-e2e',detection,attempt:1});
+ assert.equal((await maintenance.patch({transactionId:'checkpoint-e2e',detection,reproduction,attempt:1})).ok,true);
+ assert.equal((await maintenance.test({transactionId:'checkpoint-e2e'})).ok,true);
+ const verified=await maintenance.verify({transactionId:'checkpoint-e2e'});
+ assert.equal(verified.ok,true);
+ assert.equal(verified.code,'VERIFY_PASS');
+ assert.equal(verified.baseHead,head);
+ assert.match(verified.changeFingerprint,/^[a-f0-9]{64}$/);
+
+ const receipt=await checkpointBroker.checkpoint(workspace,{verification:verified});
+ assert.equal(receipt.verified,true);
+ assert.equal(receipt.baseHead,head);
+ assert.equal(receipt.changeFingerprint,verified.changeFingerprint);
+ assert.equal(checkpointGit(workspace.path,'rev-parse','HEAD^'),head);
+ assert.equal(checkpointGit(workspace.path,'rev-parse','HEAD'),receipt.commitSha);
+ assert.equal(checkpointGit(workspace.path,'status','--porcelain'),'');
+ assert.equal(await readFile(join(workspace.path,'app.js'),'utf8'),'export const value=2;\n');
+
+ const closed=await checkpointBroker.closeCheckpoint(checkpointBroker.get(workspace.id));
+ assert.equal(closed.commitSha,receipt.commitSha);
+ assert.equal(checkpointGit(root,'rev-parse','refs/heads/'+receipt.branchName),receipt.commitSha);
+ checkpointGit(root,'branch','-D',receipt.branchName);
+ const authority=checkpointBroker.snapshot().authority;
+ assert.equal(authority.localCheckpoint,true);
+ for(const key of ['gitPush','gitMerge','draftPr','releasePublish','signing','owner','creatorApproval','credentialAccess'])assert.equal(authority[key],false,key);
+});
+
+test('checkpoint refuses any diff drift after trusted verification and leaves source recoverable',async t=>{
+ const {root,temp,head}=await checkpointFixture(t);
+ const checkpointBroker=new TrustedCheckpointBroker({temporaryRoot:temp});
+ const workspace=await checkpointBroker.prepare({repoRoot:root,finding:{id:'drift-test',fingerprint:'d'.repeat(64)}});
+ await writeFile(join(workspace.path,'app.js'),'export const value=2;\n','utf8');
+ const verifiedState=await computeMaintenanceCheckpointState(workspace.path,head);
+ const verification={
+  ok:true,code:'VERIFY_PASS',baseHead:head,
+  changeFingerprint:verifiedState.changeFingerprint,
+  changedFiles:verifiedState.changedFiles
+ };
+ await writeFile(join(workspace.path,'app.js'),'export const value=3;\n','utf8');
+ await assert.rejects(
+  ()=>checkpointBroker.checkpoint(workspace,{verification}),
+  error=>error?.code==='TRUSTED_CHECKPOINT_FINGERPRINT_MISMATCH'
+ );
+ assert.equal(checkpointGit(workspace.path,'rev-parse','HEAD'),head);
+ assert.match(checkpointGit(workspace.path,'status','--porcelain'),/M app\.js/);
+ await checkpointBroker.discard(workspace);
+ assert.equal(checkpointGit(root,'status','--porcelain'),'');
+});
+
+test('checkpoint requires a bound VERIFY_PASS receipt and never exposes publication authority',async t=>{
+ const {root,temp}=await checkpointFixture(t);
+ const checkpointBroker=new TrustedCheckpointBroker({temporaryRoot:temp});
+ const workspace=await checkpointBroker.prepare({repoRoot:root,finding:{id:'receipt-test',fingerprint:'e'.repeat(64)}});
+ await writeFile(join(workspace.path,'app.js'),'export const value=2;\n','utf8');
+ await assert.rejects(
+  ()=>checkpointBroker.checkpoint(workspace,{verification:{ok:true,code:'PASS'}}),
+  error=>error?.code==='TRUSTED_CHECKPOINT_VERIFY_REQUIRED'
+ );
+ for(const method of ['push','merge','publish','createDraftPR','release','sign','approveCreator']){
+  assert.equal(typeof checkpointBroker[method],'undefined',method);
+ }
+ await checkpointBroker.discard(workspace);
 });
