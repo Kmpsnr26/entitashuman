@@ -396,6 +396,8 @@ else{
   });
   indonesianStt=new IndonesianStt();
   indonesianTts=new IndonesianTts();
+  const {createVoiceRequestCoordinator}=await import('./voice-request-coordinator.mjs');
+  const voiceRequests=createVoiceRequestCoordinator(indonesianTts);
   const agentLinks=Object.fromEntries(agentDefinitions().map(item=>[item.id,item.url]));
   const root=path.resolve(__dirname,'../public');
   const avatarSourceRoot=path.resolve(__dirname,'../sites/humanale-hologram/dist');
@@ -432,7 +434,7 @@ else{
   win=new BrowserWindow({width,height,x:position.x,y:position.y,frame:false,transparent:true,backgroundColor:'#00000000',hasShadow:false,resizable:false,alwaysOnTop:true,skipTaskbar:true,title:'HumanALE god egine — Avatar Transparan',show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false,spellcheck:false}});
   win.setAlwaysOnTop(true,'floating');
   win.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true});
-  const trusted=e=>(e.sender===win?.webContents||e.sender===panelWin?.webContents)&&e.senderFrame?.url?.startsWith(origin+'/');
+  const trusted=e=>Boolean(e?.sender&&!e.sender.isDestroyed()&&(e.sender===win?.webContents||e.sender===panelWin?.webContents)&&e.senderFrame?.url?.startsWith(origin+'/'));
   const ownerActor=e=>String(e?.sender?.id||'');
   const ownerTrusted=e=>trusted(e)&&ownerGate?.isUnlocked(ownerActor(e));
   ipcMain.handle('dudidam:nara-network-open',e=>{
@@ -654,8 +656,8 @@ else{
   ipcMain.handle('dudidam:stt-status',async e=>{if(!ownerTrusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianStt.status();});
   ipcMain.handle('dudidam:transcribe',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await indonesianStt.transcribe(value);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:tts-status',async e=>{if(!ownerTrusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianTts.status();});
-  ipcMain.handle('dudidam:tts-stop',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};await indonesianTts.stop();return {ok:true};});
-  ipcMain.handle('dudidam:synthesize',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await indonesianTts.synthesize(value);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:tts-stop',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return {ok:true,...await voiceRequests.stop(ownerActor(e))};}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:synthesize',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await voiceRequests.synthesize(ownerActor(e),value);}catch(error){return {error:error.message};}});
   ipcMain.on('dudidam:panel-open',(e,view)=>{if(ownerTrusted(e))openPanel(view);});
   ipcMain.on('dudidam:panel-close',e=>{if(trusted(e))panelWin?.hide();});
   ipcMain.handle('dudidam:agents',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await agentHub.status();}catch(error){return {error:error.message};}});
