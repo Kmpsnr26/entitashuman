@@ -1,5 +1,6 @@
 import {readFile,writeFile} from 'node:fs/promises';
 import {androidVersionFromPackageVersion} from './android-version.mjs';
+import {prepareAndroidVoice} from './android/prepare-voice.mjs';
 
 const manifestPath='android/app/src/main/AndroidManifest.xml';
 const buildGradlePath='android/app/build.gradle';
@@ -26,10 +27,15 @@ if(!manifest.includes(cameraFeature)){
   manifest=manifest.replace('<application',cameraFeature+'\n    <application');
 }
 
-manifest=manifest.replace(
-  /android:theme="@style\/AppTheme"/,
-  'android:theme="@style/AppTheme" android:screenOrientation="unspecified"'
-);
+manifest=manifest.replace(/<application\b[^>]*>/,tag=>tag.includes('android:screenOrientation=')?tag:
+  tag.replace(/android:theme="@style\/AppTheme"/,'android:theme="@style/AppTheme" android:screenOrientation="unspecified"'));
+
+// Android 11 package visibility for installed local TextToSpeech services.
+if(!manifest.includes('android.intent.action.TTS_SERVICE')){
+  const query='<intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>';
+  manifest=manifest.includes('</queries>')?manifest.replace('</queries>',query+'\n    </queries>'):
+    manifest.replace('</manifest>','    <queries>'+query+'</queries>\n</manifest>');
+}
 
 if(!/versionCode\s+\d+/.test(buildGradle)||!/versionName\s+["'][^"']+["']/.test(buildGradle)){
   throw new Error('Metadata versi Android tidak ditemukan di android/app/build.gradle.');
@@ -40,4 +46,5 @@ buildGradle=buildGradle
 
 await writeFile(manifestPath,manifest);
 await writeFile(buildGradlePath,buildGradle);
+await prepareAndroidVoice();
 console.log(`Android project prepared for HumanALE ${versionName} (${versionCode}) with camera/microphone/network access.`);
