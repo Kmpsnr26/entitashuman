@@ -48,6 +48,34 @@ test('maintenance environment strips credential-bearing variables but preserves 
  }
 });
 
+test('maintenance environment strips suffixed credential names without removing unrelated runtime variables',()=>{
+ const sensitiveKeys=[
+  'TOKEN_FILE','GITHUB_TOKEN_FILE','AUTH_SESSION_SECRET_PATH',
+  'DATABASE_PASSWORD_FILE','DB_PASSWD_PATH','SERVICE_PWD_FILE',
+  'OPENAI_API_KEY_FILE','SERVICE_APIKEY_PATH','AUTHORIZATION_HEADER',
+  'COOKIE_JAR','CREDENTIAL_FILE','CREDENTIALS_PATH','PRIVATE_KEY_FILE',
+  'CLIENT_SECRET_VERSION_2','REFRESH_TOKEN_PATH','AWS_ACCESS_KEY_ID',
+  'PEPPER_FILE','SIGNING_KEY_PATH','KEYSTORE_PATH','CERTIFICATE_FILE',
+  'github_token_file'
+ ];
+ const baseEnv={
+  PATH:'/usr/bin',
+  NARA_STUDIO_PORT:'4178',
+  TOKENIZER_MODEL:'local',
+  GITHUB_COPILOT_CLI_PATH:'/usr/bin/copilot',
+  ...Object.fromEntries(sensitiveKeys.map(key=>[key,'sensitive-test-value']))
+ };
+ const result=sanitizeMaintenanceEnvironment(baseEnv);
+ for(const key of sensitiveKeys){
+  assert.equal(Object.hasOwn(result.env,key),false,key);
+ }
+ assert.deepEqual(result.removed,[...sensitiveKeys].sort());
+ for(const key of ['PATH','NARA_STUDIO_PORT','TOKENIZER_MODEL','GITHUB_COPILOT_CLI_PATH']){
+  assert.equal(result.env[key],baseEnv[key],key);
+ }
+ assert.equal(baseEnv.GITHUB_TOKEN_FILE,'sensitive-test-value');
+});
+
 test('repo path normalization is fail-closed for traversal absolute paths and runtime globs',()=>{
  assert.equal(normalizeMaintenanceRepoPath('.\\public\\app.js'),'public/app.js');
  assert.throws(()=>normalizeMaintenanceRepoPath('../outside.txt'),/keluar/);

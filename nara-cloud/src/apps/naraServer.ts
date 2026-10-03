@@ -1,4 +1,5 @@
 import express from "express";
+import { bodyParserError } from "../middleware/bodyParserError.js";
 import helmet from "helmet";
 
 import {
@@ -433,6 +434,8 @@ app.post(
     }
   }
 );
+
+app.use(bodyParserError);
 
 app.use(
   (

@@ -1,4 +1,6 @@
 import express from "express";
+import { bodyParserError } from "../middleware/bodyParserError.js";
+import { isTrustedRequestOrigin } from "../security/origin.js";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
@@ -139,28 +141,11 @@ function setNoStore(
 function validOrigin(
   request: express.Request
 ): boolean {
-  if (!isProduction) {
-    return true;
-  }
-
-  const origin = request.get("origin");
-
-  if (origin) {
-    return origin === env.PUBLIC_AUTH_ORIGIN;
-  }
-
-  const referer = request.get("referer");
-
-  if (!referer) {
-    return false;
-  }
-
-  try {
-    return new URL(referer).origin ===
-      env.PUBLIC_AUTH_ORIGIN;
-  } catch {
-    return false;
-  }
+  return isTrustedRequestOrigin({
+    origin: request.get("origin"),
+    referer: request.get("referer"),
+    secFetchSite: request.get("sec-fetch-site")
+  }, env.PUBLIC_AUTH_ORIGIN, isProduction);
 }
 
 function loginPage(
@@ -706,6 +691,8 @@ app.post(
     }
   }
 );
+
+app.use(bodyParserError);
 
 app.use(
   (

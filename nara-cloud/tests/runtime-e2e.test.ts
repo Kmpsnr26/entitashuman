@@ -1163,3 +1163,94 @@ test(
     );
   }
 );
+
+test("NARA live error boundaries and active-owner session revocation", async t => {
+  for (const path of ["/api/ai/providers", "/api/memory/", "/api/backups/google-drive"]) {
+    await t.test(`unauthenticated ${path} is denied`, async () => {
+      const response = await fetch(NARA_ORIGIN + path);
+      assert.equal(response.status, 401);
+      assert.equal((await response.json()).error, "AUTHENTICATION_REQUIRED");
+    });
+  }
+  const page = await fetch(AUTH_ORIGIN + "/ownernara/login?return_to=" + encodeURIComponent(CALLBACK));
+  const ownerCookie = cookiePair(page);
+  const loginCsrf = (await page.text()).match(/name="csrf_token"\s+value="([^"]+)"/)?.[1];
+  assert.ok(loginCsrf);
+  await t.test("hostile login origin is rejected before credentials are used", async () => {
+    const response = await fetch(AUTH_ORIGIN + "/ownernara/login", {
+      method: "POST", redirect: "manual",
+      headers: {Cookie: ownerCookie, Origin: "https://attacker.example.invalid", "Content-Type": "application/x-www-form-urlencoded"},
+      body: new URLSearchParams({email: OWNER_EMAIL, password: OWNER_PASSWORD, csrf_token: loginCsrf, return_to: CALLBACK})
+    });
+    assert.equal(response.status, 403);
+  });
+  await t.test("auth malformed JSON does not become a server error", async () => {
+    const response = await fetch(AUTH_ORIGIN + "/ownernara/login", {
+      method: "POST", headers: {"Content-Type": "application/json"}, body: '{"password":'
+    });
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {error: "INVALID_JSON"});
+  });
+  await t.test("oversized JSON returns a sanitized size error", async () => {
+    const response = await fetch(NARA_ORIGIN + "/api/memory/", {
+      method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({content: "x".repeat(1024 * 1024)})
+    });
+    assert.equal(response.status, 413);
+    assert.deepEqual(await response.json(), {error: "REQUEST_BODY_TOO_LARGE"});
+  });
+  const login = await fetch(AUTH_ORIGIN + "/ownernara/login", {
+    method: "POST", redirect: "manual",
+    headers: { Cookie: ownerCookie, "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({email: OWNER_EMAIL, password: OWNER_PASSWORD, csrf_token: loginCsrf, return_to: CALLBACK})
+  });
+  assert.equal(login.status, 303);
+  const callback = await fetch(login.headers.get("location")!, {redirect: "manual"});
+  assert.equal(callback.status, 303);
+  const cookie = cookiePair(callback);
+  const me = await fetch(NARA_ORIGIN + "/api/me", {headers: {Cookie: cookie}});
+  const csrf = (await me.json()).csrfToken;
+  await t.test("cross-origin mutation is denied", async () => {
+    const response = await fetch(NARA_ORIGIN + "/api/memory/", {
+      method: "POST", headers: {Cookie: cookie, Origin: "https://attacker.example.invalid", "Content-Type": "application/json", "X-CSRF-Token": csrf},
+      body: JSON.stringify({scope: "long_term", title: "Rejected", content: "Rejected"})
+    });
+    assert.equal(response.status, 403);
+    assert.equal((await response.json()).error, "INVALID_ORIGIN");
+    const rejectedRecords = await pool.query("SELECT count(*)::int AS count FROM nara_memory WHERE title=$1", ["Rejected"]);
+    assert.equal(rejectedRecords.rows[0].count, 0);
+  });
+  await t.test("invalid memory query is a client error", async () => {
+    const response = await fetch(NARA_ORIGIN + "/api/memory/?limit=-1", {headers: {Cookie: cookie}});
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error, "INVALID_MEMORY_QUERY");
+  });
+  await t.test("weak backup passphrase is rejected", async () => {
+    const response = await postJson("/api/backups/usb", cookie, csrf, {passphrase: "short"});
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error, "INVALID_USB_BACKUP_REQUEST");
+  });
+  await t.test("unknown AI request fields are rejected without provider access", async () => {
+    const response = await postJson("/api/ai/chat", cookie, csrf, {message: "hello", baseUrl: "https://attacker.example.invalid"});
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error, "INVALID_AI_REQUEST");
+  });
+  await t.test("malformed JSON is a sanitized client error", async () => {
+    const response = await fetch(NARA_ORIGIN + "/api/memory/", {
+      method: "POST", headers: {Cookie: cookie, Origin: NARA_ORIGIN, "Content-Type": "application/json", "X-CSRF-Token": csrf}, body: '{"content":'
+    });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error, "INVALID_JSON");
+  });
+  await t.test("deactivated owner loses the existing session", async () => {
+    await pool.query("UPDATE owner_users SET is_active=false WHERE email=$1", [OWNER_EMAIL]);
+    try {
+      const response = await fetch(NARA_ORIGIN + "/api/me", {headers: {Cookie: cookie}});
+      assert.equal(response.status, 401);
+      assert.equal((await response.json()).error, "AUTHENTICATION_REQUIRED");
+      const sessions = await pool.query("SELECT count(*)::int AS count FROM nara_app_sessions");
+      assert.equal(sessions.rows[0].count, 0);
+    } finally {
+      await pool.query("UPDATE owner_users SET is_active=true WHERE email=$1", [OWNER_EMAIL]);
+    }
+  });
+});
