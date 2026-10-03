@@ -57,3 +57,28 @@ CodeQL is green, but final distribution security still requires:
 Even after all nine technical gates pass, integration must remain locked until the creator explicitly approves final HumanALE↔Nara Core integration.
 
 No runtime code may infer creator approval from CI, a real-device PASS, or a release certificate.
+
+## Development follow-up — 3 October 2026
+
+The historical certificate above remains bound to `69bdf34`; its six PASS gates
+must not be inherited by the newer candidate. Development fixes are based on
+`main` commit `b06b400` and do not update the certificate or unlock integration.
+
+- Credential environment names ending in `_FILE`/`_PATH` are now filtered, and
+  patch inspection rejects corresponding sensitive accesses without excessive
+  backtracking on large identifiers.
+- Signed Windows/Android workflows now emit public build records after signature
+  verification. Windows runtime hashes come from the finalized portable ZIP.
+  These records support independent build review; they do not grant acceptance.
+- Linux cloud verification with Node.js 22.23.3: 666 tests passed, eight platform
+  checks skipped, zero failures, and web build passed. A local subreaper is used
+  to clean up orphan descendants in this container.
+- NARA Cloud: TypeScript build and 101 unit tests passed; PostgreSQL migrations,
+  three database tests, and one live Owner SSO/runtime E2E test passed using a
+  dedicated localhost-only test database. Production providers were not called.
+
+GitHub Copilot CLI was installed and a scoped coding task was attempted, but
+authentication validation was blocked by the environment network policy for
+`api.github.com`. Codex agents implemented and independently reviewed the fixes.
+Native signed builds, target-PC performance, real Android acceptance, and
+Creator Final Approval remain outstanding. No release was published.

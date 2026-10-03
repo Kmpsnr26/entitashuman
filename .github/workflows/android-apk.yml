@@ -29,6 +29,8 @@ on:
       - "scripts/android-version.mjs"
       - "scripts/humanale-release-publication-gate.mjs"
       - "scripts/humanale-certified-artifact-run.mjs"
+      - "scripts/humanale-build-record.mjs"
+      - "tests/humanale-build-record.test.mjs"
       - "package-lock.json"
       - ".github/workflows/android-apk.yml"
       - "build.mjs"
@@ -44,6 +46,8 @@ on:
       - "scripts/android-version.mjs"
       - "scripts/humanale-release-publication-gate.mjs"
       - "scripts/humanale-certified-artifact-run.mjs"
+      - "scripts/humanale-build-record.mjs"
+      - "tests/humanale-build-record.test.mjs"
       - "package-lock.json"
       - ".github/workflows/android-apk.yml"
       - "build.mjs"
@@ -212,11 +216,16 @@ jobs:
           test $(stat -c%s "$signed") -gt 1000000
           ls -lh "$signed"
 
+      - name: Record signed Android build identities
+        run: node scripts/humanale-build-record.mjs --platform android
+
       - name: Upload signed Android artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: HumanALE-Android-Signed-${{ github.sha }}
-          path: release/HumanALE-Android-*.apk
+          path: |
+            release/HumanALE-Android-*.apk
+            release/humanale-build-record-android.json
           if-no-files-found: error
           retention-days: 30
 
