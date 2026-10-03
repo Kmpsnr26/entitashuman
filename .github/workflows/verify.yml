@@ -143,8 +143,25 @@ jobs:
           foreach ($target in @($installer.FullName,$portableExe)) {
             $signature = Get-AuthenticodeSignature -FilePath $target
             Write-Host "Authenticode $target => $($signature.Status)"
-            if ($signature.Status -ne "Valid") { throw "Authenticode verification failed for $target: $($signature.Status)" }
+            if ($signature.Status -ne "Valid") { throw "Authenticode verification failed for ${target}: $($signature.Status)" }
             if (-not $signature.SignerCertificate) { throw "Signer certificate missing for $target." }
+          }
+      - name: Record signed Windows build identities
+        if: github.event_name == 'workflow_dispatch' && inputs.build_signed_artifact
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          $zip = "release\HumanALE-God-Engine-Portable-$version-x64.zip"
+          $extracted = Join-Path $env:RUNNER_TEMP ("humanale-build-record-" + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $extracted -ErrorAction Stop | Out-Null
+          try {
+            Expand-Archive -LiteralPath $zip -DestinationPath $extracted -ErrorAction Stop
+            $signature = Get-AuthenticodeSignature -FilePath (Join-Path $extracted 'HumanALE-God-Engine.exe')
+            if ($signature.Status -ne 'Valid' -or -not $signature.SignerCertificate) { throw 'Extracted portable Authenticode verification failed.' }
+            node scripts/humanale-build-record.mjs --platform windows --packaged-directory $extracted
+            if ($LASTEXITCODE -ne 0) { throw 'Windows build record generation failed.' }
+          } finally {
+            Remove-Item -LiteralPath $extracted -Recurse -Force -ErrorAction SilentlyContinue
           }
       - name: Remove Windows signing material
         if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.build_signed_artifact }}
@@ -158,6 +175,7 @@ jobs:
           path: |
             release/HumanALE-God-Engine-Setup-*-x64.exe
             release/HumanALE-God-Engine-Portable-*-x64.zip
+            release/humanale-build-record-windows.json
           if-no-files-found: error
           retention-days: 30
 

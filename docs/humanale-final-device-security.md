@@ -1,5 +1,35 @@
 # HumanALE Final Device + Security Gates
 
+## Obtain the trusted build record
+
+Dispatch `Verify and package` and `Build Android APK` on the final `main`
+candidate with `build_signed_artifact=true` and `publish_release=false`.
+After signing verification, each workflow uploads a public JSON sidecar with
+its signed artifact: `humanale-build-record-windows.json` or
+`humanale-build-record-android.json`.
+
+Retrieve the record from the independently reviewed, successful Actions run in
+the canonical `Kmpsnr26/entitashuman` repository. Check the run's source commit,
+`main` ref, workflow path, run ID and attempt against the record's `build`
+fields. Check the artifact bytes against the recorded `artifacts` sizes and
+SHA-256 hashes. Do not trust a JSON file merely because it is adjacent to an APK
+or installer, or create expected hashes from the unverified candidate locally.
+The Windows and Android runs must use the same final full source commit.
+
+Use `build.sourceCommit` for `ArtifactCommit`,
+`artifacts.windowsInstaller.sha256` for `ExpectedInstallerSha256`, and
+`artifacts.androidApk.sha256` for `ExpectedApkSha256`. The production Android
+certificate fingerprint must still come from a separately approved signer
+record; the sidecar does not supply or approve this pin. Record the respective
+Actions run IDs when preparing the reviewed publication certificate.
+
+The sidecars contain only selected public build metadata and hashes; they
+never contain signing keys, passwords, or environment dumps. They are build
+records from a reviewed run, **not cryptographic build attestations**, signature
+verification results, device acceptance, creator approval, or release readiness
+certificates. Existing signature, manifest, device and publication checks still
+apply.
+
 ## Android runtime
 
 Requirements:
