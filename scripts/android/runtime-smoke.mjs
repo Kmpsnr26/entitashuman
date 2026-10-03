@@ -14,12 +14,13 @@ export function assertNativeEvidence({process, foreground, crash}) {
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const annotation = (level, title, message) => console.log(`::${level} title=${title}::${String(message).slice(0, 4000).replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}`);
-async function waitFor(read, accepts, label, timeout = 60000) {
+export async function waitFor(read, accepts, label, timeout = 60000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
-    const value = await read();
+    const value = await read(deadline - Date.now());
+    if (Date.now() > deadline) break;
     if (accepts(value)) return value;
-    await sleep(250);
+    await sleep(Math.min(250, Math.max(0, deadline - Date.now())));
   }
   throw new Error(`Timed out waiting for ${label}`);
 }
@@ -49,10 +50,10 @@ async function connect(url) {
   return {
     onEvent(listener) { listeners.push(listener); },
     close() { ws.close(); },
-    call(method, params = {}) {
+    call(method, params = {}, timeoutMs = 10000) {
       return new Promise((resolve, reject) => {
         const requestId = ++id;
-        const timer = setTimeout(() => { pending.delete(requestId); reject(new Error(`CDP ${method} timed out`)); }, 10000);
+        const timer = setTimeout(() => { pending.delete(requestId); reject(new Error(`CDP ${method} timed out`)); }, timeoutMs);
         pending.set(requestId, {resolve, reject, timer});
         ws.send(JSON.stringify({id: requestId, method, params}));
       });
@@ -82,8 +83,8 @@ export async function runAndroidRuntimeSmoke(base, directory) {
       if (method === 'Network.responseReceived' && params.response.url.startsWith('https://localhost/') && params.response.status >= 400) report.localResourceErrors.push({url: params.response.url, status: params.response.status});
       if (method === 'Network.loadingFailed' && requests.get(params.requestId)?.startsWith('https://localhost/') && !params.canceled) report.localResourceErrors.push({url: requests.get(params.requestId), error: params.errorText});
     });
-    const evaluate = async expression => {
-      const result = await cdp.call('Runtime.evaluate', {expression, returnByValue: true, awaitPromise: true});
+    const evaluate = async (expression, timeoutMs = 10000) => {
+      const result = await cdp.call('Runtime.evaluate', {expression, returnByValue: true, awaitPromise: true}, timeoutMs);
       if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
       return result.result.value;
     };
@@ -101,8 +102,8 @@ export async function runAndroidRuntimeSmoke(base, directory) {
     await cdp.call('Page.reload', {ignoreCache: true});
     const pageState = `(() => { const visible=e=>!!e && !e.hidden && !!e.getClientRects().length; const a=document.querySelector('#avatar'); return {origin:location.origin,platform:window.Capacitor?.getPlatform?.(),ready:document.readyState,avatar:!!a&&a.width>0&&a.height>0,prompt:visible(document.querySelector('#prompt')),chat:document.querySelector('#chatDialog')?.open===true,ownerGate:visible(document.querySelector('#ownerGate')),sendEnabled:document.querySelector('#send')?.disabled===false}; })()`;
     await check('APK native page, avatar canvas and conversation loaded', async () => {
-      report.page = await waitFor(async () => {
-        try { observedPage = await evaluate(pageState); return observedPage; }
+      report.page = await waitFor(async remainingMs => {
+        try { observedPage = await evaluate(pageState, remainingMs); return observedPage; }
         catch (error) {
           if (/Execution context was destroyed|Cannot find context with specified id/i.test(error.message)) return null;
           throw error;

@@ -40,6 +40,7 @@ cleanup() {
     adb_device logcat -b crash -d > "$evidence/crash.txt" 2>&1 || true
     adb_device shell dumpsys activity activities > "$evidence/activities.txt" 2>&1 || true
     adb_device shell dumpsys webviewupdate > "$evidence/webview.txt" 2>&1 || true
+    adb_device shell pidof id.my.aleprinting.humanale > "$evidence/process-final.txt" 2>/dev/null || true
     adb_device exec-out screencap -p > "$evidence/android-final.png" 2>/dev/null || true
     if [ -n "$cdp_port" ]; then adb_device forward --remove "tcp:$cdp_port" >/dev/null 2>&1 || true; fi
     adb_device emu kill >/dev/null 2>&1 || true
@@ -53,7 +54,18 @@ cleanup() {
     wait "$emulator_pid" 2>/dev/null || true
   fi
   if [ -n "$runtime_dir" ]; then rm -rf -- "$runtime_dir"; fi
-  if [ "$result" -ne 0 ]; then emit_failure "$result" || true; fi
+  if [ "$result" -ne 0 ]; then
+    node - "$evidence" <<'JS'
+const fs=require('node:fs');
+const directory=process.argv[2];
+const read=name=>fs.existsSync(directory+'/'+name)?fs.readFileSync(directory+'/'+name,'utf8'):'';
+const summary={process:read('process-final.txt').trim(),foreground:read('activities.txt').split('\n').find(line=>/topResumedActivity=|mResumedActivity:/.test(line))?.trim()||'unknown',webView:read('webview.txt').split('\n').find(line=>line.includes('Current WebView package'))?.trim()||'unknown',crashLines:read('crash.txt').split('\n').filter(line=>/Fatal signal|SIGTRAP|Cmdline:|#00 pc|Abort message:|FATAL EXCEPTION|CrRendererMain/.test(line)).slice(-12)};
+fs.writeFileSync(directory+'/native-failure-summary.json',JSON.stringify(summary,null,2)+'\n');
+const message=JSON.stringify(summary).slice(0,4000).replaceAll('%','%25').replaceAll('\r','%0D').replaceAll('\n','%0A');
+console.log('::notice title=Android native failure diagnostics::'+message);
+JS
+    emit_failure "$result" || true
+  fi
   printf '%s\n' "$result" > "$evidence/exit-code.txt"
   node - "$evidence" "$result" "$acceleration_pass" "$booted" "$native_pass" <<'JS'
 const fs = require('node:fs');
