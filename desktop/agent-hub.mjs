@@ -163,6 +163,14 @@ function looksLikeCopilotTrustPrompt(text=''){
   value.includes('trust this directory')||
   value.includes('confirm that you trust');
 }
+
+export function codexWorkspaceWriteRefusal(text=''){
+ const value=String(text||'').replace(/\s+/g,' ').toLowerCase();
+ return /\b(?:read[- ]only|readonly|hanya[- ]?baca)\b/.test(value)||
+  /\b(?:cannot|can't|unable to|tidak dapat|tidak bisa|gagal)\b.{0,48}\b(?:write|writing|edit|mengedit|menulis)\b/.test(value)||
+  /\b(?:write|writing|akses tulis)\b.{0,80}\b(?:blocked|denied|unavailable|ditolak|diblokir|tidak tersedia)\b/.test(value)||
+  /\bsandbox\b.{0,80}\b(?:read[- ]only|readonly)\b/.test(value);
+}
 export class DeveloperAgentHub{
  constructor({processTerminator=terminateMaintenanceProcessTree,timeoutForMode=agentTimeoutMs,beforeExecutorSpawn=()=>{}}={}){
   if(typeof processTerminator!=='function'||typeof timeoutForMode!=='function'||typeof beforeExecutorSpawn!=='function')throw new TypeError('Trusted process lifecycle hooks must be functions.');
@@ -331,6 +339,15 @@ export class DeveloperAgentHub{
   if(mode==='work'){
    const inspection=await this.maintenanceTransaction.inspect();
    if(!inspection.allowed)throw maintenanceChangeSetError(inspection);
+   if(inspection.paths.length===0){
+    const writeBlocked=id==='codex'&&codexWorkspaceWriteRefusal(directResult.text);
+    const error=new Error(writeBlocked
+     ?'Codex tidak menghasilkan perubahan karena write workspace tidak efektif pada sesi ini. Gunakan HumanALE Orchestrator agar Planner/Reviewer Codex tetap dapat dipakai sementara Worker dialihkan ke executor aman lain.'
+     :agent.name+' selesai tanpa menghasilkan perubahan berkas. Mode Kerja hanya dianggap berhasil setelah perubahan nyata terdeteksi.');
+    error.code=writeBlocked?'CODEX_WORKSPACE_WRITE_UNAVAILABLE':'AGENT_WORK_NO_CHANGES';
+    error.category='blocked';error.executor=id;
+    throw error;
+   }
    return {
     ...directResult,
     maintenance:Object.freeze({
