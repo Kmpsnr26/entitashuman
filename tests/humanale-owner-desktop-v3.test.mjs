@@ -135,5 +135,5 @@ test('V3.5 failed Creator login preserves canonical configured state for UI retr
   assert.equal(result.configured,true);
   assert.equal(result.unlocked,false);
   assert.equal(result.username,'creator');
-  assert.match(result.error,/tidak valid/i);
+  assert.match(result.error,/tidak cocok/i);
 });

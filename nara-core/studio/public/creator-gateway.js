@@ -12,6 +12,7 @@ async function jsonFetch(url,options={}){
   if(!response.ok){
     const error=new Error(data.error||('Request gagal: '+response.status));
     error.status=response.status;
+    error.retryAfterMs=Math.max(0,Math.min(900000,Number(data.retryAfterMs)||0));
     throw error;
   }
   return data;
@@ -84,6 +85,7 @@ export async function initializeCreatorGateway({onEntering=()=>{},onReady=()=>{}
   const enter=byId('creatorEnter');
   const logout=byId('creatorLogout');
   const brain=createCreatorBrainBackdrop(byId('creatorBrainCanvas'));
+  let submitting=false,retryTimer=null;
 
   let session=await jsonFetch('/api/creator/session',{method:'GET',headers:{}});
 
@@ -110,6 +112,9 @@ export async function initializeCreatorGateway({onEntering=()=>{},onReady=()=>{}
 
   form.addEventListener('submit',async event=>{
     event.preventDefault();
+    if(submitting||retryTimer)return;
+    submitting=true;
+    const submit=form.querySelector('[type="submit"]');if(submit)submit.disabled=true;
     status.textContent='VERIFYING CREATOR IDENTITY…';
     brain.setState('verifying');
     const username=byId('creatorUsername').value;
@@ -126,6 +131,13 @@ export async function initializeCreatorGateway({onEntering=()=>{},onReady=()=>{}
     }catch(error){
       brain.setState('error');
       status.textContent=error.message;
+      if(error.retryAfterMs){
+        const until=Date.now()+error.retryAfterMs;
+        const tick=()=>{const seconds=Math.ceil(Math.max(0,until-Date.now())/1000);status.textContent=seconds?'Coba login kembali dalam '+seconds+' detik.':'Silakan masukkan Access Key Owner server ini.';if(!seconds){clearInterval(retryTimer);retryTimer=null;if(submit)submit.disabled=false;}};
+        retryTimer=setInterval(tick,250);tick();
+      }
+    }finally{
+      byId('creatorPassword').value='';submitting=false;if(submit&&!retryTimer)submit.disabled=false;
     }
   });
 

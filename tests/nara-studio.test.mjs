@@ -801,9 +801,9 @@ test('Stage 3 cinematic entry uses local bounded audio and Indonesian NARA voice
   assert.match(sound,/AudioContext=window\.AudioContext/);
   assert.match(sound,/createOscillator\(\)/);
   assert.match(matrix,/fillText\(bit/);
-  assert.match(entry,/SpeechSynthesisUtterance/);
+  assert.match(entry,/studioVoice\(\)\.speak/);
   assert.match(entry,/NARA Core online/);
-  assert.match(entry,/id-ID/);
+  assert.match(entry,/voiceProfilePatch/);
   assert.match(entry,/prefers-reduced-motion/);
   assert.doesNotMatch(entry,/https?:\/\//);
   assert.doesNotMatch(entry,/fetch\(/);
@@ -1025,11 +1025,11 @@ test('Stage 6 node voice is local, audio-gated and wired to sanitized inspector 
   assert.match(html,/id="nodeInspectorVoiceText"/);
   assert.match(app,/import \{createNodeVoice\} from '\.\/node-voice\.js'/);
   assert.match(app,/onMetadata:metadata=>nodeVoice\.speak\(metadata\)/);
-  assert.match(voice,/SpeechSynthesisUtterance/);
+  assert.match(voice,/studioVoice\(\)\.speak/);
   assert.match(voice,/edgeAudioToggle/);
-  assert.match(voice,/speechSynthesis\.cancel\(\)/);
-  assert.match(voice,/speechSynthesis\.speak\(utterance\)/);
-  assert.match(voice,/id-ID/);
+  assert.match(voice,/studioVoice\(\)\.stop\(\)/);
+  assert.match(voice,/studioVoice\(\)\.speak\(narration/);
+  assert.match(voice,/voiceProfilePatch/);
   assert.doesNotMatch(voice,/fetch\(|EventSource|https?:\/\//);
   assert.match(styles,/NARA Node Voice — Stage 6/);
 });
@@ -1303,16 +1303,16 @@ test('Revision R5 adds bounded droid voice character and Creator audio controls'
   assert.match(sound,/profile\.coreFx:profile\.transitionFx/);
   assert.match(sound,/setProfile\(next=\{\}\)/);
 
-  assert.match(entry,/voiceRate:\.86/);
-  assert.match(entry,/voicePitch:\.68/);
+  assert.match(entry,/voiceProfilePatch\(\)/);
+  assert.match(entry,/studioVoice/);
   assert.match(entry,/sound\.cue\('voiceBoot'\)/);
   assert.match(entry,/applyAudioSettings\(settings=\{\}\)/);
 
   assert.match(voice,/createCinematicSoundEngine/);
-  assert.match(voice,/voiceProfile\.voiceRate/);
-  assert.match(voice,/voiceProfile\.voicePitch/);
+  assert.match(voice,/voiceProfilePatch\(\)/);
+  assert.match(voice,/studioVoice/);
   assert.match(voice,/voiceProfile\.voiceVolume/);
-  assert.match(voice,/droidSound\.cue\('voiceBoot'\)/);
+  assert.doesNotMatch(voice,/new SpeechSynthesisUtterance/);
   assert.match(voice,/applyVoiceSettings\(settings=\{\}\)/);
 });
 
@@ -1411,20 +1411,20 @@ test('Revision R7 adds selectable NARA voice identity and local UI sound engine'
   }
   assert.match(html,/id="naraVoiceSelect"/);
   assert.match(html,/id="naraVoicePreview"/);
-  assert.match(html,/NARA Deep/);
-  assert.match(html,/NARA Calm/);
-  assert.match(html,/NARA Droid/);
-  assert.match(html,/NARA Natural/);
+  assert.match(html,/Pria dewasa/);
+
+
+
   assert.match(html,/UI SFX/);
   assert.match(html,/Core FX/);
 
   assert.match(identity,/VOICE_PROFILES/);
-  assert.match(identity,/deep:Object\.freeze/);
-  assert.match(identity,/calm:Object\.freeze/);
-  assert.match(identity,/droid:Object\.freeze/);
-  assert.match(identity,/natural:Object\.freeze/);
-  assert.match(identity,/voice\.voiceURI===requested/);
-  assert.match(identity,/^\s*if\(!\('speechSynthesis' in window\)\)return \[\];/m);
+  assert.match(identity,/adult:Object\.freeze/);
+
+
+
+  assert.match(identity,/HUMANALE_VOICE/);
+  assert.match(identity,/globalThis\.window\?\.speechSynthesis/);
   assert.match(identity,/nara:voice-speaking/);
 
   assert.match(app,/createUiSoundEngine/);
@@ -1438,8 +1438,8 @@ test('Revision R7 adds selectable NARA voice identity and local UI sound engine'
   assert.match(uiSound,/ducked\?\.28:1/);
   assert.match(uiSound,/nara:voice-speaking/);
 
-  assert.match(entry,/chooseNaraVoice\(profile\)/);
-  assert.match(nodeVoice,/chooseNaraVoice\(voiceProfile\)/);
+  assert.match(entry,/studioVoice\(\)\.speak/);
+  assert.match(nodeVoice,/studioVoice\(\)\.speak/);
   assert.match(nodeVoice,/preview\(settings=\{\}\)/);
   assert.match(sound,/coreFx:clamp/);
   assert.match(sound,/levelForCue/);

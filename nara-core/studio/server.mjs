@@ -1,4 +1,5 @@
 import http from 'node:http';
+import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {extname,join,normalize} from 'node:path';
 import {homedir} from 'node:os';
@@ -340,7 +341,8 @@ export function createNaraStudioServer({
   port=4178,
   creatorAuth:creatorOptions={},
   nara:providedNara=null,
-  embedded=false
+  embedded=false,
+  voiceBackend=null
 }={}){
   const bootstrapUsername=creatorOptions.username||process.env.NARA_CREATOR_USERNAME||'creator';
   const bootstrapPassword=creatorOptions.password??process.env.NARA_CREATOR_PASSWORD??'';
@@ -377,6 +379,8 @@ export function createNaraStudioServer({
   const telemetry=createStudioTelemetry();
   const skills=createSkillRegistry();
   const clients=new Set();
+  const voiceActors=new Map();
+  const voiceActor=session=>'studio:'+createHash('sha256').update(session.token).digest('hex');
   let server;
 
   const broadcast=(type,data)=>{
@@ -416,6 +420,11 @@ export function createNaraStudioServer({
         }
       }
 
+      if(req.method==='GET'&&url.pathname==='/public/robot-voice.js'){
+        const content=await readFile(join(HERE,'../../public/robot-voice.js'));
+        res.writeHead(200,{'content-type':'text/javascript; charset=utf-8','cache-control':'no-store'});return res.end(content);
+      }
+
       if(req.method==='GET'&&url.pathname==='/api/creator/session'){
         const publicCreator=creator.publicSession(req);
         return json(res,200,{
@@ -437,9 +446,9 @@ export function createNaraStudioServer({
         const data=await bodyJson(req);
         const result=creator.login(req,{
           username:String(data.username||'').slice(0,120),
-          password:String(data.password||'').slice(0,512)
+          password:String(data.password||'')
         });
-        if(!result.ok)return json(res,result.status||401,{ok:false,error:result.error||'Login gagal.'});
+        if(!result.ok)return json(res,result.status||401,{ok:false,error:result.error||'Login gagal.',errorCode:result.errorCode||'',retryAfterMs:result.retryAfterMs||0});
         if(result.token){
           const secure=String(req.headers['x-forwarded-proto']||'').toLowerCase()==='https';
           res.setHeader('set-cookie',creator.sessionCookie(result.token,{secure}));
@@ -450,6 +459,8 @@ export function createNaraStudioServer({
       }
 
       if(req.method==='POST'&&url.pathname==='/api/creator/logout'){
+        const session=creator.getSession(req);
+        if(session&&voiceBackend){const actor=voiceActor(session);await voiceBackend.stop(actor);voiceActors.delete(actor);}
         creator.logout(req);
         const secure=String(req.headers['x-forwarded-proto']||'').toLowerCase()==='https';
         res.setHeader('set-cookie',creator.clearCookie({secure}));
@@ -481,6 +492,29 @@ export function createNaraStudioServer({
       const creatorSession=creator.getSession(req);
       if(creatorRequired&&!creatorSession&&url.pathname.startsWith('/api/')){
         return json(res,401,{ok:false,error:'Creator authentication required.'});
+      }
+
+      if(url.pathname.startsWith('/api/voice/')){
+        // Voice never inherits standalone development authentication bypass.
+        if(!creatorSession)return json(res,401,{error:'Creator authentication required.'});
+        const configured=typeof voiceBackend?.synthesize==='function'&&typeof voiceBackend?.stop==='function';
+        if(req.method==='GET'&&url.pathname==='/api/voice/status')return json(res,200,{configured});
+        if(req.method!=='POST'||!['/api/voice/synthesize','/api/voice/stop'].includes(url.pathname))return json(res,404,{error:'Tidak ditemukan.'});
+        const address=server.address(),expected='http://'+(host==='localhost'?'localhost':host)+':'+address.port;
+        if(req.headers.origin!==expected||req.headers.host!==new URL(expected).host)return json(res,403,{error:'Same-origin voice request required.'});
+        if(String(req.headers['content-type']||'').split(';')[0].trim()!=='application/json')return json(res,415,{error:'JSON required.'});
+        const data=await bodyJson(req);
+        if(!configured)return json(res,503,{error:'Local PCM voice unavailable.'});
+        const actor=voiceActor(creatorSession);
+        if(url.pathname==='/api/voice/stop'){await voiceBackend.stop(actor);voiceActors.delete(actor);return json(res,200,{ok:true});}
+        if(typeof data.text!=='string'||!data.text.trim()||data.text.trim().length>2000)return json(res,400,{error:'Teks suara harus berisi 1–2000 karakter.'});
+        const pending=voiceActors.get(actor)||new Set(),request=Symbol('voice');pending.add(request);voiceActors.set(actor,pending);
+        try{
+          const result=await voiceBackend.synthesize(actor,{text:data.text.trim(),style:'natural',voiceCharacter:'male'});
+          if(!creator.getSession(req)){await voiceBackend.stop(actor);return json(res,401,{error:'Creator session expired.'});}
+          if(typeof result?.audio!=='string'||result.audio.length>20000000||result.mime!=='audio/wav')return json(res,502,{error:'Invalid PCM voice response.'});
+          return json(res,200,{audio:result.audio,mime:'audio/wav',voiceGender:result.voiceGender==='male'?'male':'unknown'});
+        }finally{pending.delete(request);if(!pending.size&&voiceActors.get(actor)===pending)voiceActors.delete(actor);}
       }
 
       if(req.method==='GET'&&url.pathname.startsWith('/api/creator/region/')){
@@ -591,6 +625,7 @@ export function createNaraStudioServer({
       return server.address();
     },
     async stop(){
+      if(voiceBackend)await Promise.allSettled([...voiceActors.keys()].map(actor=>voiceBackend.stop(actor)));voiceActors.clear();
       stateOff();eventOff();
       if(ownsNara&&nara.running)nara.stop();
       for(const res of [...clients])res.end();

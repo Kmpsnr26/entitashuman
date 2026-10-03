@@ -27,9 +27,9 @@ export const DEFAULT_VISUAL_SETTINGS=Object.freeze({
   transitionFx:.82,
   coreFx:.86,
   voiceVolume:.9,
-  voiceRate:.86,
-  voicePitch:.68,
-  voiceProfile:'deep',
+  voiceRate:voiceProfilePatch().voiceRate,
+  voicePitch:voiceProfilePatch().voicePitch,
+  voiceProfile:'adult',
   voiceURI:'auto',
   droidCharacter:true,
   quality:'auto'
@@ -97,16 +97,16 @@ export function sanitizeVisualSettings(input={}){
   if(QUALITY.has(input.quality))result.quality=input.quality;
   if(VOICE_PROFILE_NAMES.has(input.voiceProfile))result.voiceProfile=input.voiceProfile;
   if(typeof input.voiceURI==='string'&&input.voiceURI.length<=240)result.voiceURI=input.voiceURI||'auto';
-  return result;
+  return {...result,...voiceProfilePatch()};
 }
 
 function load(){
   try{
     const raw=localStorage.getItem(STORAGE_KEY);
-    if(!raw)return {...DEFAULT_VISUAL_SETTINGS};
+    if(!raw)return sanitizeVisualSettings(DEFAULT_VISUAL_SETTINGS);
     return sanitizeVisualSettings(JSON.parse(raw));
   }catch{
-    return {...DEFAULT_VISUAL_SETTINGS};
+    return sanitizeVisualSettings(DEFAULT_VISUAL_SETTINGS);
   }
 }
 

@@ -7,6 +7,7 @@ const {tmpdir,homedir}=require('node:os');
 const {randomUUID}=require('node:crypto');
 const {spawn}=require('node:child_process');
 
+let voiceRequests;
 let win,panelWin,cloudLoginWin,naraNetworkWin,naraNetworkStudio,createNaraStudioServer,server,origin,bridges,cloudMemory,agentHub,naraAgentCoordinator,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,humanaleRuntime,ownerStore,ownerGate,systemObserver,dataFlowMeter,experienceStore,experienceSaveTimer,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer,naraVisualTestRunning=false,naraSkillCache={at:0,agents:[]};
 let cloudAllowedOrigins=new Set();
 let announceNaraEvent=()=>{};
@@ -103,7 +104,11 @@ function openNaraNetworkWindow(){
     port:0,
     nara,
     embedded:true,
-    creatorAuth:{required:true,credentialStore:ownerStore}
+    creatorAuth:{required:true,credentialStore:ownerStore},
+    voiceBackend:{
+     synthesize:(actor,value)=>voiceRequests.synthesize(actor,value),
+     stop:actor=>voiceRequests.stop(actor)
+    }
    });
    const address=await studio.start();
    naraNetworkStudio=studio;
@@ -397,7 +402,7 @@ else{
   indonesianStt=new IndonesianStt();
   indonesianTts=new IndonesianTts();
   const {createVoiceRequestCoordinator}=await import('./voice-request-coordinator.mjs');
-  const voiceRequests=createVoiceRequestCoordinator(indonesianTts);
+  voiceRequests=createVoiceRequestCoordinator(indonesianTts);
   const agentLinks=Object.fromEntries(agentDefinitions().map(item=>[item.id,item.url]));
   const root=path.resolve(__dirname,'../public');
   const avatarSourceRoot=path.resolve(__dirname,'../sites/humanale-hologram/dist');
@@ -858,6 +863,16 @@ else{
    await naraNetworkWin.webContents.executeJavaScript("document.querySelector('#brainNodes [data-region=\"GITHUB\"]').click()");
    const networkRegionSynced=await win.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+2500;const check=()=>{window.dudidamDesktop.naraSnapshot().then(result=>{if(result?.state?.selectedRegion==='GITHUB'||Date.now()>deadline)resolve(result?.state?.selectedRegion==='GITHUB');else setTimeout(check,50);});};check();})");
    if(!networkRegionSynced||nara.snapshot().selectedRegion!=='GITHUB')throw new Error('Pilihan region Studio tidak tersinkron ke HumanALE/NARA runtime utama.');
+   if(process.env.HUMANALE_ROBOT_VOICE_SMOKE==='1'){
+    const studioPlayback=await naraNetworkWin.webContents.executeJavaScript(`import('/voice-identity.js').then(({studioVoice})=>new Promise(resolve=>{
+     let started=false;const timeout=setTimeout(()=>resolve({ok:false,started,error:'timeout'}),45000);
+     studioVoice().speak('Saya HumanALE. Suara pria dewasa yang sama untuk semua model.',{
+      onstart:()=>{started=true;},onend:()=>{clearTimeout(timeout);resolve({ok:started,started,completed:true});}
+     }).catch(error=>{clearTimeout(timeout);resolve({ok:false,error:error.message});});
+    }))`,true);
+    if(!studioPlayback.ok)throw new Error('Studio PCM playback gagal: '+JSON.stringify(studioPlayback));
+    console.log('HUMANALE_STUDIO_VOICE_PLAYBACK_PASS '+JSON.stringify(studioPlayback));
+   }
    naraNetworkWin.close();
    await new Promise(resolve=>setTimeout(resolve,80));
    await stopNaraNetworkStudio();

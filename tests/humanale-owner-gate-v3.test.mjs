@@ -1,11 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
+import {mkdtempSync,readFileSync,writeFileSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 
 import {createOwnerStore} from '../nara-core/security/owner-store.mjs';
 import {createHumanALEOwnerGate} from '../desktop/humanale-owner-gate.mjs';
+
+test('unreadable Owner store fails closed and remains unchanged instead of enabling provisioning',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'humanale-owner-corrupt-'));
+ try{
+  const file=join(dir,'owner.json');writeFileSync(file,'invalid fixture');
+  const gate=createHumanALEOwnerGate({store:createOwnerStore({filePath:file})});
+  for(const result of [gate.status('a'),gate.login('a',{username:'creator',password:'FixtureKey123!'}),gate.provision('a',{username:'creator',password:'FixtureKey123!',confirmPassword:'FixtureKey123!'})]){
+   assert.equal(result.configured,true);assert.equal(result.unlocked,false);assert.equal(result.errorCode,'owner_store_unavailable');
+  }
+  assert.equal(readFileSync(file,'utf8'),'invalid fixture');
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('correct Owner key waits for lockout expiry and exact characters remain significant',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'humanale-owner-retry-'));
+ try{
+  const store=createOwnerStore({filePath:join(dir,'owner.json')});store.provision({username:'creator',password:'FixtureSecret123!'});
+  const gate=createHumanALEOwnerGate({store,maxAttempts:3,attemptWindowMs:10000});
+  for(let i=0;i<3;i++)gate.login('a',{username:'creator',password:'wrong'});
+  const denied=gate.login('a',{username:'creator',password:'FixtureSecret123!'});
+  assert.equal(denied.errorCode,'rate_limited');assert.ok(denied.retryAfterMs>0&&denied.retryAfterMs<=10001);
+  gate.attempts.get('a').startedAt=Date.now()-10002;
+  assert.equal(gate.login('a',{username:'creator',password:'FixtureSecret123!'}).ok,true);
+  assert.equal(gate.login('b',{username:'creator',password:'FixtureSecret123! '}).errorCode,'invalid_credentials');
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
 
 test('V3.5 HumanALE Creator gate provisions once and never persists plaintext password',()=>{
   const dir=mkdtempSync(join(tmpdir(),'humanale-owner-gate-'));
@@ -15,7 +41,7 @@ test('V3.5 HumanALE Creator gate provisions once and never persists plaintext pa
     const gate=createHumanALEOwnerGate({store,maxAttempts:5});
 
     assert.deepEqual(gate.status('window-a'),{
-      configured:false,unlocked:false,username:null,sessionExpiresAt:0
+      configured:false,unlocked:false,username:null,sessionExpiresAt:0,retryAfterMs:0,errorCode:''
     });
 
     const mismatch=gate.provision('window-a',{

@@ -110,14 +110,18 @@ export function createCreatorAuth({
       return {ok:true,development:true,authenticated:true,username:'creator'};
     }
     if(isRateLimited(req)){
-      return {ok:false,status:429,error:'Terlalu banyak percobaan login. Coba lagi nanti.'};
+      const attempt=attempts.get(clientKey(req));
+      return {ok:false,status:429,errorCode:'rate_limited',retryAfterMs:Math.max(1,attemptWindowMs-(Date.now()-attempt.startedAt)),error:'Terlalu banyak percobaan login. Tunggu sebelum mencoba lagi.'};
     }
 
     const user=String(input.username||'').slice(0,120);
-    const pass=String(input.password||'').slice(0,512);
-    if(!verifyCredentials(user,pass)){
+    const pass=String(input.password||'');
+    let valid=false;
+    try{valid=pass.length<=512&&verifyCredentials(user,pass);}
+    catch{return {ok:false,status:503,errorCode:'owner_store_unavailable',error:'Penyimpanan Owner server tidak dapat dibaca. Data login dipertahankan.'};}
+    if(!valid){
       recordFailure(req);
-      return {ok:false,status:401,error:'Identitas creator tidak valid.'};
+      return {ok:false,status:401,errorCode:'invalid_credentials',error:'Creator ID atau Access Key tidak cocok dengan Owner server ini.'};
     }
 
     attempts.delete(clientKey(req));

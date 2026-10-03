@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {robotSamples,createRobotVoicePlayer,voiceProfile} from '../public/robot-voice.js';
+import {robotSamples,createRobotVoicePlayer,voiceProfile,HUMANALE_VOICE} from '../public/robot-voice.js';
 import {readFile} from 'node:fs/promises';
 import {runInNewContext} from 'node:vm';
 
 test('adult bass processing adds an echo tail, produces audio and fades without clipping',()=>{
  const input=Float32Array.from({length:22050},(_,i)=>.5*Math.sin(2*Math.PI*200*i/22050));
  const original=input.slice(),output=robotSamples(input,22050);
- assert.equal(output.length,input.length+Math.round(22050*.27));assert.deepEqual(input,original);
+ assert.equal(output.length,input.length+Math.round(22050*.50));assert.deepEqual(input,original);
  assert.equal(Math.abs(output[0]),0);assert.equal(Math.abs(output.at(-1)),0);
  assert.ok(output.some((x,i)=>i>300&&Math.abs(x-input[i])>.05));
  assert.ok(output.reduce((sum,x)=>sum+x*x,0)/output.length>.04);
@@ -48,7 +48,7 @@ test('adult echo survives the source boundary, decays and filters high frequency
  const low=tone(500,16000,1600),original=low.slice();
  const output=robotSamples(low,16000),high=robotSamples(tone(6000,16000,1600),16000);
  assert.deepEqual(low,original);
- const early=rms(output.slice(2000,3500)),late=rms(output.slice(5000,5600));
+ const early=rms(output.slice(2000,3500)),late=rms(output.slice(7500,8300));
  assert.ok(early>.005,'tail should contain a real echo');
  assert.ok(late<early*.6,'later repeat must decay');
  assert.ok(rms(high.slice(2000,3500))<early*.6,'echo should suppress harsh upper detail');
@@ -67,7 +67,7 @@ test('adult playback uses extended PCM and slow pitch profile; baby and natural 
  }
  const player=createRobotVoicePlayer({AudioContext:Context});
  try{
-  for(const [style,rate,extra] of [['adult-robot',.84,4320],['baby-robot',1.1,0],['natural',1,0]]){
+  for(const [style,rate,extra] of [['adult-robot',.86,8000],['baby-robot',1.1,0],['natural',1,0]]){
    await player.play(new Uint8Array(44),{style});
    assert.equal(voiceProfile(style).rate,rate);assert.equal(active.playbackRate.value,rate);
    assert.equal(created.length,1600+extra);assert.equal(created.channels,2);
@@ -110,7 +110,7 @@ test('cancelled browser voice start and boundary events cannot restore speaking 
  const source=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
  const start=source.indexOf('function speakNativeIndonesian('),end=source.indexOf('\nfunction speak(text',start);
  const voice={voiceURI:'id-local',lang:'id-ID'},events=[];let utterance;
- const scope={window:{speechSynthesis:{getVoices:()=>[voice]}},speechSynthesis:{speak:u=>{utterance=u;}},SpeechSynthesisUtterance:function(text){this.text=text;},selectedVoiceURI:'',getIndonesianVoices:()=>[voice],speechGeneration:1,voiceStyle:'adult-robot',ttsActive:false,ttsEnergy:0,speechTimer:0,syncFaceAudio:()=>events.push('sync'),naraDispatch:()=>events.push('event'),avatar:{trigger:()=>{}},state:()=>{},performance:{now:()=>1000},lastNaraSpeechSent:0,setTimeout:()=>1,clearTimeout(){},stopSpeech(){},resumeWakeSoon(){},finishSpeechSource(){},setMicStatus(){},activeSpeechSource:'assistant'};
+ const scope={window:{speechSynthesis:{getVoices:()=>[voice]}},speechSynthesis:{speak:u=>{utterance=u;}},SpeechSynthesisUtterance:function(text){this.text=text;},HUMANALE_VOICE,selectedVoiceURI:'',getIndonesianVoices:()=>[voice],speechGeneration:1,voiceStyle:'adult-robot',ttsActive:false,ttsEnergy:0,speechTimer:0,syncFaceAudio:()=>events.push('sync'),naraDispatch:()=>events.push('event'),avatar:{trigger:()=>{}},state:()=>{},performance:{now:()=>1000},lastNaraSpeechSent:0,setTimeout:()=>1,clearTimeout(){},stopSpeech(){},resumeWakeSoon(){},finishSpeechSource(){},setMicStatus(){},activeSpeechSource:'assistant'};
  runInNewContext(source.slice(start,end)+';speakNativeIndonesian("Halo");',scope);
  scope.speechGeneration++;utterance.onstart();utterance.onboundary({charIndex:1});
  assert.equal(scope.ttsActive,false);assert.equal(scope.ttsEnergy,0);assert.deepEqual(events,[]);
