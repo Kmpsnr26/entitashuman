@@ -40,6 +40,26 @@ The trusted commit and both hashes must come from an independent reviewed build
 record. `ExpectedExecutableSha256` alone cannot bind Electron app source:
 `asar: false` stores the app beside the executable in `resources/app`.
 `ExpectedRuntimeSha256` therefore binds that entire tree, including dependencies.
+For the signed portable package, the Windows Actions artifact includes
+`humanale-build-record-windows.json`. Retrieve it from the independently reviewed
+successful canonical Actions run and check the run identity as described in
+[Final Device + Security Gates](humanale-final-device-security.md#obtain-the-trusted-build-record).
+Use `build.sourceCommit`, `windowsRuntime.executable.sha256`, and
+`windowsRuntime.runtimeSha256` for the three expected inputs above. Extract the
+recorded portable ZIP, verify its size/hash against `artifacts.windowsPortable`,
+and run that packaged executable on the real Windows target.
+The workflow computes these two runtime hashes from a fresh extraction of that
+final ZIP, after verifying the extracted executable's Authenticode signature.
+This covers files actually distributed even if archiving omitted a loose-build
+entry (for example a Windows Hidden-attribute file).
+
+The sidecar's executable/runtime hashes describe the **portable** package.
+They must not be assumed to match an installed application's executable or
+runtime after installer transformation. Installed-app acceptance still requires
+an independently reviewed matching installed-runtime build record; do not
+derive expected inputs by hashing the application under test. The sidecar alone
+grants no performance PASS and is not a cryptographic attestation.
+
 The digest is SHA-256 over UTF-8 records sorted with ordinal string comparison:
 each record is `relative/path`, NUL, lowercase file SHA-256, LF. Paths use `/`.
 The runtime must include `package.json`, `public/app.js`, and `desktop/main.cjs`.

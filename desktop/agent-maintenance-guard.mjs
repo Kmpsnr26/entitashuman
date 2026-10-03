@@ -5,8 +5,11 @@ export const AI_MAINTENANCE_GUARD_VERSION='1.1.0';
 export const AI_MAINTENANCE_MAX_CHANGED_FILES=32;
 export const AI_MAINTENANCE_MAX_CHANGED_BYTES=2*1024*1024;
 
+const SENSITIVE_ENV_NAME_SOURCE=
+ '(?:[A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|PWD|API_KEY|APIKEY|AUTHORIZATION|COOKIE|CREDENTIALS?|PRIVATE_KEY|CLIENT_SECRET|REFRESH_TOKEN|ACCESS_KEY|PEPPER|SIGNING|KEYSTORE|CERTIFICATE)(?:_[A-Z0-9_]*)?|DATABASE_URL|SSH_AUTH_SOCK|SSH_AGENT_PID|GPG_AGENT_INFO|GOOGLE_APPLICATION_CREDENTIALS|DOCKER_AUTH_CONFIG|NPM_CONFIG__AUTH)';
+
 export const AI_MAINTENANCE_SENSITIVE_ENV_PATTERN=
- /^(?:[A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|PWD|API_KEY|APIKEY|AUTHORIZATION|COOKIE|CREDENTIALS?|PRIVATE_KEY|CLIENT_SECRET|REFRESH_TOKEN|ACCESS_KEY|PEPPER|SIGNING|KEYSTORE|CERTIFICATE)(?:_[A-Z0-9_]*)?|DATABASE_URL|SSH_AUTH_SOCK|SSH_AGENT_PID|GPG_AGENT_INFO|GOOGLE_APPLICATION_CREDENTIALS|DOCKER_AUTH_CONFIG|NPM_CONFIG__AUTH)$/i;
+ new RegExp('^(?=[A-Z0-9_]+$)'+SENSITIVE_ENV_NAME_SOURCE+'$','i');
 
 export const AI_MAINTENANCE_IDENTITY_ENV_KEYS=Object.freeze([
  'HOME','USERPROFILE','HOMEDRIVE','HOMEPATH',
@@ -14,10 +17,27 @@ export const AI_MAINTENANCE_IDENTITY_ENV_KEYS=Object.freeze([
  'APPDATA','LOCALAPPDATA','SSH_AUTH_SOCK','SSH_AGENT_PID','GPG_AGENT_INFO'
 ]);
 
+function hasSensitiveEnvironmentAccess(text){
+ // Extract complete identifiers/literals first so long unrelated keys cannot
+ // trigger repeated backtracking through the credential-name matcher.
+ const accessPattern=/\bprocess\s*(?:\.|\?\.)\s*env(?:\s*(?:\.|\?\.)\s*([\p{ID_Start}_$][\p{ID_Continue}$\u200C\u200D]*)|\s*(?:\?\.)?\s*\[\s*(['"])([^'"\r\n]*)\2)/giu;
+ for(const match of text.matchAll(accessPattern)){
+  // A sensitive bracket literal also fails closed when concatenated: the
+  // remaining expression may select another credential-bearing variable.
+  const key=match[1]??match[3];
+  if(AI_MAINTENANCE_SENSITIVE_ENV_PATTERN.test(key))return true;
+  // Preserve the original fail-closed boundary before a literal escape without
+  // evaluating source or treating sensitive substrings in ordinary words as keys.
+  const escapeIndex=match[1]===undefined?key.indexOf('\\'):-1;
+  if(escapeIndex>=0&&AI_MAINTENANCE_SENSITIVE_ENV_PATTERN.test(key.slice(0,escapeIndex)))return true;
+ }
+ return false;
+}
+
 const PATCH_DENY_RULES=Object.freeze([
  Object.freeze({
   code:'SECRET_ENV_ACCESS_ADDED',
-  pattern:/\bprocess\.env(?:\s*\.\s*|\s*\[\s*['"])(?:[A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|APIKEY|AUTHORIZATION|COOKIE|CREDENTIALS?|PRIVATE_KEY|CLIENT_SECRET|REFRESH_TOKEN|ACCESS_KEY|PEPPER|SIGNING|KEYSTORE|CERTIFICATE)|DATABASE_URL)\b/i
+  inspect:hasSensitiveEnvironmentAccess
  }),
  Object.freeze({
   code:'OWNER_DATABASE_MUTATION_ADDED',
@@ -147,7 +167,7 @@ export function inspectMaintenancePatchText(patch=''){
  const added=extractAddedPatchLines(patch);
  const violations=[];
  for(const rule of PATCH_DENY_RULES){
-  if(rule.pattern.test(added))violations.push(rule.code);
+  if(rule.inspect?rule.inspect(added):rule.pattern.test(added))violations.push(rule.code);
  }
  return Object.freeze({
   allowed:violations.length===0,
