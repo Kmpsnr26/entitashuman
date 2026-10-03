@@ -1,6 +1,41 @@
-// Small local PCM effect: keep Indonesian words clear while adding a robot texture.
+const profiles=Object.freeze({
+ 'adult-robot':Object.freeze({rate:.84,gain:.88,lead:.16,toneStart:180,toneEnd:100,toneDuration:.12,toneGain:.028,tail:.27}),
+ 'baby-robot':Object.freeze({rate:1.10,gain:.88,lead:.12,toneStart:340,toneEnd:680,toneDuration:.10,toneGain:.035,tail:0}),
+ natural:Object.freeze({rate:1,gain:.88,lead:0,tail:0})
+});
+export const voiceProfile=style=>profiles[style]||profiles['adult-robot'];
+
+// Keep dry consonants distinct; only the quiet echo branch loses upper detail.
+function maleBassSamples(input,rate){
+ if(!input.length)return new Float32Array();
+ const length=input.length+Math.round(rate*profiles['adult-robot'].tail);
+ const output=new Float32Array(length),echoSend=new Float32Array(length);
+ const hpAlpha=Math.exp(-2*Math.PI*77/rate),bassAlpha=1-Math.exp(-2*Math.PI*180/rate);
+ const echoHpAlpha=Math.exp(-2*Math.PI*180/rate),echoLpAlpha=1-Math.exp(-2*Math.PI*2000/rate);
+ const delay1=Math.round(rate*.12),delay2=Math.round(rate*.23),fade=Math.max(1,Math.round(rate*.012));
+ let previous=0,highpass=0,bass=0,echoPrevious=0,echoHighpass=0,echoLowpass=0;
+ for(let i=0;i<length;i++){
+  const sample=i<input.length&&Number.isFinite(input[i])?input[i]:0;
+  highpass=hpAlpha*(highpass+sample-previous);previous=sample;
+  bass+=bassAlpha*(highpass-bass);
+  const carrier=.975+.025*Math.sin(2*Math.PI*24*i/rate);
+  const dry=(highpass+.413*bass)*carrier*.82;
+  echoHighpass=echoHpAlpha*(echoHighpass+dry-echoPrevious);echoPrevious=dry;
+  echoLowpass+=echoLpAlpha*(echoHighpass-echoLowpass);echoSend[i]=echoLowpass;
+  let mixed=dry+(i>=delay1?echoSend[i-delay1]*.10:0)+(i>=delay2?echoSend[i-delay2]*.04:0);
+  // A continuous soft knee reserves headroom without flat-topped clipping.
+  const magnitude=Math.abs(mixed);
+  if(magnitude>.8)mixed=Math.sign(mixed)*(.8+.18*Math.tanh((magnitude-.8)/.18));
+  output[i]=mixed*Math.min(1,i/fade,(length-1-i)/fade);
+ }
+ return output;
+}
+
+// All presets run locally on PCM and never modify the original voice samples.
 export function robotSamples(input,rate,style='adult-robot'){
  if(!Number.isFinite(rate)||rate<8000||rate>192000)throw new Error('Sample rate tidak valid.');
+ if(!Object.hasOwn(profiles,style))style='adult-robot';
+ if(style==='adult-robot')return maleBassSamples(input,rate);
  const output=new Float32Array(input.length),robot=style!=='natural';
  const delay=Math.round(rate*.018),fade=Math.max(1,Math.round(rate*.009));
  for(let i=0;i<input.length;i++){
@@ -28,19 +63,20 @@ export function createRobotVoicePlayer({AudioContext=globalThis.AudioContext||gl
   if(ctx.state!=='running')throw new Error('Ketuk Uji suara untuk mengaktifkan audio.');
   const decoded=await ctx.decodeAudioData(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
   if(token!==serial)return false;
-  const buffer=ctx.createBuffer(decoded.numberOfChannels,decoded.length,decoded.sampleRate);
-  for(let channel=0;channel<decoded.numberOfChannels;channel++)buffer.copyToChannel(robotSamples(decoded.getChannelData(channel),decoded.sampleRate,style),channel);
-  source=ctx.createBufferSource();source.buffer=buffer;source.playbackRate.value=style==='adult-robot'?.94:style==='baby-robot'?1.10:1;
+  const profile=voiceProfile(style),first=robotSamples(decoded.getChannelData(0),decoded.sampleRate,style);
+  const buffer=ctx.createBuffer(decoded.numberOfChannels,first.length,decoded.sampleRate);buffer.copyToChannel(first,0);
+  for(let channel=1;channel<decoded.numberOfChannels;channel++)buffer.copyToChannel(robotSamples(decoded.getChannelData(channel),decoded.sampleRate,style),channel);
+  source=ctx.createBufferSource();source.buffer=buffer;source.playbackRate.value=profile.rate;
   gain=ctx.createGain();source.connect(gain);gain.connect(ctx.destination);
-  const now=ctx.currentTime,start=now+(style==='natural'?0:.12),duration=buffer.duration/source.playbackRate.value;
-  gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(.88,start+.012);
-  gain.gain.setValueAtTime(.88,start+Math.max(.013,duration-.02));gain.gain.linearRampToValueAtTime(0,start+duration);
-  // Brief, quiet rising tone creates a transition into the robot reply.
+  const now=ctx.currentTime,start=now+profile.lead,duration=buffer.duration/source.playbackRate.value;
+  gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(profile.gain,start+.012);
+  gain.gain.setValueAtTime(profile.gain,start+Math.max(.013,duration-.02));gain.gain.linearRampToValueAtTime(0,start+duration);
+  // A low, short transition matches the adult voice without covering its words.
   if(style!=='natural'){
    const oscillator=ctx.createOscillator(),toneGain=ctx.createGain();
-   oscillator.type='sine';oscillator.frequency.setValueAtTime(340,now);oscillator.frequency.exponentialRampToValueAtTime(680,now+.09);
-   toneGain.gain.setValueAtTime(0,now);toneGain.gain.linearRampToValueAtTime(.035,now+.015);toneGain.gain.exponentialRampToValueAtTime(.0001,now+.10);
-   oscillator.connect(toneGain);toneGain.connect(ctx.destination);oscillator.start(now);oscillator.stop(now+.11);
+   oscillator.type='sine';oscillator.frequency.setValueAtTime(profile.toneStart,now);oscillator.frequency.exponentialRampToValueAtTime(profile.toneEnd,now+profile.toneDuration-.01);
+   toneGain.gain.setValueAtTime(0,now);toneGain.gain.linearRampToValueAtTime(profile.toneGain,now+.015);toneGain.gain.exponentialRampToValueAtTime(.0001,now+profile.toneDuration);
+   oscillator.connect(toneGain);toneGain.connect(ctx.destination);oscillator.start(now);oscillator.stop(now+profile.toneDuration+.01);
    const cue={oscillator,gain:toneGain};transition=cue;
    oscillator.onended=()=>{oscillator.disconnect();toneGain.disconnect();if(transition===cue)transition=null;};
   }
