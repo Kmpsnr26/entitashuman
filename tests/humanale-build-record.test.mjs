@@ -147,13 +147,17 @@ test('CLI emits a public sidecar, hashes multiple read chunks and refuses to ove
   assert.equal(second.status,1);assert.equal(fs.readFileSync(output,'utf8'),original);
 });
 
-test('signed workflows record only after verification, upload sidecars and retain publication gates',()=>{
+for(const lineEnding of ['LF','CRLF'])test(`signed workflows record only after verification, upload sidecars and retain publication gates (${lineEnding})`,()=>{
   const root=new URL('../',import.meta.url);
-  const windows=fs.readFileSync(new URL('.github/workflows/verify.yml',root),'utf8');
-  const android=fs.readFileSync(new URL('.github/workflows/android-apk.yml',root),'utf8');
+  const readWorkflow=name=>{
+    const source=fs.readFileSync(new URL('.github/workflows/'+name,root),'utf8').replace(/\r\n/g,'\n');
+    return lineEnding==='CRLF'?source.replace(/\n/g,'\r\n'):source;
+  };
+  const windows=readWorkflow('verify.yml');
+  const android=readWorkflow('android-apk.yml');
   assert.ok(windows.indexOf('name: Verify Windows Authenticode')<windows.indexOf('name: Record signed Windows build identities'));
   assert.ok(windows.indexOf('--platform windows')<windows.indexOf('name: Upload verified Windows artifacts'));
-  assert.match(windows,/name: Record signed Windows build identities\n\s+if: github.event_name == 'workflow_dispatch' && inputs.build_signed_artifact/);
+  assert.match(windows,/name: Record signed Windows build identities\r?\n\s+if: github.event_name == 'workflow_dispatch' && inputs.build_signed_artifact/);
   assert.match(windows,/release\/humanale-build-record-windows\.json/);
   assert.match(windows,/Expand-Archive -LiteralPath \$zip -DestinationPath \$extracted/);
   assert.match(windows,/Get-AuthenticodeSignature -FilePath \(Join-Path \$extracted 'HumanALE-God-Engine\.exe'\)/);
