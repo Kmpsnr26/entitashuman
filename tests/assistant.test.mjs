@@ -183,8 +183,8 @@ test('HumanALE god egine project work requires a selected Git checkout and expos
  assert.match(desktop,/showOpenDialog/);
  assert.match(preload,/chooseProjectRoot/);
  assert.match(html,/id="projectPick"/);
- assert.match(app,/runCopilotProjectWork/);
- assert.match(app,/id:'github-copilot',mode:'work'/);
+ assert.match(app,/runProjectWork/);
+ assert.match(app,/id:executor\.id,mode:'work'/);
  assert.match(app,/isExplicitProjectWorkRequest\(text\)/);
 });
 

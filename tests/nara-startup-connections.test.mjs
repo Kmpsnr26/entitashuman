@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
-import {bootstrapNaraConnections,recordNaraProviderStatus} from '../desktop/startup-connections.mjs';
+import {bootstrapNaraConnections,recordNaraProviderStatus,recordNaraAgentHubStatus} from '../desktop/startup-connections.mjs';
 import {OpenAIBridge} from '../desktop/openai-api.mjs';
 import {GeminiBridge} from '../desktop/gemini.mjs';
 import {CopilotBridge} from '../desktop/copilot.mjs';
@@ -11,6 +11,27 @@ import {normalizeProviderStatus} from '../nara-core/brain/provider-state.js';
 
 function hub(agents=[],projectRootReady=true){return {status:async()=>({agents,projectRootReady})};}
 function naraFixture(){const nara=createOrchestrator();nara.start();return nara;}
+
+test('refreshed workspace evidence retains CLI login but reports blocked work until checkout is ready',()=>{
+  const nara=naraFixture();
+  try{
+    const agents=[{id:'codex',state:'configured',canRun:true,executable:true}];
+    const blocked=recordNaraAgentHubStatus({nara,hub:{agents,projectRootReady:true,workReady:false},now:()=>1});
+    assert.equal(blocked.provider.ready,true);
+    assert.equal(blocked.startupConnections.projectRootReady,false);
+    const ready=recordNaraAgentHubStatus({nara,hub:{agents,projectRootReady:true,workReady:true},now:()=>2});
+    assert.equal(ready.startupConnections.projectRootReady,true);
+    assert.equal(nara.snapshot().startupConnections.checkedAt,2);
+    assert.equal(nara.snapshot().startupConnections.armed,false);
+  }finally{nara.stop();}
+});
+
+test('CLI probe failures remain unknown in Core rather than being labeled logged out',()=>{
+  for(const [errorCode,statusError] of [['CODEX_PROBE_ENOENT','STATUS_FAILED'],['CODEX_PROBE_TIMEOUT','STATUS_TIMEOUT']]){
+    const result=recordNaraAgentHubStatus({hub:{agents:[{id:'codex',executable:true,state:'installed',canRun:false,errorCode}]}});
+    assert.equal(result.provider.auth,'unknown');assert.equal(result.provider.statusError,statusError);
+  }
+});
 
 test('actual API bridge configuration checks never make a request or prove authentication',async()=>{
   const names=['OPENAI_API_KEY','GEMINI_API_KEY'];

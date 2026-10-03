@@ -217,8 +217,10 @@ test('desktop UI loads shared memory modules and requests permission before chat
   assert.match(html,/id="memoryContextMode"/);
   assert.match(html,/id="memoryContextStatus"/);
   assert.match(app,/prepareEffectiveMemoryContext\(text,'reasoner'\)/);
-  assert.match(app,/prepareEffectiveMemoryContext\(prompt,mode==='work'\?'agent':'planner'\)/);
-  assert.match(app,/prepareEffectiveMemoryContext\(text,'agent'\)/);
+  assert.match(app,/createAgentTaskPayload\(\{id,prompt,mode,prepareMemory:prepareEffectiveMemoryContext\}\)/);
+  const taskHelper=await read('public/agent-task.js');
+  assert.match(taskHelper,/if\(payload.mode==='analyze'\)payload.memoryContext=await prepareMemory\(prompt,'planner'\)/);
+  assert.doesNotMatch(taskHelper,/prepareMemory\([^\n]*'agent'/);
   assert.match(app,/selectedMemorySource\(\)==='cloud'/);
   assert.match(app,/return stored==='cloud'\?'cloud':'local'/);
   assert.match(app,/if\(source==='cloud'&&cloudMemoryChecked&&!cloudMemoryState\.configured\)source=setMemorySource\('local'\)/);

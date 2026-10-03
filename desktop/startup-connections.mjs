@@ -3,6 +3,23 @@ import {normalizeProviderStatus,normalizeStartupConnections} from '../nara-core/
 export const AUTO_PROVIDER_IDS=Object.freeze(['chatgpt','copilot','openai','gemini']);
 export const STARTUP_STATUS_TIMEOUT_MS=15000;
 const providerSessions=new WeakMap();
+const codexStatusError=(agent,fallback='')=>fallback||
+  (/^CODEX_PROBE_/.test(agent?.errorCode||'')?(agent.errorCode==='CODEX_PROBE_TIMEOUT'?'STATUS_TIMEOUT':'STATUS_FAILED'):'');
+
+export function recordNaraAgentHubStatus({nara,hub={},pending=false,now=()=>Date.now(),statusError=''}={}){
+  const codex=Array.isArray(hub.agents)?hub.agents.find(agent=>agent?.id==='codex'):null;
+  const verified=codex?.executable===true&&codex?.state==='configured'&&codex?.canRun===true;
+  const provider=normalizeProviderStatus({id:'codex',attached:codex?.executable===true,
+    configured:verified,verified,busy:pending,evidence:'login-status',statusError:codexStatusError(codex,statusError)});
+  safeDispatch(nara,'provider.status',provider);
+  const authenticatedExecutors=[];
+  if(provider.ready)authenticatedExecutors.push('codex');
+  if(nara&&providerSessions.get(nara)?.get('copilot')?.ready)authenticatedExecutors.push('github-copilot');
+  const startupConnections=normalizeStartupConnections({pending:false,checkedAt:now(),
+    projectRootReady:hub.workReady??hub.projectRootReady,authenticatedExecutors});
+  safeDispatch(nara,'startup.connections',startupConnections);
+  return {provider,startupConnections};
+}
 
 function safeDispatch(nara,event,payload){
   try{nara?.dispatch?.(event,payload,{source:'startup-connections'});}catch{}
@@ -71,14 +88,14 @@ export async function bootstrapNaraConnections({bridges={},agentHub=null,nara=nu
   providers.codex=normalizeProviderStatus({
     id:'codex',attached:codex?.executable===true,configured:codexVerified,
     verified:codexVerified,busy:agentHub?.pending===true,
-    evidence:'login-status',statusError:hubResult.statusError
+    evidence:'login-status',statusError:codexStatusError(codex,hubResult.statusError)
   });
   safeDispatch(nara,'provider.status',providers.codex);
   const authenticatedExecutors=[];
   if(providers.codex.ready)authenticatedExecutors.push('codex');
   if(providers.copilot.ready)authenticatedExecutors.push('github-copilot');
   const startupConnections=normalizeStartupConnections({
-    pending:false,checkedAt:now(),projectRootReady:hub.projectRootReady,
+    pending:false,checkedAt:now(),projectRootReady:hub.workReady??hub.projectRootReady,
     authenticatedExecutors
   });
   safeDispatch(nara,'startup.connections',startupConnections);

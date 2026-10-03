@@ -318,7 +318,7 @@ else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
   const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
-  const [{createOrchestrator,createExperienceModel,getHumanALETestScenario,listHumanALETestScenarios,createSkillSnapshot},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createNaraAgentCoordinator},{createHumanALEOwnerGate,isOwnerTargetUnlocked,authorizedDisplayMediaTarget},{createNaraStudioServer:studioServerFactory},{bootstrapNaraConnections,recordNaraProviderStatus}]=await Promise.all([
+  const [{createOrchestrator,createExperienceModel,getHumanALETestScenario,listHumanALETestScenarios,createSkillSnapshot},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createNaraAgentCoordinator},{createHumanALEOwnerGate,isOwnerTargetUnlocked,authorizedDisplayMediaTarget},{createNaraStudioServer:studioServerFactory},{bootstrapNaraConnections,recordNaraProviderStatus,recordNaraAgentHubStatus}]=await Promise.all([
    import('../nara-core/brain/index.js'),
    import('../nara-core/voice/index.js'),
    import('../nara-core/persistence/experience-store.mjs'),
@@ -665,7 +665,7 @@ else{
   ipcMain.handle('dudidam:synthesize',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await voiceRequests.synthesize(ownerActor(e),value);}catch(error){return {error:error.message};}});
   ipcMain.on('dudidam:panel-open',(e,view)=>{if(ownerTrusted(e))openPanel(view);});
   ipcMain.on('dudidam:panel-close',e=>{if(trusted(e))panelWin?.hide();});
-  ipcMain.handle('dudidam:agents',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await agentHub.status();}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:agents',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{const status=await agentHub.status();recordNaraAgentHubStatus({nara,hub:status,pending:agentHub.pending});return status;}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:project-root-choose',async e=>{
    if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    const result=await dialog.showOpenDialog(panelWin?.isVisible()?panelWin:win,{title:'Pilih folder checkout proyek HumanALE god egine',properties:['openDirectory']});
@@ -673,7 +673,8 @@ else{
    const selected=path.resolve(result.filePaths[0]);
    agentHub.setProjectRoot(selected);terminalManager?.setWorkspace(selected);
    try{await writeFile(projectRootPath(),selected,'utf8');}catch(error){return {error:'Folder terpilih, tetapi pengaturan tidak dapat disimpan: '+error.message};}
-   return {ok:true,...await agentHub.status()};
+   const status=await agentHub.status();recordNaraAgentHubStatus({nara,hub:status,pending:agentHub.pending});
+   return {ok:true,...status};
   });
   ipcMain.handle('dudidam:agent-run',async(e,value)=>{
    if(!ownerTrusted(e))return {error:'Akses ditolak.'};
