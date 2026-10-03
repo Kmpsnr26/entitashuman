@@ -396,6 +396,8 @@ else{
   });
   indonesianStt=new IndonesianStt();
   indonesianTts=new IndonesianTts();
+  const {createVoiceRequestCoordinator}=await import('./voice-request-coordinator.mjs');
+  const voiceRequests=createVoiceRequestCoordinator(indonesianTts);
   const agentLinks=Object.fromEntries(agentDefinitions().map(item=>[item.id,item.url]));
   const root=path.resolve(__dirname,'../public');
   const avatarSourceRoot=path.resolve(__dirname,'../sites/humanale-hologram/dist');
@@ -432,7 +434,7 @@ else{
   win=new BrowserWindow({width,height,x:position.x,y:position.y,frame:false,transparent:true,backgroundColor:'#00000000',hasShadow:false,resizable:false,alwaysOnTop:true,skipTaskbar:true,title:'HumanALE god egine — Avatar Transparan',show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,backgroundThrottling:false,spellcheck:false}});
   win.setAlwaysOnTop(true,'floating');
   win.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true});
-  const trusted=e=>(e.sender===win?.webContents||e.sender===panelWin?.webContents)&&e.senderFrame?.url?.startsWith(origin+'/');
+  const trusted=e=>Boolean(e?.sender&&!e.sender.isDestroyed()&&(e.sender===win?.webContents||e.sender===panelWin?.webContents)&&e.senderFrame?.url?.startsWith(origin+'/'));
   const ownerActor=e=>String(e?.sender?.id||'');
   const ownerTrusted=e=>trusted(e)&&ownerGate?.isUnlocked(ownerActor(e));
   ipcMain.handle('dudidam:nara-network-open',e=>{
@@ -654,7 +656,8 @@ else{
   ipcMain.handle('dudidam:stt-status',async e=>{if(!ownerTrusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianStt.status();});
   ipcMain.handle('dudidam:transcribe',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await indonesianStt.transcribe(value);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:tts-status',async e=>{if(!ownerTrusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianTts.status();});
-  ipcMain.handle('dudidam:synthesize',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await indonesianTts.synthesize(value);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:tts-stop',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return {ok:true,...await voiceRequests.stop(ownerActor(e))};}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:synthesize',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await voiceRequests.synthesize(ownerActor(e),value);}catch(error){return {error:error.message};}});
   ipcMain.on('dudidam:panel-open',(e,view)=>{if(ownerTrusted(e))openPanel(view);});
   ipcMain.on('dudidam:panel-close',e=>{if(trusted(e))panelWin?.hide();});
   ipcMain.handle('dudidam:agents',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await agentHub.status();}catch(error){return {error:error.message};}});
@@ -801,8 +804,8 @@ else{
    await openPanel('controls');
    const panelReady=await panelWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+2500;const check=()=>{const ready=document.body.classList.contains('detached-panel')&&document.querySelector('#controls')?.open&&document.documentElement.classList.contains('panel-surface');if(ready||Date.now()>deadline)resolve(Boolean(ready));else setTimeout(check,50);};check();})");
    if(!panelReady)throw new Error('Panel terpisah HumanALE god egine tidak siap.');
-   const avatarControls=await panelWin.webContents.executeJavaScript("Boolean(document.querySelector('#emotion')) && Boolean(document.querySelector('#voiceStyle')) && document.querySelector('#voiceStyle').value==='baby-robot'");
-   if(!avatarControls)throw new Error('Kontrol emosi dan suara bayi robot tidak siap.');
+   const avatarControls=await panelWin.webContents.executeJavaScript("Boolean(document.querySelector('#emotion')) && Boolean(document.querySelector('#voiceStyle')) && document.querySelector('#voiceStyle').value==='adult-robot'");
+   if(!avatarControls)throw new Error('Kontrol emosi dan suara robot dewasa tidak siap.');
    await openPanel('avatarStudio');
    const avatarStudioReady=await panelWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+2500;const check=()=>{const dialog=document.querySelector('#avatarStudio'),slider=document.querySelector('[data-avatar-studio-key=\"headWidth\"]');const ready=Boolean(dialog?.open&&slider&&document.querySelector('#avatarStudioSave'));if(ready||Date.now()>deadline)resolve(ready);else setTimeout(check,50);};check();})");
    if(!avatarStudioReady)throw new Error('Avatar Live Studio tidak siap di panel terpisah.');
@@ -907,6 +910,19 @@ else{
     if(!voiceReady)throw new Error('Runtime suara Indonesia lokal belum siap.');
     const speechReady=await panelWin.webContents.executeJavaScript("window.dudidamDesktop.synthesize({text:'Halo dari HumanALE god egine.',style:'baby-robot'}).then(result=>result.mime==='audio/wav'&&result.audio?.length>1000)");
     if(!speechReady)throw new Error('Suara Indonesia lokal gagal dibuat lewat panel.');
+   }
+   if(process.env.HUMANALE_ROBOT_VOICE_SMOKE==='1'){
+    const playback=await panelWin.webContents.executeJavaScript(`new Promise(resolve=>{
+     const button=document.querySelector('#voiceTest');if(!button){resolve({ok:false,error:'missing-button'});return;}
+     let started=false;const deadline=Date.now()+45000;
+     const timer=setInterval(()=>{const status=document.querySelector('#micStatus')?.textContent||'';
+      if(status.startsWith('Memutar suara'))started=true;
+      if(started&&status==='Suara selesai.'){clearInterval(timer);resolve({ok:true,started,completed:true});}
+      else if(Date.now()>deadline){clearInterval(timer);resolve({ok:false,started,status});}
+     },50);button.click();
+    })`,true);
+    if(!playback.ok)throw new Error('Robot voice playback gagal: '+JSON.stringify(playback));
+    console.log('HUMANALE_ROBOT_VOICE_PLAYBACK_PASS '+JSON.stringify(playback));
    }
    if(process.env.DUDIDAM_COPILOT_SMOKE==='1'){
     const copilotReady=await panelWin.webContents.executeJavaScript("window.dudidamDesktop.ask({provider:'copilot',message:'Jawab satu kata: siap',history:[]}).then(result=>Boolean(result.text)&&!result.error)");

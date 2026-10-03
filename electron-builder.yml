@@ -9,6 +9,8 @@ files:
   - nara-core/**/*
   - sites/humanale-hologram/dist/face-rig.js
   - sites/humanale-hologram/dist/neural-core.js
+  - sites/humanale-hologram/dist/nara-memory.js
+  - sites/humanale-hologram/dist/nara-context-bridge.js
   - sites/humanale-hologram/dist/avatar.js
   - package.json
 asar: false

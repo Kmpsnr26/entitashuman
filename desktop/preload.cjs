@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('dudidamDesktop',Object.freeze({
  sttStatus:()=>ipcRenderer.invoke('dudidam:stt-status'),
  transcribe:payload=>ipcRenderer.invoke('dudidam:transcribe',payload),
  ttsStatus:()=>ipcRenderer.invoke('dudidam:tts-status'),
+ stopTts:()=>ipcRenderer.invoke('dudidam:tts-stop'),
  synthesize:payload=>ipcRenderer.invoke('dudidam:synthesize',payload),
  openPanel:view=>ipcRenderer.send('dudidam:panel-open',view),
  closePanel:()=>ipcRenderer.send('dudidam:panel-close'),

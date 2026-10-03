@@ -3,7 +3,7 @@ dist/
 !sites/humanale-hologram/dist/
 release/
 out/
-android/
+/android/
 .env
 .env.*
 !.env.example
