@@ -13,6 +13,7 @@ export function assertNativeEvidence({process, foreground, crash}) {
 }
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const annotation = (level, title, message) => console.log(`::${level} title=${title}::${String(message).slice(0, 4000).replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}`);
 async function waitFor(read, accepts, label, timeout = 60000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
@@ -62,9 +63,9 @@ async function connect(url) {
 export async function runAndroidRuntimeSmoke(base, directory) {
   await mkdir(directory, {recursive: true});
   const report = {schema: 'humanale-android-ci-runtime/1', startedAt: new Date().toISOString(), checks: [], uncaughtErrors: [], localResourceErrors: [], physicalDeviceAcceptance: false};
-  let cdp;
+  let cdp, observedPage;
   const check = async (name, run) => {
-    try { await run(); report.checks.push({name, status: 'passed'}); console.log(`PASS: ${name}`); }
+    try { await run(); report.checks.push({name, status: 'passed'}); console.log(`PASS: ${name}`); annotation('notice', 'Android WebView check', `passed: ${name}`); }
     catch (error) { report.checks.push({name, status: 'failed', error: error.message}); throw error; }
   };
   try {
@@ -101,7 +102,7 @@ export async function runAndroidRuntimeSmoke(base, directory) {
     const pageState = `(() => { const visible=e=>!!e && !e.hidden && !!e.getClientRects().length; const a=document.querySelector('#avatar'); return {origin:location.origin,platform:window.Capacitor?.getPlatform?.(),ready:document.readyState,avatar:!!a&&a.width>0&&a.height>0,prompt:visible(document.querySelector('#prompt')),chat:document.querySelector('#chatDialog')?.open===true,ownerGate:visible(document.querySelector('#ownerGate')),sendEnabled:document.querySelector('#send')?.disabled===false}; })()`;
     await check('APK native page, avatar canvas and conversation loaded', async () => {
       report.page = await waitFor(async () => {
-        try { return await evaluate(pageState); }
+        try { observedPage = await evaluate(pageState); return observedPage; }
         catch (error) {
           if (/Execution context was destroyed|Cannot find context with specified id/i.test(error.message)) return null;
           throw error;
@@ -129,12 +130,14 @@ export async function runAndroidRuntimeSmoke(base, directory) {
     });
     report.status = 'passed';
   } catch (error) {
-    report.status = 'failed'; report.error = error.message;
+    report.status = 'failed'; report.error = error.message; report.lastObservedPage = observedPage;
     console.error(`FAIL: Android WebView runtime: ${error.message}`);
+    annotation('error', 'Android WebView runtime failed', `${error.message}${observedPage ? '; last page: ' + JSON.stringify(observedPage) : ''}`);
   } finally {
     cdp?.close(); report.finishedAt = new Date().toISOString();
     await writeFile(`${directory}/webview-report.json`, JSON.stringify(report, null, 2) + '\n');
     console.log(JSON.stringify(report, null, 2));
+    annotation('notice', 'Android WebView result', JSON.stringify({status: report.status, checks: report.checks, lastObservedPage: observedPage, uncaughtErrors: report.uncaughtErrors.slice(0, 5), localResourceErrors: report.localResourceErrors.slice(0, 5), error: report.error}).slice(0, 6000));
     if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `\nAndroid WebView runtime: **${report.status}** (KVM emulator; physical-device acceptance pending).\n\n${report.checks.map(value => `- ${value.status}: ${value.name}`).join('\n')}\n${report.error ? `\nFailure: ${report.error.replaceAll('\n', ' ')}\n` : ''}`);
   }
   if (report.status !== 'passed') throw new Error(report.error);
@@ -146,7 +149,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   if (process.argv[2] === '--native') {
     const directory = process.argv[3];
     const [processText, foreground, crash] = await Promise.all(['process.txt', 'foreground.txt', 'crash.txt'].map(name => readFile(`${directory}/${name}`, 'utf8')));
-    assertNativeEvidence({process: processText, foreground, crash});
+    try { assertNativeEvidence({process: processText, foreground, crash}); }
+    catch (error) { annotation('error', 'Android native runtime failed', error.message); throw error; }
     console.log('PASS: native HumanALE process alive in foreground without app or renderer crashes');
+    annotation('notice', 'Android native check', 'passed: native process alive in foreground without application or renderer crashes');
   } else await runAndroidRuntimeSmoke(process.argv[2], process.argv[3]);
 }
