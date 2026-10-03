@@ -4,11 +4,13 @@ import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,existsSync,rmSync} from
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync} from 'node:child_process';
+import {powershellCommand,powershellSkip,powershellEnv} from './helpers/powershell.mjs';
 
+// Execute acceptance script logic with fixture reports, without claiming hardware GPU validation.
 const root=new URL('../',import.meta.url);
 
 test('standalone GPU acceptance requires a fresh physical report and restores caller GPU mode',{
- skip:process.platform!=='win32'
+ skip:powershellSkip
 },()=>{
  const scratch=mkdtempSync(path.join(fileURLToPath(new URL('../../',import.meta.url)),'gpu-runner-test-'));
  try{
@@ -48,6 +50,7 @@ function global:npm {
  $now = [DateTimeOffset]::UtcNow
  $report | Add-Member -NotePropertyName startedAt -NotePropertyValue $now.ToString('o') -Force
  $report | Add-Member -NotePropertyName completedAt -NotePropertyValue $now.ToString('o') -Force
+ if ($env:HUMANALE_GPU_TEST_CASE -eq 'invalid-time') { $report.startedAt = 'not-a-timestamp' }
  if ($env:HUMANALE_GPU_TEST_CASE -eq 'replay') { $report.startedAt = '2020-01-01T00:00:00Z'; $report.completedAt = '2020-01-01T00:01:00Z' }
  if ($env:HUMANALE_GPU_TEST_CASE -eq 'future') { $report.completedAt = $now.AddHours(1).ToString('o') }
  if ($env:HUMANALE_GPU_TEST_CASE -eq 'reversed') { $report.completedAt = $now.AddSeconds(-1).ToString('o') }
@@ -59,7 +62,7 @@ finally { @{ gpuMode = $env:NARA_GPU_MODE } | ConvertTo-Json | Set-Content -Lite
 exit $status
 `);
   const scenarios=[
-   ['noop',{},1],['replay',{},1],['future',{},1],['reversed',{},1],['malformed',{},1],
+   ['noop',{},1],['invalid-time',{},1],['replay',{},1],['future',{},1],['reversed',{},1],['malformed',{},1],
    ['software',{webgl:{renderer:'Google SwiftShader'}},1],
    ['string-pass',{passed:'true'},1],['string-mode',{gpu:{modeMatched:'true'}},1],
    ['hardware-off',{gpu:{hardwareAcceleration:false}},1],['wrong-mode',{gpu:{requestedMode:'software'}},1],
@@ -70,8 +73,8 @@ exit $status
    const report={...goodReport,...changes,gpu:{...goodReport.gpu,...changes.gpu},webgl:{...goodReport.webgl,...changes.webgl},checks:{...checks,...changes.checks}};
    writeFileSync(fixture,JSON.stringify(report));
    writeFileSync(reportPath,JSON.stringify({...goodReport,startedAt:'2020-01-01T00:00:00Z',completedAt:'2020-01-01T00:01:00Z'}));
-   const run=spawnSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',harness,target,fixture,reportPath,restoration],{
-    encoding:'utf8',timeout:20000,env:{...process.env,HUMANALE_GPU_TEST_CASE:mode,HUMANALE_GPU_TEST_INITIAL:mode==='success-absent'?'absent':'software'}
+   const run=spawnSync(powershellCommand,['-NoProfile','-ExecutionPolicy','Bypass','-File',harness,target,fixture,reportPath,restoration],{
+    encoding:'utf8',timeout:20000,env:powershellEnv({HUMANALE_GPU_TEST_CASE:mode,HUMANALE_GPU_TEST_INITIAL:mode==='success-absent'?'absent':'software'})
    });
    assert.equal(run.status,expectedExit,`${mode}: ${run.error||''}\n${run.stdout}\n${run.stderr}`);
    const restored=JSON.parse(readFileSync(restoration,'utf8').replace(/^\uFEFF/,''));

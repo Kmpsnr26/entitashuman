@@ -42,15 +42,16 @@ function executableLine(shell,executable){
 function powershellLiteral(value){return "'"+String(value).replace(/'/g,"''")+"'";}
 
 export class TerminalManager{
- constructor({workspace=process.cwd(),onData=()=>{},onExit=()=>{}}={}){
+ constructor({workspace=process.cwd(),onData=()=>{},onExit=()=>{},commandLocator=locateCommand}={}){
   this.workspace=resolve(workspace||process.cwd());this.onData=onData;this.onExit=onExit;this.sessions=new Map();this.sequence=0;
+  this.commandLocator=commandLocator;
  }
  setWorkspace(value){if(value)this.workspace=resolve(String(value));}
  async resolveShell(shell='auto'){
   const order=shell==='auto'?['pwsh','powershell','cmd']:[shell];
   for(const id of order){
    const def=SHELLS[id];if(!def)continue;
-   for(const command of def.commands){const found=await locateCommand(command);if(found)return {id,label:def.label,executable:found};}
+   for(const command of def.commands){const found=await this.commandLocator(command);if(found)return {id,label:def.label,executable:found};}
   }
   if(shell!=='auto')return this.resolveShell('auto');
   throw new Error('No supported Windows shell detected.');
@@ -61,7 +62,7 @@ export class TerminalManager{
   const hub=await readHubConfig(),providers=hub?.providers&&typeof hub.providers==='object'?hub.providers:{},configured=providers[id];
   if(configured?.enabled===false)throw new Error((CLI_LABELS[id]||id)+' dinonaktifkan di CLI Hub.');
   const command=String(configured?.command||CLI_DEFAULTS[id]).trim();
-  const executable=command?await locateCommand(command):null;
+  const executable=command?await this.commandLocator(command):null;
   if(!executable)throw new Error((CLI_LABELS[id]||id)+' belum terpasang atau tidak ditemukan di PATH.');
   return {id,label:CLI_LABELS[id]||id,executable};
  }
@@ -108,11 +109,11 @@ export class TerminalManager{
   for(const [id,defaultCommand] of Object.entries(CLI_DEFAULTS)){
    const configured=providers[id];
    if(configured&&configured.enabled===false){registry[id]={id,label:CLI_LABELS[id]||id,command:configured.command||defaultCommand,state:'DISABLED',path:null};continue;}
-   const command=String(configured?.command||defaultCommand).trim(),found=command?await locateCommand(command):null;
+   const command=String(configured?.command||defaultCommand).trim(),found=command?await this.commandLocator(command):null;
    registry[id]={id,label:CLI_LABELS[id]||id,command,state:found?'READY':'NOT INSTALLED',path:found||null};
   }
   const shells={};
-  for(const id of Object.keys(SHELLS)){let found=null;for(const command of SHELLS[id].commands){found=await locateCommand(command);if(found)break;}shells[id]={id,label:SHELLS[id].label,state:found?'READY':'NOT FOUND',path:found};}
+  for(const id of Object.keys(SHELLS)){let found=null;for(const command of SHELLS[id].commands){found=await this.commandLocator(command);if(found)break;}shells[id]={id,label:SHELLS[id].label,state:found?'READY':'NOT FOUND',path:found};}
   return {workspace:this.workspace,shells,registry};
  }
  killAll(){for(const id of [...this.sessions.keys()])this.kill(id);}

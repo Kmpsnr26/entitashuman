@@ -93,8 +93,12 @@ try {
 } catch { Fail "Report GPU tidak valid." }
 $reportStartedAt = [DateTimeOffset]::MinValue
 $reportCompletedAt = [DateTimeOffset]::MinValue
-if (-not [DateTimeOffset]::TryParse([string]$report.startedAt, [ref]$reportStartedAt) -or
-    -not [DateTimeOffset]::TryParse([string]$report.completedAt, [ref]$reportCompletedAt) -or
+# PowerShell 7 may deserialize ISO timestamps as DateTime. A plain string cast
+# drops fractional seconds; round-trip formatting preserves the evidence window.
+$reportStartedText = if ($report.startedAt -is [DateTime] -or $report.startedAt -is [DateTimeOffset]) { $report.startedAt.ToString('o') } else { [string]$report.startedAt }
+$reportCompletedText = if ($report.completedAt -is [DateTime] -or $report.completedAt -is [DateTimeOffset]) { $report.completedAt.ToString('o') } else { [string]$report.completedAt }
+if (-not [DateTimeOffset]::TryParse($reportStartedText, [ref]$reportStartedAt) -or
+    -not [DateTimeOffset]::TryParse($reportCompletedText, [ref]$reportCompletedAt) -or
     $reportStartedAt -lt $smokeStartedAt -or $reportCompletedAt -lt $reportStartedAt -or
     $reportCompletedAt -gt $smokeCompletedAt) {
   Fail "Report GPU bukan bukti dari invocation saat ini."

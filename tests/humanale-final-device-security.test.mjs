@@ -6,11 +6,11 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawnSync,execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
+import {powershellCommand,powershellSkip,powershellEnv,writeNodeCommandShim} from './helpers/powershell.mjs';
 const root=new URL('../',import.meta.url);
-const nativePSModules=path.join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','Modules');
 
 test('Android runtime validator rejects failed launch, dead process, and wrong foreground before operator approval',{
- skip:process.platform!=='win32'
+ skip:powershellSkip
 },()=>{
  const scratch=mkdtempSync(path.join(fileURLToPath(new URL('../../',import.meta.url)),'android-runner-test-'));
  try{
@@ -64,7 +64,7 @@ else if(args.includes('dumpsys')){
 }
 else {console.error('Unexpected mock ADB invocation');process.exitCode=1;}
 `);
-  writeFileSync(path.join(scratch,'adb.cmd'),`@echo off\r\n"${process.execPath}" "${fakeAdb}" %*\r\n`);
+  writeNodeCommandShim(scratch,'adb',fakeAdb);
   const harness=path.join(scratch,'harness.ps1');
   writeFileSync(harness,`param($Target, $Apk, $Output)\nfunction global:Start-Sleep { param($Seconds) }\nfunction global:Read-Host { param($Prompt) return $env:HUMANALE_ADB_TEST_ANSWER }\n$serial=if($env:HUMANALE_ADB_TEST_CASE -eq 'wrong-serial'){'different-device'}else{'fixture-device'}\n& $Target -ApkPath $Apk -OutputPath $Output -ArtifactCommit $env:HUMANALE_ADB_TEST_COMMIT -ExpectedApkSha256 $env:HUMANALE_ADB_TEST_HASH -DeviceSerial $serial\nexit $LASTEXITCODE\n`);
   const scenarios=[
@@ -89,9 +89,9 @@ else {console.error('Unexpected mock ADB invocation');process.exitCode=1;}
    const output=path.join(scratch,`${mode}-${answer}.json`);
    writeFileSync(output,JSON.stringify({state:'ANDROID_RUNTIME_PASS',fullyValidated:true}));
    const log=path.join(scratch,`${mode}-${answer}.calls`);
-   const run=spawnSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',harness,script,apk,output],{
+   const run=spawnSync(powershellCommand,['-NoProfile','-ExecutionPolicy','Bypass','-File',harness,script,apk,output],{
     encoding:'utf8',timeout:20000,
-    env:{...process.env,PSModulePath:nativePSModules,PATH:scratch+path.delimiter+process.env.PATH,HUMANALE_ADB_TEST_CASE:mode,HUMANALE_ADB_TEST_ANSWER:answer,HUMANALE_ADB_TEST_LOG:log,HUMANALE_ADB_TEST_COMMIT:candidate,HUMANALE_ADB_TEST_HASH:apkHash}
+    env:powershellEnv({PATH:scratch+path.delimiter+process.env.PATH,HUMANALE_ADB_TEST_CASE:mode,HUMANALE_ADB_TEST_ANSWER:answer,HUMANALE_ADB_TEST_LOG:log,HUMANALE_ADB_TEST_COMMIT:candidate,HUMANALE_ADB_TEST_HASH:apkHash})
    });
    assert.equal(run.status,exitCode,`${mode}: ${run.error||''}\n${run.stdout}\n${run.stderr}`);
    assert.match(run.stdout+run.stderr,new RegExp(message),mode);
@@ -121,9 +121,9 @@ else {console.error('Unexpected mock ADB invocation');process.exitCode=1;}
   for(const [mode,sourceCommit,hash] of [['old-source','0'.repeat(40),apkHash],['wrong-bytes',candidate,'0'.repeat(64)],['missing-source','',apkHash]]){
    const log=path.join(scratch,mode+'.calls');
    const output=path.join(scratch,mode+'.json');
-   const run=spawnSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',harness,script,apk,output],{
+   const run=spawnSync(powershellCommand,['-NoProfile','-ExecutionPolicy','Bypass','-File',harness,script,apk,output],{
     encoding:'utf8',timeout:20000,
-    env:{...process.env,PSModulePath:nativePSModules,PATH:scratch+path.delimiter+process.env.PATH,HUMANALE_ADB_TEST_CASE:'success',HUMANALE_ADB_TEST_ANSWER:'Y',HUMANALE_ADB_TEST_LOG:log,HUMANALE_ADB_TEST_COMMIT:sourceCommit,HUMANALE_ADB_TEST_HASH:hash}
+    env:powershellEnv({PATH:scratch+path.delimiter+process.env.PATH,HUMANALE_ADB_TEST_CASE:'success',HUMANALE_ADB_TEST_ANSWER:'Y',HUMANALE_ADB_TEST_LOG:log,HUMANALE_ADB_TEST_COMMIT:sourceCommit,HUMANALE_ADB_TEST_HASH:hash})
    });
    assert.equal(run.status,1,run.stdout+run.stderr);
    assert.match(run.stdout+run.stderr,/Identitas APK/);

@@ -30,8 +30,11 @@ function Read-CurrentPhysicalGpuEvidence {
     $evidence.report = $report
     $reportStarted = [DateTimeOffset]::MinValue
     $reportCompleted = [DateTimeOffset]::MinValue
-    if (-not [DateTimeOffset]::TryParse([string]$report.startedAt, [ref]$reportStarted) -or
-        -not [DateTimeOffset]::TryParse([string]$report.completedAt, [ref]$reportCompleted) -or
+    # Preserve ISO timestamp precision when PowerShell 7 returns DateTime values.
+    $reportStartedText = if ($report.startedAt -is [DateTime] -or $report.startedAt -is [DateTimeOffset]) { $report.startedAt.ToString('o') } else { [string]$report.startedAt }
+    $reportCompletedText = if ($report.completedAt -is [DateTime] -or $report.completedAt -is [DateTimeOffset]) { $report.completedAt.ToString('o') } else { [string]$report.completedAt }
+    if (-not [DateTimeOffset]::TryParse($reportStartedText, [ref]$reportStarted) -or
+        -not [DateTimeOffset]::TryParse($reportCompletedText, [ref]$reportCompleted) -or
         $reportStarted -lt $StartedAt -or $reportCompleted -lt $reportStarted -or
         $reportCompleted -gt $CompletedAt) {
       $evidence.reason = 'report-outside-current-run'

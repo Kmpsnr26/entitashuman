@@ -4,7 +4,9 @@ import {mkdtemp,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
+import {powershellCommand,powershellSkip,powershellEnv} from './helpers/powershell.mjs';
 
+// Execute acceptance script logic with fixture reports, without claiming hardware GPU validation.
 const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');
 
@@ -46,7 +48,7 @@ test('V3.6 acceptance leaves optional provider and local-voice smoke disabled by
 });
 
 test('physical acceptance rejects missing, invalid, stale and software GPU reports',{
-  skip:process.platform!=='win32'
+  skip:powershellSkip
 },async()=>{
   const ps1=await read('scripts/humanale-unified-acceptance.ps1');
   const helper=ps1.match(/function Read-CurrentPhysicalGpuEvidence \{[\s\S]*?\r?\n\}/)?.[0];
@@ -66,6 +68,10 @@ function Write-Report($started, $completed, $passed, $matched, $accelerated, $mo
 }
 Write-Report $start.AddSeconds(1).ToString('o') $end.AddSeconds(-1).ToString('o') $true $true $true 'hardware' 'ANGLE NVIDIA GPU'
 $results.fresh = (Read-CurrentPhysicalGpuEvidence -Path $path -StartedAt $start -CompletedAt $end).accepted
+Write-Report $start.AddTicks(1).ToString('o') $end.AddTicks(-1).ToString('o') $true $true $true 'hardware' 'ANGLE NVIDIA GPU'
+$results.fractional = (Read-CurrentPhysicalGpuEvidence -Path $path -StartedAt $start -CompletedAt $end).accepted
+Write-Report 'not-a-timestamp' $end.ToString('o') $true $true $true 'hardware' 'ANGLE NVIDIA GPU'
+$results.invalidTime = (Read-CurrentPhysicalGpuEvidence -Path $path -StartedAt $start -CompletedAt $end).accepted
 Write-Report $start.AddDays(-1).ToString('o') $start.AddDays(-1).AddSeconds(10).ToString('o') $true $true $true 'hardware' 'ANGLE NVIDIA GPU'
 $results.stale = (Read-CurrentPhysicalGpuEvidence -Path $path -StartedAt $start -CompletedAt $end).accepted
 Write-Report $start.AddSeconds(1).ToString('o') $end.AddSeconds(1).ToString('o') $true $true $true 'hardware' 'ANGLE NVIDIA GPU'
@@ -85,10 +91,10 @@ $results.forgedHardware = (Read-CurrentPhysicalGpuEvidence -Path $path -StartedA
 $results | ConvertTo-Json -Compress
 `;
   try{
-    const result=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(code,'utf16le').toString('base64')],{encoding:'utf8',timeout:30000});
+    const result=spawnSync(powershellCommand,['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(code,'utf16le').toString('base64')],{encoding:'utf8',timeout:30000,env:powershellEnv()});
     assert.equal(result.status,0,result.stderr||result.error?.message);
     assert.deepEqual(JSON.parse(result.stdout.trim()),{
-      missing:false,invalid:false,fresh:true,stale:false,future:false,reversed:false,
+      missing:false,invalid:false,fresh:true,fractional:true,invalidTime:false,stale:false,future:false,reversed:false,
       software:false,failed:false,stringPass:false,noAcceleration:false,forgedHardware:false
     });
   }finally{
@@ -97,7 +103,7 @@ $results | ConvertTo-Json -Compress
 });
 
 test('GPU invocation clears previous PASS evidence and cannot pass without a new report',{
-  skip:process.platform!=='win32'
+  skip:powershellSkip
 },async()=>{
   const ps1=await read('scripts/humanale-unified-acceptance.ps1');
   const helper=ps1.match(/function Read-CurrentPhysicalGpuEvidence \{[\s\S]*?\r?\n\}/)?.[0];
@@ -116,7 +122,7 @@ ${passedLine}
 @{passed=$passed;reportExists=(Test-Path -LiteralPath $neuralReportPath);gpuExit=$gpuExit;reason=$neuralEvidence.reason} | ConvertTo-Json -Compress
 `;
   try{
-    const result=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(code,'utf16le').toString('base64')],{encoding:'utf8',timeout:30000});
+    const result=spawnSync(powershellCommand,['-NoProfile','-NonInteractive','-EncodedCommand',Buffer.from(code,'utf16le').toString('base64')],{encoding:'utf8',timeout:30000,env:powershellEnv()});
     assert.equal(result.status,0,result.stderr||result.error?.message);
     assert.deepEqual(JSON.parse(result.stdout.trim()),{passed:false,reportExists:false,gpuExit:0,reason:'missing-report'});
   }finally{

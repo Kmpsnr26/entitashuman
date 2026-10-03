@@ -6,9 +6,11 @@ import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 
+import {powershellCommand,powershellSkip,powershellEnv,writeNodeCommandShim} from './helpers/powershell.mjs';
+
 const root=new URL('../',import.meta.url);
 test('release security binds artifact hashes and source to trusted inputs and requires a pinned production signer',{
- skip:process.platform!=='win32'
+ skip:powershellSkip
 },()=>{
  const scratch=mkdtempSync(path.join(fileURLToPath(new URL('../../',import.meta.url)),'release-security-test-'));
  try{
@@ -42,7 +44,7 @@ else if(args.includes('verify')){
  if(mode==='manifest-exit')process.exitCode=1;
 }else {console.error('Unexpected mock command');process.exitCode=1;}
 `);
-  for(const command of ['git','apksigner','aapt'])writeFileSync(path.join(scratch,command+'.cmd'),`@echo off\r\n"${process.execPath}" "${native}" %*\r\n`);
+  for(const command of ['git','apksigner','aapt'])writeNodeCommandShim(scratch,command,native);
   const harness=path.join(scratch,'harness.ps1');
   writeFileSync(harness,`
 param($Target, $Installer, $Apk, $Output, $Source, $InstallerHash, $ApkHash, $Pin)
@@ -73,8 +75,8 @@ exit $LASTEXITCODE
    const commit=mode==='commit-mismatch'?'f'.repeat(40):mode==='malformed-commit'?'bad-sha':sourceCommit;
    const installerHash=mode==='installer-mismatch'?'f'.repeat(64):sha(installerBytes);
    const apkHash=mode==='apk-mismatch'?'f'.repeat(64):sha(apkBytes);
-   const run=spawnSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',harness,target,installer,apk,output,commit,installerHash,apkHash,certPin],{
-    encoding:'utf8',timeout:20000,env:{...process.env,PATH:scratch+path.delimiter+process.env.PATH,HUMANALE_RELEASE_TEST_CASE:mode}
+   const run=spawnSync(powershellCommand,['-NoProfile','-ExecutionPolicy','Bypass','-File',harness,target,installer,apk,output,commit,installerHash,apkHash,certPin],{
+    encoding:'utf8',timeout:20000,env:powershellEnv({PATH:scratch+path.delimiter+process.env.PATH,HUMANALE_RELEASE_TEST_CASE:mode})
    });
    assert.equal(run.status,mode==='pass'?0:2,`${mode}: ${run.error||''}\n${run.stdout}\n${run.stderr}`);
    const result=JSON.parse(readFileSync(output,'utf8').replace(/^\uFEFF/,''));
