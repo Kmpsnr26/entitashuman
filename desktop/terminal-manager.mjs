@@ -1,4 +1,3 @@
-import * as pty from 'node-pty';
 import {readFile,stat} from 'node:fs/promises';
 import {homedir} from 'node:os';
 import {isAbsolute,join,resolve} from 'node:path';
@@ -6,6 +5,18 @@ import {spawn} from 'node:child_process';
 import {redactSecrets} from './terminal-policy.mjs';
 
 const MAX_TERMINAL_SESSIONS=12;
+
+let ptyModulePromise=null;
+async function loadDesktopPty(){
+ if(process.platform!=='win32')throw new Error('Terminal PTY HumanALE hanya tersedia pada desktop Windows.');
+ if(!ptyModulePromise){
+  ptyModulePromise=import('node-pty').then(module=>module.default??module).catch(error=>{
+   ptyModulePromise=null;
+   throw new Error('node-pty desktop tidak tersedia: '+error.message);
+  });
+ }
+ return ptyModulePromise;
+}
 
 const SHELLS={
  pwsh:{label:'PowerShell 7',commands:['pwsh.exe','pwsh']},
@@ -77,6 +88,7 @@ export class TerminalManager{
   const cwd=await this.resolveCwd(options.cwd);
   const cols=cleanSize(options.cols,120,20,400),rows=cleanSize(options.rows,30,5,200);
   const id='term-'+Date.now().toString(36)+'-'+(++this.sequence).toString(36);
+  const pty=await loadDesktopPty();
   let terminal;
   try{terminal=pty.spawn(shell.executable,[],{name:'xterm-256color',cols,rows,cwd,env:{...process.env,TERM:'xterm-256color'}});}
   catch(error){if((options.shell||'auto')!=='auto')return this.create({...options,shell:'auto'});throw new Error('Terminal PTY tidak dapat dibuat: '+error.message);}
