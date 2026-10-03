@@ -10,10 +10,11 @@ const status=(ids=['codex','github-copilot','humanale-orchestrator'])=>({
 });
 
 test('explicit work selects a ready executor independently of the chat provider',()=>{
- assert.equal(selectWorkAgent(status(),'chatgpt').id,'codex');
+ assert.equal(selectWorkAgent(status(),'chatgpt').id,'humanale-orchestrator');
  assert.equal(selectWorkAgent(status(),'copilot').id,'github-copilot');
  for(const provider of ['openai','gemini','claude','grok','deepseek','askcodi'])assert.equal(selectWorkAgent(status(),provider).id,'humanale-orchestrator');
  assert.equal(selectWorkAgent(status(),'chatgpt','github-copilot').id,'github-copilot');
+ assert.equal(selectWorkAgent(status(),'chatgpt','codex').id,'codex');
  assert.equal(selectWorkAgent(status(),'copilot','missing').id,'github-copilot');
  const unavailable=status();unavailable.agents.find(agent=>agent.id==='codex').canRun=false;
  assert.equal(selectWorkAgent(unavailable,'chatgpt','codex').id,'humanale-orchestrator');
@@ -40,7 +41,7 @@ test('work payload never prepares or forwards raw memory to IPC',async()=>{
  const executor=selectWorkAgent(status(),'chatgpt');
  await ipc.runAgent(await createAgentTaskPayload({id:executor.id,prompt:'Perbaiki proyek',mode:'work',prepareMemory}));
  assert.equal(prepared,0);
- assert.deepEqual(received,{id:'codex',prompt:'Perbaiki proyek',mode:'work'});
+ assert.deepEqual(received,{id:'humanale-orchestrator',prompt:'Perbaiki proyek',mode:'work'});
  assert.equal(Object.hasOwn(received,'memoryContext'),false);
 });
 
