@@ -197,10 +197,11 @@ public class HumanALEVoicePlugin extends Plugin {
     }
 
     private void failed(String id, String code, int nativeCode) {
+        if (active == null || !active.utteranceId.equals(id)) return;
         if ("TTS_ERROR".equals(code) && nativeCode == TextToSpeech.ERROR_NOT_INSTALLED_YET) {
             ready = false; reason = "missingData"; code = "MISSING_DATA";
         }
-        if (active != null && active.utteranceId.equals(id)) reject(active, code, nativeCode);
+        reject(active, code, nativeCode);
     }
 
     private void reject(Request request, String code, int nativeCode) {

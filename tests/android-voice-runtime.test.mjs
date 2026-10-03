@@ -71,7 +71,8 @@ const doubles={
  check(Math.abs(tts.pitch-.76)<.01&&Math.abs(tts.rate-.94)<.01,"adult robot parameters");
  tts.listener.onStart(tts.id);drain();check(beforeInit.resolved==0,"start is not completion");tts.complete(true);drain();check(beforeInit.resolved==1,"done settles speak");
  PluginCall first=new PluginCall("pertama"),second=new PluginCall("kedua");plugin.speak(first);drain();String oldId=tts.id;
- plugin.speak(second);drain();check("CANCELLED".equals(first.error),"replacement cancels first promise");tts.listener.onDone(oldId);drain();check(second.resolved==0,"stale completion ignored");
+ plugin.speak(second);drain();check("CANCELLED".equals(first.error),"replacement cancels first promise");tts.listener.onDone(oldId);tts.listener.onError(oldId,-9);drain();check(second.resolved==0,"stale completion ignored");
+ PluginCall staleStatus=new PluginCall("");plugin.status(staleStatus);drain();check(Boolean.TRUE.equals(staleStatus.value.get("configured")),"stale errors cannot change current readiness");
  PluginCall stop=new PluginCall("");plugin.stop(stop);drain();check("CANCELLED".equals(second.error)&&stop.resolved==1,"stop cancels current request");
  PluginCall synth=new PluginCall("contoh suara" );plugin.synthesize(synth);drain();File wav=tts.file;check(synth.resolved==0&&wav.exists(),"synthesis waits for done");
  tts.complete(true);waitCall(synth);check(synth.resolved==1&&"audio/wav".equals(synth.value.get("mime")),"WAV bridge result");check(!wav.exists(),"completed tempfile deleted");
