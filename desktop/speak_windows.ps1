@@ -1,5 +1,6 @@
 param(
   [ValidateSet('status','synthesize')][string]$Mode = 'status',
+  [ValidateSet('auto','male')][string]$VoiceCharacter = 'auto',
   [string]$OutputPath
 )
 
@@ -18,7 +19,8 @@ try {
     Add-Type -AssemblyName System.Speech
     $speaker = New-Object System.Speech.Synthesis.SpeechSynthesizer
     $voice = $speaker.GetInstalledVoices() | Where-Object {
-      $_.Enabled -and $_.VoiceInfo.Culture.Name -eq 'id-ID' -and $_.VoiceInfo.Name -eq 'Microsoft Andika'
+      $_.Enabled -and $_.VoiceInfo.Culture.Name -eq 'id-ID' -and $_.VoiceInfo.Name -eq 'Microsoft Andika' -and
+      ($VoiceCharacter -ne 'male' -or $_.VoiceInfo.Gender.ToString() -eq 'Male')
     } | Select-Object -First 1
   } catch {}
   # Windows PowerShell 5 SAPI can omit installed OneCore voices. WinRT exposes
@@ -26,11 +28,14 @@ try {
   if (-not $voice) {
     Add-Type -AssemblyName System.Runtime.WindowsRuntime
     $nativeVoice = [Windows.Media.SpeechSynthesis.SpeechSynthesizer,Windows.Media.SpeechSynthesis,ContentType=WindowsRuntime]::AllVoices | Where-Object {
-      $_.Language -eq 'id-ID' -and $_.DisplayName -eq 'Microsoft Andika'
+      $_.Language -eq 'id-ID' -and $_.DisplayName -eq 'Microsoft Andika' -and
+      ($VoiceCharacter -ne 'male' -or $_.Gender.ToString() -eq 'Male')
     } | Select-Object -First 1
   }
+  $voiceGender = 'unknown'
+  if (($voice -and $voice.VoiceInfo.Gender.ToString() -eq 'Male') -or ($nativeVoice -and $nativeVoice.Gender.ToString() -eq 'Male')) { $voiceGender = 'male' }
   if ($Mode -eq 'status') {
-    [Console]::Out.WriteLine((@{configured = [bool]($voice -or $nativeVoice); engine = 'windows-andika'} | ConvertTo-Json -Compress))
+    [Console]::Out.WriteLine((@{configured = [bool]($voice -or $nativeVoice); engine = 'windows-andika'; voiceGender = $voiceGender} | ConvertTo-Json -Compress))
     exit 0
   }
   if (-not $voice -and -not $nativeVoice) { throw 'Suara Windows Indonesia tidak tersedia.' }
@@ -59,6 +64,7 @@ try {
     $fileStream = [System.IO.File]::Open($OutputPath, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write)
     $readStream.CopyTo($fileStream)
   }
+  [Console]::Out.WriteLine((@{engine = 'windows-andika'; voiceGender = $voiceGender} | ConvertTo-Json -Compress))
 } catch {
   [Console]::Error.WriteLine('Suara Windows Indonesia gagal disiapkan atau dibuat.')
   exit 1

@@ -18,7 +18,51 @@ test('WAV acceptance rejects silent, truncated, empty and non-PCM output',()=>{
 test('Piper success remains preferred and does not invoke Windows helper',async()=>{
  const calls=[];const tts=new IndonesianTts({platform:'win32',resolvePython:async()=>'python',resolveModel:async()=>'model',runProcess:async(executable,args,timeout,input)=>{calls.push({executable,args,timeout,input});await writeFile(args[2],wav());return {code:0};}});
  const result=await tts.synthesize({text:'Halo Indonesia',style:'adult-robot'});
- assert.equal(result.engine,'piper');assert.equal(calls.length,1);assert.equal(calls[0].input,'Halo Indonesia');assert.equal(calls[0].args[3],'adult-robot');
+ assert.equal(result.engine,'piper');assert.equal(result.voiceGender,'unknown');assert.equal(result.preferredVoiceMatched,true);assert.equal(calls.length,1);assert.equal(calls[0].input,'Halo Indonesia');assert.equal(calls[0].args[3],'adult-robot');
+});
+
+test('explicit male preference starts confirmed Andika before Piper and returns clean PCM',async()=>{
+ const calls=[];const tts=new IndonesianTts({platform:'win32',resolvePython:async()=>{throw new Error('Piper should not run');},runProcess:async(executable,args,timeout,input)=>{
+  calls.push({executable,args,input});assert.equal(args[args.indexOf('-VoiceCharacter')+1],'male');await writeFile(args[args.indexOf('-OutputPath')+1],wav());return {code:0,stdout:'{"voiceGender":"male"}'};
+ }});
+ const result=await tts.synthesize({text:'Saya HumanALE',style:'adult-robot',voiceCharacter:'male'});
+ assert.equal(calls.length,1);assert.equal(result.engine,'windows-andika');assert.equal(result.voiceGender,'male');assert.equal(result.preferredVoiceMatched,true);assert.equal(result.fallbackReason,null);assert.equal(result.pcm.peak,1200);
+});
+
+test('failed or unverified male Andika falls back to Piper without false gender or a second Andika attempt',async()=>{
+ for(const metadata of ['{"voiceGender":"female"}','{}','invalid-json']){
+  const calls=[];const tts=new IndonesianTts({platform:'win32',resolvePython:async()=>'python',resolveModel:async()=>'model',runProcess:async(executable,args)=>{
+   calls.push(executable);if(executable==='python'){assert.equal(args[3],'natural');await writeFile(args[2],wav());return {code:0};}
+   await writeFile(args[args.indexOf('-OutputPath')+1],wav());return {code:0,stdout:metadata};
+  }});
+  const result=await tts.synthesize({text:'Halo',voiceCharacter:'male',style:'adult-robot'});
+  assert.equal(calls.length,2);assert.equal(calls[1],'python');assert.equal(result.engine,'piper');assert.equal(result.voiceGender,'unknown');assert.equal(result.preferredVoiceMatched,false);assert.equal(result.fallbackReason,'windows-male-unavailable');
+ }
+});
+
+test('male-first failure and failed Piper never retry Windows or leak diagnostic detail',async()=>{
+ const calls=[];const tts=new IndonesianTts({platform:'win32',resolvePython:async()=>'python',resolveModel:async()=>'model',runProcess:async executable=>{calls.push(executable);return {code:1,stderr:'PRIVATE INTERNAL'};}});
+ await assert.rejects(tts.synthesize({text:'Halo',voiceCharacter:'male'}),error=>!error.message.includes('PRIVATE')&&error.message.includes('Windows Indonesia'));
+ assert.equal(calls.length,2);assert.equal(calls[1],'python');assert.equal(tts.pending,false);
+});
+
+test('male preference on non-Windows uses Piper with honest unknown-gender diagnostic',async()=>{
+ const tts=new IndonesianTts({platform:'linux',resolvePython:async()=>'python',resolveModel:async()=>'model',runProcess:async(executable,args)=>{assert.equal(executable,'python');assert.equal(args[3],'natural');await writeFile(args[2],wav());return {code:0};}});
+ const result=await tts.synthesize({text:'Halo',voiceCharacter:'male'});assert.equal(result.voiceGender,'unknown');assert.equal(result.preferredVoiceMatched,false);assert.equal(result.fallbackReason,'male-engine-unavailable');
+});
+
+test('unsupported voice characters reject before any synthesis process starts',async()=>{
+ let starts=0;const tts=new IndonesianTts({runProcess:async()=>{starts++;}});
+ for(const voiceCharacter of ['female','MALE','../male',null,{},0])await assert.rejects(tts.synthesize({text:'Halo',voiceCharacter}),/auto atau male/);
+ assert.equal(starts,0);assert.equal(tts.pending,false);
+});
+
+test('cancel during male-first Windows request stops without attempting Piper',async()=>{
+ let release;const calls=[];const tts=new IndonesianTts({platform:'win32',runProcess:async(executable,args)=>{
+  calls.push(executable);await new Promise(resolve=>{release=resolve;});await writeFile(args[args.indexOf('-OutputPath')+1],wav());return {code:0,stdout:'{"voiceGender":"male"}'};
+ }});
+ const speech=tts.synthesize({text:'Halo',voiceCharacter:'male'});const rejection=assert.rejects(speech,/dibatalkan/);
+ while(!release)await new Promise(resolve=>setTimeout(resolve,1));const stopping=tts.stop();release();await Promise.all([stopping,rejection]);assert.equal(calls.length,1);assert.equal(tts.pending,false);
 });
 
 test('failed or silent Piper falls back to Andika with bounded text on stdin and stale WAV removed',async()=>{
@@ -71,8 +115,8 @@ test('cancel during Windows fallback never returns late audio or leaves pending 
 });
 
 test('status can report usable Andika when Piper unavailable without claiming playback',async()=>{
- const tts=new IndonesianTts({platform:'win32',resolveModel:async()=>'missing-model',runProcess:async(executable,args)=>{assert.equal(args[args.indexOf('-Mode')+1],'status');return {code:0,stdout:'{"configured":true}'};}});
- const status=await tts.status();assert.equal(status.configured,true);assert.equal(status.engine,'windows-andika');assert.equal(status.engines.piper.configured,false);assert.equal(status.engines.windows.voice,'Microsoft Andika');assert.equal(status.playbackStarted,undefined);
+ const tts=new IndonesianTts({platform:'win32',resolveModel:async()=>'missing-model',runProcess:async(executable,args)=>{assert.equal(args[args.indexOf('-Mode')+1],'status');return {code:0,stdout:'{"configured":true,"voiceGender":"male"}'};}});
+ const status=await tts.status();assert.equal(status.configured,true);assert.equal(status.engine,'windows-andika');assert.equal(status.engines.piper.configured,false);assert.equal(status.engines.windows.voice,'Microsoft Andika');assert.equal(status.engines.windows.voiceGender,'male');assert.equal(status.playbackStarted,undefined);
 });
 
 test('process contract passes raw UTF-8 stdin and tracks child through close',async()=>{

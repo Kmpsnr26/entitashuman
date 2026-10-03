@@ -37,7 +37,7 @@ function run(executable,args,timeout=90000,input='',children,signal){
 export const runIndonesianVoiceProcess=run;
 const windowsHelper=join(import.meta.dirname,'speak_windows.ps1');
 const powershellPath=()=>join(process.env.SystemRoot||'C:\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');
-const windowsArgs=(mode,output)=>['-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',windowsHelper,'-Mode',mode,...(output?['-OutputPath',output]:[])];
+const windowsArgs=(mode,output,voiceCharacter='auto')=>['-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',windowsHelper,'-Mode',mode,'-VoiceCharacter',voiceCharacter,...(output?['-OutputPath',output]:[])];
 
 export function inspectSpeechWav(audio){
  if(!Buffer.isBuffer(audio)||audio.length<44||audio.length>15000000||audio.toString('ascii',0,4)!=='RIFF'||audio.toString('ascii',8,12)!=='WAVE'||audio.readUInt32LE(4)+8!==audio.length)throw new Error('Hasil suara WAV tidak valid.');
@@ -59,16 +59,18 @@ export class IndonesianTts{
  constructor({platform=process.platform,runProcess=run,resolvePython=pythonPath,resolveModel=modelFolder}={}){this.pending=false;this.children=new Set();this.platform=platform;this.runProcess=runProcess;this.resolvePython=resolvePython;this.resolveModel=resolveModel;this.generation=0;this.activeController=null;this.activeCompletion=null;}
  async status(){
   const generation=this.generation,controller=new AbortController();
-  const engines={piper:{configured:false},windows:{configured:false,voice:null}};
+  const engines={piper:{configured:false,voiceGender:'unknown'},windows:{configured:false,voice:null,voiceGender:'unknown'}};
   try{const folder=await this.resolveModel();await access(join(folder,modelName));await access(join(folder,modelName+'.json'));const result=await this.runProcess(await this.resolvePython(),['-c','import piper'],10000,'',this.children,controller.signal);engines.piper.configured=result.code===0;}catch{}
   if(generation!==this.generation)return {configured:false,mode:'local-indonesian',reason:'cancelled',engines};
-  if(this.platform==='win32')try{const result=await this.runProcess(powershellPath(),windowsArgs('status'),10000,'',this.children,controller.signal);const status=JSON.parse(result.stdout||'{}');engines.windows={configured:result.code===0&&status.configured===true,voice:status.configured===true?'Microsoft Andika':null};}catch{}
+  if(this.platform==='win32')try{const result=await this.runProcess(powershellPath(),windowsArgs('status'),10000,'',this.children,controller.signal);const status=JSON.parse(result.stdout||'{}');const configured=result.code===0&&status.configured===true;engines.windows={configured,voice:configured?'Microsoft Andika':null,voiceGender:configured&&status.voiceGender==='male'?'male':'unknown'};}catch{}
   if(generation!==this.generation)return {configured:false,mode:'local-indonesian',reason:'cancelled',engines};
   return {configured:engines.piper.configured||engines.windows.configured,mode:'local-indonesian',engine:engines.piper.configured?'piper':engines.windows.configured?'windows-andika':null,engines};
  }
  async synthesize(value){
   const text=String(value?.text||'').trim();
   if(!text||text.length>2000)throw new Error('Teks suara harus berisi 1–2000 karakter.');
+  const voiceCharacter=value?.voiceCharacter===undefined?'auto':value.voiceCharacter;
+  if(!['auto','male'].includes(voiceCharacter))throw new Error('Karakter suara harus auto atau male.');
   const style=['natural','baby-robot','adult-robot'].includes(value?.style)?value.style:'baby-robot';
   if(this.pending)throw new Error('Suara sebelumnya masih dibuat.');
   this.pending=true;let folder,settled;const generation=this.generation,controller=new AbortController();this.activeController=controller;
@@ -77,20 +79,30 @@ export class IndonesianTts{
   try{
    folder=await mkdtemp(join(tmpdir(),'humanale-suara-'));
    const output=join(folder,'speech.wav');
-   let piperFailed=false;
-   try{
-    const voiceFolder=await this.resolveModel();checkCancelled();
-    const result=await this.runProcess(await this.resolvePython(),[join(import.meta.dirname,'speak_id.py'),join(voiceFolder,modelName),output,style],120000,text,this.children,controller.signal);
-    checkCancelled();if(result.code!==0)throw new Error('Piper gagal membuat suara.');
-    const audio=await readFile(output);const pcm=inspectSpeechWav(audio);checkCancelled();
-    return {audio:audio.toString('base64'),mime:'audio/wav',engine:'piper',pcm};
-   }catch{checkCancelled();piperFailed=true;}
-   if(this.platform!=='win32')throw new Error('Suara Indonesia lokal gagal. Periksa runtime dan model Piper.');
-   await rm(output,{force:true});checkCancelled();
-   const result=await this.runProcess(powershellPath(),windowsArgs('synthesize',output),30000,text,this.children,controller.signal);
-   checkCancelled();if(result.code!==0)throw new Error('Piper dan suara Windows Indonesia belum dapat membuat audio.');
-   const audio=await readFile(output);const pcm=inspectSpeechWav(audio);checkCancelled();
-   return {audio:audio.toString('base64'),mime:'audio/wav',engine:'windows-andika',fallbackReason:piperFailed?'piper-unavailable':null,pcm};
+   const order=this.platform==='win32'?(voiceCharacter==='male'?['windows-andika','piper']:['piper','windows-andika']):['piper'];
+   for(let index=0;index<order.length;index++){
+    const engine=order[index];await rm(output,{force:true});checkCancelled();
+    try{
+     let voiceGender='unknown';
+     if(engine==='piper'){
+      const voiceFolder=await this.resolveModel();checkCancelled();
+      // Explicit male requests use clean PCM for the renderer's pace/bass/echo.
+      const synthesisStyle=voiceCharacter==='male'?'natural':style;
+      const result=await this.runProcess(await this.resolvePython(),[join(import.meta.dirname,'speak_id.py'),join(voiceFolder,modelName),output,synthesisStyle],120000,text,this.children,controller.signal);
+      checkCancelled();if(result.code!==0)throw new Error('Piper gagal membuat suara.');
+     }else{
+      const result=await this.runProcess(powershellPath(),windowsArgs('synthesize',output,voiceCharacter),30000,text,this.children,controller.signal);
+      checkCancelled();if(result.code!==0)throw new Error('Suara Windows Indonesia gagal.');
+      const metadata=JSON.parse(result.stdout||'{}');voiceGender=metadata.voiceGender==='male'?'male':'unknown';
+      if(voiceCharacter==='male'&&voiceGender!=='male')throw new Error('Identitas suara laki-laki belum terverifikasi.');
+     }
+     const audio=await readFile(output);const pcm=inspectSpeechWav(audio);checkCancelled();
+     const preferredVoiceMatched=voiceCharacter==='auto'||voiceGender==='male';
+     const fallbackReason=index>0?(voiceCharacter==='male'?'windows-male-unavailable':'piper-unavailable'):voiceCharacter==='male'&&!preferredVoiceMatched?'male-engine-unavailable':null;
+     return {audio:audio.toString('base64'),mime:'audio/wav',engine,voiceGender,preferredVoiceMatched,fallbackReason,pcm};
+    }catch{checkCancelled();}
+   }
+   throw new Error(this.platform==='win32'?'Piper dan suara Windows Indonesia belum dapat membuat audio.':'Suara Indonesia lokal gagal. Periksa runtime dan model Piper.');
   }finally{
    try{if(folder)await rm(folder,{recursive:true,force:true});}
    finally{if(this.activeController===controller){this.activeController=null;this.activeCompletion=null;this.pending=false;}settled();}
