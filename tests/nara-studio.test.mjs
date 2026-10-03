@@ -113,7 +113,7 @@ test('NARA Studio snapshot and SSE expose live telemetry',async t=>{
   const stream=await fetch(base+'/api/stream',{signal:controller.signal});
   const reader=stream.body.getReader();
   let received='';
-  for(let i=0;i<5&&!received.includes('event: telemetry');i++){
+  for(let i=0;i<10&&!received.includes('"currentStage":"reason"');i++){
     const part=await reader.read();
     if(part.done)break;
     received+=new TextDecoder().decode(part.value||new Uint8Array());
