@@ -30,7 +30,7 @@ test('embedded NARA Studio projects safe telemetry from the shared desktop runti
 
   const login=await fetch(base+'/api/creator/login',{
     method:'POST',
-    headers:{'content-type':'application/json'},
+    headers:{'content-type':'application/json',origin:base},
     body:JSON.stringify({username:'shared-owner',password:'shared-owner-password'})
   });
   assert.equal(login.status,200);
@@ -59,7 +59,7 @@ test('embedded NARA Studio projects safe telemetry from the shared desktop runti
   assert.equal((await regionResponse.text()).includes(fakeSecret),false);
 
   const reflectedEvent=await fetch(base+'/api/event',{
-    method:'POST',headers:{...headers,'content-type':'application/json'},
+    method:'POST',headers:{...headers,'content-type':'application/json',origin:base},
     body:JSON.stringify({event:fakeSecret,payload:{message:fakeSecret}})
   });
   assert.equal(reflectedEvent.status,403);
@@ -80,7 +80,7 @@ test('embedded NARA Studio projects safe telemetry from the shared desktop runti
   assert.equal(streamed.includes('event: event'),false);
 
   const select=await fetch(base+'/api/event',{
-    method:'POST',headers:{...headers,'content-type':'application/json'},
+    method:'POST',headers:{...headers,'content-type':'application/json',origin:base},
     body:JSON.stringify({event:'brain.region.select',payload:{region:'MEMORY'}})
   });
   assert.equal(select.status,200);
@@ -92,7 +92,7 @@ test('embedded NARA Studio projects safe telemetry from the shared desktop runti
     ['/api/event',{event:'reason.start',payload:{label:'simulation'}}]
   ]){
     const denied=await fetch(base+path,{
-      method:'POST',headers:{...headers,'content-type':'application/json'},
+      method:'POST',headers:{...headers,'content-type':'application/json',origin:base},
       body:JSON.stringify(body)
     });
     assert.equal(denied.status,403,path);
