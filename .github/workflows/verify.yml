@@ -83,13 +83,12 @@ jobs:
       - name: Package portable desktop
         run: npm run package:desktop
       - name: Smoke portable Windows terminal in packaged Electron
+        timeout-minutes: 2
         shell: pwsh
         env:
           ELECTRON_RUN_AS_NODE: "1"
         run: |
-          $exe = Resolve-Path '.\HumanALE-God-Engine-Desktop\HumanALE-God-Engine.exe'
-          $smoke = Start-Process -FilePath $exe -ArgumentList 'scripts/terminal-smoke.mjs --manager-path HumanALE-God-Engine-Desktop/resources/app/desktop/terminal-manager.mjs' -PassThru -Wait -WindowStyle Hidden
-          if ($smoke.ExitCode -ne 0) { throw "Portable PTY smoke failed with exit code $($smoke.ExitCode)." }
+          ./scripts/terminal-package-smoke.ps1 -Executable './HumanALE-God-Engine-Desktop/HumanALE-God-Engine.exe' -ManagerPath './HumanALE-God-Engine-Desktop/resources/app/desktop/terminal-manager.mjs'
       - name: Smoke packaged desktop
         shell: pwsh
         run: |
@@ -131,14 +130,14 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
         run: npm run package:installer
       - name: Smoke installer Windows terminal in packaged Electron
+        timeout-minutes: 2
         shell: pwsh
         env:
           ELECTRON_RUN_AS_NODE: "1"
         run: |
           $exe = Get-ChildItem 'release\win-unpacked' -Filter '*.exe' | Where-Object { $_.Name -notlike '*crashpad*' } | Select-Object -First 1
           if (-not $exe) { throw 'Installer runtime executable is missing.' }
-          $smoke = Start-Process -FilePath $exe.FullName -ArgumentList 'scripts/terminal-smoke.mjs --manager-path release/win-unpacked/resources/app/desktop/terminal-manager.mjs' -PassThru -Wait -WindowStyle Hidden
-          if ($smoke.ExitCode -ne 0) { throw "Installer PTY smoke failed with exit code $($smoke.ExitCode)." }
+          ./scripts/terminal-package-smoke.ps1 -Executable $exe.FullName -ManagerPath './release/win-unpacked/resources/app/desktop/terminal-manager.mjs'
       - name: Prepare and validate release files
         shell: pwsh
         run: |
