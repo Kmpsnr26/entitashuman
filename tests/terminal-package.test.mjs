@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,mkdir,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,rm,realpath} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -34,5 +34,5 @@ test('packaged PTY check requires the module inside the selected app',async t=>{
  const {root,app,manager}=await fixture(t);
  await moduleAt(root);
  const packaged=await moduleAt(app);
- assert.equal(await assertPackagedPty(manager),packaged);
+ assert.equal(await assertPackagedPty(manager),await realpath(packaged));
 });
