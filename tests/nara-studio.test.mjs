@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {request} from 'node:http';
+import {spawn} from 'node:child_process';
+import {request,createServer} from 'node:http';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
+import {fileURLToPath} from 'node:url';
 import {createNaraStudioServer,STUDIO_EVENT_ALLOWLIST,buildCreatorRegionMetadata} from '../nara-core/studio/server.mjs';
 import {createStudioTelemetry} from '../nara-core/studio/telemetry.mjs';
 
@@ -180,6 +184,48 @@ test('Studio derives allowed origins from configured localhost and IPv6 with the
       assert.deepEqual(mutationState(studio),before);
       assert.equal((await mutationRequest(base,'/api/reset',{})).status,200);
       assert.equal((await fetch(base+'/api/snapshot')).status,200);
+    });
+  }
+});
+
+test('standalone Studio advertises the configured host as a usable API URL',async t=>{
+  for(const host of ['localhost','::1']){
+    await t.test(host,async t=>{
+      const probe=createServer();
+      try{
+        await new Promise((resolve,reject)=>{
+          probe.once('error',reject);
+          probe.listen(0,host,resolve);
+        });
+      }catch(error){
+        if(host==='::1'&&['EAFNOSUPPORT','EADDRNOTAVAIL'].includes(error.code)){
+          t.skip('IPv6 loopback is unavailable: '+error.code);
+          return;
+        }
+        throw error;
+      }
+      const port=probe.address().port;
+      await new Promise(resolve=>probe.close(resolve));
+      const child=spawn(process.execPath,[fileURLToPath(new URL('../nara-core/studio/server.mjs',import.meta.url))],{
+        env:{...process.env,NARA_STUDIO_HOST:host,NARA_STUDIO_PORT:String(port),NARA_OWNER_STORE:join(tmpdir(),`nara-studio-cli-${process.pid}-${port}.json`)},
+        stdio:['ignore','pipe','pipe']
+      });
+      t.after(()=>child.kill());
+      let stdout='',stderr='';
+      child.stderr.setEncoding('utf8').on('data',chunk=>{stderr+=chunk;});
+      const advertised=await new Promise((resolve,reject)=>{
+        const deadline=setTimeout(()=>reject(new Error('Studio did not advertise a URL: '+stdout+' '+stderr)),5000);
+        child.stdout.setEncoding('utf8').on('data',chunk=>{
+          stdout+=chunk;
+          const match=stdout.match(/NARA Core Live Studio aktif: (http:\/\/\S+)/);
+          if(match){clearTimeout(deadline);resolve(match[1]);}
+        });
+        child.once('error',error=>{clearTimeout(deadline);reject(error);});
+        child.once('exit',(code,signal)=>{clearTimeout(deadline);reject(new Error(`Studio exited before startup (${code||signal}): ${stderr}`));});
+      });
+      const expected='http://'+(host==='::1'?'[::1]':host)+':'+port;
+      assert.equal(advertised,expected);
+      assert.equal((await fetch(advertised+'/api/creator/session')).status,200);
     });
   }
 });

@@ -37,6 +37,11 @@ const allow=new Set(STUDIO_EVENT_ALLOWLIST);
 const MUTATION_METHODS=new Set(['POST','PUT','PATCH','DELETE']);
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8'};
 
+function studioOrigin(host,port){
+  const boundHost=String(host).includes(':')&&!String(host).startsWith('[')?'['+host+']':host;
+  return new URL('http://'+boundHost+':'+port).origin;
+}
+
 function json(res,status,data){
   const body=JSON.stringify(data);
   res.writeHead(status,{'content-type':'application/json; charset=utf-8','content-length':Buffer.byteLength(body),'cache-control':'no-store'});
@@ -406,8 +411,7 @@ export function createNaraStudioServer({
 
   server=http.createServer(async(req,res)=>{
     try{
-      const boundHost=String(host).includes(':')&&!String(host).startsWith('[')?'['+host+']':host;
-      const expected=new URL('http://'+boundHost+':'+server.address().port);
+      const expected=new URL(studioOrigin(host,server.address().port));
       const url=new URL(req.url||'/',expected);
       res.setHeader('x-content-type-options','nosniff');
       res.setHeader('referrer-policy','no-referrer');
@@ -652,8 +656,9 @@ export function createNaraStudioServer({
 }
 
 if(process.argv[1]&&fileURLToPath(import.meta.url)===normalize(process.argv[1])){
+  const host=process.env.NARA_STUDIO_HOST||'127.0.0.1';
   const studio=createNaraStudioServer({
-    host:process.env.NARA_STUDIO_HOST||'127.0.0.1',
+    host,
     port:Number(process.env.NARA_STUDIO_PORT)||4178,
     creatorAuth:{
       required:true,
@@ -662,7 +667,7 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===normalize(process.argv[1]))
   });
   const address=await studio.start();
   const actualPort=typeof address==='object'&&address?address.port:4178;
-  console.log(`NARA Core Live Studio aktif: http://127.0.0.1:${actualPort}`);
+  console.log(`NARA Core Live Studio aktif: ${studioOrigin(host,actualPort)}`);
   const shutdown=async()=>{await studio.stop();process.exit(0);};
   process.once('SIGINT',shutdown);process.once('SIGTERM',shutdown);
 }
