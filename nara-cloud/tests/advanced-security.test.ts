@@ -105,3 +105,10 @@ test(
     );
   }
 );
+
+test("development permits missing origin evidence but rejects explicit hostile evidence", () => {
+  assert.equal(isTrustedRequestOrigin({origin: "https://attacker.example.invalid"}, expected, false), false);
+  assert.equal(isTrustedRequestOrigin({origin: expected, secFetchSite: "cross-site"}, expected, false), false);
+  assert.equal(isTrustedRequestOrigin({referer: "https://attacker.example.invalid/path"}, expected, false), false);
+  assert.equal(isTrustedRequestOrigin({origin: expected}, expected, false), true);
+});

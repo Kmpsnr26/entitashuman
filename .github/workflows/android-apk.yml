@@ -3,6 +3,11 @@ name: Build Android APK
 on:
   workflow_dispatch:
     inputs:
+      upload_runtime_evidence:
+        description: "Store the KVM Android runtime report as an Actions artifact"
+        required: false
+        default: false
+        type: boolean
       upload_debug_artifact:
         description: "Store the debug APK as an Actions artifact"
         required: false
@@ -113,6 +118,24 @@ jobs:
           SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
           cp "$APK" "release/HumanALE-Android-$SHORT_SHA-debug.apk"
           ls -lh release/*.apk
+
+      - name: Allow this runner to use hardware virtualization
+        run: |
+          test -c /dev/kvm || { echo "::error::Android runtime validation requires KVM"; exit 1; }
+          sudo setfacl -m "u:$(id -un):rw" /dev/kvm
+
+      - name: Validate actual Android WebView runtime with KVM
+        timeout-minutes: 12
+        run: bash scripts/android/runtime-smoke.sh android/app/build/outputs/apk/debug/app-debug.apk release/android-runtime
+
+      - name: Upload Android runtime evidence
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.upload_runtime_evidence }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: HumanALE-Android-Runtime-${{ github.sha }}
+          path: release/android-runtime/
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload verified debug APK artifact
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.upload_debug_artifact && !inputs.build_signed_artifact && !inputs.publish_release }}

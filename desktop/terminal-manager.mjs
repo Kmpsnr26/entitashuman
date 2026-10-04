@@ -1,4 +1,3 @@
-import * as pty from 'node-pty';
 import {readFile,stat} from 'node:fs/promises';
 import {homedir} from 'node:os';
 import {isAbsolute,join,resolve} from 'node:path';
@@ -6,6 +5,18 @@ import {spawn} from 'node:child_process';
 import {redactSecrets} from './terminal-policy.mjs';
 
 const MAX_TERMINAL_SESSIONS=12;
+
+let ptyModulePromise=null;
+async function loadDesktopPty(){
+ if(process.platform!=='win32')throw new Error('Terminal PTY HumanALE hanya tersedia pada desktop Windows.');
+ if(!ptyModulePromise){
+  ptyModulePromise=import('node-pty').then(module=>module.default??module).catch(error=>{
+   ptyModulePromise=null;
+   throw new Error('node-pty desktop tidak tersedia: '+error.message);
+  });
+ }
+ return ptyModulePromise;
+}
 
 const SHELLS={
  pwsh:{label:'PowerShell 7',commands:['pwsh.exe','pwsh']},
@@ -42,15 +53,16 @@ function executableLine(shell,executable){
 function powershellLiteral(value){return "'"+String(value).replace(/'/g,"''")+"'";}
 
 export class TerminalManager{
- constructor({workspace=process.cwd(),onData=()=>{},onExit=()=>{}}={}){
+ constructor({workspace=process.cwd(),onData=()=>{},onExit=()=>{},commandLocator=locateCommand}={}){
   this.workspace=resolve(workspace||process.cwd());this.onData=onData;this.onExit=onExit;this.sessions=new Map();this.sequence=0;
+  this.commandLocator=commandLocator;
  }
  setWorkspace(value){if(value)this.workspace=resolve(String(value));}
  async resolveShell(shell='auto'){
   const order=shell==='auto'?['pwsh','powershell','cmd']:[shell];
   for(const id of order){
    const def=SHELLS[id];if(!def)continue;
-   for(const command of def.commands){const found=await locateCommand(command);if(found)return {id,label:def.label,executable:found};}
+   for(const command of def.commands){const found=await this.commandLocator(command);if(found)return {id,label:def.label,executable:found};}
   }
   if(shell!=='auto')return this.resolveShell('auto');
   throw new Error('No supported Windows shell detected.');
@@ -61,7 +73,7 @@ export class TerminalManager{
   const hub=await readHubConfig(),providers=hub?.providers&&typeof hub.providers==='object'?hub.providers:{},configured=providers[id];
   if(configured?.enabled===false)throw new Error((CLI_LABELS[id]||id)+' dinonaktifkan di CLI Hub.');
   const command=String(configured?.command||CLI_DEFAULTS[id]).trim();
-  const executable=command?await locateCommand(command):null;
+  const executable=command?await this.commandLocator(command):null;
   if(!executable)throw new Error((CLI_LABELS[id]||id)+' belum terpasang atau tidak ditemukan di PATH.');
   return {id,label:CLI_LABELS[id]||id,executable};
  }
@@ -77,6 +89,7 @@ export class TerminalManager{
   const cwd=await this.resolveCwd(options.cwd);
   const cols=cleanSize(options.cols,120,20,400),rows=cleanSize(options.rows,30,5,200);
   const id='term-'+Date.now().toString(36)+'-'+(++this.sequence).toString(36);
+  const pty=await loadDesktopPty();
   let terminal;
   try{terminal=pty.spawn(shell.executable,[],{name:'xterm-256color',cols,rows,cwd,env:{...process.env,TERM:'xterm-256color'}});}
   catch(error){if((options.shell||'auto')!=='auto')return this.create({...options,shell:'auto'});throw new Error('Terminal PTY tidak dapat dibuat: '+error.message);}
@@ -108,11 +121,11 @@ export class TerminalManager{
   for(const [id,defaultCommand] of Object.entries(CLI_DEFAULTS)){
    const configured=providers[id];
    if(configured&&configured.enabled===false){registry[id]={id,label:CLI_LABELS[id]||id,command:configured.command||defaultCommand,state:'DISABLED',path:null};continue;}
-   const command=String(configured?.command||defaultCommand).trim(),found=command?await locateCommand(command):null;
+   const command=String(configured?.command||defaultCommand).trim(),found=command?await this.commandLocator(command):null;
    registry[id]={id,label:CLI_LABELS[id]||id,command,state:found?'READY':'NOT INSTALLED',path:found||null};
   }
   const shells={};
-  for(const id of Object.keys(SHELLS)){let found=null;for(const command of SHELLS[id].commands){found=await locateCommand(command);if(found)break;}shells[id]={id,label:SHELLS[id].label,state:found?'READY':'NOT FOUND',path:found};}
+  for(const id of Object.keys(SHELLS)){let found=null;for(const command of SHELLS[id].commands){found=await this.commandLocator(command);if(found)break;}shells[id]={id,label:SHELLS[id].label,state:found?'READY':'NOT FOUND',path:found};}
   return {workspace:this.workspace,shells,registry};
  }
  killAll(){for(const id of [...this.sessions.keys()])this.kill(id);}

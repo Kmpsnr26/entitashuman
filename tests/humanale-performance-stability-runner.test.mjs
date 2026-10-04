@@ -6,6 +6,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
+import {powershellCommand,powershellSkip,powershellEnv,writeNodeCommandShim} from './helpers/powershell.mjs';
 
 const root=new URL('../',import.meta.url);
 
@@ -22,7 +23,7 @@ test('performance stability runner is bounded and operator-evidence based',async
 });
 
 test('Windows stability rejects stale/process-mismatched evidence and observation never grants acceptance',{
- skip:process.platform!=='win32'
+ skip:powershellSkip
 },()=>{
  const scratch=mkdtempSync(path.join(fileURLToPath(new URL('../../',import.meta.url)),'stability-runner-test-'));
  try{
@@ -38,7 +39,7 @@ test('Windows stability rejects stale/process-mismatched evidence and observatio
   const runtimeHash=createHash('sha256').update(Object.keys(runtimeFiles).sort().map(name=>name+'\0'+createHash('sha256').update(runtimeFiles[name]).digest('hex')+'\n').join('')).digest('hex');
   const native=path.join(scratch,'git.cjs');
   writeFileSync(native,`console.log(process.argv.includes('rev-parse')?'${commit}':'main');`);
-  writeFileSync(path.join(scratch,'git.cmd'),`@echo off\r\n"${process.execPath}" "${native}" %*\r\n`);
+  writeNodeCommandShim(scratch,'git',native);
   const harness=path.join(scratch,'harness.ps1');
   writeFileSync(harness,`
 param($Target, $Executable, $Output, $Commit, $Hash, $RuntimeHash)
@@ -91,8 +92,8 @@ exit $LASTEXITCODE
    if(mode==='runtime-reparse')symlinkSync(path.join(scratch,'other'),link,'junction');
    const output=path.join(scratch,mode+'.json');
    writeFileSync(output,JSON.stringify({state:'PERFORMANCE_STABILITY_PASS',fullyValidated:true}));
-   const run=spawnSync('powershell.exe',['-NoProfile','-ExecutionPolicy','Bypass','-File',harness,target,executable,output,commit,hash,runtimeHash],{
-    encoding:'utf8',timeout:20000,env:{...process.env,PATH:scratch+path.delimiter+process.env.PATH,HUMANALE_STABILITY_TEST_CASE:mode}
+   const run=spawnSync(powershellCommand,['-NoProfile','-ExecutionPolicy','Bypass','-File',harness,target,executable,output,commit,hash,runtimeHash],{
+    encoding:'utf8',timeout:20000,env:powershellEnv({PATH:scratch+path.delimiter+process.env.PATH,HUMANALE_STABILITY_TEST_CASE:mode})
    });
    if(mode==='runtime-reparse')unlinkSync(link);
    const rejectsBeforeSampling=['observe-no-pid','duration-too-long','invalid-pid'].includes(mode);

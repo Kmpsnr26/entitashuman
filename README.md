@@ -77,6 +77,8 @@ Situs **HumanALE Hologram** yang memakai wajah NARA terbaru merupakan sumber ava
 ## Verifikasi dan paket Windows
 Jalankan `npm run verify` untuk menjalankan test dan build web dalam satu perintah. Di Windows, `npm run package:desktop` membuat folder portable `HumanALE-God-Engine-Desktop` dari runtime Electron yang sudah terpasang dan mengganti executable menjadi `HumanALE-God-Engine.exe`. Paket ini tidak memasukkan kredensial atau data login ChatGPT.
 
+Tes logika validator Android, stabilitas, keamanan rilis, dan laporan GPU juga berjalan di Linux/macOS bila PowerShell 7 (`pwsh`) tersedia di PATH. Gunakan `HUMANALE_POWERSHELL` untuk lokasi executable khusus; lokasi yang tidak valid akan membuat tes gagal. Jika PowerShell tidak tersedia, tes tersebut menampilkan alasan skip. Pengujian ini memakai fixture untuk perintah perangkat, proses, dan signer; validasi perangkat fisik, GPU hardware, serta Authenticode Windows tetap memerlukan target asli. Deteksi terminal diuji pada semua platform, dan pemeriksaan CMD asli tetap berlaku pada Windows.
+
 GitHub Actions menjalankan verifikasi pada pull request dan push ke `main`, membangun artefak Windows `HumanALE-God-Engine-Desktop-Windows`, lalu menjalankan smoke test startup pada paket `HumanALE-God-Engine.exe` untuk memastikan runtime dan renderer lokal dapat dimuat. Smoke test model nyata tetap dijalankan manual karena memerlukan akun ChatGPT yang sudah login.
 
 ## Develop / verify

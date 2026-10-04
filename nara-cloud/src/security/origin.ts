@@ -9,10 +9,6 @@ export function isTrustedRequestOrigin(
   expectedOrigin: string,
   enforce: boolean
 ): boolean {
-  if (!enforce) {
-    return true;
-  }
-
   if (
     headers.secFetchSite
       ?.trim()
@@ -38,7 +34,7 @@ export function isTrustedRequestOrigin(
       ?.trim();
 
   if (!referer) {
-    return false;
+    return !enforce;
   }
 
   try {

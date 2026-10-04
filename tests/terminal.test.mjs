@@ -98,12 +98,44 @@ test('terminal startup is restricted to detected CLI profiles and cannot accept 
  assert.match(ui,/terminalList/);
 });
 
-test('TerminalManager detects Windows shell fallback and developer CLIs without failing',{skip:process.platform!=='win32'},async()=>{
+test('TerminalManager detects actual available shells and developer CLIs without failing',async()=>{
  const manager=new TerminalManager({workspace:process.cwd()});
  const detection=await manager.detect();
  assert.equal(detection.workspace,process.cwd());
  assert.ok(['READY','NOT FOUND'].includes(detection.shells.pwsh.state));
- assert.equal(detection.shells.cmd.state,'READY');
- for(const id of ['claude','codex','cursor','gemini','git','gh','node','npm','python'])assert.ok(detection.registry[id]);
+ if(process.platform==='win32')assert.equal(detection.shells.cmd.state,'READY');
+ for(const shell of Object.values(detection.shells)){
+  assert.ok(['READY','NOT FOUND'].includes(shell.state));
+  assert.equal(Boolean(shell.path),shell.state==='READY');
+ }
+ for(const id of ['claude','codex','cursor','gemini','git','gh','node','npm','python']){
+  assert.ok(detection.registry[id]);
+  assert.ok(['READY','NOT INSTALLED','DISABLED'].includes(detection.registry[id].state));
+  assert.equal(Boolean(detection.registry[id].path),detection.registry[id].state==='READY');
+ }
  manager.killAll();
+});
+
+test('TerminalManager resolves fallback shell paths without executing Windows binaries',async()=>{
+ const calls=[];
+ const cmd='C:\\Windows\\System32\\cmd.exe';
+ const manager=new TerminalManager({commandLocator:async command=>{calls.push(command);return command==='cmd.exe'?cmd:null;}});
+ assert.deepEqual(await manager.resolveShell('pwsh'),{id:'cmd',label:'Command Prompt',executable:cmd});
+ assert.deepEqual(calls,['pwsh.exe','pwsh','pwsh.exe','pwsh','powershell.exe','powershell','cmd.exe']);
+ const detection=await manager.detect();
+ assert.equal(detection.shells.cmd.path,cmd);
+ assert.equal(detection.shells.cmd.state,'READY');
+ assert.equal(detection.shells.pwsh.state,'NOT FOUND');
+ assert.equal(manager.list().length,0);
+});
+
+test('TerminalManager prefers PowerShell 7 and reports no supported shell when discovery fails',async()=>{
+ const calls=[];
+ const pwsh='C:\\Program Files\\PowerShell\\7\\pwsh.exe';
+ const manager=new TerminalManager({commandLocator:async command=>{calls.push(command);return command==='pwsh.exe'?pwsh:null;}});
+ assert.deepEqual(await manager.resolveShell(),{id:'pwsh',label:'PowerShell 7',executable:pwsh});
+ assert.deepEqual(calls,['pwsh.exe']);
+ const missing=new TerminalManager({commandLocator:async()=>null});
+ await assert.rejects(missing.resolveShell(),/No supported Windows shell detected/);
+ await assert.rejects(missing.resolveShell('cmd'),/No supported Windows shell detected/);
 });
