@@ -429,7 +429,7 @@ $('clearEvents').onclick=()=>{stopReplay();eventBuffer=[];eventPaused=false;$('p
 $('pauseEvents').onclick=()=>{stopReplay();eventPaused=!eventPaused;$('pauseEvents').textContent=eventPaused?'Resume':'Pause';if(!eventPaused)renderEventView();};
 $('replayEvents').onclick=()=>replayTimer?stopReplay():startReplay();
 $('eventFilter').addEventListener('input',()=>{if(!eventPaused&&!replayTimer)renderEventView();});
-$('resetStudio').onclick=async()=>{const r=await fetch('/api/reset',{method:'POST'});const data=await r.json();$('consoleLog').textContent=JSON.stringify(data,null,2);};
+$('resetStudio').onclick=async()=>{const r=await fetch('/api/reset',{method:'POST',headers:{'content-type':'application/json'},body:'{}'});const data=await r.json();$('consoleLog').textContent=JSON.stringify(data,null,2);};
 window.addEventListener('resize',()=>{if(snapshot&&studioView==='2d')drawBrain();neural3d?.resize();});
 document.addEventListener('visibilitychange',()=>{
   if(neural3d)neural3d.setActive(studioView==='3d'&&!document.hidden);

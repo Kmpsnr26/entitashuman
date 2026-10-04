@@ -34,7 +34,13 @@ export const STUDIO_EVENT_ALLOWLIST=Object.freeze([
 ]);
 
 const allow=new Set(STUDIO_EVENT_ALLOWLIST);
+const MUTATION_METHODS=new Set(['POST','PUT','PATCH','DELETE']);
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8'};
+
+function studioOrigin(host,port){
+  const boundHost=String(host).includes(':')&&!String(host).startsWith('[')?'['+host+']':host;
+  return new URL('http://'+boundHost+':'+port).origin;
+}
 
 function json(res,status,data){
   const body=JSON.stringify(data);
@@ -405,10 +411,27 @@ export function createNaraStudioServer({
 
   server=http.createServer(async(req,res)=>{
     try{
-      const url=new URL(req.url||'/',`http://${req.headers.host||host}`);
+      const expected=new URL(studioOrigin(host,server.address().port));
+      const url=new URL(req.url||'/',expected);
       res.setHeader('x-content-type-options','nosniff');
       res.setHeader('referrer-policy','no-referrer');
       res.setHeader('content-security-policy',"default-src 'self'; connect-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+
+      if(url.pathname.startsWith('/api/')){
+        // Bind reads too: DNS rebinding must not expose optional-auth development data.
+        if(req.headers.host!==expected.host){
+          return json(res,403,{ok:false,error:'Same-origin Studio request required.'});
+        }
+        // SameSite cookies also reach other localhost ports; validate mutation origins.
+        if(MUTATION_METHODS.has(req.method)){
+          if(req.headers.origin!==expected.origin){
+            return json(res,403,{ok:false,error:'Same-origin Studio request required.'});
+          }
+          if(String(req.headers['content-type']||'').split(';')[0].trim().toLowerCase()!=='application/json'){
+            return json(res,415,{ok:false,error:'JSON required.'});
+          }
+        }
+      }
 
       if(req.method==='GET'&&THREE_VENDOR.has(url.pathname)){
         try{
@@ -500,9 +523,6 @@ export function createNaraStudioServer({
         const configured=typeof voiceBackend?.synthesize==='function'&&typeof voiceBackend?.stop==='function';
         if(req.method==='GET'&&url.pathname==='/api/voice/status')return json(res,200,{configured});
         if(req.method!=='POST'||!['/api/voice/synthesize','/api/voice/stop'].includes(url.pathname))return json(res,404,{error:'Tidak ditemukan.'});
-        const address=server.address(),expected='http://'+(host==='localhost'?'localhost':host)+':'+address.port;
-        if(req.headers.origin!==expected||req.headers.host!==new URL(expected).host)return json(res,403,{error:'Same-origin voice request required.'});
-        if(String(req.headers['content-type']||'').split(';')[0].trim()!=='application/json')return json(res,415,{error:'JSON required.'});
         const data=await bodyJson(req);
         if(!configured)return json(res,503,{error:'Local PCM voice unavailable.'});
         const actor=voiceActor(creatorSession);
@@ -636,8 +656,9 @@ export function createNaraStudioServer({
 }
 
 if(process.argv[1]&&fileURLToPath(import.meta.url)===normalize(process.argv[1])){
+  const host=process.env.NARA_STUDIO_HOST||'127.0.0.1';
   const studio=createNaraStudioServer({
-    host:process.env.NARA_STUDIO_HOST||'127.0.0.1',
+    host,
     port:Number(process.env.NARA_STUDIO_PORT)||4178,
     creatorAuth:{
       required:true,
@@ -646,7 +667,7 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===normalize(process.argv[1]))
   });
   const address=await studio.start();
   const actualPort=typeof address==='object'&&address?address.port:4178;
-  console.log(`NARA Core Live Studio aktif: http://127.0.0.1:${actualPort}`);
+  console.log(`NARA Core Live Studio aktif: ${studioOrigin(host,actualPort)}`);
   const shutdown=async()=>{await studio.stop();process.exit(0);};
   process.once('SIGINT',shutdown);process.once('SIGTERM',shutdown);
 }

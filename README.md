@@ -79,7 +79,7 @@ Jalankan `npm run verify` untuk menjalankan test dan build web dalam satu perint
 
 Tes logika validator Android, stabilitas, keamanan rilis, dan laporan GPU juga berjalan di Linux/macOS bila PowerShell 7 (`pwsh`) tersedia di PATH. Gunakan `HUMANALE_POWERSHELL` untuk lokasi executable khusus; lokasi yang tidak valid akan membuat tes gagal. Jika PowerShell tidak tersedia, tes tersebut menampilkan alasan skip. Pengujian ini memakai fixture untuk perintah perangkat, proses, dan signer; validasi perangkat fisik, GPU hardware, serta Authenticode Windows tetap memerlukan target asli. Deteksi terminal diuji pada semua platform, dan pemeriksaan CMD asli tetap berlaku pada Windows.
 
-GitHub Actions menjalankan verifikasi pada pull request dan push ke `main`, membangun artefak Windows `HumanALE-God-Engine-Desktop-Windows`, lalu menjalankan smoke test startup pada paket `HumanALE-God-Engine.exe` untuk memastikan runtime dan renderer lokal dapat dimuat. Smoke test model nyata tetap dijalankan manual karena memerlukan akun ChatGPT yang sudah login.
+GitHub Actions menjalankan verifikasi pada pull request dan push ke `main`, membangun paket Windows, lalu menjalankan smoke test startup dan terminal pada runtime portable serta installer untuk memastikan runtime dan renderer lokal dapat dimuat. Artefak `HumanALE-Windows-<commit SHA>` hanya diunggah lewat `workflow_dispatch` dengan `upload_test_artifact` atau `build_signed_artifact` aktif; unggahan artefak tidak otomatis menerbitkan rilis. Smoke test model nyata tetap dijalankan manual karena memerlukan akun ChatGPT yang sudah login.
 
 ## Develop / verify
 node server.mjs — http://127.0.0.1:4177
@@ -87,6 +87,8 @@ node build.mjs — dist/client dan dist/server
 node --test tests/*.test.mjs
 npm run desktop — popup native
 node desktop/smoke.mjs — satu permintaan model nyata menggunakan akun ChatGPT (memakai kuota)
+
+NARA Studio memvalidasi header `Host` pada semua endpoint `/api/`. Permintaan yang mengubah state (`POST`, `PUT`, `PATCH`, `DELETE`) juga wajib memakai `Origin` yang sama persis dengan alamat Studio, termasuk port, serta `Content-Type: application/json`. Klien HTTP lokal harus mengirim header tersebut; tombol reset Studio sudah mengikuti aturan ini. Gunakan hostname yang sama dengan konfigurasi bind Studio (`127.0.0.1`, `localhost`, atau IPv6), bukan alias lain. Batas ini berlaku juga pada mode pengembangan tanpa password dan tidak menggantikan autentikasi creator.
 
 Statistik pada partikel adalah efek visual generatif, bukan metrik sistem. Tidak ada autostart Windows atau perubahan pet bawaan Codex.
 

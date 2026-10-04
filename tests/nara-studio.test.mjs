@@ -1,7 +1,234 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {request,createServer} from 'node:http';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
+import {fileURLToPath} from 'node:url';
 import {createNaraStudioServer,STUDIO_EVENT_ALLOWLIST,buildCreatorRegionMetadata} from '../nara-core/studio/server.mjs';
 import {createStudioTelemetry} from '../nara-core/studio/telemetry.mjs';
+
+function rejectedMutationCases(base){
+  const url=new URL(base);
+  const otherPort=url.port==='65535'?65534:Number(url.port)+1;
+  return [
+    {name:'missing Origin',headers:{origin:null},status:403},
+    {name:'opaque Origin',headers:{origin:'null'},status:403},
+    {name:'foreign Origin',headers:{origin:'http://attacker.invalid'},status:403},
+    {name:'same host with a different port',headers:{origin:url.protocol+'//'+url.hostname+':'+otherPort},status:403},
+    {name:'different Host',headers:{host:'attacker.invalid'},status:403},
+    {name:'matching attacker Host and Origin',headers:{host:'attacker.invalid',origin:'http://attacker.invalid'},status:403},
+    {name:'Host without listening port',headers:{host:url.hostname},status:403},
+    {name:'missing Content-Type',headers:{'content-type':null},status:415},
+    {name:'plain text',headers:{'content-type':'text/plain'},status:415},
+    {name:'HTML form',headers:{'content-type':'application/x-www-form-urlencoded'},status:415}
+  ];
+}
+
+function mutationRequest(base,path,body,{headers:overrides={},method='POST'}={}){
+  const headers={'content-type':'application/json',origin:base,...overrides};
+  for(const key of Object.keys(headers))if(headers[key]===null)delete headers[key];
+  const payload=body===undefined?undefined:JSON.stringify(body);
+  if(payload!==undefined)headers['content-length']=Buffer.byteLength(payload);
+  // Use raw HTTP so overridden Host headers reach the server on every Node version.
+  return new Promise((resolve,reject)=>{
+    const req=request(base+path,{method,headers},res=>{
+      if(res.headers['content-type']?.includes('text/event-stream')){
+        res.destroy();
+        reject(new Error('Rejected request unexpectedly opened an SSE stream.'));
+        return;
+      }
+      const chunks=[];
+      res.on('data',chunk=>chunks.push(chunk));
+      res.on('error',reject);
+      res.on('end',()=>resolve(new Response(Buffer.concat(chunks),{
+        status:res.statusCode,headers:res.headers
+      })));
+    });
+    req.on('error',reject);
+    req.end(payload);
+  });
+}
+
+function mutationState(studio){
+  const telemetry=studio.telemetry.snapshot();
+  delete telemetry.performance.uptimeMs;
+  return structuredClone({
+    state:studio.nara.state.snapshot(),
+    events:studio.nara.bus.recent({limit:250}),
+    telemetry,
+    skills:studio.skills.snapshot()
+  });
+}
+
+test('standalone Studio rejects unsafe event and reset requests before changing state',async t=>{
+  const studio=createNaraStudioServer({host:'127.0.0.1',port:0,creatorAuth:{required:false}});
+  t.after(()=>studio.stop());
+  const address=await studio.start();
+  const base='http://127.0.0.1:'+address.port;
+  assert.equal((await mutationRequest(base,'/api/event',{event:'work.start',payload:{id:'preserved-task'}})).status,200);
+  const before=mutationState(studio);
+  for(const path of ['/api/snapshot','/api/creator/session','/api/stream']){
+    const response=await mutationRequest(base,path,undefined,{method:'GET',headers:{host:'attacker.invalid',origin:null,'content-type':null}});
+    assert.equal(response.status,403,path+' accepted a foreign Host');
+    assert.match(response.headers.get('content-type'),/application\/json/);
+    assert.deepEqual(mutationState(studio),before,path+' changed state');
+  }
+  assert.equal((await fetch(base+'/api/snapshot')).status,200);
+  assert.equal((await fetch(base+'/api/creator/session')).status,200);
+  for(const [path,body] of [
+    ['/api/event',{event:'reason.start',payload:{label:'rejected-event'}}],
+    ['/api/reset',{}]
+  ]){
+    for(const rejection of rejectedMutationCases(base)){
+      const response=await mutationRequest(base,path,body,rejection);
+      assert.equal(response.status,rejection.status,path+': '+rejection.name);
+      assert.deepEqual(mutationState(studio),before,path+': '+rejection.name+' changed state');
+    }
+  }
+  for(const method of ['PUT','PATCH','DELETE']){
+    const response=await mutationRequest(base,'/api/event',{}, {method,headers:{origin:'http://attacker.invalid'}});
+    assert.equal(response.status,403,method);
+    assert.deepEqual(mutationState(studio),before,method+' changed state');
+  }
+  const allowed=await mutationRequest(base,'/api/event',{event:'reason.start',payload:{label:'same-origin'}},{headers:{'content-type':'application/json; charset=utf-8'}});
+  assert.equal(allowed.status,200);
+  assert.equal(studio.nara.state.snapshot().regions.REASONER.status,'thinking');
+  assert.equal((await mutationRequest(base,'/api/reset',{})).status,200);
+  assert.equal(studio.skills.get('reason').runs,0);
+});
+
+test('Creator mutations reject unsafe requests without issuing sessions or changing owner and runtime',async t=>{
+  const {mkdtempSync,readFileSync,rmSync}=await import('node:fs');
+  const {join}=await import('node:path');
+  const {tmpdir}=await import('node:os');
+  const dir=mkdtempSync(join(tmpdir(),'nara-studio-origin-'));
+  t.after(()=>rmSync(dir,{recursive:true,force:true}));
+  const ownerStorePath=join(dir,'owner.json');
+  const credentials={username:'owner',password:'BoundarySecret123!'};
+  const studio=createNaraStudioServer({
+    host:'127.0.0.1',port:0,
+    creatorAuth:{...credentials,ownerStorePath,required:true,maxSessions:1,maxAttempts:1}
+  });
+  t.after(()=>studio.stop());
+  const address=await studio.start();
+  const base='http://127.0.0.1:'+address.port;
+  const ownerBefore=readFileSync(ownerStorePath,'utf8');
+  for(const rejection of rejectedMutationCases(base)){
+    const response=await mutationRequest(base,'/api/creator/login',{...credentials,password:'wrong-password'},rejection);
+    assert.equal(response.status,rejection.status,'unauthenticated login: '+rejection.name);
+    assert.equal(response.headers.get('set-cookie'),null);
+    assert.equal((await fetch(base+'/api/creator/session').then(r=>r.json())).authenticated,false);
+  }
+  const login=await mutationRequest(base,'/api/creator/login',credentials);
+  assert.equal(login.status,200,'unsafe login requests must not consume authentication attempts');
+  const cookie=login.headers.get('set-cookie').split(';')[0];
+  assert.equal((await mutationRequest(base,'/api/event',{event:'work.start',payload:{id:'owner-task'}},{headers:{cookie}})).status,200);
+  const before=mutationState(studio);
+  const changedCredentials={currentPassword:credentials.password,newUsername:'owner2',newPassword:'BoundarySecret456!'};
+  for(const [path,body] of [
+    ['/api/creator/login',credentials],
+    ['/api/creator/logout',{}],
+    ['/api/creator/change-login',changedCredentials],
+    ['/api/event',{event:'reason.start',payload:{label:'unsafe-owner-event'}}],
+    ['/api/reset',{}]
+  ]){
+    for(const rejection of rejectedMutationCases(base)){
+      const response=await mutationRequest(base,path,body,{headers:{cookie,...rejection.headers}});
+      assert.equal(response.status,rejection.status,path+': '+rejection.name);
+      assert.equal(response.headers.get('set-cookie'),null,path+' issued a cookie');
+      assert.equal(readFileSync(ownerStorePath,'utf8'),ownerBefore,path+' changed owner credentials');
+      assert.deepEqual(mutationState(studio),before,path+': '+rejection.name+' changed runtime');
+      const session=await fetch(base+'/api/creator/session',{headers:{cookie}}).then(r=>r.json());
+      assert.equal(session.authenticated,true,path+' revoked or replaced the active session');
+      assert.equal(session.username,'owner');
+    }
+  }
+  assert.equal((await mutationRequest(base,'/api/reset',{}, {headers:{cookie}})).status,200);
+  assert.ok(studio.skills.snapshot().skills.every(skill=>skill.runs===0));
+  const changed=await mutationRequest(base,'/api/creator/change-login',changedCredentials,{headers:{cookie}});
+  assert.equal(changed.status,200);
+  assert.equal((await changed.json()).owner.username,'owner2');
+  assert.equal((await fetch(base+'/api/snapshot',{headers:{cookie}})).status,401);
+  const relogin=await mutationRequest(base,'/api/creator/login',{username:'owner2',password:changedCredentials.newPassword});
+  assert.equal(relogin.status,200);
+  const newCookie=relogin.headers.get('set-cookie').split(';')[0];
+  const logout=await mutationRequest(base,'/api/creator/logout',{}, {headers:{cookie:newCookie}});
+  assert.equal(logout.status,200);
+  assert.equal((await fetch(base+'/api/snapshot',{headers:{cookie:newCookie}})).status,401);
+});
+
+test('Studio derives allowed origins from configured localhost and IPv6 with the actual listening port',async t=>{
+  for(const host of ['localhost','::1']){
+    await t.test(host,async t=>{
+      const studio=createNaraStudioServer({host,port:0,creatorAuth:{required:false}});
+      t.after(()=>studio.stop());
+      let address;
+      try{address=await studio.start();}
+      catch(error){
+        if(host==='::1'&&['EAFNOSUPPORT','EADDRNOTAVAIL'].includes(error.code)){
+          t.skip('IPv6 loopback is unavailable: '+error.code);
+          return;
+        }
+        throw error;
+      }
+      const base='http://'+(host.includes(':')?'['+host+']':host)+':'+address.port;
+      assert.notEqual(address.port,0);
+      assert.equal((await mutationRequest(base,'/api/event',{event:'reason.start',payload:{}})).status,200);
+      const before=mutationState(studio);
+      const alias=await mutationRequest(base,'/api/reset',{}, {headers:{origin:'http://127.0.0.1:'+address.port}});
+      assert.equal(alias.status,403,'a different loopback hostname must not be trusted');
+      assert.deepEqual(mutationState(studio),before);
+      const wrongPort=await mutationRequest(base,'/api/reset',{},rejectedMutationCases(base)[3]);
+      assert.equal(wrongPort.status,403);
+      assert.deepEqual(mutationState(studio),before);
+      assert.equal((await mutationRequest(base,'/api/reset',{})).status,200);
+      assert.equal((await fetch(base+'/api/snapshot')).status,200);
+    });
+  }
+});
+
+test('standalone Studio advertises the configured host as a usable API URL',async t=>{
+  for(const host of ['localhost','::1']){
+    await t.test(host,async t=>{
+      const probe=createServer();
+      try{
+        await new Promise((resolve,reject)=>{
+          probe.once('error',reject);
+          probe.listen(0,host,resolve);
+        });
+      }catch(error){
+        if(host==='::1'&&['EAFNOSUPPORT','EADDRNOTAVAIL'].includes(error.code)){
+          t.skip('IPv6 loopback is unavailable: '+error.code);
+          return;
+        }
+        throw error;
+      }
+      const port=probe.address().port;
+      await new Promise(resolve=>probe.close(resolve));
+      const child=spawn(process.execPath,[fileURLToPath(new URL('../nara-core/studio/server.mjs',import.meta.url))],{
+        env:{...process.env,NARA_STUDIO_HOST:host,NARA_STUDIO_PORT:String(port),NARA_OWNER_STORE:join(tmpdir(),`nara-studio-cli-${process.pid}-${port}.json`)},
+        stdio:['ignore','pipe','pipe']
+      });
+      t.after(()=>child.kill());
+      let stdout='',stderr='';
+      child.stderr.setEncoding('utf8').on('data',chunk=>{stderr+=chunk;});
+      const advertised=await new Promise((resolve,reject)=>{
+        const deadline=setTimeout(()=>reject(new Error('Studio did not advertise a URL: '+stdout+' '+stderr)),5000);
+        child.stdout.setEncoding('utf8').on('data',chunk=>{
+          stdout+=chunk;
+          const match=stdout.match(/NARA Core Live Studio aktif: (http:\/\/\S+)/);
+          if(match){clearTimeout(deadline);resolve(match[1]);}
+        });
+        child.once('error',error=>{clearTimeout(deadline);reject(error);});
+        child.once('exit',(code,signal)=>{clearTimeout(deadline);reject(new Error(`Studio exited before startup (${code||signal}): ${stderr}`));});
+      });
+      const expected='http://'+(host==='::1'?'[::1]':host)+':'+port;
+      assert.equal(advertised,expected);
+      assert.equal((await fetch(advertised+'/api/creator/session')).status,200);
+    });
+  }
+});
 
 async function readStudioSseEvent(url,event){
   const controller=new AbortController();
@@ -55,11 +282,11 @@ test('NARA Studio accepts allowlisted brain event and rejects arbitrary event',a
   const base='http://127.0.0.1:'+address.port;
   assert.ok(STUDIO_EVENT_ALLOWLIST.includes('reason.start'));
 
-  const ok=await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'reason.start',payload:{label:'Studio test'}})});
+  const ok=await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json',origin:base},body:JSON.stringify({event:'reason.start',payload:{label:'Studio test'}})});
   assert.equal(ok.status,200);
   assert.equal(studio.nara.snapshot().regions.REASONER.status,'thinking');
 
-  const denied=await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'terminal.exec',payload:{command:'whoami'}})});
+  const denied=await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json',origin:base},body:JSON.stringify({event:'terminal.exec',payload:{command:'whoami'}})});
   assert.equal(denied.status,403);
 });
 
@@ -68,9 +295,9 @@ test('NARA Studio reset preserves standalone NARA operation',async t=>{
   t.after(()=>studio.stop());
   const address=await studio.start();
   const base='http://127.0.0.1:'+address.port;
-  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'work.start',payload:{id:'studio-test',label:'Live Studio'}})});
+  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json',origin:base},body:JSON.stringify({event:'work.start',payload:{id:'studio-test',label:'Live Studio'}})});
   assert.ok(studio.nara.snapshot().currentTask);
-  const reset=await fetch(base+'/api/reset',{method:'POST'});
+  const reset=await fetch(base+'/api/reset',{method:'POST',headers:{'content-type':'application/json',origin:base},body:'{}'});
   assert.equal(reset.status,200);
   assert.equal(studio.nara.snapshot().lifecycle,'active');
 });
@@ -128,8 +355,8 @@ test('NARA Studio snapshot and SSE expose live telemetry',async t=>{
   const address=await studio.start();
   const base='http://127.0.0.1:'+address.port;
 
-  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'reason.start',payload:{label:'Live telemetry'}})});
-  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'memory.read',payload:{label:'Context A'}})});
+  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json',origin:base},body:JSON.stringify({event:'reason.start',payload:{label:'Live telemetry'}})});
+  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json',origin:base},body:JSON.stringify({event:'memory.read',payload:{label:'Context A'}})});
 
   const snapshot=await fetch(base+'/api/snapshot').then(r=>r.json());
   assert.equal(snapshot.telemetry.decision.currentStage,'reason');
@@ -148,10 +375,10 @@ test('NARA skill registry follows cognitive and agent lifecycle events',async t=
   const address=await studio.start();
   const base='http://127.0.0.1:'+address.port;
 
-  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'reason.start',payload:{label:'Reason skill'}})});
-  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'reason.complete',payload:{}})});
-  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'agent.start',payload:{label:'Worker skill'}})});
-  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'agent.failed',payload:{}})});
+  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json',origin:base},body:JSON.stringify({event:'reason.start',payload:{label:'Reason skill'}})});
+  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json',origin:base},body:JSON.stringify({event:'reason.complete',payload:{}})});
+  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json',origin:base},body:JSON.stringify({event:'agent.start',payload:{label:'Worker skill'}})});
+  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json',origin:base},body:JSON.stringify({event:'agent.failed',payload:{}})});
 
   const data=await fetch(base+'/api/snapshot').then(r=>r.json());
   const reason=data.skills.skills.find(skill=>skill.id==='reason');
@@ -214,10 +441,10 @@ test('NARA Studio reset clears skill runtime counters',async t=>{
   t.after(()=>studio.stop());
   const address=await studio.start();
   const base='http://127.0.0.1:'+address.port;
-  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'agent.start',payload:{label:'Reset test'}})});
-  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event:'agent.complete',payload:{}})});
+  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json',origin:base},body:JSON.stringify({event:'agent.start',payload:{label:'Reset test'}})});
+  await fetch(base+'/api/event',{method:'POST',headers:{'content-type':'application/json',origin:base},body:JSON.stringify({event:'agent.complete',payload:{}})});
   assert.equal(studio.skills.get('agent.manage').runs,1);
-  const reset=await fetch(base+'/api/reset',{method:'POST'});
+  const reset=await fetch(base+'/api/reset',{method:'POST',headers:{'content-type':'application/json',origin:base},body:'{}'});
   assert.equal(reset.status,200);
   assert.equal(studio.skills.get('agent.manage').runs,0);
   assert.equal(studio.skills.get('agent.manage').status,'ready');
@@ -519,7 +746,7 @@ test('Creator Gateway protects Studio APIs with bounded server-side session',asy
 
   const wrong=await fetch(base+'/api/creator/login',{
     method:'POST',
-    headers:{'content-type':'application/json'},
+    headers:{'content-type':'application/json',origin:base},
     body:JSON.stringify({username:'owner',password:'wrong'})
   });
   assert.equal(wrong.status,401);
@@ -527,7 +754,7 @@ test('Creator Gateway protects Studio APIs with bounded server-side session',asy
 
   const login=await fetch(base+'/api/creator/login',{
     method:'POST',
-    headers:{'content-type':'application/json'},
+    headers:{'content-type':'application/json',origin:base},
     body:JSON.stringify({username:'owner',password:'test-creator-secret'})
   });
   assert.equal(login.status,200);
@@ -554,21 +781,21 @@ test('Creator Gateway protects Studio APIs with bounded server-side session',asy
 
   const allowed=await fetch(base+'/api/event',{
     method:'POST',
-    headers:{'content-type':'application/json',cookie},
+    headers:{'content-type':'application/json',origin:base,cookie},
     body:JSON.stringify({event:'reason.start',payload:{label:'Creator test'}})
   });
   assert.equal(allowed.status,200);
 
   const denied=await fetch(base+'/api/event',{
     method:'POST',
-    headers:{'content-type':'application/json',cookie},
+    headers:{'content-type':'application/json',origin:base,cookie},
     body:JSON.stringify({event:'terminal.exec',payload:{command:'whoami'}})
   });
   assert.equal(denied.status,403);
 
   const logout=await fetch(base+'/api/creator/logout',{
     method:'POST',
-    headers:{'content-type':'application/json',cookie},
+    headers:{'content-type':'application/json',origin:base,cookie},
     body:'{}'
   });
   assert.equal(logout.status,200);
@@ -608,7 +835,7 @@ test('persistent Creator owner survives restart and only authenticated owner can
 
   const login=await fetch(firstBase+'/api/creator/login',{
     method:'POST',
-    headers:{'content-type':'application/json'},
+    headers:{'content-type':'application/json',origin:firstBase},
     body:JSON.stringify({username:'owner',password:'OwnerSecret123!'})
   });
   assert.equal(login.status,200);
@@ -616,7 +843,7 @@ test('persistent Creator owner survives restart and only authenticated owner can
 
   const wrongChange=await fetch(firstBase+'/api/creator/change-login',{
     method:'POST',
-    headers:{'content-type':'application/json',cookie},
+    headers:{'content-type':'application/json',origin:firstBase,cookie},
     body:JSON.stringify({
       currentPassword:'wrong-password',
       newUsername:'owner2',
@@ -627,7 +854,7 @@ test('persistent Creator owner survives restart and only authenticated owner can
 
   const changed=await fetch(firstBase+'/api/creator/change-login',{
     method:'POST',
-    headers:{'content-type':'application/json',cookie},
+    headers:{'content-type':'application/json',origin:firstBase,cookie},
     body:JSON.stringify({
       currentPassword:'OwnerSecret123!',
       newUsername:'owner2',
@@ -659,14 +886,14 @@ test('persistent Creator owner survives restart and only authenticated owner can
 
   const oldLogin=await fetch(secondBase+'/api/creator/login',{
     method:'POST',
-    headers:{'content-type':'application/json'},
+    headers:{'content-type':'application/json',origin:secondBase},
     body:JSON.stringify({username:'owner',password:'OwnerSecret123!'})
   });
   assert.equal(oldLogin.status,401);
 
   const newLogin=await fetch(secondBase+'/api/creator/login',{
     method:'POST',
-    headers:{'content-type':'application/json'},
+    headers:{'content-type':'application/json',origin:secondBase},
     body:JSON.stringify({username:'owner2',password:'OwnerSecret456!'})
   });
   assert.equal(newLogin.status,200);
@@ -683,7 +910,7 @@ test('Creator Gateway rate-limits failed authentication attempts',async t=>{
   const base='http://127.0.0.1:'+address.port;
   const attempt=()=>fetch(base+'/api/creator/login',{
     method:'POST',
-    headers:{'content-type':'application/json'},
+    headers:{'content-type':'application/json',origin:base},
     body:JSON.stringify({username:'creator',password:'wrong'})
   });
 
@@ -710,7 +937,7 @@ test('required Creator auth without a configured password fails closed',async t=
 
   const login=await fetch(base+'/api/creator/login',{
     method:'POST',
-    headers:{'content-type':'application/json'},
+    headers:{'content-type':'application/json',origin:base},
     body:JSON.stringify({username:'creator',password:'anything'})
   });
   assert.equal(login.status,503);
@@ -938,7 +1165,7 @@ test('Creator region metadata endpoint is auth-protected and rejects unknown reg
 
   const login=await fetch(base+'/api/creator/login',{
     method:'POST',
-    headers:{'content-type':'application/json'},
+    headers:{'content-type':'application/json',origin:base},
     body:JSON.stringify({username:'owner',password:secret})
   });
   assert.equal(login.status,200);
