@@ -1,4 +1,6 @@
-import {TerminalManager} from '../desktop/terminal-manager.mjs';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+import {assertPackagedPty} from './terminal-package-check.mjs';
 
 if(process.platform!=='win32'){
  console.log('Terminal PTY smoke skipped: Windows only.');
@@ -7,6 +9,11 @@ if(process.platform!=='win32'){
 
 let output='',manager,session,timer;
 try{
+ const managerArgument=process.argv.indexOf('--manager-path');
+ if(managerArgument!==-1&&!process.argv[managerArgument+1])throw new Error('--manager-path requires the packaged terminal-manager.mjs path.');
+ const managerUrl=managerArgument===-1?new URL('../desktop/terminal-manager.mjs',import.meta.url):pathToFileURL(resolve(process.argv[managerArgument+1]));
+ if(managerArgument!==-1)await assertPackagedPty(managerUrl);
+ const {TerminalManager}=await import(managerUrl.href);
  const exited=new Promise(resolve=>{
   manager=new TerminalManager({
    workspace:process.cwd(),

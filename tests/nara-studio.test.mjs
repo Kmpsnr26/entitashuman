@@ -3,6 +3,38 @@ import assert from 'node:assert/strict';
 import {createNaraStudioServer,STUDIO_EVENT_ALLOWLIST,buildCreatorRegionMetadata} from '../nara-core/studio/server.mjs';
 import {createStudioTelemetry} from '../nara-core/studio/telemetry.mjs';
 
+async function readStudioSseEvent(url,event){
+  const controller=new AbortController();
+  const deadline=setTimeout(()=>controller.abort(new Error('SSE '+event+' frame tidak diterima dalam 10 detik.')),10000);
+  let reader;
+  try{
+    const response=await fetch(url,{signal:controller.signal});
+    assert.equal(response.status,200);
+    assert.match(response.headers.get('content-type')||'',/text\/event-stream/);
+    reader=response.body.getReader();
+    const decoder=new TextDecoder();
+    let pending='';
+    while(true){
+      const part=await reader.read();
+      pending+=decoder.decode(part.value,{stream:!part.done});
+      let boundary;
+      while((boundary=/\r?\n\r?\n/.exec(pending))){
+        const frame=pending.slice(0,boundary.index);
+        pending=pending.slice(boundary.index+boundary[0].length);
+        const lines=frame.split(/\r?\n/);
+        if(!lines.some(line=>line==='event: '+event))continue;
+        const data=lines.filter(line=>line.startsWith('data:')).map(line=>line.slice(5).replace(/^ /,'')).join('\n');
+        return {frame,data:JSON.parse(data)};
+      }
+      if(part.done)throw new Error('SSE berakhir sebelum frame '+event+' lengkap.');
+    }
+  }finally{
+    clearTimeout(deadline);
+    controller.abort();
+    reader?.releaseLock();
+  }
+}
+
 test('NARA Studio runs headless core and exposes realtime snapshot',async t=>{
   const studio=createNaraStudioServer({host:'127.0.0.1',port:0});
   t.after(()=>studio.stop());
@@ -54,15 +86,9 @@ test('NARA Studio serves the laboratory UI and streams live state over SSE',asyn
   assert.equal(page.status,200);
   assert.match(await page.text(),/NARA CORE LIVE STUDIO/);
 
-  const controller=new AbortController();
-  const stream=await fetch(base+'/api/stream',{signal:controller.signal});
-  assert.equal(stream.status,200);
-  assert.match(stream.headers.get('content-type')||'',/text\/event-stream/);
-  const reader=stream.body.getReader();
-  const first=await reader.read();
-  const text=new TextDecoder().decode(first.value||new Uint8Array());
-  assert.match(text,/event: state/);
-  controller.abort();
+  const state=await readStudioSseEvent(base+'/api/stream','state');
+  assert.match(state.frame,/event: state/);
+  assert.equal(state.data.lifecycle,'active');
 });
 
 
@@ -109,18 +135,10 @@ test('NARA Studio snapshot and SSE expose live telemetry',async t=>{
   assert.equal(snapshot.telemetry.decision.currentStage,'reason');
   assert.equal(snapshot.telemetry.memory.counters.read,1);
 
-  const controller=new AbortController();
-  const stream=await fetch(base+'/api/stream',{signal:controller.signal});
-  const reader=stream.body.getReader();
-  let received='';
-  for(let i=0;i<5&&!received.includes('event: telemetry');i++){
-    const part=await reader.read();
-    if(part.done)break;
-    received+=new TextDecoder().decode(part.value||new Uint8Array());
-  }
-  controller.abort();
-  assert.match(received,/event: telemetry/);
-  assert.match(received,/"currentStage":"reason"/);
+  const telemetry=await readStudioSseEvent(base+'/api/stream','telemetry');
+  assert.match(telemetry.frame,/event: telemetry/);
+  assert.equal(telemetry.data.decision.currentStage,'reason');
+  assert.equal(telemetry.data.memory.counters.read,1);
 });
 
 
