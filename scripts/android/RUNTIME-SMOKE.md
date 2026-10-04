@@ -6,7 +6,7 @@ Run on a Linux host with Android SDK command-line tools, Java21, Node22 and acce
 bash scripts/android/runtime-smoke.sh android/app/build/outputs/apk/debug/app-debug.apk release/android-runtime
 ```
 
-The helper fails explicitly when KVM is unavailable. It creates an isolated temporary AVD and owns only emulator serial5580; an existing emulator at that serial causes refusal. Cleanup captures logcat, crash log, activities, WebView provider and screenshot, then shuts down only the emulator it started. CI uploads evidence even when validation fails. No Android or Chromium sandbox is disabled.
+The helper fails explicitly when KVM is unavailable. It creates an isolated temporary AVD and owns only emulator serial5580; an existing emulator at that serial causes refusal. Cleanup captures logcat, crash log, activities, WebView provider and screenshot, then shuts down only the emulator it started. CI always prints the result and writes a job summary. To store the evidence files as an Actions artifact, run the workflow manually with `upload_runtime_evidence=true`; that opt-in upload runs even when validation fails and requires available artifact storage. No Android or Chromium sandbox is disabled.
 
 `webview-report.json` covers DOM, browser input and JavaScript/resource checks. `runtime-result.json` is the overall result, including KVM, boot and native process/foreground/crash checks; use it to decide whether the entire smoke passed. CI also prints these checks and writes a job summary.
 
