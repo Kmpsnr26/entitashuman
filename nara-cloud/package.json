@@ -10,7 +10,7 @@
     "create-owner": "tsx src/scripts/createOwner.ts",
     "build": "tsc -p tsconfig.json",
     "test": "npm run test:unit",
-    "test:unit": "node --import tsx --test tests/security.test.ts tests/source-security.test.ts tests/schema-source.test.ts tests/ai-gateway.test.ts tests/openai-provider.test.ts tests/gemini-provider.test.ts tests/anthropic-provider.test.ts tests/openai-compatible-provider.test.ts tests/provider-health.test.ts tests/memory-source.test.ts tests/backup-source.test.ts tests/encrypted-backup.test.ts tests/usb-backup-source.test.ts tests/advanced-security.test.ts tests/advanced-security-source.test.ts tests/humanale-cloud-context.test.ts tests/humanale-cloud-source.test.ts",
+    "test:unit": "node --import tsx --test tests/security.test.ts tests/source-security.test.ts tests/schema-source.test.ts tests/ai-gateway.test.ts tests/openai-provider.test.ts tests/gemini-provider.test.ts tests/anthropic-provider.test.ts tests/openai-compatible-provider.test.ts tests/provider-health.test.ts tests/memory-source.test.ts tests/backup-source.test.ts tests/encrypted-backup.test.ts tests/usb-backup-source.test.ts tests/advanced-security.test.ts tests/advanced-security-source.test.ts tests/humanale-cloud-context.test.ts tests/humanale-cloud-source.test.ts tests/mobile-console.test.ts",
     "test:db": "node --import tsx --test tests/ticket-db.test.ts",
     "verify": "npm run build && npm run test:unit",
     "start:auth": "node dist/apps/authServer.js",
