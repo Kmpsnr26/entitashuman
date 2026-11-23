@@ -155,42 +155,45 @@ opencode skill install path/to/skill
 - [ ] No conflicting skill IDs
 - [ ] Dependencies available (other skills, tools)
 
-## Installed Skills Inventory (Current)
+## Source Export Skill Inventory (Unverified)
+
+This table records names present in the exported configuration only. It is not evidence that these skills are installed, enabled, available in the current OpenCode runtime, or approved for use on this machine. Verify each entry with the active runtime before reporting it as installed. In the current HumanALE migration, only the 12 project-local skills listed in the migration manifest are imported; 18 community skills and the `awesome-skills` catalogue remain deferred for provenance and license review.
+
 
 | Skill | Version | Category | Source | Status |
 |-------|---------|----------|--------|--------|
-| awesome-skills | 1.0.0 | knowledge | Global | ✅ Active |
-| ai-llm-engineering | 1.0.0 | knowledge | Global | ✅ Active |
-| backend-api-engineering | 1.0.0 | knowledge | Global | ✅ Active |
-| browser-api-automation | 1.0.0 | knowledge | Global | ✅ Active |
-| building-components | 1.0.0 | knowledge | Global | ✅ Active |
-| context7-mcp | 1.0.0 | tool | Global | ✅ Active |
-| cra-to-next-migration | 1.0.0 | workflow | Global | ✅ Active |
-| database-firebase | 1.0.0 | knowledge | Global | ✅ Active |
-| deploy-to-vercel | 1.0.0 | workflow | Global | ✅ Active |
-| devops-docker-ci | 1.0.0 | knowledge | Global | ✅ Active |
-| documentation-research | 1.0.0 | knowledge | Global | ✅ Active |
-| find-skills | 1.0.0 | tool | Global | ✅ Active |
-| frontend-ui-ux | 1.0.0 | knowledge | Global | ✅ Active |
-| fullstack-engineering | 1.0.0 | knowledge | Global | ✅ Active |
-| git-github-workflow | 1.0.0 | workflow | Global | ✅ Active |
-| mobile-android | 1.0.0 | knowledge | Global | ✅ Active |
-| opencode | 1.0.0 | knowledge | Global | ✅ Active |
-| react | 1.0.0 | knowledge | Global | ✅ Active |
-| remotion-best-practices | 1.0.0 | knowledge | Global | ✅ Active |
-| report | 1.0.0 | tool | Global | ✅ Active |
-| security-code-audit | 1.0.0 | knowledge | Global | ✅ Active |
-| testing-debugging | 1.0.0 | knowledge | Global | ✅ Active |
-| vercel-cli | 1.0.0 | tool | Global | ✅ Active |
-| vercel-cli-with-tokens | 1.0.0 | tool | Global | ✅ Active |
-| vercel-composition-patterns | 1.0.0 | knowledge | Global | ✅ Active |
-| vercel-optimize | 1.0.0 | tool | Global | ✅ Active |
-| vercel-react-best-practices | 1.0.0 | knowledge | Global | ✅ Active |
-| vercel-react-native-skills | 1.0.0 | knowledge | Global | ✅ Active |
-| vercel-react-view-transitions | 1.0.0 | knowledge | Global | ✅ Active |
-| web-design-guidelines | 1.0.0 | knowledge | Global | ✅ Active |
-| workflow | 1.0.0 | workflow | Global | ✅ Active |
-| writing-guidelines | 1.0.0 | knowledge | Global | ✅ Active |
+| awesome-skills | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| ai-llm-engineering | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| backend-api-engineering | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| browser-api-automation | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| building-components | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| context7-mcp | 1.0.0 | tool | Source export | Not runtime-verified |
+| cra-to-next-migration | 1.0.0 | workflow | Source export | Not runtime-verified |
+| database-firebase | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| deploy-to-vercel | 1.0.0 | workflow | Source export | Not runtime-verified |
+| devops-docker-ci | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| documentation-research | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| find-skills | 1.0.0 | tool | Source export | Not runtime-verified |
+| frontend-ui-ux | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| fullstack-engineering | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| git-github-workflow | 1.0.0 | workflow | Source export | Not runtime-verified |
+| mobile-android | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| opencode | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| react | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| remotion-best-practices | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| report | 1.0.0 | tool | Source export | Not runtime-verified |
+| security-code-audit | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| testing-debugging | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| vercel-cli | 1.0.0 | tool | Source export | Not runtime-verified |
+| vercel-cli-with-tokens | 1.0.0 | tool | Source export | Not runtime-verified |
+| vercel-composition-patterns | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| vercel-optimize | 1.0.0 | tool | Source export | Not runtime-verified |
+| vercel-react-best-practices | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| vercel-react-native-skills | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| vercel-react-view-transitions | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| web-design-guidelines | 1.0.0 | knowledge | Source export | Not runtime-verified |
+| workflow | 1.0.0 | workflow | Source export | Not runtime-verified |
+| writing-guidelines | 1.0.0 | knowledge | Source export | Not runtime-verified |
 
 ## AleStudio Custom Skills (To Create)
 
@@ -224,11 +227,11 @@ opencode skill install path/to/skill
 ```markdown
 # Skill Catalog
 
-## Installed Skills (31)
+## Example Skill Inventory (verify against the runtime before publishing)
 
 | Skill | Version | Category | Source | Status |
 |-------|---------|----------|--------|--------|
-| awesome-skills | 1.0.0 | knowledge | Global | ✅ Active |
+| awesome-skills | 1.0.0 | knowledge | Source export | Not runtime-verified |
 | ... | ... | ... | ... | ... |
 
 ## Custom AleStudio Skills
