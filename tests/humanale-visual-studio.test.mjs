@@ -241,7 +241,7 @@ test('HumanALE Visual Studio UI and runtime wiring remain present',async()=>{
  assert.match(module,/READY_FOR_REAL_TEST|visualStudioRealTestStatus/);
  assert.match(html,/data-nara-test="thinking"/);
  assert.match(html,/data-nara-test="full"/);
- assert.match(html,/NARA SKILL & CAPABILITY LAB/);
+ assert.match(html,/ALECORE AI SKILL & CAPABILITY LAB/);
  assert.doesNotMatch(module,/new HumanALEAvatar|new NeuralAvatar|createElement\(['"]canvas/);
 });
 

@@ -311,7 +311,7 @@ test('NARA Studio serves the laboratory UI and streams live state over SSE',asyn
 
   const page=await fetch(base+'/');
   assert.equal(page.status,200);
-  assert.match(await page.text(),/NARA CORE LIVE STUDIO/);
+  assert.match(await page.text(),/ALECORE AI LIVE STUDIO/);
 
   const state=await readStudioSseEvent(base+'/api/stream','state');
   assert.match(state.frame,/event: state/);
@@ -1024,7 +1024,7 @@ test('edge HUD module passes Node syntax check',async()=>{
 });
 
 
-test('Stage 3 cinematic entry uses local bounded audio and Indonesian NARA voice',async()=>{
+test('Stage 3 cinematic entry uses local bounded audio and Indonesian AleCore AI voice',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [html,app,gateway,entry,sound,matrix,styles]=await Promise.all([
@@ -1047,7 +1047,7 @@ test('Stage 3 cinematic entry uses local bounded audio and Indonesian NARA voice
   assert.match(sound,/createOscillator\(\)/);
   assert.match(matrix,/fillText\(bit/);
   assert.match(entry,/studioVoice\(\)\.speak/);
-  assert.match(entry,/NARA Core online/);
+  assert.match(entry,/AleCore AI online/);
   assert.match(entry,/voiceProfilePatch/);
   assert.match(entry,/prefers-reduced-motion/);
   assert.doesNotMatch(entry,/https?:\/\//);
@@ -1636,7 +1636,7 @@ test('R6 physical acceptance wrapper does not expose Creator credentials',async(
 });
 
 
-test('Revision R7 adds selectable NARA voice identity and local UI sound engine',async()=>{
+test('Revision R7 adds selectable AleCore AI voice identity and local UI sound engine',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [html,app,settings,identity,uiSound,entry,nodeVoice,sound,styles]=await Promise.all([
