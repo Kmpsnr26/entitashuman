@@ -321,3 +321,24 @@ test('NARA Core recovery refuses retry without idempotency or confirmed compensa
   assert.equal(recovery.decide({attempt:1,errorCategory:'runtime',idempotent:true}).action,'retry');
   assert.equal(recovery.decide({attempt:1,errorCategory:'runtime',compensationConfirmed:true}).action,'retry');
 });
+
+
+test('NARA Core cancellation aborts only the targeted running handler',async()=>{
+  const {autopilot,scheduler}=createAutopilotFixture();
+  const started=deferred();
+  let abortObserved=false;
+  autopilot.registerHandler('test.cancel',async({signal,task})=>new Promise((resolve)=>{
+    started.resolve(task.id);
+    signal.addEventListener('abort',()=>{abortObserved=true;resolve('cancelled');},{once:true});
+  }));
+  autopilot.enqueue({id:'cancel-target',handler:'test.cancel'});
+  const pending=autopilot.runTask('cancel-target');
+  await started.promise;
+  const cancelled=autopilot.cancel('cancel-target','test cancellation');
+  const result=await pending;
+  assert.equal(cancelled.status,'cancelled');
+  assert.equal(result.ok,false);
+  assert.equal(scheduler.get('cancel-target').status,'cancelled');
+  assert.equal(abortObserved,true);
+  assert.equal(scheduler.snapshot().running,0);
+});
