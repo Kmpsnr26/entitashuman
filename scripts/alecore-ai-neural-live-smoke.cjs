@@ -48,7 +48,7 @@ const evaluate=(win,source)=>win.webContents.executeJavaScript(source,true);
 
 async function run(){
   mkdirSync(ARTIFACTS,{recursive:true});
-  const moduleUrl=pathToFileURL(path.join(ROOT,'ALECORE-AI/studio/server.mjs')).href;
+  const moduleUrl=pathToFileURL(path.join(ROOT,'alecore-ai/studio/server.mjs')).href;
   const {createAleStudioServer}=await import(moduleUrl);
   const studio=createAleStudioServer({
     host:'127.0.0.1',

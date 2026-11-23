@@ -155,7 +155,7 @@ $report = [ordered]@{
     checks = @(
       'creator-owner-gate'
       'unified-runtime-v3'
-      'ALECORE-AI-identity'
+      'alecore-ai-identity'
       'humanale-body-state'
       'sensory-dispatch'
       'renderer-event-deny'

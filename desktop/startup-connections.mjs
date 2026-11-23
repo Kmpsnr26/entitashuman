@@ -1,4 +1,4 @@
-import {normalizeProviderStatus,normalizeStartupConnections} from '../ALECORE-AI/brain/provider-state.js';
+import {normalizeProviderStatus,normalizeStartupConnections} from '../alecore-ai/brain/provider-state.js';
 
 export const AUTO_PROVIDER_IDS=Object.freeze(['chatgpt','copilot','openai','gemini']);
 export const STARTUP_STATUS_TIMEOUT_MS=15000;

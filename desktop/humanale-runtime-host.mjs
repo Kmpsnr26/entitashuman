@@ -2,7 +2,7 @@ import {
   ALECORE_AI_UNIFIED_RUNTIME_CONTRACT,
   normalizeHumanALEInput,
   projectRuntimeAuthority
-} from '../ALECORE-AI/runtime/unified-contract.js';
+} from '../alecore-ai/runtime/unified-contract.js';
 
 const DEFAULT_RENDERER_EVENTS=ALECORE_AI_UNIFIED_RUNTIME_CONTRACT.rendererEvents;
 
