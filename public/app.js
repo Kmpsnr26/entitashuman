@@ -542,6 +542,7 @@ function renderConversationTeam(){
 function setConversationTeamRunState(state,result=null,error=''){
  conversationTeamRunState=state;
  conversationTeamRunError=String(error||'').slice(0,240);
+ if(state==='running'){latestConversationWorkflow=null;latestConversationSkillPlan=null;}
  if(result){
   latestConversationWorkflow=Array.isArray(result.stages)?result.stages:null;
   latestConversationSkillPlan=result.skillPlan||null;
@@ -1100,6 +1101,7 @@ async function runProjectWork(text){
  const preferredAgent=selectedDeveloperAgentId||(orchestratorReady?'humanale-orchestrator':'');
  try{executor=selectWorkAgent(status,aiProvider,preferredAgent);}
  catch(error){
+  setConversationTeamRunState('failed',null,error?.message||'Tidak ada executor yang siap.');
   desktop.openPanel?.('agentDialog');
   throw error;
  }
