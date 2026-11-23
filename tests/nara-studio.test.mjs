@@ -217,7 +217,7 @@ test('standalone Studio advertises the configured host as a usable API URL',asyn
         const deadline=setTimeout(()=>reject(new Error('Studio did not advertise a URL: '+stdout+' '+stderr)),5000);
         child.stdout.setEncoding('utf8').on('data',chunk=>{
           stdout+=chunk;
-          const match=stdout.match(/NARA Core Live Studio aktif: (http:\/\/\S+)/);
+          const match=stdout.match(/AleCore AI Live Studio aktif: (http:\/\/\S+)/);
           if(match){clearTimeout(deadline);resolve(match[1]);}
         });
         child.once('error',error=>{clearTimeout(deadline);reject(error);});
@@ -311,7 +311,7 @@ test('NARA Studio serves the laboratory UI and streams live state over SSE',asyn
 
   const page=await fetch(base+'/');
   assert.equal(page.status,200);
-  assert.match(await page.text(),/NARA CORE LIVE STUDIO/);
+  assert.match(await page.text(),/ALECORE AI LIVE STUDIO/);
 
   const state=await readStudioSseEvent(base+'/api/stream','state');
   assert.match(state.frame,/event: state/);
@@ -1024,7 +1024,7 @@ test('edge HUD module passes Node syntax check',async()=>{
 });
 
 
-test('Stage 3 cinematic entry uses local bounded audio and Indonesian NARA voice',async()=>{
+test('Stage 3 cinematic entry uses local bounded audio and Indonesian AleCore AI voice',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [html,app,gateway,entry,sound,matrix,styles]=await Promise.all([
@@ -1047,7 +1047,7 @@ test('Stage 3 cinematic entry uses local bounded audio and Indonesian NARA voice
   assert.match(sound,/createOscillator\(\)/);
   assert.match(matrix,/fillText\(bit/);
   assert.match(entry,/studioVoice\(\)\.speak/);
-  assert.match(entry,/NARA Core online/);
+  assert.match(entry,/AleCore AI online/);
   assert.match(entry,/voiceProfilePatch/);
   assert.match(entry,/prefers-reduced-motion/);
   assert.doesNotMatch(entry,/https?:\/\//);
@@ -1232,7 +1232,7 @@ test('Stage 6 spoken summary is bounded operational metadata only',async()=>{
     group:'cognitive',
     status:'active',
     lastEvent:'memory.read',
-    neighbors:[{id:'NARA_CORE',label:'NARA Core'},{id:'DRIVE',label:'Drive'}],
+    neighbors:[{id:'NARA_CORE',label:'AleCore AI'},{id:'DRIVE',label:'Drive'}],
     runtime:{lifecycle:'active',activeRegions:4,totalEvents:19,eventsPerSecond:1.2},
     network:{scope:'loopback',address:'127.0.0.1',port:4178},
     server:{health:'online',secrets:'DO_NOT_SPEAK_SERVER_SECRET'},
@@ -1636,7 +1636,7 @@ test('R6 physical acceptance wrapper does not expose Creator credentials',async(
 });
 
 
-test('Revision R7 adds selectable NARA voice identity and local UI sound engine',async()=>{
+test('Revision R7 adds selectable AleCore AI voice identity and local UI sound engine',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [html,app,settings,identity,uiSound,entry,nodeVoice,sound,styles]=await Promise.all([
@@ -1670,7 +1670,11 @@ test('Revision R7 adds selectable NARA voice identity and local UI sound engine'
 
   assert.match(identity,/HUMANALE_VOICE/);
   assert.match(identity,/globalThis\.window\?\.speechSynthesis/);
+  assert.match(identity,/alecore:voice-speaking/);
   assert.match(identity,/nara:voice-speaking/);
+  assert.match(identity,/listAleCoreVoices/);
+  assert.match(identity,/chooseAleCoreVoice/);
+  assert.match(identity,/populateAleCoreVoiceSelect/);
 
   assert.match(app,/createUiSoundEngine/);
   assert.match(app,/uiSound\.setProfile\(customSettings\.getSettings\(\)\)/);
@@ -1681,7 +1685,7 @@ test('Revision R7 adds selectable NARA voice identity and local UI sound engine'
     assert.match(uiSound,new RegExp("name==='"+cue+"'"));
   }
   assert.match(uiSound,/ducked\?\.28:1/);
-  assert.match(uiSound,/nara:voice-speaking/);
+  assert.match(uiSound,/alecore:voice-speaking/);
 
   assert.match(entry,/studioVoice\(\)\.speak/);
   assert.match(nodeVoice,/studioVoice\(\)\.speak/);

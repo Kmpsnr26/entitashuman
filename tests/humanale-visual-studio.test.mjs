@@ -168,7 +168,7 @@ test('separate Visual Studio panel preserves 16 skills after controlled skill te
  assert.equal(studio.syncPayload().snapshot.skills.length,16);
  assert.equal(studio.syncPayload().snapshot.skillCounts.total,16);
  const health=studio.runHealthScan();
- assert.equal(health.find(item=>item.name==='NARA lifecycle')?.status,'PASS');
+ assert.equal(health.find(item=>item.name==='AleCore AI lifecycle')?.status,'PASS');
  const button={
   dataset:{skillTest:'skill-01',scenario:'thinking'},
   closest:selector=>selector==='[data-skill-test]'?button:null
@@ -241,7 +241,7 @@ test('HumanALE Visual Studio UI and runtime wiring remain present',async()=>{
  assert.match(module,/READY_FOR_REAL_TEST|visualStudioRealTestStatus/);
  assert.match(html,/data-nara-test="thinking"/);
  assert.match(html,/data-nara-test="full"/);
- assert.match(html,/NARA SKILL & CAPABILITY LAB/);
+ assert.match(html,/ALECORE AI SKILL & CAPABILITY LAB/);
  assert.doesNotMatch(module,/new HumanALEAvatar|new NeuralAvatar|createElement\(['"]canvas/);
 });
 

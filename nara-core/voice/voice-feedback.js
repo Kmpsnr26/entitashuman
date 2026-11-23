@@ -1,7 +1,7 @@
-import {NARA_VOICE_PROFILE} from './voice-profile.js';
+import {ALECORE_AI_VOICE_PROFILE} from './voice-profile.js';
 import {voiceCueForEvent} from './voice-events.js';
 
-export class NaraVoiceFeedback{
+export class AleCoreVoiceFeedback{
   constructor({now=()=>Date.now()}={}){
     this.now=now;
     this.lastByKey=new Map();
@@ -22,8 +22,8 @@ export class NaraVoiceFeedback{
       key,
       text:String(mapped.text||'').slice(0,240),
       priority:mapped.priority||'normal',
-      style:NARA_VOICE_PROFILE.style,
-      language:NARA_VOICE_PROFILE.language,
+      style:ALECORE_AI_VOICE_PROFILE.style,
+      language:ALECORE_AI_VOICE_PROFILE.language,
       createdAt:now
     });
   }
@@ -31,4 +31,10 @@ export class NaraVoiceFeedback{
   reset(){this.lastByKey.clear();this.sequence=0;}
 }
 
-export function createVoiceFeedback(options){return new NaraVoiceFeedback(options);}
+/** @deprecated Use AleCoreVoiceFeedback. */
+export const NaraVoiceFeedback=AleCoreVoiceFeedback;
+
+export function createAleCoreVoiceFeedback(options){return new AleCoreVoiceFeedback(options);}
+
+/** @deprecated Use createAleCoreVoiceFeedback(). */
+export const createVoiceFeedback=createAleCoreVoiceFeedback;

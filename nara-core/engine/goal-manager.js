@@ -4,18 +4,18 @@ const clamp01=value=>Math.max(0,Math.min(1,Number(value)||0));
 
 export class NaraGoalManager{
   constructor({limit=100}={}){this.limit=Math.max(5,Math.min(1000,Number(limit)||100));this.goals=new Map();this.taskStatuses=new Map();this.sequence=0;}
-  create({id='',label='NARA goal',priority=50,parentId='',dependencies=[],successCriteria=[]}={}){
+  create({id='',label='AleCore AI goal',priority=50,parentId='',dependencies=[],successCriteria=[]}={}){
     const goalId=safeText(id||('goal-'+(++this.sequence)),80);
-    if(!SAFE_ID.test(goalId))throw new Error('Goal ID NARA tidak valid.');
-    if(this.goals.has(goalId))throw new Error('Goal NARA sudah ada: '+goalId);
-    if(this.goals.size>=this.limit)throw new Error('Goal Manager NARA penuh.');
-    const parent=safeText(parentId,80);if(parent&&!this.goals.has(parent))throw new Error('Parent goal NARA tidak ditemukan.');
+    if(!SAFE_ID.test(goalId))throw new Error('Goal ID AleCore AI tidak valid.');
+    if(this.goals.has(goalId))throw new Error('Goal AleCore AI sudah ada: '+goalId);
+    if(this.goals.size>=this.limit)throw new Error('AleCore AI Goal Manager penuh.');
+    const parent=safeText(parentId,80);if(parent&&!this.goals.has(parent))throw new Error('Parent goal AleCore AI tidak ditemukan.');
     const deps=[...new Set((Array.isArray(dependencies)?dependencies:[]).map(value=>safeText(value,80)).filter(Boolean))].slice(0,16);
-    for(const dep of deps)if(!this.goals.has(dep))throw new Error('Dependensi goal NARA tidak ditemukan: '+dep);
+    for(const dep of deps)if(!this.goals.has(dep))throw new Error('Dependensi goal AleCore AI tidak ditemukan: '+dep);
     const criteria=(Array.isArray(successCriteria)?successCriteria:[]).slice(0,16)
       .map(value=>typeof value==='string'?safeText(value,180):safeText(value?.id||value?.description,180)).filter(Boolean);
     const now=Date.now();
-    const item={id:goalId,label:safeText(label,200)||'NARA goal',priority:Math.max(0,Math.min(100,Number(priority)||0)),
+    const item={id:goalId,label:safeText(label,200)||'AleCore AI goal',priority:Math.max(0,Math.min(100,Number(priority)||0)),
       parentId:parent,dependencies:deps,successCriteria:criteria,evidence:[],taskIds:[],status:'pending',progress:0,
       createdAt:now,activatedAt:0,completedAt:0,updatedAt:now,lastError:''};
     this.goals.set(goalId,item);return this.get(goalId);
@@ -34,7 +34,7 @@ export class NaraGoalManager{
   }
   criteriaSatisfied(item){return item.successCriteria.every(criterion=>item.evidence.some(entry=>entry.criterion===criterion&&entry.verified===true&&entry.summary));}
   recordEvidence(id,{criterion,evidence,verified=false,source=''}={}){
-    const item=this.goals.get(String(id||''));if(!item)throw new Error('Goal NARA tidak ditemukan.');
+    const item=this.goals.get(String(id||''));if(!item)throw new Error('Goal AleCore AI tidak ditemukan.');
     if(['complete','failed','cancelled'].includes(item.status))throw new Error('Goal terminal tidak dapat menerima bukti baru.');
     const key=safeText(criterion,180);if(!item.successCriteria.includes(key))throw new Error('Kriteria keberhasilan tidak terdaftar pada Goal.');
     const summary=safeText(typeof evidence==='string'?evidence:evidence?.summary,500);
@@ -45,13 +45,13 @@ export class NaraGoalManager{
     item.updatedAt=Date.now();return this.get(item.id);
   }
   activate(id){
-    const item=this.goals.get(String(id||''));if(!item)throw new Error('Goal NARA tidak ditemukan.');
-    if(!['pending','active'].includes(item.status))throw new Error('Goal NARA tidak dapat diaktifkan.');
-    if(!this.dependenciesSatisfied(item))throw new Error('Dependensi goal NARA belum selesai.');
+    const item=this.goals.get(String(id||''));if(!item)throw new Error('Goal AleCore AI tidak ditemukan.');
+    if(!['pending','active'].includes(item.status))throw new Error('Goal AleCore AI tidak dapat diaktifkan.');
+    if(!this.dependenciesSatisfied(item))throw new Error('Dependensi goal AleCore AI belum selesai.');
     item.status='active';item.activatedAt=item.activatedAt||Date.now();item.updatedAt=Date.now();return this.get(item.id);
   }
   attachTask(goalId,taskId){
-    const item=this.goals.get(String(goalId||''));if(!item)throw new Error('Goal NARA tidak ditemukan.');
+    const item=this.goals.get(String(goalId||''));if(!item)throw new Error('Goal AleCore AI tidak ditemukan.');
     if(item.status==='complete')throw new Error('Goal yang selesai tidak dapat menerima task baru.');
     const id=safeText(taskId,80);if(!SAFE_ID.test(id))throw new Error('Task ID untuk goal tidak valid.');
     if(!item.taskIds.includes(id))item.taskIds.push(id);item.updatedAt=Date.now();return this.get(item.id);
@@ -79,14 +79,14 @@ export class NaraGoalManager{
     return changes;
   }
   complete(id){
-    const item=this.goals.get(String(id||''));if(!item)throw new Error('Goal NARA tidak ditemukan.');
+    const item=this.goals.get(String(id||''));if(!item)throw new Error('Goal AleCore AI tidak ditemukan.');
     if(['failed','cancelled'].includes(item.status))throw new Error('Goal terminal gagal/batal tidak dapat diselesaikan.');
-    if(!this.criteriaSatisfied(item))throw new Error('Goal NARA belum dapat diselesaikan: bukti terverifikasi untuk seluruh success criteria belum tersedia.');
-    if(item.taskIds.some(taskId=>this.taskStatuses.get(taskId)!=='complete'))throw new Error('Goal NARA belum dapat diselesaikan: seluruh task terkait harus selesai.');
+    if(!this.criteriaSatisfied(item))throw new Error('Goal AleCore AI belum dapat diselesaikan: bukti terverifikasi untuk seluruh success criteria belum tersedia.');
+    if(item.taskIds.some(taskId=>this.taskStatuses.get(taskId)!=='complete'))throw new Error('Goal AleCore AI belum dapat diselesaikan: seluruh task terkait harus selesai.');
     item.status='complete';item.progress=1;item.completedAt=Date.now();item.updatedAt=item.completedAt;item.lastError='';return this.get(item.id);
   }
   fail(id,error=''){
-    const item=this.goals.get(String(id||''));if(!item)throw new Error('Goal NARA tidak ditemukan.');
+    const item=this.goals.get(String(id||''));if(!item)throw new Error('Goal AleCore AI tidak ditemukan.');
     item.status='failed';item.lastError=safeText(error,240);item.updatedAt=Date.now();return this.get(item.id);
   }
   cancel(id){const item=this.goals.get(String(id||''));if(!item)return null;if(item.status==='complete')return this.get(item.id);item.status='cancelled';item.updatedAt=Date.now();return this.get(item.id);}

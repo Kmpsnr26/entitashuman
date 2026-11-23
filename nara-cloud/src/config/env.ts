@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { z } from "zod";
+import { withAleCoreEnvAliases } from "./env-aliases.js";
 
 const BaseEnvSchema = z.object({
   NODE_ENV: z
@@ -452,7 +453,7 @@ const EnvSchema =
   );
 
 export const env =
-  EnvSchema.parse(process.env);
+  EnvSchema.parse(withAleCoreEnvAliases(process.env));
 
 export const isProduction =
   env.NODE_ENV === "production";

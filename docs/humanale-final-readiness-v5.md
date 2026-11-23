@@ -1,6 +1,6 @@
 # HumanALE Final Readiness Gate — v5
 
-HumanALE tetap berdiri sendiri sampai tahap akhir. Nara Core **tidak boleh dihubungkan secara aktif** hanya karena source sudah tersedia atau automated test hijau.
+HumanALE tetap berdiri sendiri sampai tahap akhir. AleCore AI **tidak boleh dihubungkan secara aktif** hanya karena source sudah tersedia atau automated test hijau.
 
 ## Gate final
 
@@ -21,7 +21,7 @@ Semua gate wajib berstatus `pass`. Setelah itu masih ada satu syarat terakhir: `
 - Fail closed: status hilang/asing dianggap `pending`.
 - Technical ready tidak sama dengan integration unlocked.
 - Integrasi baru terbuka setelah seluruh bukti teknis lulus **dan** persetujuan eksplisit pencipta.
-- Gate tidak memberikan HumanALE kewenangan mengubah kebijakan Nara Core.
+- Gate tidak memberikan HumanALE kewenangan mengubah kebijakan AleCore AI.
 - Sampai final approval, boundary Nara tetap dry-run / non-mutating.
 
 ## Bukti yang harus diisi

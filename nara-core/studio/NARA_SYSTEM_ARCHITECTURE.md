@@ -1,4 +1,4 @@
-# NARA Core System Architecture
+# AleCore AI System Architecture
 
 Status: Release-candidate architecture through R7 Voice Identity / UI Sound.
 
@@ -7,9 +7,9 @@ Status: Release-candidate architecture through R7 Voice Identity / UI Sound.
 ```mermaid
 flowchart TD
     CREATOR[Creator] --> GATE[Creator Gateway]
-    GATE --> STUDIO[NARA Core Live / Visual Studio]
+    GATE --> STUDIO[AleCore AI Live / Visual Studio]
     STUDIO --> UI[Edge HUD + Custom Control Center]
-    STUDIO --> ORCH[NARA Orchestrator]
+    STUDIO --> ORCH[AleCore AI Orchestrator]
     ORCH --> BUS[Event Bus]
     BUS --> STATE[Brain State]
     STATE --> REGIONS[22 Neural Regions]
@@ -22,7 +22,7 @@ flowchart TD
 
     VISUAL --> SPACE
     AUDIO --> ENTRY[Cinematic Entry Engine]
-    AUDIO --> VOICE[NARA Voice Identity]
+    AUDIO --> VOICE[AleCore AI Voice Identity]
     AUDIO --> UISFX[UI Sound Engine]
 
     ENTRY --> SPACE
@@ -34,7 +34,7 @@ flowchart TD
     REGIONS --> SAFE[Safety Boundary]
 ```
 
-## 2. NARA Core brain
+## 2. AleCore AI brain
 
 The core brain is event-driven. `NaraOrchestrator` owns the Event Bus and Brain State. Events update region state; the Studio observes the resulting snapshot and telemetry.
 
@@ -53,7 +53,7 @@ Total: **22 neural regions**.
 
 Core topology begins with `NARA_CORE` connected directly to Reasoner, Planner, Memory, Agent Manager, Safety and Follow Up. The remaining regions form execution, connection and reporting paths around that center.
 
-## 3. NARA Core Visual / Live Studio
+## 3. AleCore AI Visual / Live Studio
 
 ```text
 nara-core/studio/
@@ -86,7 +86,7 @@ flowchart LR
     SETTINGS --> AURORA[Aurora / Nebula]
     SETTINGS --> ROOTS[Living Roots]
     SETTINGS --> FLOW[Data Flow]
-    SETTINGS --> CORE[NARA Core]
+    SETTINGS --> CORE[AleCore AI]
     SETTINGS --> RINGS[Guardian Emblem A/B]
     SETTINGS --> HUD[HUD opacity / UI scale]
     SETTINGS --> QUALITY[Auto / High / Balanced / Low]
@@ -106,7 +106,7 @@ Current visual properties include:
 - galaxy / nebula / aurora environment
 - 48 living-root links in the current topology rendering
 - realtime semantic route packets
-- NARA Core energy shell
+- AleCore AI energy shell
 - two counter-rotating Guardian Emblem rings
 - adaptive quality and reduced-motion support
 - Explorer / Focus / Core navigation
@@ -143,10 +143,10 @@ flowchart TD
 
 ### R7 voice characters
 
-- **NARA Deep** — lower/slower
-- **NARA Calm** — relaxed, less synthetic
-- **NARA Droid** — low pitch with Droid Character enabled
-- **NARA Natural** — closer to the selected operating-system voice
+- **AleCore Deep** — lower/slower
+- **AleCore Calm** — relaxed, less synthetic
+- **AleCore Droid** — low pitch with Droid Character enabled
+- **AleCore Natural** — closer to the selected operating-system voice
 
 The System Voice selector enumerates the Speech Synthesis voices actually exposed by Windows/Edge/Electron. Indonesian voices are preferred automatically when available. A selected `voiceURI` is stored only as a local preference.
 
@@ -182,10 +182,10 @@ No remote sound files are required.
 ## 7. Development history
 
 ### Foundation
-- 22-region NARA brain topology
+- 22-region AleCore AI brain topology
 - Event Bus
 - Brain State
-- NARA Orchestrator
+- AleCore AI Orchestrator
 - operational events / connections / work lifecycle
 
 ### Redesign Stage 1 — Creator Gateway
@@ -250,12 +250,12 @@ No remote sound files are required.
 
 ### Revision R7
 - selectable Windows/Edge system voice
-- NARA Deep / Calm / Droid / Natural profiles
+- AleCore Deep / Calm / Droid / Natural profiles
 - Preview Voice
 - UI SFX level
 - Core FX level
 - dedicated local UI Sound Engine
-- automatic SFX/Core ducking while NARA is speaking
+- automatic SFX/Core ducking while AleCore AI is speaking
 
 ## 8. Acceptance layers
 
@@ -264,7 +264,7 @@ Source / static tests
         ↓
 HumanALE root tests + build
         ↓
-NARA Cloud / database security tests
+AleCore Cloud / database security tests
         ↓
 Realtime Electron WebGL smoke
         ↓
@@ -284,7 +284,7 @@ Merge only by explicit release decision
 PR #122 remains a stacked Draft release candidate until the latest voice/UI-sound revision completes automated and physical review. Passing CI does not automatically merge the PR.
 
 
-## 10. NARA Core Engine V2.1
+## 10. AleCore AI Engine V2.1
 
 ```mermaid
 flowchart TD
@@ -300,7 +300,7 @@ flowchart TD
     FLOW[NARA App Data Flow] --> SENSORY
 
     SENSORY --> INSTINCT[Operational Instinct]
-    INSTINCT --> CORE[NARA Orchestrator]
+    INSTINCT --> CORE[AleCore AI Orchestrator]
 
     GOAL[Queued Task] --> SCHED[Task Scheduler]
     SCHED --> AUTOPILOT
@@ -431,7 +431,7 @@ UNIFIED RUNTIME HOST
    └── Visual / Live Studio control surfaces
 ```
 
-NARA Core is the authoritative brain. HumanALE is the embodied desktop surface. Visual Studio is a monitor/control surface rather than a second brain.
+AleCore AI is the authoritative brain. HumanALE is the embodied desktop surface. Visual Studio is a monitor/control surface rather than a second brain.
 
 ### V3.1 — HumanALE Runtime Host
 
@@ -446,7 +446,7 @@ It adds:
 - `dudidam:runtime-snapshot`
 
 The unified snapshot contains:
-- complete NARA Core state
+- complete AleCore AI state
 - HumanALE body state
 - runtime contract / authority projection
 - bounded sensory projection
@@ -555,7 +555,7 @@ Passwords:
 
 Creator unlock is required for:
 - AI/provider calls and provider login
-- NARA Cloud context access
+- AleCore Cloud context access
 - Agent Hub / Codex / Copilot
 - project-root changes
 - terminal operations

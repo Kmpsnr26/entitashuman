@@ -82,7 +82,7 @@ function applyOwnerState(next={}){
  if(hint)hint.textContent=ownerState.configured
   ?'Unlock sesi HumanALE dengan identitas Creator perangkat ini.'
   :'Buat identitas Creator pertama. Password disimpan sebagai verifier scrypt di main process, bukan di browser.';
- if(submit)submit.textContent=ownerState.configured?'UNLOCK NARA':'PROVISION & UNLOCK';
+ if(submit)submit.textContent=ownerState.configured?'UNLOCK ALECORE AI':'PROVISION & UNLOCK';
  clearInterval(ownerRetryTimer);ownerRetryTimer=null;
  if(submit)submit.disabled=ownerSubmitting||ownerState.errorCode==='owner_store_unavailable'||ownerState.retryAfterMs>0;
  if(status)status.textContent=ownerState.error||'';
@@ -179,9 +179,9 @@ $('#naraNetworkOpen')?.addEventListener('click',async()=>{
  if(button)button.disabled=true;
  try{
   const result=await desktop.openNaraNetwork();
-  if(!result?.ok)toast(result?.error||'NARA Core Network Studio gagal dibuka.');
+  if(!result?.ok)toast(result?.error||'AleCore AI Network Studio gagal dibuka.');
  }catch{
-  toast('NARA Core Network Studio gagal dibuka.');
+  toast('AleCore AI Network Studio gagal dibuka.');
  }finally{
   if(button)button.disabled=false;
  }
@@ -270,19 +270,19 @@ function updateDesktopMemoryContextUi(){
  if(source==='cloud'&&cloudMemoryChecked&&!cloudMemoryState.configured)source=setMemorySource('local');
  if(sourceSelect&&sourceSelect.value!==source)sourceSelect.value=source;
  const modeLabel=snapshot.mode==='off'?'OFF':snapshot.mode==='auto-safe'?'AUTO-SAFE':'TANYA DULU';
- const sourceLabel=source==='cloud'?'NARA CLOUD':'LOKAL';
+ const sourceLabel=source==='cloud'?'ALECORE CLOUD':'LOKAL';
  status.textContent='Memory context · '+modeLabel+' · sumber '+sourceLabel+' · '+memoryState.count+' memori lokal tersedia.';
  if(cloudActions)cloudActions.hidden=!cloudMemoryChecked||!cloudMemoryState.configured;
  if(cloudStatus)cloudStatus.hidden=!cloudMemoryChecked||!cloudMemoryState.configured;
  if(cloudLogin)cloudLogin.hidden=!cloudMemoryState.configured||cloudMemoryState.authenticated;
  if(cloudStatus&&!cloudStatus.hidden){
   cloudStatus.textContent=cloudMemoryState.available
-   ?'NARA Cloud terhubung'+(cloudMemoryState.displayName?' · '+cloudMemoryState.displayName:'')+'.'
+   ?'AleCore Cloud terhubung'+(cloudMemoryState.displayName?' · '+cloudMemoryState.displayName:'')+'.'
    :cloudMemoryState.loginRequired
-    ?'NARA Cloud perlu login Owner.'
+    ?'AleCore Cloud perlu login Owner.'
     :cloudMemoryState.error
-     ?'NARA Cloud belum tersedia · '+cloudMemoryState.error
-     :'NARA Cloud belum terhubung.';
+     ?'AleCore Cloud belum tersedia · '+cloudMemoryState.error
+     :'AleCore Cloud belum terhubung.';
  }
 }
 async function prepareDesktopMemoryContext(task,target='reasoner'){
@@ -295,7 +295,7 @@ async function prepareDesktopMemoryContext(task,target='reasoner'){
  if(preview.requiresApproval){
   const excerpt=preview.text.length>900?preview.text.slice(0,899)+'…':preview.text;
   const approved=window.confirm(
-   'NARA menemukan '+preview.count+' memori lokal relevan ('+preview.chars+' karakter).\n\n'+
+   'AleCore AI menemukan '+preview.count+' memori lokal relevan ('+preview.chars+' karakter).\n\n'+
    excerpt+'\n\nGunakan context lokal ini untuk '+target+'?'
   );
   if(!approved){desktopContextBridge.reject(preview.id);updateDesktopMemoryContextUi();toast('Memory context lokal tidak digunakan.');return null;}
@@ -311,22 +311,22 @@ async function prepareCloudMemoryContext(target='reasoner'){
  if(mode==='off')return null;
  if(!cloudMemoryState.available)await refreshCloudMemoryStatus();
  if(!cloudMemoryState.available){
-  toast(cloudMemoryState.loginRequired?'Login NARA Cloud diperlukan.':'NARA Cloud belum tersedia.');
+  toast(cloudMemoryState.loginRequired?'Login AleCore Cloud diperlukan.':'AleCore Cloud belum tersedia.');
   return null;
  }
  const first=await desktop.cloudContext({target,mode,approved:false});
- if(first?.error){toast('NARA Cloud: '+first.error);await refreshCloudMemoryStatus();return null;}
+ if(first?.error){toast('AleCore Cloud: '+first.error);await refreshCloudMemoryStatus();return null;}
  if(first?.context)return first.context;
  const preview=first?.preview;
  if(!preview)return null;
  const excerpt=preview.text.length>900?preview.text.slice(0,899)+'…':preview.text;
  const approved=window.confirm(
-  'NARA Cloud menemukan '+preview.count+' memori ('+preview.chars+' karakter).\n\n'+
+  'AleCore Cloud menemukan '+preview.count+' memori ('+preview.chars+' karakter).\n\n'+
   excerpt+'\n\nGunakan context cloud ini untuk '+target+'?'
  );
  if(!approved){toast('Memory context cloud tidak digunakan.');return null;}
  const confirmed=await desktop.cloudContext({target,mode,approved:true,entryIds:preview.entryIds});
- if(confirmed?.error){toast('NARA Cloud: '+confirmed.error);return null;}
+ if(confirmed?.error){toast('AleCore Cloud: '+confirmed.error);return null;}
  return confirmed?.context||null;
 }
 async function prepareEffectiveMemoryContext(task,target='reasoner'){
@@ -587,7 +587,7 @@ applyPanelTransparency(desktop?localStorage.getItem('dudidam-panel-transparency'
 function toast(text){$('#toast').textContent=text;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,6000);}
 function brainZoomLabel(value=1){
  const zoom=Number(value)||1;
- return zoom.toFixed(1)+'× · '+(zoom<1.5?'wajah':zoom<2.15?'rongga kepala':zoom<2.75?'otak 3D':zoom<3.3?'NARA neural':'node / modul');
+ return zoom.toFixed(1)+'× · '+(zoom<1.5?'wajah':zoom<2.15?'rongga kepala':zoom<2.75?'otak 3D':zoom<3.3?'AleCore AI neural':'node / modul');
 }
 function updateBrainNodeInfo(regionId=selectedBrainRegion){
  const panel=$('#brainNodeInfo');if(!panel)return;
@@ -597,7 +597,7 @@ function updateBrainNodeInfo(regionId=selectedBrainRegion){
  const graphRegion=avatar.neuralCore?.regions?.find(item=>item.id===regionId);
  $('#brainNodeName').textContent=graphRegion?.label||regionId.replaceAll('_',' ');
  $('#brainNodeState').textContent=String(region.status||'idle').toUpperCase();
- $('#brainNodeMessage').textContent=String(region.message||region.lastEvent||'Region siap menerima aktivitas NARA.');
+ $('#brainNodeMessage').textContent=String(region.message||region.lastEvent||'Region siap menerima aktivitas AleCore AI.');
  panel.hidden=Math.max(avatar.zoom||1,avatar.zoomTarget||1)<2.2;
 }
 function naraHumanALEPolicy(){
@@ -1206,7 +1206,7 @@ function center(){offset={x:0,y:0};$('#avatarArea').style.translate='0px 0px';de
 const area=$('#avatarArea');
 area.onpointerdown=e=>{if(transitioning()||e.button!==0)return;area.setPointerCapture(e.pointerId);drag={x:e.screenX,y:e.screenY,ox:offset.x,oy:offset.y,moved:false,lastX:e.screenX,lastY:e.screenY};};
 area.onpointermove=e=>{const r=area.getBoundingClientRect(),pointer={x:Math.max(-1,Math.min(1,(e.clientX-r.left)/r.width*2-1)),y:Math.max(-1,Math.min(1,(e.clientY-r.top)/r.height*2-1))};avatar.pointer=pointer;avatar.pointerActive=true;avatar.gazePointer=pointer;avatar.gazeActive=true;if(drag){if(Math.hypot(e.screenX-drag.x,e.screenY-drag.y)>4)drag.moved=true;if(drag.moved){if(desktop){desktop.move({dx:e.screenX-drag.lastX,dy:e.screenY-drag.lastY});}else{offset={x:Math.max(-innerWidth*.35,Math.min(innerWidth*.35,drag.ox+e.screenX-drag.x)),y:Math.max(-innerHeight*.35,Math.min(innerHeight*.35,drag.oy+e.screenY-drag.y))};area.style.translate=offset.x+'px '+offset.y+'px';}drag.lastX=e.screenX;drag.lastY=e.screenY;}}};
-area.onpointerup=e=>{if(drag&&!drag.moved){const region=avatar.pickBrainRegion?.(e.clientX,e.clientY);if(region){avatar.selectBrainRegion?.(region);toast('NARA · '+region.replaceAll('_',' '));}else avatar.trigger('blink');}drag=null;if(area.hasPointerCapture(e.pointerId))area.releasePointerCapture(e.pointerId);};area.onpointercancel=()=>drag=null;area.onpointerleave=()=>{if(!drag){avatar.pointerActive=false;avatar.pointer={x:0,y:0};if(!desktop){avatar.gazeActive=false;avatar.gazePointer={x:0,y:0};}}};area.onwheel=e=>{e.preventDefault();const current=Number(avatar.zoomTarget)||1;applyBrainZoom(current*Math.exp(-Math.max(-120,Math.min(120,e.deltaY))*.0018));};area.oncontextmenu=e=>{e.preventDefault();showDialog('#controls');};area.ondblclick=()=>showDialog('#controls');
+area.onpointerup=e=>{if(drag&&!drag.moved){const region=avatar.pickBrainRegion?.(e.clientX,e.clientY);if(region){avatar.selectBrainRegion?.(region);toast('AleCore AI · '+region.replaceAll('_',' '));}else avatar.trigger('blink');}drag=null;if(area.hasPointerCapture(e.pointerId))area.releasePointerCapture(e.pointerId);};area.onpointercancel=()=>drag=null;area.onpointerleave=()=>{if(!drag){avatar.pointerActive=false;avatar.pointer={x:0,y:0};if(!desktop){avatar.gazeActive=false;avatar.gazePointer={x:0,y:0};}}};area.onwheel=e=>{e.preventDefault();const current=Number(avatar.zoomTarget)||1;applyBrainZoom(current*Math.exp(-Math.max(-120,Math.min(120,e.deltaY))*.0018));};area.oncontextmenu=e=>{e.preventDefault();showDialog('#controls');};area.ondblclick=()=>showDialog('#controls');
 $('#reveal').onclick=()=>showDialog('#controls');$('#chat').onclick=()=>showDialog('#chatDialog');document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>panelOnly?desktop.closePanel():b.closest('dialog').close());document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>{avatar.trigger(b.dataset.action);if(panelOnly)panelChannel?.postMessage({type:'action',action:b.dataset.action});});document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
 $('#avatarSize').oninput=e=>applyAvatarSize(e.target.value);
 $('#brainZoom').oninput=e=>applyBrainZoom(e.target.value);
@@ -1248,16 +1248,16 @@ $('#memoryContextSource')?.addEventListener('change',async()=>{
  const source=setMemorySource($('#memoryContextSource').value);
  if(source==='cloud')await refreshCloudMemoryStatus();
  updateDesktopMemoryContextUi();
- toast('Sumber memory: '+(source==='cloud'?'NARA Cloud':'Lokal')+'.');
+ toast('Sumber memory: '+(source==='cloud'?'AleCore Cloud':'Lokal')+'.');
 });
 $('#cloudMemoryLogin')?.addEventListener('click',async()=>{
  const result=await desktop?.cloudLogin?.();
- if(result?.error){toast('NARA Cloud: '+result.error);return;}
- toast('Window login NARA Cloud dibuka.');
+ if(result?.error){toast('AleCore Cloud: '+result.error);return;}
+ toast('Window login AleCore Cloud dibuka.');
 });
 $('#cloudMemoryRefresh')?.addEventListener('click',async()=>{
  await refreshCloudMemoryStatus();
- toast(cloudMemoryState.available?'NARA Cloud terhubung.':'Status NARA Cloud diperbarui.');
+ toast(cloudMemoryState.available?'AleCore Cloud terhubung.':'Status AleCore Cloud diperbarui.');
 });
 $('#chatForm').onsubmit=e=>{e.preventDefault();const text=$('#prompt').value.trim();if(text&&!busy){$('#prompt').value='';submit(text);}};let composing=false;$('#prompt').oncompositionstart=()=>{composing=true;};$('#prompt').oncompositionend=()=>{composing=false;};$('#prompt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!composing){e.preventDefault();$('#chatForm').requestSubmit();}};$('#clear').onclick=()=>{if(busy)return;history=[];$('#messages').replaceChildren();$('#bubble').hidden=true;stopSpeech();};$('#conversationSettings').onclick=()=>showDialog('#controls');
 $('#chatDialog').addEventListener('close',()=>{stopCamera();setPassthrough(true);syncPanelViewportFromDialogs();if(document.documentElement.classList.contains('stage-surface')&&!document.hidden&&!transitioning())requestAnimationFrame(()=>{if(!$('#chatDialog').open&&!transitioning())$('#chatDialog').show();});});

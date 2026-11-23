@@ -1,4 +1,4 @@
-# NARA Cloud Phase 11C — Memory Engine
+# AleCore Cloud Phase 11C — Memory Engine
 
 ## Status
 
@@ -68,7 +68,7 @@ Create limits include:
 - conversation ownership is checked
 - list size remains bounded to 50
 - API authentication and CSRF boundaries remain present
-- `/api/memory` remains mounted by the NARA server
+- `/api/memory` remains mounted by the AleCore Cloud server
 - provider credential identifiers are absent from Memory routes/service
 
 The test is included in `npm run test:unit` and therefore `npm run verify`.

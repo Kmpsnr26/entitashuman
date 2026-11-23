@@ -1,8 +1,8 @@
-# NARA Cloud Phase 11F — Advanced Security
+# AleCore Cloud Phase 11F — Advanced Security
 
 ## Status
 
-This source checkpoint adds defense-in-depth request hardening without changing NARA data contracts or provider credentials.
+This source checkpoint adds defense-in-depth request hardening without changing existing Cloud data contracts or provider credentials.
 
 Execution verification remains pending until `npm run verify` runs in a usable checkout.
 

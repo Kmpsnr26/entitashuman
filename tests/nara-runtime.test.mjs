@@ -70,8 +70,8 @@ test('terminal and Agent Coordinator lifecycle feed NARA operational state',asyn
     readFile(new URL('desktop/nara-agent-coordinator.mjs',root),'utf8')
   ]);
   assert.match(main,/nara\.dispatch\('terminal\.open'/);
-  assert.match(main,/createNaraAgentCoordinator/);
-  assert.match(main,/naraAgentCoordinator=createNaraAgentCoordinator/);
+  assert.match(main,/createAleCoreAgentCoordinator/);
+  assert.match(main,/naraAgentCoordinator=createAleCoreAgentCoordinator/);
   assert.match(main,/naraAgentCoordinator\.run/);
   assert.match(coordinator,/this\.nara\.startWork\(/);
   assert.match(coordinator,/this\.nara\.completeWork\(/);

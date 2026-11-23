@@ -1,26 +1,26 @@
-# NARA Cloud
+# AleCore Cloud
 
-Server-side identity, SSO session, one-time ticket, PostgreSQL and future AI/Memory backend for HumanALE/NARA.
+Server-side identity, SSO session, one-time ticket, PostgreSQL and future AI/Memory backend for HumanALE / AleCore AI.
 
 ## Security boundary
 
-NARA identity is independent from ChatGPT/OpenAI login.
+AleCore AI identity is independent from ChatGPT/OpenAI login.
 
-- Owner identity: NARA Auth Server
+- Owner identity: AleCore Auth Server (legacy NARA service contract)
 - Password hashing: Argon2id
 - Auth SSO session: PostgreSQL-backed cookie session
-- NARA app session: separate PostgreSQL-backed cookie session
+- AleCore app session: separate PostgreSQL-backed cookie session
 - SSO handoff: HMAC-hashed one-time ticket, 90-second lifetime
 - Database: PostgreSQL
-- OpenAI and other model providers: future NARA AI Gateway only
+- OpenAI and other model providers: future AleCore AI Gateway only
 - API keys: server-side environment/secret manager only
 - Browser/renderer never receives provider API keys
 
 ## Local service topology
 
 ```text
-127.0.0.1:4100   NARA Auth Server
-127.0.0.1:4200   NARA Application Backend
+127.0.0.1:4100   AleCore Auth Server
+127.0.0.1:4200   AleCore Application Backend
 127.0.0.1:5432   PostgreSQL
 ```
 
@@ -90,9 +90,9 @@ Not yet implemented:
 - passkeys/2FA/device management
 
 
-## Phase 11B — NARA AI Gateway
+## Phase 11B — AleCore AI Gateway
 
-Current B1 implementation adds a server-side AI gateway behind the authenticated NARA session.
+Current B1 implementation adds a server-side AI gateway behind the authenticated AleCore session.
 
 ### Endpoints
 
@@ -102,7 +102,7 @@ POST /api/ai/chat
 POST /api/ai/stream
 ```
 
-All AI endpoints require an authenticated NARA Owner session. POST endpoints also require the current NARA CSRF token in:
+All AI endpoints require an authenticated AleCore Owner session. POST endpoints also require the current AleCore CSRF token in:
 
 ```http
 X-CSRF-Token: <token>
@@ -110,7 +110,7 @@ X-CSRF-Token: <token>
 
 ### OpenAI provider
 
-The first production adapter uses the OpenAI Responses API from the NARA backend.
+The first production adapter uses the OpenAI Responses API from the AleCore backend.
 
 Provider credentials remain server-side:
 
@@ -118,7 +118,7 @@ Provider credentials remain server-side:
 Browser / HumanALE
         │
         ▼
-NARA Backend
+AleCore Backend
         │
         ├── authenticated session
         ├── CSRF
@@ -131,7 +131,7 @@ NARA Backend
           OpenAI Responses API
 ```
 
-The request explicitly uses `store: false`. No tools are enabled by the NARA chat endpoint.
+The request explicitly uses `store: false`. No tools are enabled by the AleCore AI chat endpoint.
 
 ### Streaming
 
@@ -183,10 +183,10 @@ Do not commit a real provider key. Production keys belong in server environment 
 
 ## Phase 11B2 — Multi-provider routing
 
-NARA AI Gateway now supports four adapter slots behind the same authenticated API contract:
+AleCore AI Gateway now supports four adapter slots behind the same authenticated API contract:
 
 ```text
-NARA AI Gateway
+AleCore AI Gateway
      │
      ├── OpenAI Responses API
      ├── Gemini generateContent / streamGenerateContent
@@ -209,7 +209,7 @@ GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.8-flash
 ```
 
-The API key is sent only from the NARA backend using the Gemini API authentication header. The browser never receives it.
+The API key is sent only from the AleCore backend using the Gemini API authentication header. The browser never receives it.
 
 ### Anthropic
 
@@ -244,12 +244,12 @@ Fallback is allowed only when:
 3. there is another configured provider; and
 4. no streamed text has been emitted yet.
 
-Once a provider emits the first text delta, NARA will not switch to another provider for that response.
+Once a provider emits the first text delta, AleCore AI will not switch to another provider for that response.
 
 
 ## Phase 11B3 — Provider health and circuit breaker
 
-NARA tracks provider health in process memory without storing prompts, responses, cookies, sessions or credentials.
+AleCore AI tracks provider health in process memory without storing prompts, responses, cookies, sessions or credentials.
 
 Public provider state returned by `GET /api/ai/providers` is intentionally simple:
 
@@ -301,7 +301,7 @@ Only retryable operational provider failures can change circuit state or increme
 
 The gateway-level `AI_REQUEST_TIMEOUT_MS` deadline is different from a client abort: when that deadline expires, the provider attempt is recorded as the retryable `AI_PROVIDER_TIMEOUT` failure. Automatic routing may then fall back to the next healthy provider, and repeated timeouts can open the provider circuit. A client disconnect/abort still releases the attempt without poisoning provider health. The first abort cause is retained so a later client disconnect cannot retroactively turn an already-fired provider timeout into a client abort.
 
-Provider-facing telemetry and browser error responses use NARA-owned normalized error codes. Arbitrary error-code strings supplied by an upstream provider are not copied into provider-health status or reflected directly to the browser.
+Provider-facing telemetry and browser error responses use AleCore-owned normalized error codes. Arbitrary error-code strings supplied by an upstream provider are not copied into provider-health status or reflected directly to the browser.
 
 Retryability is conservative. HTTP transport status and a small provider-specific transient allowlist are used only to decide whether fallback/circuit health may change. Unknown or request-specific stream error identifiers are treated as non-retryable. For OpenAI HTTP 429 responses, known account/spend/usage-limit identifiers (including quota-style error types) are treated as non-retryable while ordinary rate-limit responses remain retryable; the upstream identifier is used only for that classification and is not retained in telemetry or returned to the browser. Anthropic HTTP 429 is treated as transient only when the response carries a Retry-After hint, preventing long-lived spend-cap conditions from poisoning provider health. A successful HTTP response that contains no usable text is also non-retryable because it can represent request/model semantics rather than an operational provider outage.
 
@@ -333,6 +333,6 @@ It does **not** contain:
 
 Streaming keeps the B2 no-mix invariant: after any text delta is emitted, NARA will not switch to another provider for that response. Downstream/output callback failures are isolated from upstream provider health: they release any active half-open probe lease, do not increment provider failure counters, and never trigger fallback to another provider. Attempt-observer/logging callback failures are treated as non-authoritative telemetry failures and cannot change routing or breaker state.
 
-If a half-open probe is cancelled or abandoned by the client, NARA only releases the single-probe lease. The circuit remains half-open so a later request can perform a real provider-health probe without extending the cooldown because of client behavior.
+If a half-open probe is cancelled or abandoned by the client, AleCore AI only releases the single-probe lease. The circuit remains half-open so a later request can perform a real provider-health probe without extending the cooldown because of client behavior.
 
 Each half-open probe receives an internal lease ID. Only the currently active probe lease may close or re-open the half-open circuit. A normal request that started before the circuit opened, or an older released probe that completes late, is still counted in bounded telemetry but cannot override the newer breaker state.

@@ -2,7 +2,7 @@
   // A deterministic, connected 3D graph. This is an artistic data visualization
   // of HumanALE/NARA runtime state, not an anatomical scan or medical dataset.
   const REGION_DEFINITIONS = [
-    ['NARA_CORE','NARA Core','core',0,0.08,0.18,['REASONER','PLANNER','MEMORY','AGENT_MANAGER','SAFETY','FOLLOW_UP']],
+    ['NARA_CORE','AleCore AI','core',0,0.08,0.18,['REASONER','PLANNER','MEMORY','AGENT_MANAGER','SAFETY','FOLLOW_UP']],
     ['REASONER','Reasoner','cognitive',-0.34,0.02,0.10,['NARA_CORE','BUG_HUNTER','MEMORY']],
     ['PLANNER','Planner','cognitive',0.34,0.02,0.10,['NARA_CORE','AGENT_MANAGER','FOLLOW_UP']],
     ['MEMORY','Memory','cognitive',-0.42,-0.18,0.02,['NARA_CORE','REASONER','DRIVE']],
@@ -121,7 +121,7 @@
     // Nine visible data-spine lanes mirror the real Phase 7 routing engine.
     // The lane identity is stable so runtime packets can target the matching path.
     const spineLanes = [
-      {id:'CORE',region:'NARA_CORE',label:'NARA CORE'},
+      {id:'CORE',region:'NARA_CORE',label:'ALECORE AI'},
       {id:'MEMORY',region:'MEMORY',label:'MEMORY'},
       {id:'TERMINAL',region:'TERMINAL',label:'TERMINAL'},
       {id:'GITHUB',region:'GITHUB',label:'GITHUB'},

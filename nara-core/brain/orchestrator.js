@@ -18,6 +18,7 @@ import {
   createGoalManager,
   createMetacognitionEngine,
   createAutopilot,
+  ALECORE_AI_IDENTITY,
   NARA_IDENTITY,
   integrationPlan
 } from '../engine/index.js';
@@ -31,7 +32,7 @@ const connectionEvents=Object.freeze({
   TEAM:['team.connected','team.disconnected']
 });
 
-export class NaraOrchestrator{
+export class AleCoreOrchestrator{
   constructor({
     bus=createEventBus(),
     state=createBrainState(),
@@ -327,7 +328,7 @@ export class NaraOrchestrator{
   queueAutopilotTask(task={}){
     const requestedGoalId=String(task?.goalId||'');
     if(requestedGoalId&&!this.goals.get(requestedGoalId)){
-      throw new Error('Goal NARA untuk task tidak ditemukan: '+requestedGoalId);
+      throw new Error('Goal AleCore AI untuk task tidak ditemukan: '+requestedGoalId);
     }
     const queued=this.autopilot.enqueue(task);
     if(queued.goalId){
@@ -412,6 +413,7 @@ export class NaraOrchestrator{
       ...brain,
       engine:{
         identity:NARA_IDENTITY,
+        productIdentity:ALECORE_AI_IDENTITY,
         sensory,
         capabilities,
         device:this.devicePlan,
@@ -425,4 +427,7 @@ export class NaraOrchestrator{
   }
 }
 
-export function createOrchestrator(options){return new NaraOrchestrator(options);}
+export function createOrchestrator(options){return new AleCoreOrchestrator(options);}
+
+/** @deprecated Use AleCoreOrchestrator. */
+export const NaraOrchestrator=AleCoreOrchestrator;

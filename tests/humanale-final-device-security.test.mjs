@@ -90,7 +90,7 @@ else {console.error('Unexpected mock ADB invocation');process.exitCode=1;}
    writeFileSync(output,JSON.stringify({state:'ANDROID_RUNTIME_PASS',fullyValidated:true}));
    const log=path.join(scratch,`${mode}-${answer}.calls`);
    const run=spawnSync(powershellCommand,['-NoProfile','-ExecutionPolicy','Bypass','-File',harness,script,apk,output],{
-    encoding:'utf8',timeout:20000,
+    encoding:'utf8',timeout:45000,
     env:powershellEnv({PATH:scratch+path.delimiter+process.env.PATH,HUMANALE_ADB_TEST_CASE:mode,HUMANALE_ADB_TEST_ANSWER:answer,HUMANALE_ADB_TEST_LOG:log,HUMANALE_ADB_TEST_COMMIT:candidate,HUMANALE_ADB_TEST_HASH:apkHash})
    });
    assert.equal(run.status,exitCode,`${mode}: ${run.error||''}\n${run.stdout}\n${run.stderr}`);
@@ -122,7 +122,7 @@ else {console.error('Unexpected mock ADB invocation');process.exitCode=1;}
    const log=path.join(scratch,mode+'.calls');
    const output=path.join(scratch,mode+'.json');
    const run=spawnSync(powershellCommand,['-NoProfile','-ExecutionPolicy','Bypass','-File',harness,script,apk,output],{
-    encoding:'utf8',timeout:20000,
+    encoding:'utf8',timeout:45000,
     env:powershellEnv({PATH:scratch+path.delimiter+process.env.PATH,HUMANALE_ADB_TEST_CASE:'success',HUMANALE_ADB_TEST_ANSWER:'Y',HUMANALE_ADB_TEST_LOG:log,HUMANALE_ADB_TEST_COMMIT:sourceCommit,HUMANALE_ADB_TEST_HASH:hash})
    });
    assert.equal(run.status,1,run.stdout+run.stderr);

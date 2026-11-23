@@ -8,7 +8,7 @@
 
   class HumanALESensorRouter{
     constructor({runtime,video=null,onStatus=null,mediaDevices=null,AudioContextClass=null}={}){
-      if(!runtime?.dispatch)throw new Error('Runtime NARA diperlukan untuk sensor.');
+      if(!runtime?.dispatch)throw new Error('AleCore AI runtime diperlukan untuk sensor.');
       this.runtime=runtime;
       this.video=video;
       this.onStatus=typeof onStatus==='function'?onStatus:()=>{};
@@ -64,7 +64,7 @@
         };
         this.microphone={stream,context,source,analyser,frequencies,raf:0,lastSent:-Infinity};
         this.microphone.raf=global.requestAnimationFrame(tick);
-        this.status('microphone','active','Mikrofon aktif untuk visual sensor NARA.');
+        this.status('microphone','active','Mikrofon aktif untuk visual sensor AleCore AI.');
         return this.snapshot();
       }catch(error){
         stream?.getTracks?.().forEach(track=>track.stop());

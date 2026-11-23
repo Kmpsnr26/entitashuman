@@ -5,11 +5,11 @@ Avatar wajah biner mengambang di tengah layar. Saat ALE dipanggil, biner/neural/
 
 Riwayat aplikasi aktif dan proyek standalone lama sudah disatukan tanpa force-push atau penggantian source secara massal. Aplikasi 2.2.0 tetap menjadi alur aktif, sedangkan snapshot standalone dipertahankan pada branch `legacy/binary-assistant-v2`. Lihat [HUMANALE-FLOWS.md](HUMANALE-FLOWS.md) untuk hubungan branch dan aturan integrasi agar kedua alur tidak saling menimpa.
 
-## HumanALE phase 1 — NARA dan panel percakapan
+## HumanALE phase 1 — AleCore AI dan panel percakapan
 
 Source pengembangan disimpan di GitHub pada branch [`codex/humanale-god-engine-phase1`](https://github.com/Kmpsnr26/entitashuman/tree/codex/humanale-god-engine-phase1). GitHub adalah sumber utama untuk melanjutkan pekerjaan; checkout lokal hanya diperlukan untuk menjalankan dan menguji aplikasi. Tidak ada API key, riwayat chat, atau data login yang disimpan bersama source.
 
-Browser penuh menampilkan NARA pada panggung gelap dengan kontur holografik orisinal, panel percakapan tetap terlihat, kolom pesan, dan tombol **Dikte suara**. Tampilan layar pendek beralih ke dua kolom. Jendela desktop dan `?popup=1` tetap transparan, dengan panel terpisah/perilaku widget sebelumnya. Pengembangan UI tahap ini dikerjakan dengan GitHub Copilot CLI lalu diaudit dan diuji oleh Codex. Rincian serah-terima: [docs/copilot-ui-handoff.md](docs/copilot-ui-handoff.md).
+Browser penuh menampilkan AleCore AI pada panggung gelap dengan kontur holografik orisinal, panel percakapan tetap terlihat, kolom pesan, dan tombol **Dikte suara**. Tampilan layar pendek beralih ke dua kolom. Jendela desktop dan `?popup=1` tetap transparan, dengan panel terpisah/perilaku widget sebelumnya. Pengembangan UI tahap ini dikerjakan dengan GitHub Copilot CLI lalu diaudit dan diuji oleh Codex. Rincian serah-terima: [docs/copilot-ui-handoff.md](docs/copilot-ui-handoff.md).
 
 Untuk mencoba dari GitHub: clone repo, checkout branch di atas, jalankan `npm ci`, kemudian `npm run dev` dan buka `http://127.0.0.1:4177/`. Gunakan `npm run desktop` untuk integrasi provider melalui desktop. Versi browser saat ini mendukung perintah dasar; menyimpan source ke GitHub tidak otomatis menyediakan backend AI, situs live baru, EXE, atau APK. Mikrofon hanya dimulai setelah tindakan pengguna dan izin browser; dukungan dikte tergantung runtime/pengenal ucapan yang tersedia.
 
@@ -71,7 +71,7 @@ Tombol **Dikte suara** memeriksa mikrofon dan izin, lalu memakai pengenal lokal 
 https://binary-human-assistant.sitihasnah109.chatgpt.site
 Proyek yang sama dipertahankan pada .openai/hosting.json dan tetap memakai kebijakan akses publik yang sudah ada. Sites menampilkan wajah biner saja dan login identitas resmi. Browser tidak dapat membuat latar tembus sampai desktop. Tombol pop-up membuka jendela browser kecil; transparansi OS, mode tembus klik, dan model via login tersedia pada desktop lokal. Tidak ada API key yang diminta di versi 2.
 
-Situs **HumanALE Hologram** yang memakai wajah NARA terbaru merupakan sumber avatar resmi aplikasi utama. Mesin wajah, rig, neural core, dan aset referensinya berada di [`sites/humanale-hologram/`](sites/humanale-hologram/README.md), lalu disalin otomatis ke build web, paket Windows, dan Android wrapper. Integrasi ini orisinal untuk HumanALE dan tidak memakai source atau artwork proprietary APEX. Perubahan di GitHub tidak otomatis menerbitkan situs tersebut.
+Situs **HumanALE Hologram** yang memakai wajah AleCore AI terbaru merupakan sumber avatar resmi aplikasi utama. Mesin wajah, rig, neural core, dan aset referensinya berada di [`sites/humanale-hologram/`](sites/humanale-hologram/README.md), lalu disalin otomatis ke build web, paket Windows, dan Android wrapper. Integrasi ini orisinal untuk HumanALE dan tidak memakai source atau artwork proprietary APEX. Perubahan di GitHub tidak otomatis menerbitkan situs tersebut.
 
 
 ## Verifikasi dan paket Windows
@@ -88,7 +88,7 @@ node --test tests/*.test.mjs
 npm run desktop — popup native
 node desktop/smoke.mjs — satu permintaan model nyata menggunakan akun ChatGPT (memakai kuota)
 
-NARA Studio memvalidasi header `Host` pada semua endpoint `/api/`. Permintaan yang mengubah state (`POST`, `PUT`, `PATCH`, `DELETE`) juga wajib memakai `Origin` yang sama persis dengan alamat Studio, termasuk port, serta `Content-Type: application/json`. Klien HTTP lokal harus mengirim header tersebut; tombol reset Studio sudah mengikuti aturan ini. Gunakan hostname yang sama dengan konfigurasi bind Studio (`127.0.0.1`, `localhost`, atau IPv6), bukan alias lain. Batas ini berlaku juga pada mode pengembangan tanpa password dan tidak menggantikan autentikasi creator.
+AleCore AI Studio memvalidasi header `Host` pada semua endpoint `/api/`. Permintaan yang mengubah state (`POST`, `PUT`, `PATCH`, `DELETE`) juga wajib memakai `Origin` yang sama persis dengan alamat Studio, termasuk port, serta `Content-Type: application/json`. Klien HTTP lokal harus mengirim header tersebut; tombol reset Studio sudah mengikuti aturan ini. Gunakan hostname yang sama dengan konfigurasi bind Studio (`127.0.0.1`, `localhost`, atau IPv6), bukan alias lain. Batas ini berlaku juga pada mode pengembangan tanpa password dan tidak menggantikan autentikasi creator.
 
 Statistik pada partikel adalah efek visual generatif, bukan metrik sistem. Tidak ada autostart Windows atau perubahan pet bawaan Codex.
 
@@ -96,9 +96,9 @@ Statistik pada partikel adalah efek visual generatif, bukan metrik sistem. Tidak
 
 Kontrol avatar menyediakan **Karakter emosi** (otomatis dari balasan, netral, bahagia, marah, kesal, sedih) dan **Efek suara** (bayi robot atau natural). Preset bayi robot memakai model suara Indonesia lokal Piper bila tersedia; suara Windows Indonesia menjadi cadangan. Telinga biner bereaksi terhadap pita frekuensi rendah, menengah, dan tinggi dari Mikrofon visual, Audio perangkat, atau file musik yang dipilih. Mikrofon tetap memerlukan izin pengguna.
 
-## NARA startup provider observations
+## AleCore AI startup provider observations
 
-Desktop startup checks existing ChatGPT/Codex login status, the Copilot CLI version, and local OpenAI/Gemini configuration. It never starts login or sends provider prompts. Each status check is bounded to 15 seconds and publishes fixed public metadata in the NARA `providers` snapshot; credentials, provider models, CLI output, and raw errors are excluded.
+Desktop startup checks existing ChatGPT/Codex login status, the Copilot CLI version, and local OpenAI/Gemini configuration. It never starts login or sends provider prompts. Each status check is bounded to 15 seconds and publishes fixed public metadata in the AleCore AI `providers` snapshot; credentials, provider models, CLI output, and raw errors are excluded.
 
 API key presence and a Copilot executable mean configured/installed, with authentication unverified. ChatGPT/Codex login status can establish a local session; Copilot is verified only after a successful existing user request. None of these observations proves that an isolated maintenance worker can authenticate or that paid provider inference works.
 

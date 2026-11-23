@@ -3,6 +3,7 @@ const http=require('node:http');
 const {readFile,writeFile}=require('node:fs/promises');
 const {mkdtempSync,existsSync}=require('node:fs');
 const path=require('node:path');
+const {toElectronCoordinate}=require('./window-position.cjs');
 const {tmpdir,homedir}=require('node:os');
 const {randomUUID}=require('node:crypto');
 const {spawn}=require('node:child_process');
@@ -116,7 +117,7 @@ function openNaraNetworkWindow(){
    const networkWindow=new BrowserWindow({
     width:1360,height:900,minWidth:860,minHeight:620,
     backgroundColor:'#030706',show:false,
-    title:'HumanALE · NARA Core Network',
+    title:'HumanALE · AleCore AI Network',
     webPreferences:{
      nodeIntegration:false,contextIsolation:true,sandbox:true,
      partition:'nara-network-studio'
@@ -151,7 +152,7 @@ function openNaraNetworkWindow(){
    else if(studio)await studio.stop();
    if(naraNetworkWin&&!naraNetworkWin.isDestroyed())naraNetworkWin.close();
    naraNetworkWin=null;
-   return {ok:false,error:'NARA Core Network Studio gagal dibuka.'};
+   return {ok:false,error:'AleCore AI Network Studio gagal dibuka.'};
   }
  })().finally(()=>{networkStudioOpenPromise=null;});
  return networkStudioOpenPromise;
@@ -317,14 +318,14 @@ if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
-  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
-  const [{createOrchestrator,createExperienceModel,getHumanALETestScenario,listHumanALETestScenarios,createSkillSnapshot},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createNaraAgentCoordinator},{createHumanALEOwnerGate,isOwnerTargetUnlocked,authorizedDisplayMediaTarget},{createNaraStudioServer:studioServerFactory},{bootstrapNaraConnections,recordNaraProviderStatus,recordNaraAgentHubStatus}]=await Promise.all([
+  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{AleCoreCloudContextClient,normalizeOrigin},{resolveAleCoreCloudOrigins},{resolveAleCoreCreatorCredentials},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./alecore-cloud-env.mjs'),import('../nara-core/studio/creator-env.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
+  const [{createOrchestrator,createExperienceModel,getHumanALETestScenario,listHumanALETestScenarios,createSkillSnapshot},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createAleCoreAgentCoordinator},{createHumanALEOwnerGate,isOwnerTargetUnlocked,authorizedDisplayMediaTarget},{createNaraStudioServer:studioServerFactory},{bootstrapNaraConnections,recordNaraProviderStatus,recordNaraAgentHubStatus}]=await Promise.all([
    import('../nara-core/brain/index.js'),
    import('../nara-core/voice/index.js'),
    import('../nara-core/persistence/experience-store.mjs'),
    import('../nara-core/security/owner-store.mjs'),
    import('./humanale-runtime-host.mjs'),
-   import('./nara-agent-coordinator.mjs'),
+   import('./alecore-agent-coordinator.mjs'),
    import('./humanale-owner-gate.mjs'),
    import('../nara-core/studio/server.mjs'),
    import('./startup-connections.mjs')
@@ -338,13 +339,15 @@ else{
    ?path.join(app.getPath('userData'),'nara-owner.json')
    :(process.env.NARA_OWNER_STORE||path.join(homedir(),'.nara','owner.json'));
   ownerStore=createOwnerStore({filePath:ownerStorePath});
-  const bootstrapOwnerPassword=String(process.env.NARA_CREATOR_PASSWORD||'');
+  const creatorCredentials=resolveAleCoreCreatorCredentials(process.env);
+  const bootstrapOwnerPassword=creatorCredentials.password;
   if(!ownerStore.configured()&&bootstrapOwnerPassword){
    ownerStore.provision({
-    username:process.env.NARA_CREATOR_USERNAME||'creator',
+    username:creatorCredentials.username,
     password:bootstrapOwnerPassword
    });
   }
+  delete process.env.ALECORE_CREATOR_PASSWORD;
   delete process.env.NARA_CREATOR_PASSWORD;
   ownerGate=createHumanALEOwnerGate({store:ownerStore});
   const experience=createExperienceModel();
@@ -372,22 +375,23 @@ else{
   dataFlowTimer.unref?.();
   bridges={chatgpt:new ChatGPTBridge(),copilot:new CopilotBridge(),openai:new OpenAIBridge(),grok:new GrokBridge(),gemini:new GeminiBridge(),claude:new ClaudeBridge(),deepseek:new DeepSeekBridge(),askcodi:new AskCodiBridge()};
   try{
-   const cloudOrigin=normalizeOrigin(process.env.NARA_CLOUD_ORIGIN||'');
-   const authOrigin=normalizeOrigin(process.env.NARA_AUTH_ORIGIN||cloudOrigin);
-   if(!cloudOrigin&&authOrigin)throw new Error('NARA_AUTH_ORIGIN membutuhkan NARA_CLOUD_ORIGIN.');
+   const configuredOrigins=resolveAleCoreCloudOrigins(process.env);
+   const cloudOrigin=normalizeOrigin(configuredOrigins.cloudOrigin);
+   const authOrigin=normalizeOrigin(configuredOrigins.authOrigin||cloudOrigin);
+   if(!cloudOrigin&&authOrigin)throw new Error('ALECORE_AUTH_ORIGIN membutuhkan ALECORE_CLOUD_ORIGIN.');
    cloudAllowedOrigins=new Set([cloudOrigin,authOrigin].filter(Boolean));
-   cloudMemory=new NaraCloudContextClient({
+   cloudMemory=new AleCoreCloudContextClient({
     origin:cloudOrigin,
     fetchImpl:(input,init)=>session.defaultSession.fetch(input,init),
     validateMemoryContext
    });
   }catch(error){
-   console.error('[NARA CLOUD BRIDGE CONFIG]',error.message);
+   console.error('[ALECORE CLOUD BRIDGE CONFIG]',error.message);
    cloudAllowedOrigins=new Set();
-   cloudMemory=new NaraCloudContextClient({origin:''});
+   cloudMemory=new AleCoreCloudContextClient({origin:''});
   }
   agentHub=new DeveloperAgentHub();
-  naraAgentCoordinator=createNaraAgentCoordinator({nara,agentHub}).bind();
+  naraAgentCoordinator=createAleCoreAgentCoordinator({nara,agentHub}).bind();
   const savedProjectRoot=await readProjectRoot();if(savedProjectRoot)agentHub.setProjectRoot(savedProjectRoot);
   void bootstrapNaraConnections({bridges,agentHub,nara}).catch(()=>{
    try{nara.dispatch('startup.connections',{pending:false},{source:'startup-connections'});}catch{}
@@ -738,7 +742,18 @@ else{
   ipcMain.on('dudidam:passthrough-lock',(e,value)=>{if(trusted(e))setPassthroughLock(value);});
   ipcMain.on('dudidam:avatar-viewport',(e,value)=>{if(trusted(e))resizeForAvatar(value?.size);});
   ipcMain.on('dudidam:panel-viewport',(e,value)=>{if(e.sender===win?.webContents&&trusted(e))resizeForPanel(value?.zoom,Boolean(value?.open));});
-  ipcMain.on('dudidam:move',(e,d)=>{if(!trusted(e)||passthrough||!Number.isFinite(d?.dx)||!Number.isFinite(d?.dy))return;const [x,y]=win.getPosition(),[currentWidth,currentHeight]=win.getSize();const next=safePosition({x:x+Math.max(-100,Math.min(100,d.dx)),y:y+Math.max(-100,Math.min(100,d.dy))},currentWidth,currentHeight);const targetX=Math.round(Number(next.x)),targetY=Math.round(Number(next.y));if(!Number.isSafeInteger(targetX)||!Number.isSafeInteger(targetY))return;win.setPosition(targetX,targetY,false);});
+  ipcMain.on('dudidam:move',(e,d)=>{
+   if(!trusted(e)||passthrough||!win||win.isDestroyed()||!Number.isFinite(d?.dx)||!Number.isFinite(d?.dy))return;
+   try{
+    const [x,y]=win.getPosition(),[currentWidth,currentHeight]=win.getSize();
+    const next=safePosition({x:x+Math.max(-100,Math.min(100,d.dx)),y:y+Math.max(-100,Math.min(100,d.dy))},currentWidth,currentHeight);
+    const targetX=toElectronCoordinate(next?.x),targetY=toElectronCoordinate(next?.y);
+    if(targetX===null||targetY===null|| (targetX===x&&targetY===y))return;
+    win.setPosition(targetX,targetY);
+   }catch(error){
+    console.warn('[HUMANALE WINDOW MOVE] Position update ignored:',error?.message||'Invalid window position.');
+   }
+  });
 
   win.webContents.setWindowOpenHandler(({url})=>{try{if(new URL(url).origin==='https://chatgpt.com')shell.openExternal(url);}catch{}return {action:'deny'};});
   win.webContents.on('will-navigate',(e,url)=>{if(!url.startsWith(origin+'/'))e.preventDefault();});
@@ -824,7 +839,7 @@ else{
    const avatarStudioMaterial=await win.webContents.executeJavaScript("window.dudidamAvatar?.getAvatarStudioMaterial?.()==='matrix'");
    if(!avatarStudioMaterial)throw new Error('Avatar Live Studio material tidak sinkron ke avatar utama.');
    await openPanel('humanaleVisualStudio');
-   const visualStudioReady=await panelWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+3000;const check=()=>{const dialog=document.querySelector('#humanaleVisualStudio');const controller=document.querySelector('#visualStudioController')?.textContent;const renderer=document.querySelector('#visualStudioRenderer')?.textContent;const fps=document.querySelector('#visualStudioFps')?.textContent;const ready=Boolean(dialog?.open&&controller==='NARA_CORE'&&renderer&&fps&&document.querySelector('#visualStudioHealth'));if(ready||Date.now()>deadline)resolve(ready);else setTimeout(check,60);};check();})");
+   const visualStudioReady=await panelWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+3000;const check=()=>{const dialog=document.querySelector('#humanaleVisualStudio');const controller=document.querySelector('#visualStudioController')?.textContent;const renderer=document.querySelector('#visualStudioRenderer')?.textContent;const fps=document.querySelector('#visualStudioFps')?.textContent;const ready=Boolean(dialog?.open&&controller==='AleCore AI'&&renderer&&fps&&document.querySelector('#visualStudioHealth'));if(ready||Date.now()>deadline)resolve(ready);else setTimeout(check,60);};check();})");
    if(!visualStudioReady)throw new Error('HumanALE Visual Studio tidak menerima telemetri runtime utama.');
    const visualStudioV2Ready=await panelWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+2600;const check=()=>{const regions=document.querySelectorAll('#visualStudioRegions [data-region]').length;const connections=document.querySelectorAll('#visualStudioConnections .visual-studio-connection').length;const timeline=document.querySelectorAll('#visualStudioTimeline .visual-studio-event').length;const ready=regions>=8&&connections>=4&&timeline>=1&&document.querySelector('#visualStudioSceneAccent')&&document.querySelector('#visualStudioPerformanceHistory');if(ready||Date.now()>deadline)resolve(Boolean(ready));else setTimeout(check,80);};check();})");
    if(!visualStudioV2Ready)throw new Error('HumanALE Visual Studio v2 region/timeline/scene diagnostics tidak siap.');
@@ -888,7 +903,7 @@ else{
    const visualTestRestored=await win.webContents.executeJavaScript("window.dudidamDesktop.naraSnapshot().then(result=>Boolean(result?.ok&&result.state?.humanale?.state==='idle'&&result.state?.humanale?.rendererMode==='eco'&&!result.state?.currentTask&&!result.state?.sensory?.hearing?.active&&!result.state?.sensory?.speech?.active))");
    if(!visualTestRestored)throw new Error('HumanALE Visual Studio v3 tidak mengembalikan NARA ke IDLE/ECO setelah test.');
    await panelWin.webContents.executeJavaScript("document.querySelector('#visualStudioHealthScan')?.click()");
-   const visualHealthPass=await panelWin.webContents.executeJavaScript("(()=>{const rows=[...document.querySelectorAll('#visualStudioHealthChecks .visual-studio-health-row')];return rows.length>=6&&rows.some(row=>row.textContent.includes('PASS · NARA authority'));})()");
+   const visualHealthPass=await panelWin.webContents.executeJavaScript("(()=>{const rows=[...document.querySelectorAll('#visualStudioHealthChecks .visual-studio-health-row')];return rows.length>=6&&rows.some(row=>row.textContent.includes('PASS · AleCore AI authority'));})()");
    if(!visualHealthPass)throw new Error('HumanALE Visual Studio v3 Health Scan tidak menghasilkan pemeriksaan runtime.');
    const visualInvalidBlocked=await panelWin.webContents.executeJavaScript("window.dudidamDesktop.naraTestScenario('owner.secret').then(result=>Boolean(result?.error&&String(result.error).includes('tidak dikenal')))");
    if(!visualInvalidBlocked)throw new Error('HumanALE Visual Studio v3 menerima skenario test di luar whitelist.');

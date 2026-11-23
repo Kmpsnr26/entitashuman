@@ -552,7 +552,7 @@ export class Neural3DScene{
     this.renderer.domElement.className='neural3d-canvas';
     this.renderer.domElement.tabIndex=0;
     this.renderer.domElement.setAttribute('role','application');
-    this.renderer.domElement.setAttribute('aria-label','NARA Neural Space 3D. Arrow keys rotate, plus/minus zoom, F focus, C core, E explorer, Escape reset.');
+    this.renderer.domElement.setAttribute('aria-label','AleCore AI Neural Space 3D. Arrow keys rotate, plus/minus zoom, F focus, C core, E explorer, Escape reset.');
     this.container.appendChild(this.renderer.domElement);
 
     this.world=new THREE.Group();

@@ -9,6 +9,7 @@ import {createStudioTelemetry} from './telemetry.mjs';
 import {createSkillRegistry} from '../skills/index.js';
 import {createCreatorAuth} from './creator-auth.mjs';
 import {createOwnerStore} from '../security/owner-store.mjs';
+import {resolveAleCoreCreatorCredentials} from './creator-env.mjs';
 
 const HERE=fileURLToPath(new URL('.',import.meta.url));
 const PUBLIC=join(HERE,'public');
@@ -308,7 +309,7 @@ export function buildCreatorRegionMetadata({
       discovery:'disabled'
     },
     server:{
-      service:'NARA Core Live Studio',
+      service:'AleCore AI Live Studio',
       health:'online',
       mode:'local-studio',
       secrets:'redacted'
@@ -350,8 +351,9 @@ export function createNaraStudioServer({
   embedded=false,
   voiceBackend=null
 }={}){
-  const bootstrapUsername=creatorOptions.username||process.env.NARA_CREATOR_USERNAME||'creator';
-  const bootstrapPassword=creatorOptions.password??process.env.NARA_CREATOR_PASSWORD??'';
+  const creatorEnv=resolveAleCoreCreatorCredentials(process.env);
+  const bootstrapUsername=creatorOptions.username||creatorEnv.username;
+  const bootstrapPassword=creatorOptions.password??creatorEnv.password;
   const ownerStorePath=String(creatorOptions.ownerStorePath||process.env.NARA_OWNER_STORE||'').trim();
   let ownerStore=creatorOptions.credentialStore||null,ownerStoreError='';
   if(!ownerStore&&ownerStorePath){
@@ -365,7 +367,7 @@ export function createNaraStudioServer({
         ownerStore=candidate;
       }
     }catch(error){
-      ownerStoreError=String(error?.message||'Owner store NARA gagal dimuat.');
+      ownerStoreError=String(error?.message||'AleCore AI owner store gagal dimuat.');
     }
   }
 
@@ -551,7 +553,7 @@ export function createNaraStudioServer({
           host,
           port:actualPort
         });
-        if(!metadata)return json(res,404,{error:'Region NARA tidak ditemukan.'});
+        if(!metadata)return json(res,404,{error:'Region AleCore AI tidak ditemukan.'});
         return json(res,200,{ok:true,region:metadata});
       }
 
@@ -596,10 +598,10 @@ export function createNaraStudioServer({
         const event=String(data.event||'');
         if(embedded&&event!=='brain.region.select')return json(res,403,{ok:false,error:'Only region selection is enabled in embedded Studio.'});
         if(!allow.has(event))return json(res,403,embedded
-          ?{ok:false,error:'Event tidak diizinkan dari NARA Studio.'}
-          :{ok:false,error:'Event tidak diizinkan dari NARA Studio.',event});
+          ?{ok:false,error:'Event tidak diizinkan dari AleCore AI Studio.'}
+          :{ok:false,error:'Event tidak diizinkan dari AleCore AI Studio.',event});
         if(embedded&&!Object.hasOwn(NARA_REGIONS,String(data.payload?.region||''))){
-          return json(res,400,{ok:false,error:'Region NARA tidak valid.'});
+          return json(res,400,{ok:false,error:'Region AleCore AI tidak valid.'});
         }
         const result=nara.dispatch(event,safePayload(data.payload));
         return json(res,200,{ok:true,event:result.event,state:projectState(result.state)});
@@ -667,7 +669,7 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===normalize(process.argv[1]))
   });
   const address=await studio.start();
   const actualPort=typeof address==='object'&&address?address.port:4178;
-  console.log(`NARA Core Live Studio aktif: ${studioOrigin(host,actualPort)}`);
+  console.log(`AleCore AI Live Studio aktif: ${studioOrigin(host,actualPort)}`);
   const shutdown=async()=>{await studio.stop();process.exit(0);};
   process.once('SIGINT',shutdown);process.once('SIGTERM',shutdown);
 }

@@ -1,4 +1,5 @@
-export const NARA_VOICE_PROFILE=Object.freeze({
+/** Current first-party voice profile for AleCore AI. */
+export const ALECORE_AI_VOICE_PROFILE=Object.freeze({
   id:'adult-robot-id',
   language:'id-ID',
   style:'adult-robot',
@@ -9,4 +10,10 @@ export const NARA_VOICE_PROFILE=Object.freeze({
   maxQueue:6
 });
 
-export function voiceProfile(){return {...NARA_VOICE_PROFILE};}
+/** @deprecated Use ALECORE_AI_VOICE_PROFILE. */
+export const NARA_VOICE_PROFILE=ALECORE_AI_VOICE_PROFILE;
+
+export function alecoreVoiceProfile(){return {...ALECORE_AI_VOICE_PROFILE};}
+
+/** @deprecated Use alecoreVoiceProfile(). */
+export const voiceProfile=alecoreVoiceProfile;

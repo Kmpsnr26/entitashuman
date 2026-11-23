@@ -1,8 +1,8 @@
-# NARA Cloud Phase 11D — Google Drive Memory Backup
+# AleCore Cloud Phase 11D — Google Drive Memory Backup
 
 ## Status
 
-Source checkpoint implements an authenticated, server-side Google Drive backup path for NARA Memory data.
+Source checkpoint implements an authenticated, server-side Google Drive backup path for AleCore Memory data.
 
 Execution verification remains pending until `npm run verify` and a controlled Google Drive integration test can run. No build, unit-test, database, or live Drive pass is claimed by this document.
 
@@ -61,7 +61,7 @@ The OAuth token endpoint and Drive upload endpoint are hardcoded by source. Brow
 
 The Drive API multipart path is used only for small payloads.
 
-NARA sets a conservative application limit of 4,500,000 bytes, below the Google Drive multipart guidance limit of 5 MB.
+AleCore Cloud applies a conservative application limit of 4,500,000 bytes, below the Google Drive multipart guidance limit of 5 MB.
 
 The memory exporter is additionally bounded to 5,000 rows.
 
@@ -71,7 +71,7 @@ A later phase may add resumable upload for larger archives, but this checkpoint 
 
 ## Failure handling
 
-Upstream OAuth and Drive failures are mapped into NARA-owned error classes:
+Upstream OAuth and Drive failures are mapped into AleCore Cloud error classes:
 
 - `GOOGLE_DRIVE_NOT_CONFIGURED`
 - `GOOGLE_DRIVE_BACKUP_TOO_LARGE`

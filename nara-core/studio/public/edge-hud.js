@@ -108,7 +108,8 @@ export function createEdgeHud({onView=()=>{}}={}){
     if(!root)return;
     document.getElementById('edgeConnection').textContent=state.connection;
     document.getElementById('edgeLifecycle').textContent=text(state.snapshot?.lifecycle,'idle');
-    document.getElementById('edgeSelected').textContent=text(state.snapshot?.selectedRegion,'NARA_CORE');
+    const selectedRegion=text(state.snapshot?.selectedRegion,'NARA_CORE');
+    document.getElementById('edgeSelected').textContent=selectedRegion==='NARA_CORE'?'AleCore AI':selectedRegion;
     document.getElementById('edgeFps').textContent='FPS '+text(state.neural?.fps,'—');
     document.getElementById('edgeQuality').textContent=text(state.neural?.quality,'auto');
     document.getElementById('edgeErrors').textContent='ERR '+text(state.telemetry?.diagnostics?.counters?.errors,0);

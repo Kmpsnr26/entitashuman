@@ -75,7 +75,7 @@ function updateViewButtons(){
 
 function updateNeuralHud(){
   if(!$('neural3dSelected'))return;
-  $('neural3dSelected').textContent=snapshot?.selectedRegion||'NARA_CORE';
+  $('neural3dSelected').textContent=snapshot?.selectedRegion==='NARA_CORE'?'AleCore AI':(snapshot?.selectedRegion||'AleCore AI');
   if(!neural3d)return;
 
   const stats=neural3d.getStats();
@@ -92,7 +92,7 @@ function updateNeuralHud(){
   const detail=neural3d.getRegionDetails(snapshot?.selectedRegion||'NARA_CORE');
   if(detail){
     $('neuralDetailLabel').textContent=detail.label;
-    $('neuralDetailId').textContent=detail.id;
+    $('neuralDetailId').textContent=detail.id==='NARA_CORE'?'AleCore AI':detail.id;
     $('neuralDetailStatus').textContent=detail.status;
     $('neuralDetailGroup').textContent=detail.group;
     $('neuralDetailNeighbors').textContent='neighbors: '+(detail.neighbors.join(' · ')||'—');
@@ -424,7 +424,7 @@ $('neuralQuality').onchange=event=>{
   ensureNeural3D().then(scene=>{scene.setQuality(event.target.value);updateNeuralHud();}).catch(()=>{});
 };
 $('sendEvent').onclick=()=>dispatch(eventSelect.value,{label:$('eventLabel').value,message:$('eventLabel').value}).catch(e=>$('consoleLog').textContent=e.message);
-document.querySelectorAll('.quick button').forEach(btn=>btn.onclick=()=>dispatch(btn.dataset.event,{label:'NARA Studio test',message:'NARA Studio simulated event'}).catch(e=>$('consoleLog').textContent=e.message));
+document.querySelectorAll('.quick button').forEach(btn=>btn.onclick=()=>dispatch(btn.dataset.event,{label:'AleCore AI Studio test',message:'AleCore AI Studio simulated event'}).catch(e=>$('consoleLog').textContent=e.message));
 $('clearEvents').onclick=()=>{stopReplay();eventBuffer=[];eventPaused=false;$('pauseEvents').textContent='Pause';renderEventItems([]);};
 $('pauseEvents').onclick=()=>{stopReplay();eventPaused=!eventPaused;$('pauseEvents').textContent=eventPaused?'Resume':'Pause';if(!eventPaused)renderEventView();};
 $('replayEvents').onclick=()=>replayTimer?stopReplay():startReplay();

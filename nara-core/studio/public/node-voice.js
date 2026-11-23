@@ -35,7 +35,7 @@ export function buildOperationalNarration(metadata={}){
 
   if(metadata.id==='NARA_CORE'){
     parts.push(
-      'NARA Core memantau '+number(runtime.activeRegions)+' region aktif dari sistem.',
+      'AleCore AI memantau '+number(runtime.activeRegions)+' region aktif dari sistem.',
       'Total event operasional '+number(runtime.totalEvents)+'.'
     );
   }else{
@@ -185,7 +185,7 @@ export function createNodeVoice(){
       }
       const metadata={
         id:'NARA_CORE',
-        label:'NARA Core',
+        label:'AleCore AI',
         status:'online',
         neighbors:[],
         runtime:{activeRegions:1,totalEvents:0},

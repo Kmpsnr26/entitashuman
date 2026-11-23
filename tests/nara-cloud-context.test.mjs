@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {resolveAleCoreCloudOrigins} from '../desktop/alecore-cloud-env.mjs';
 
 import {
+  AleCoreCloudContextClient,
   NaraCloudContextClient,
   normalizeOrigin
 } from '../desktop/nara-cloud-context.mjs';
@@ -27,6 +29,38 @@ function packet(approved=true){
   text
  };
 }
+
+test('AleCore Cloud environment names take precedence and legacy NARA names remain compatible',()=>{
+ assert.deepEqual(resolveAleCoreCloudOrigins({
+  ALECORE_CLOUD_ORIGIN:'https://alecore.example.test',
+  ALECORE_AUTH_ORIGIN:'https://auth-alecore.example.test',
+  NARA_CLOUD_ORIGIN:'https://legacy-cloud.example.test',
+  NARA_AUTH_ORIGIN:'https://legacy-auth.example.test'
+ }),{
+  cloudOrigin:'https://alecore.example.test',
+  authOrigin:'https://auth-alecore.example.test'
+ });
+ assert.deepEqual(resolveAleCoreCloudOrigins({
+  NARA_CLOUD_ORIGIN:'https://legacy-cloud.example.test',
+  NARA_AUTH_ORIGIN:'https://legacy-auth.example.test'
+ }),{
+  cloudOrigin:'https://legacy-cloud.example.test',
+  authOrigin:'https://legacy-auth.example.test'
+ });
+ assert.deepEqual(resolveAleCoreCloudOrigins({
+  ALECORE_CLOUD_ORIGIN:' ',
+  ALECORE_AUTH_ORIGIN:'',
+  NARA_CLOUD_ORIGIN:'https://legacy-cloud.example.test'
+ }),{
+  cloudOrigin:'https://legacy-cloud.example.test',
+  authOrigin:'https://legacy-cloud.example.test'
+ });
+});
+
+test('AleCore Cloud client is the canonical facade with the NARA class retained as an alias',()=>{
+ assert.strictEqual(AleCoreCloudContextClient,NaraCloudContextClient);
+ assert.equal(typeof new AleCoreCloudContextClient({origin:''}).configured,'function');
+});
 
 test('NARA Cloud origin accepts HTTPS and loopback only',()=>{
  assert.equal(normalizeOrigin(origin),origin);
@@ -73,7 +107,7 @@ test('desktop NARA Cloud bridge gets CSRF from Owner session and preserves previ
   return new Response('{}',{status:404});
  };
 
- const client=new NaraCloudContextClient({
+ const client=new AleCoreCloudContextClient({
   origin,
   fetchImpl:fakeFetch,
   validateMemoryContext

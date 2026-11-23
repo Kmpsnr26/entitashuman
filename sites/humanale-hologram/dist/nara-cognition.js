@@ -27,7 +27,7 @@
 
   class HumanALECognition{
     constructor({runtime,onState=null,maxEntries=40}={}){
-      if(!runtime?.bus?.onAny||!runtime?.snapshot)throw new Error('Runtime NARA diperlukan untuk Cognitive Activity.');
+      if(!runtime?.bus?.onAny||!runtime?.snapshot)throw new Error('AleCore AI runtime diperlukan untuk Cognitive Activity.');
       this.runtime=runtime;
       this.onState=typeof onState==='function'?onState:()=>{};
       this.maxEntries=Math.max(10,Math.min(120,Number(maxEntries)||40));

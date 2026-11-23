@@ -1,8 +1,8 @@
-# NARA Core Live Studio — Neural Space 3D Blueprint
+# AleCore AI Live Studio — Neural Space 3D Blueprint
 
 ## Goal
 
-Add an experimental Three.js Neural Space without removing the existing 2D Brain Map. NARA Core remains headless-capable and the Studio remains an observer/safe-event surface.
+Add an experimental Three.js Neural Space without removing the existing 2D Brain Map. AleCore AI remains headless-capable and the Studio remains an observer/safe-event surface.
 
 ## View modes
 
@@ -13,7 +13,7 @@ Add an experimental Three.js Neural Space without removing the existing 2D Brain
 ## Stage 1 architecture
 
 ```
-NARA Core / EventBus / BrainState
+AleCore AI / EventBus / BrainState
             |
             | snapshot + SSE
             v
@@ -22,7 +22,7 @@ NARA Core / EventBus / BrainState
   2D Brain Map   Neural3DScene
                   |- Scene / Camera
                   |- custom orbit-style controls
-                  |- NARA core renderer
+                  |- AleCore AI core renderer
                   |- neural node renderer
                   |- static link scaffold
                   |- raycast interaction
@@ -64,7 +64,7 @@ Stage 2 deliberately keeps the organic root geometry stable and animates energy 
 
 ## Stage 3 — implemented
 
-Realtime events now map to semantic source/target pairs. The renderer computes the shortest route through the live NARA graph and animates a packet over each root segment.
+Realtime events now map to semantic source/target pairs. The renderer computes the shortest route through the live AleCore AI graph and animates a packet over each root segment.
 
 - explicit routes for work/reason/plan/memory/context/agent/program/verify/error/bug/sync/terminal events
 - graph shortest-path routing for indirect connections

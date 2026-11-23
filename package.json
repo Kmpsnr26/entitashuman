@@ -15,7 +15,9 @@
     "nara:studio": "node nara-core/studio/server.mjs",
     "test:nara": "node --test tests/nara-core.test.mjs tests/nara-studio.test.mjs tests/nara-voice.test.mjs",
     "smoke:neural-live": "electron scripts/nara-neural-live-smoke.cjs",
-    "smoke:neural-gpu": "electron scripts/nara-neural-live-smoke.cjs"
+    "smoke:neural-gpu": "electron scripts/nara-neural-live-smoke.cjs",
+    "alecore:studio": "node nara-core/studio/server.mjs",
+    "test:alecore": "node --test tests/nara-core.test.mjs tests/nara-studio.test.mjs tests/nara-voice.test.mjs tests/alecore-ai-entrypoint.test.mjs tests/alecore-desktop-compat.test.mjs tests/alecore-branding.test.mjs"
   },
   "devDependencies": {
     "electron": "44.11.5"

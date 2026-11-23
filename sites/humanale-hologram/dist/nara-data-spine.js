@@ -1,6 +1,6 @@
 (function exposeHumanALEDataSpine(global){
   const LANE_DEFINITIONS=Object.freeze([
-    Object.freeze({id:'CORE',region:'NARA_CORE',label:'NARA CORE',glyphs:Object.freeze(['01','AI'])}),
+    Object.freeze({id:'CORE',region:'NARA_CORE',label:'ALECORE AI',glyphs:Object.freeze(['01','AI'])}),
     Object.freeze({id:'MEMORY',region:'MEMORY',label:'MEMORY',glyphs:Object.freeze(['01','{}'])}),
     Object.freeze({id:'TERMINAL',region:'TERMINAL',label:'TERMINAL',glyphs:Object.freeze(['::','>_'])}),
     Object.freeze({id:'GITHUB',region:'GITHUB',label:'GITHUB',glyphs:Object.freeze(['<>','01'])}),
@@ -13,6 +13,7 @@
   const BY_ID=Object.freeze(Object.fromEntries(LANE_DEFINITIONS.map(item=>[item.id,item])));
   const BY_REGION=Object.freeze(Object.fromEntries(LANE_DEFINITIONS.map(item=>[item.region,item.id])));
   const EVENT_LANES=Object.freeze({
+    'alecore.start':'CORE','alecore.shutdown':'CORE',
     'nara.start':'CORE','nara.shutdown':'CORE',
     'observe.start':'CORE','observe.complete':'CORE',
     'reason.start':'CORE','reason.complete':'CORE',
@@ -33,12 +34,12 @@
     'error.detected':'ERROR','bug.detected':'ERROR','bug.fixed':'ERROR'
   });
   const clamp01=value=>Math.max(0,Math.min(1,Number(value)||0));
-  const isDownEvent=event=>/\.(?:disconnected|failed)$/.test(event)||event==='nara.shutdown'||event==='error.detected'||event==='bug.detected';
+  const isDownEvent=event=>/\.(?:disconnected|failed)$/.test(event)||(event==='alecore.shutdown'||event==='nara.shutdown')||event==='error.detected'||event==='bug.detected';
   const ttlFor=event=>event==='error.detected'||event==='bug.detected'?3200:/connected|complete|fixed/.test(event)?2600:2200;
 
   class HumanALEDataSpine{
     constructor({runtime,onState=null,now=null,maxPackets=72}={}){
-      if(!runtime?.bus?.onAny||!runtime?.snapshot)throw new Error('Runtime NARA diperlukan untuk Data Spine.');
+      if(!runtime?.bus?.onAny||!runtime?.snapshot)throw new Error('AleCore AI runtime diperlukan untuk Data Spine.');
       this.runtime=runtime;
       this.onState=typeof onState==='function'?onState:()=>{};
       this.now=typeof now==='function'?now:()=>global.performance?.now?.()??Date.now();
