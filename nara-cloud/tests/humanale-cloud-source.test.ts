@@ -231,7 +231,8 @@ test(
       main,
       preload,
       app,
-      client
+      client,
+      cloudEnv
     ] =
       await Promise.all([
         readFile(
@@ -261,16 +262,38 @@ test(
             repositoryRoot
           ),
           "utf8"
+        ),
+        readFile(
+          new URL(
+            "desktop/alecore-cloud-env.mjs",
+            repositoryRoot
+          ),
+          "utf8"
         )
       ]);
 
     assert.match(
       main,
+      /resolveAleCoreCloudOrigins/
+    );
+
+    assert.match(
+      cloudEnv,
+      /ALECORE_CLOUD_ORIGIN/
+    );
+
+    assert.match(
+      cloudEnv,
+      /ALECORE_AUTH_ORIGIN/
+    );
+
+    assert.match(
+      cloudEnv,
       /NARA_CLOUD_ORIGIN/
     );
 
     assert.match(
-      main,
+      cloudEnv,
       /NARA_AUTH_ORIGIN/
     );
 
