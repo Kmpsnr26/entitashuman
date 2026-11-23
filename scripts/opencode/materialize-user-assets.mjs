@@ -49,6 +49,25 @@ function resolveSafeTarget(root, relativePath) {
   return target;
 }
 
+function assertSafeParentDirectories(root, relativePath, { create = false } = {}) {
+  let current = root;
+  for (const segment of relativePath.split("/").slice(0, -1)) {
+    current = path.join(current, segment);
+    let info;
+    try {
+      info = fs.lstatSync(current);
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+      if (!create) return;
+      fs.mkdirSync(current);
+      info = fs.lstatSync(current);
+    }
+    if (info.isSymbolicLink() || !info.isDirectory()) {
+      throw new Error(`Refusing unsafe parent directory: ${current}`);
+    }
+  }
+}
+
 function readBundle() {
   const compressed = fs.readFileSync(bundlePath);
   const actualHash = crypto.createHash("sha256").update(compressed).digest("hex");
@@ -78,6 +97,7 @@ if (checkOnly) {
 
 const conflicts = [];
 for (const file of bundle.files) {
+  assertSafeParentDirectories(destinationRoot, file.path);
   if (!fs.existsSync(file.target)) continue;
   const stat = fs.lstatSync(file.target);
   if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`Refusing to replace non-regular file: ${file.path}`);
@@ -88,10 +108,34 @@ if (conflicts.length && !force) {
   throw new Error(`Existing files differ; nothing was written. Back up and inspect, or re-run with --force: ${conflicts.join(", ")}`);
 }
 
+fs.mkdirSync(destinationRoot, { recursive: true });
+destinationRoot = fs.realpathSync(destinationRoot);
 for (const file of bundle.files) {
-  fs.mkdirSync(path.dirname(file.target), { recursive: true });
-  const temporary = `${file.target}.tmp-${process.pid}`;
-  fs.writeFileSync(temporary, file.content, { encoding: "utf8", flag: "w" });
-  fs.renameSync(temporary, file.target);
+  assertSafeParentDirectories(destinationRoot, file.path, { create: true });
+  file.target = resolveSafeTarget(destinationRoot, file.path);
+  try {
+    const targetInfo = fs.lstatSync(file.target);
+    if (targetInfo.isSymbolicLink() || !targetInfo.isFile()) {
+      throw new Error(`Refusing to replace non-regular file: ${file.path}`);
+    }
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+
+  const temporary = `${file.target}.tmp-${process.pid}-${crypto.randomBytes(8).toString("hex")}`;
+  let descriptor;
+  try {
+    descriptor = fs.openSync(temporary, "wx", 0o600);
+    fs.writeFileSync(descriptor, file.content, { encoding: "utf8" });
+    fs.fsyncSync(descriptor);
+  } finally {
+    if (descriptor !== undefined) fs.closeSync(descriptor);
+  }
+  try {
+    fs.renameSync(temporary, file.target);
+  } catch (error) {
+    try { fs.unlinkSync(temporary); } catch {}
+    throw error;
+  }
 }
 console.log(`Materialized ${bundle.files.length} verified files into ${destinationRoot}`);
