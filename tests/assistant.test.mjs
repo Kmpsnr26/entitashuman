@@ -671,7 +671,7 @@ test('AleCore Local is the first-party offline desktop conversation provider',as
  assert.match(local,/http:\/\/127\.0\.0\.1:11434/);
  assert.match(local,/qwen3\.5:2b/);
  assert.match(local,/humanaleSystemPrompt/);
- assert.match(local,/stream:false/);
+ assert.match(local,/stream:\s*false/);
  assert.match(desktop,/AleCoreLocalBridge/);
  assert.match(desktop,/alecore-local/);
  assert.match(state,/alecore-local/);
