@@ -158,19 +158,22 @@ export function selectStructuredRoles(available=[],preferredWorker=''){
   const worker=preferredWorker,others=list.filter(id=>id!==worker);
   const planner=others[0]||worker;
   const reviewer=others[1]||others[0]||worker;
-  return {planner,worker,reviewer,degraded:reviewer===worker,executors:list};
+  const specialists=others.filter(id=>id!==planner&&id!==reviewer);
+  return {planner,worker,reviewer,specialists,degraded:reviewer===worker,executors:list};
  }
  const planner=list.includes('codex')?'codex':list[0];
  const worker=list.includes('github-copilot')&&planner!=='github-copilot'?'github-copilot':(list.find(id=>id!==planner)||planner);
  const others=list.filter(id=>id!==worker);
  const reviewer=others.find(id=>id!==planner)||others[0]||worker;
- return {planner,worker,reviewer,degraded:reviewer===worker,executors:list};
+ const specialists=list.filter(id=>![planner,worker,reviewer].includes(id));
+ return {planner,worker,reviewer,specialists,degraded:reviewer===worker,executors:list};
 }
 
 const STRUCTURED_ROLE_SKILL_IDS=Object.freeze({
  planner:Object.freeze(['reasoning','planner','memory']),
  worker:Object.freeze(['program','terminal','github','safety']),
  repair:Object.freeze(['program','terminal','safety','bug-hunter']),
+ specialist:Object.freeze(['bug-hunter','reasoning','safety','reporting']),
  reviewer:Object.freeze(['bug-hunter','reasoning','safety','reporting'])
 });
 
@@ -421,9 +424,16 @@ export class DeveloperAgentHub{
   if(mode==='work'&&reviewer===worker)throw new Error('Mode Kerja memerlukan executor reviewer independen yang berbeda dari Worker. Hubungkan minimal dua executor sebelum menjalankan perubahan.');
   const planPrompt='Kamu adalah Planner HumanALE. '+structuredSkillInstructions('planner',skillPlan.planner)+' Analisis tugas berikut secara read-only. Pecah menjadi langkah berurutan, dependensi, file/area yang mungkin terdampak, risiko, dan kriteria selesai. Jangan edit file. Jangan menjalankan publish/push/merge. Tugas: '+prompt;
   const plan=await this.runDirect(planner,planPrompt,'analyze');
-  const workPrompt='Kamu adalah Worker HumanALE. '+structuredSkillInstructions('worker',skillPlan.worker)+' Ikuti rencana Planner berikut dan fokus menyelesaikan tugas pengguna. Jika mode ini read-only, berikan implementasi/rencana konkret tanpa edit. Jika mode kerja, edit hanya yang perlu, jalankan test relevan, dan jangan push/merge/publish. TASK:\n'+prompt+'\n\nPLAN:\n'+plan.text;
+  const specialistResults=[];
+  for(const specialist of roles.specialists||[]){
+   const specialistPrompt='Kamu adalah Specialist HumanALE. '+structuredSkillInstructions('specialist',skillPlan.specialist)+' Baca tugas dan rencana Planner secara read-only. Berikan masukan terfokus pada risiko domain, ketergantungan, compatibility, dan kasus uji yang mungkin terlewat. Jangan edit file dan jangan menjalankan publish/push/merge. TASK:\n'+prompt+'\n\nPLAN:\n'+plan.text;
+   const result=await this.runDirect(specialist,specialistPrompt,'analyze');
+   specialistResults.push({agent:specialist,text:result.text,skills:skillPlan.specialist});
+  }
+  const specialistContext=specialistResults.map((item,index)=>'SPECIALIST '+(index+1)+' ('+item.agent+'):\n'+item.text).join('\n\n');
+  const workPrompt='Kamu adalah Worker HumanALE. '+structuredSkillInstructions('worker',skillPlan.worker)+' Ikuti rencana Planner dan masukan Specialist berikut. Jika mode ini read-only, berikan implementasi/rencana konkret tanpa edit. Jika mode kerja, edit hanya yang perlu, jalankan test relevan, dan jangan push/merge/publish. TASK:\n'+prompt+'\n\nPLAN:\n'+plan.text+(specialistContext?'\n\nSPECIALIST REVIEW:\n'+specialistContext:'');
   const work=await this.runDirect(worker,workPrompt,mode);
-  const reviewPrompt='Kamu adalah Reviewer HumanALE. '+structuredSkillInstructions('reviewer',skillPlan.reviewer)+' Periksa tugas, rencana, dan hasil Worker. Dalam mode read-only, inspeksi proyek bila tersedia tetapi jangan edit. Fokus pada correctness, regression, security, test coverage, dan apakah permintaan benar-benar selesai. Akhiri tepat dengan salah satu baris: VERDICT: PASS atau VERDICT: NEEDS_FIX.\n\nTASK:\n'+prompt+'\n\nPLAN:\n'+plan.text+'\n\nWORKER RESULT:\n'+work.text;
+  const reviewPrompt='Kamu adalah Reviewer HumanALE. '+structuredSkillInstructions('reviewer',skillPlan.reviewer)+' Periksa tugas, rencana, masukan Specialist, dan hasil Worker. Dalam mode read-only, inspeksi proyek bila tersedia tetapi jangan edit. Fokus pada correctness, regression, security, test coverage, dan apakah permintaan benar-benar selesai. Akhiri tepat dengan salah satu baris: VERDICT: PASS atau VERDICT: NEEDS_FIX.\n\nTASK:\n'+prompt+'\n\nPLAN:\n'+plan.text+(specialistContext?'\n\nSPECIALIST REVIEW:\n'+specialistContext:'')+'\n\nWORKER RESULT:\n'+work.text;
   let review=await this.runDirect(reviewer,reviewPrompt,'analyze'),repair=null;
   let verdict=reviewVerdict(review.text);
   if(verdict==='unknown'){
@@ -442,6 +452,7 @@ export class DeveloperAgentHub{
   }
   const stages=[
    {role:'planner',agent:planner,skills:skillPlan.planner,text:plan.text},
+   ...specialistResults.map(item=>({role:'specialist',agent:item.agent,skills:item.skills,text:item.text})),
    {role:'worker',agent:worker,skills:skillPlan.worker,text:work.text},
    ...(repair?[{role:'repair',agent:worker,skills:skillPlan.repair,text:repair.text}]:[]),
    {role:'reviewer',agent:reviewer,skills:skillPlan.reviewer,text:review.text}
@@ -453,6 +464,7 @@ export class DeveloperAgentHub{
    '',
    '[PLAN]',
    plan.text,
+   ...specialistResults.flatMap((item,index)=>['','[SPECIALIST '+(index+1)+' · '+item.agent+']',item.text]),
    '',
    '[WORK]',
    work.text,
@@ -461,7 +473,7 @@ export class DeveloperAgentHub{
    '[REVIEW]',
    review.text
   ].join('\n');
-  return {id:'humanale-orchestrator',name:'HumanALE Orchestrator',mode,difficulty,stages,skillPlan,text:summary};
+  return {id:'humanale-orchestrator',name:'HumanALE Orchestrator',mode,difficulty,stages,skillPlan,specialistResults,text:summary};
  }
  async runTrustedMaintenanceWork(prompt,{transaction,signal=null}={}){
   if(this.maintenanceTransaction?.processTerminationUnconfirmed)throw maintenanceProcessRecoveryError();
