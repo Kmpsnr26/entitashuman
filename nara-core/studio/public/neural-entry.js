@@ -5,7 +5,7 @@ import {studioVoice,voiceProfilePatch} from './voice-identity.js';
 const PHASES=[
   ['CREATOR VERIFIED','IDENTITY CHANNEL SECURED','sweep'],
   ['MATRIX GATE OPENING','ZOOMING INTO NEURAL LATTICE','zoomIn'],
-  ['NARA CORE AWAKENING','CORE ENERGY PROTECTION ONLINE','pulse'],
+  ['ALECORE AI AWAKENING','CORE ENERGY PROTECTION ONLINE','pulse'],
   ['NEURAL FLOW PROCESSING','SYNCHRONIZING LIVE ROUTES','process'],
   ['NEURAL SPACE 3D ONLINE','DATA FLOW STABILIZED','flow']
 ];
@@ -15,7 +15,7 @@ function reducedMotion(){
 }
 
 function speakCoreOnline(profile={}){
-  void studioVoice().speak('NARA Core online. Akses pencipta terverifikasi. Neural Space tiga dimensi diaktifkan.',{volume:profile.voiceVolume}).catch(()=>{});
+  void studioVoice().speak('AleCore AI online. Akses pencipta terverifikasi. Neural Space tiga dimensi diaktifkan.',{volume:profile.voiceVolume}).catch(()=>{});
   return true;
 }
 
