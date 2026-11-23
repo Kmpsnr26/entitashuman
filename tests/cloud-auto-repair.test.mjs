@@ -244,15 +244,19 @@ test('missing Copilot token preserves existing assignments and fallback PRs',()=
  assert.equal(routeWithoutCopilotToken({alreadyAssigned:false,hasOpenFallback:false}),'queued');
 
  const delegateStart=workflow.indexOf("if (!tokenConfigured) {");
- const activeAssignment=workflow.indexOf("if (alreadyAssigned)",delegateStart);
- const existingFallback=workflow.indexOf("if (hasOpenFallback)",delegateStart);
- const noTokenRoute=workflow.indexOf("routeWithoutCopilotToken({alreadyAssigned,hasOpenFallback})",delegateStart);
- const assignApi=workflow.indexOf("'POST /repos/{owner}/{repo}/issues/{issue_number}/assignees'",delegateStart);
+ const issueLookup=workflow.indexOf("github.rest.issues.get",delegateStart);
+ const fallbackLookup=workflow.indexOf("github.rest.pulls.list",issueLookup);
+ const noTokenRoute=workflow.indexOf("routeWithoutCopilotToken({alreadyAssigned,hasOpenFallback})",fallbackLookup);
+ const activeAssignment=workflow.indexOf("if (alreadyAssigned)",noTokenRoute);
+ const existingFallback=workflow.indexOf("if (hasOpenFallback)",activeAssignment);
+ const assignApi=workflow.indexOf("'POST /repos/{owner}/{repo}/issues/{issue_number}/assignees'",existingFallback);
  assert.ok(delegateStart>=0);
- assert.ok(activeAssignment>delegateStart);
+ assert.ok(issueLookup>delegateStart);
+ assert.ok(fallbackLookup>issueLookup);
+ assert.ok(noTokenRoute>fallbackLookup);
+ assert.ok(activeAssignment>noTokenRoute);
  assert.ok(existingFallback>activeAssignment);
- assert.ok(noTokenRoute>existingFallback);
- assert.ok(assignApi>noTokenRoute);
+ assert.ok(assignApi>existingFallback);
  assert.match(workflow,/queued_issues', JSON\.stringify\(\[\.\.\.queued, \.\.\.route\.queued\]\)/);
  assert.doesNotMatch(workflow,/if \(process\.env\.COPILOT_TOKEN_CONFIGURED !== 'true'\)[\s\S]{0,500}return;/);
 });
