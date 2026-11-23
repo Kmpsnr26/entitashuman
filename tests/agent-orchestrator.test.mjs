@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {classifyTaskDifficulty,reviewVerdict,selectStructuredRoles,requireIndependentWorkReview} from '../desktop/agent-hub.mjs';
+import {classifyTaskDifficulty,reviewVerdict,selectStructuredRoles,requireIndependentWorkReview,agentTimeoutMs} from '../desktop/agent-hub.mjs';
 
 test('structured HumanALE orchestrator classifies difficult work and review verdicts',()=>{
  assert.equal(classifyTaskDifficulty('halo'),'low');
@@ -107,4 +107,14 @@ test('Agent Hub trusted maintenance entrypoint requires external active transact
   hub.match(/async runTrustedMaintenanceWork[\s\S]*?\n \}\n\n async run\(/)?.[0]||'',
   /beginMaintenanceTransaction\(|transaction\.release\(/
  );
+});
+
+
+test('structured executor stage timeouts stay inside NARA sequential pipeline budget',()=>{
+ assert.equal(agentTimeoutMs('analyze',{}),120000);
+ assert.equal(agentTimeoutMs('work',{}),600000);
+ assert.equal(agentTimeoutMs('analyze',{HUMANALE_AGENT_TIMEOUT_MS:'900000'}),300000);
+ assert.equal(agentTimeoutMs('work',{HUMANALE_AGENT_TIMEOUT_MS:'900000'}),600000);
+ assert.equal(agentTimeoutMs('analyze',{DUDIDAM_AGENT_TIMEOUT_MS:'450000'}),300000);
+ assert.equal(agentTimeoutMs('work',{DUDIDAM_AGENT_TIMEOUT_MS:'450000'}),450000);
 });
