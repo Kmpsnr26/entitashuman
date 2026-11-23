@@ -13,7 +13,7 @@ import {
 } from "../sse-parser.js";
 
 import {
-  NARA_SYSTEM_PROMPT
+  ALECORE_AI_SYSTEM_PROMPT
 } from "../systemPrompt.js";
 
 type FetchLike =
@@ -93,7 +93,7 @@ function requestBody(
       parts: [
         {
           text:
-            NARA_SYSTEM_PROMPT
+            ALECORE_AI_SYSTEM_PROMPT
         }
       ]
     },

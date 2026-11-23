@@ -19,7 +19,7 @@ import {
 } from "../sse-parser.js";
 
 import {
-  NARA_SYSTEM_PROMPT
+  ALECORE_AI_SYSTEM_PROMPT
 } from "../systemPrompt.js";
 
 const OPENAI_RESPONSES_URL =
@@ -58,7 +58,7 @@ function requestBody(
     model,
 
     instructions:
-      NARA_SYSTEM_PROMPT,
+      ALECORE_AI_SYSTEM_PROMPT,
 
     input:
       requestInput(request),
