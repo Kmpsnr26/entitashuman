@@ -1,10 +1,10 @@
-# NARA Neural Space 3D — Windows Physical GPU Acceptance
+# AleCore AI Neural Space 3D — Windows Physical GPU Acceptance
 
 This acceptance step complements the automated GitHub Actions browser smoke.
 
 ## What it proves
 
-The local Windows acceptance opens the real NARA Core Live Studio in Electron/Chromium and requires:
+The local Windows acceptance opens the real AleCore AI Live Studio in Electron/Chromium and requires:
 
 - Studio SSE reaches `LIVE`
 - the 3D canvas is created
@@ -89,4 +89,4 @@ The acceptance report still does not store the Creator password used by the brow
 Audio automation verifies that the controls and bounded profile are wired and persisted correctly. The final perceived voice timbre and speaker loudness must still be reviewed on the target Windows machine because Speech Synthesis voices differ between Windows/browser installations.
 
 
-R7 additionally validates that the Creator panel exposes system voice selection, NARA voice character profiles, Preview Voice, UI SFX and Core FX controls. The automated gate verifies wiring and persisted bounded preferences; the final perceived timbre is still reviewed on the actual Windows voice installed on the target machine.
+R7 additionally validates that the Creator panel exposes system voice selection, AleCore AI voice character profiles, Preview Voice, UI SFX and Core FX controls. The automated gate verifies wiring and persisted bounded preferences; the final perceived timbre is still reviewed on the actual Windows voice installed on the target machine.

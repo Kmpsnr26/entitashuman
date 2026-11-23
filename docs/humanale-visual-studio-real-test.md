@@ -4,7 +4,7 @@ Candidate: `d71733f8c22f67475ff289ebfd6d0d8ee9ba4eda`
 
 ## Tujuan
 
-Menyelesaikan tahap terakhir HumanALE Visual Studio tanpa membuka integrasi final ke Nara Core.
+Menyelesaikan tahap terakhir HumanALE Visual Studio tanpa membuka integrasi final ke AleCore AI.
 
 Automated CI sudah membuktikan status `READY_FOR_REAL_TEST`. Uji berikut wajib dilakukan pada PC Windows target.
 
@@ -58,4 +58,4 @@ Status akhir hanya `REAL_TEST_PASS` bila kelima pemeriksaan real-device berstatu
 
 ## Boundary
 
-Walaupun `REAL_TEST_PASS`, final HumanALE `FINAL_READY` masih memerlukan gate release/security lengkap dan persetujuan eksplisit pencipta sebelum Nara Core integration boleh dibuka.
+Walaupun `REAL_TEST_PASS`, final HumanALE `FINAL_READY` masih memerlukan gate release/security lengkap dan persetujuan eksplisit pencipta sebelum AleCore AI integration boleh dibuka.

@@ -10,7 +10,7 @@ Certificate commit baseline: `69bdf34da732c982484a88e103cdf52fd4bcab8c`
 - Final readiness: **LOCKED**
 - Required gates passed: **6 / 9**
 - Required gates pending: **3 / 9**
-- Final HumanALE↔Nara Core integration: **LOCKED**
+- Final HumanALE↔AleCore AI integration: **LOCKED**
 
 ## Gates now passed
 
@@ -54,7 +54,7 @@ CodeQL is green, but final distribution security still requires:
 
 ## Creator boundary
 
-Even after all nine technical gates pass, integration must remain locked until the creator explicitly approves final HumanALE↔Nara Core integration.
+Even after all nine technical gates pass, integration must remain locked until the creator explicitly approves final HumanALE↔AleCore AI integration.
 
 No runtime code may infer creator approval from CI, a real-device PASS, or a release certificate.
 
@@ -73,7 +73,7 @@ must not be inherited by the newer candidate. Development fixes are based on
 - Linux cloud verification with Node.js 22.23.3: 667 tests passed, eight platform
   checks skipped, zero failures, and web build passed. A local subreaper is used
   to clean up orphan descendants in this container.
-- NARA Cloud: TypeScript build and 101 unit tests passed; PostgreSQL migrations,
+- AleCore Cloud: TypeScript build and 101 unit tests passed; PostgreSQL migrations,
   three database tests, and one live Owner SSO/runtime E2E test passed using a
   dedicated localhost-only test database. Production providers were not called.
 
