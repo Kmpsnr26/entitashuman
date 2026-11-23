@@ -1077,7 +1077,7 @@ function syncAgentMode(){
  const allowed=['humanale-orchestrator','github-copilot','codex','cursor','claude'].includes(id);
  if(work)work.disabled=!allowed;
  if(mode&&!allowed&&mode.value==='work')mode.value='analyze';
- const runnable=(latestAgentStatus?.agents||[]).some(agent=>agent.id===id&&agent.canRun===true);
+ const runnable=(latestAgentStatus?.agents||[]).some(agent=>agent.id===id&&(agent.canRun===true||agent.canAttempt===true));
  $('#agentRun').disabled=!runnable||(mode?.value==='work'&&Boolean(workReadinessError(latestAgentStatus)));
 }
 function setEvolutionVisual(mode='start'){
@@ -1100,7 +1100,7 @@ async function runDeveloperAgent(event){
   if(mode==='work'){
    const status=await desktop.agents();latestAgentStatus=status;
    selectWorkAgent(status,aiProvider,id);
-   if(!(status.agents||[]).some(agent=>agent.id===id&&agent.canRun&&WORK_AGENT_IDS.includes(id)))throw new Error('Executor yang dipilih belum siap. Periksa koneksi di Developer agents.');
+   if(!(status.agents||[]).some(agent=>agent.id===id&&(agent.canRun===true||agent.canAttempt===true)&&WORK_AGENT_IDS.includes(id)))throw new Error('Executor yang dipilih belum siap. Periksa koneksi di Developer agents.');
   }
   selectedDeveloperAgentId=id;
   const payload=await createAgentTaskPayload({id,prompt,mode,prepareMemory:prepareEffectiveMemoryContext});
