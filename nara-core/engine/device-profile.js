@@ -1,5 +1,20 @@
 const safeText=(value,max=160)=>String(value??'').replace(/[\r\n\t]+/g,' ').trim().slice(0,max);
 
+/** Current first-party product identity. */
+export const ALECORE_AI_IDENTITY=Object.freeze({
+  id:'ALECORE_AI',
+  name:'AleCore AI',
+  role:'owner-assistant',
+  identityVersion:2,
+  voiceCharacter:'alecore-deep',
+  voicePersistent:true,
+  creatorAuthority:'owner-only',
+  integrationMode:'permissioned-adaptive',
+  selfModification:'code-update-only',
+  hiddenAutonomy:false
+});
+
+/** @deprecated Use ALECORE_AI_IDENTITY. Kept for persisted consumers during migration. */
 export const NARA_IDENTITY=Object.freeze({
   id:'NARA',
   role:'owner-assistant',
@@ -40,7 +55,8 @@ export function integrationPlan(profile={}){
     {id:'privileged.os',enabled:adapters.has('admin-elevation'),permission:'owner+os'}
   ];
   return Object.freeze({
-    identity:NARA_IDENTITY,
+    identity:ALECORE_AI_IDENTITY,
+    legacyIdentity:NARA_IDENTITY,
     device:normalized,
     plan:Object.freeze(plan.map(item=>Object.freeze(item))),
     forbidden:Object.freeze([
