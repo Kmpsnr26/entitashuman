@@ -84,9 +84,10 @@ export function parseCodexJsonOutput(stdout=''){
 }
 export function agentTimeoutMs(mode='analyze',env=process.env){
  const fallback=mode==='work'?600000:120000;
+ const maximum=mode==='work'?600000:300000;
  const raw=Number(env.HUMANALE_AGENT_TIMEOUT_MS??env.DUDIDAM_AGENT_TIMEOUT_MS);
  if(!Number.isFinite(raw)||raw<=0)return fallback;
- return Math.max(30000,Math.min(900000,Math.round(raw)));
+ return Math.max(30000,Math.min(maximum,Math.round(raw)));
 }
 function runProcess(executable,args,{cwd,timeout=12000}={}){
  return new Promise(resolve=>{
