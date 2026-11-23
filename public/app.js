@@ -452,8 +452,170 @@ async function refreshNaraSkillSnapshot(force=false){
   const payload=humanaleVisualStudio.syncPayload();
   humanaleVisualStudio.render(payload.snapshot);
   panelChannel?.postMessage(payload);
+  renderConversationTeam();
  }
  return latestNaraSkillSnapshot;
+}
+const conversationTeamAgentIds=['humanale-orchestrator','codex','github-copilot','cursor','claude'];
+const conversationTeamSkillIds=['reasoning','planner','program','bug-hunter','safety','terminal','github','memory'];
+function teamAgentStateLabel(agent){
+ if(agent?.canRun===true)return {state:'ready',label:'siap'};
+ const state=String(agent?.state||'setup');
+ const labels={external:'eksternal',installed:'terpasang',configured:'terkonfigurasi',setup:'belum siap',blocked:'terblokir',offline:'offline',error:'error'};
+ return {state:labels[state]?state:'setup',label:labels[state]||'belum siap'};
+}
+function appendTeamChip(container,label,state,detail=''){
+ const chip=document.createElement('span');
+ chip.className='conversation-team-chip';
+ chip.dataset.state=state;
+ chip.textContent=label;
+ if(detail)chip.title=detail;
+ container.append(chip);
+}
+function renderConversationWorkflow(){
+ const host=$('#conversationWorkflowStages');
+ if(!host)return;
+ host.replaceChildren();
+ if(conversationTeamRunState==='running'&&!Array.isArray(latestConversationWorkflow)){
+  host.textContent='Orkestrator sedang menjalankan Planner → Worker → Reviewer. Detail hasil akan muncul setelah verifikasi selesai.';
+  return;
+ }
+ if(Array.isArray(latestConversationWorkflow)&&latestConversationWorkflow.length){
+  for(const stage of latestConversationWorkflow){
+   const row=document.createElement('div');
+   row.className='conversation-workflow-stage';
+   const role=document.createElement('strong');
+   role.textContent=({planner:'PLANNER',specialist:'SPECIALIST',worker:'WORKER',repair:'REPAIR',reviewer:'REVIEWER'}[stage.role]||String(stage.role||'AGENT').toUpperCase());
+   const detail=document.createElement('div');
+   const agent=document.createElement('span');
+   agent.textContent=String(stage.agent||'Executor');
+   const skills=document.createElement('small');
+   const skillItems=Array.isArray(stage.skills)?stage.skills:[];
+   skills.textContent=skillItems.length?'Skill: '+skillItems.map(item=>item.id||item.label||String(item)).join(', '):'Skill tidak dilaporkan untuk tahap ini';
+   detail.append(agent,skills);
+   row.append(role,detail);
+   host.append(row);
+  }
+  return;
+ }
+ host.textContent='Planner → Worker → Reviewer';
+}
+function renderConversationTeam(){
+ const panel=$('#conversationTeam');
+ if(!panel)return;
+ if(!desktop||panelOnly){panel.hidden=true;return;}
+ panel.hidden=false;
+ const agents=Array.isArray(latestAgentStatus?.agents)?latestAgentStatus.agents:[];
+ const rows=conversationTeamAgentIds.map(id=>agents.find(item=>item.id===id)).filter(Boolean);
+ const agentHost=$('#conversationAgentBadges');
+ const skillHost=$('#conversationSkillBadges');
+ agentHost?.replaceChildren();
+ skillHost?.replaceChildren();
+ for(const item of rows){
+  const status=teamAgentStateLabel(item);
+  appendTeamChip(agentHost,item.name+' · '+status.label,status.state,item.detail||'');
+ }
+ if(agentHost&&!rows.length)appendTeamChip(agentHost,'Status agent belum diperiksa','setup');
+ const skillMap=latestNaraSkillSnapshot?.skills||{};
+ const skills=conversationTeamSkillIds.map(id=>skillMap[id]).filter(Boolean);
+ for(const skill of skills){
+  const state=String(skill.state||'setup');
+  const label=({running:'aktif',ready:'siap',complete:'siap',blocked:'terblokir',setup:'perlu setup',offline:'offline',error:'error'}[state]||state);
+  appendTeamChip(skill.label+' · '+label,state==='complete'?'ready':state,skill.message||'');
+ }
+ if(skillHost&&!skills.length)appendTeamChip(skillHost,'Skill belum disinkronkan','setup');
+ const structuredReady=agents.filter(item=>['codex','github-copilot','cursor','claude'].includes(item.id)&&item.canRun===true);
+ const orchestrator=agents.find(item=>item.id==='humanale-orchestrator');
+ const status=$('#conversationTeamStatus');
+ const summary=$('#conversationTeamSummary');
+ if(status)status.textContent=conversationTeamRunState==='running'?'Kolaborasi sedang berjalan':conversationTeamRunState==='complete'?'Tugas selesai · hasil tersedia':conversationTeamRunState==='failed'?'Tugas perlu diperiksa':orchestrator?.canRun?'HumanALE Orchestrator siap':'Tim AI belum lengkap';
+ if(summary)summary.textContent=structuredReady.length+' executor lokal siap · '+skills.length+' skill terpantau';
+ const note=$('#conversationTeamNote');
+ if(note){
+  if(conversationTeamRunError)note.textContent='Pekerjaan belum selesai: '+conversationTeamRunError;
+  else if(structuredReady.length<2)note.textContent='Mode Kerja kolaboratif memerlukan minimal dua executor lokal berbeda agar Worker dapat diperiksa Reviewer independen.';
+  else if(latestAgentStatus?.workReadiness?.error)note.textContent='Mode Kerja menunggu kesiapan folder proyek: '+latestAgentStatus.workReadiness.error;
+  else note.textContent='Semua executor terverifikasi bekerja berurutan: Planner, Specialist bila tersedia, Worker, lalu Reviewer. Skill tidak menambah izin sistem.';
+ }
+ renderConversationWorkflow();
+}
+function setConversationTeamRunState(state,result=null,error=''){
+ conversationTeamRunState=state;
+ conversationTeamRunError=String(error||'').slice(0,240);
+ if(state==='running'){latestConversationWorkflow=null;latestConversationSkillPlan=null;}
+ if(result){
+  latestConversationWorkflow=Array.isArray(result.stages)?result.stages:null;
+  latestConversationSkillPlan=result.skillPlan||null;
+ }
+ renderConversationTeam();
+}
+async function refreshConversationTeam(){
+ if(!desktop||panelOnly)return;
+ renderConversationTeam();
+ const jobs=[];
+ if(typeof desktop.agents==='function')jobs.push(desktop.agents().then(data=>{if(data&&!data.error)latestAgentStatus=data;}).catch(()=>{}));
+ if(typeof desktop.naraSkillSnapshot==='function')jobs.push(refreshNaraSkillSnapshot(false).catch(()=>{}));
+ await Promise.allSettled(jobs);
+ renderConversationTeam();
+}
+async function runConversationTeamDiagnostic(){
+ const button=$('#conversationTeamTest');
+ if(!desktop||panelOnly||!button)return;
+ if(conversationTeamRunState==='running')return;
+ let result=null;
+ button.disabled=true;
+ try{
+  const status=await desktop.agents();
+  latestAgentStatus=status;
+  if(status?.error)throw new Error(status.error);
+  const executors=(status.agents||[]).filter(agent=>
+   ['codex','github-copilot','cursor','claude'].includes(agent.id)&&agent.canRun===true
+  );
+  renderConversationTeam();
+  if(executors.length<2){
+   throw new Error('Uji kolaborasi independen memerlukan minimal dua executor lokal yang terpasang dan sudah login. Terdeteksi '+executors.length+'. Periksa Codex, Copilot CLI, Cursor, atau Claude Code di Kelola agent.');
+  }
+  setConversationTeamRunState('running');
+  const prompt=[
+   'UJI KOLABORASI LOKAL HUMANALE — READ ONLY.',
+   'Planner: susun rencana pemeriksaan arsitektur singkat dan kriteria PASS.',
+   'Specialist bila tersedia: audit risiko dan kasus uji secara read-only.',
+   'Worker: lakukan analisis dan sintesis temuan tanpa mengubah file.',
+   'Reviewer: periksa kualitas hasil dan akhiri tepat dengan VERDICT: PASS atau VERDICT: NEEDS_FIX.',
+   'Jangan mengedit, membuat, menghapus file, menjalankan perintah tulis, mengubah Git, membaca rahasia, atau melakukan jaringan selain kebutuhan executor yang telah dikonfigurasi.',
+   'Tugas: buktikan bahwa setiap peran mendapatkan hasil dari executor lokal yang terdeteksi dan bahwa urutan kolaborasi berfungsi.'
+  ].join(' ');
+  const payload=await createAgentTaskPayload({
+   id:'humanale-orchestrator',
+   prompt,
+   mode:'analyze',
+   prepareMemory:prepareEffectiveMemoryContext
+  });
+  result=await desktop.runAgent(payload);
+  if(result?.error)throw new Error(result.error);
+  const stages=Array.isArray(result?.stages)?result.stages:[];
+  const planner=stages.find(stage=>stage.role==='planner');
+  const worker=stages.find(stage=>stage.role==='worker');
+  const reviewers=stages.filter(stage=>stage.role==='reviewer');
+  const reviewer=reviewers.at(-1);
+  if(!planner||!worker||!reviewer)throw new Error('Pipeline tidak menghasilkan tahap Planner, Worker, dan Reviewer yang lengkap.');
+  if(!planner.agent||!worker.agent||!reviewer.agent)throw new Error('Salah satu tahap belum melaporkan executor yang menjalankannya.');
+  if(worker.agent===reviewer.agent)throw new Error('Reviewer memakai executor yang sama dengan Worker. Uji memerlukan review independen.');
+  if(!/\bVERDICT\s*:\s*PASS\b/i.test(String(reviewer.text||''))){
+   throw new Error('Reviewer lokal belum memberikan VERDICT: PASS. Baca temuan Reviewer pada rincian Alur Kerja.');
+  }
+  const specialist=stages.filter(stage=>stage.role==='specialist');
+  if(executors.length>=4&&!specialist.length)throw new Error('Ada empat executor siap, tetapi tahap Specialist tidak dijalankan.');
+  setConversationTeamRunState('complete',result);
+  const summary='Uji kolaborasi lokal PASS · Planner '+planner.agent+' · Worker '+worker.agent+' · Reviewer '+reviewer.agent+(specialist.length?' · Specialist '+specialist.map(item=>item.agent).join(', '):'');
+  message(summary,'assistant',false);
+  await refreshConversationTeam();
+ }catch(error){
+  setConversationTeamRunState('failed',result,error?.message||'Uji kolaborasi lokal gagal.');
+  message('Uji kolaborasi lokal belum lulus: '+(error?.message||'hasil tidak dapat diverifikasi.'),'assistant',false);
+ }finally{
+  button.disabled=false;
+ }
 }
 async function runHumanALEVisualTest(scenario){
  if(!desktop?.naraTestScenario)return {error:'Controlled Test Lab hanya tersedia pada HumanALE Desktop.',scenario,trace:[]};
@@ -879,6 +1041,7 @@ async function checkAI(){
  }catch{$('#aiStatus').textContent='Status belum tersedia';$('#apiDetail').textContent='Periksa koneksi lalu coba lagi.';aiReady=false;}
 }
 let latestAgentStatus=null,selectedDeveloperAgentId='';
+let latestConversationWorkflow=null,latestConversationSkillPlan=null,conversationTeamRunState='idle',conversationTeamRunError='';
 async function loadAgents(){
  if(!desktop)return;
  const list=$('#agentList'),select=$('#agentSelect');
@@ -908,7 +1071,8 @@ async function loadAgents(){
   if(!select.options.length){const option=document.createElement('option');option.textContent='Tidak ada CLI agent siap';option.disabled=true;select.append(option);}
   if(selectedDeveloperAgentId&&[...select.options].some(option=>option.value===selectedDeveloperAgentId&&!option.disabled))select.value=selectedDeveloperAgentId;
   syncAgentMode();
- }catch(error){latestAgentStatus=null;$('#agentProject').textContent=error?.message||'Status agent belum dapat diperiksa.';}
+  renderConversationTeam();
+ }catch(error){latestAgentStatus=null;$('#agentProject').textContent=error?.message||'Status agent belum dapat diperiksa.';renderConversationTeam();}
 }
 function syncAgentMode(){
  const id=$('#agentSelect').value,mode=$('#agentMode'),work=mode?.querySelector('option[value="work"]');
@@ -932,6 +1096,7 @@ async function runDeveloperAgent(event){
  $('#agentRun').disabled=true;$('#agentOutput').hidden=false;
  $('#agentOutput').textContent=mode==='work'?'Agent sedang melanjutkan pekerjaan proyek…':'Agent sedang menganalisis…';
  let workSucceeded=false;
+ setConversationTeamRunState('running');
  if(mode==='work')setEvolutionVisual('start');
  try{
   if(mode==='work'){
@@ -943,6 +1108,7 @@ async function runDeveloperAgent(event){
   const payload=await createAgentTaskPayload({id,prompt,mode,prepareMemory:prepareEffectiveMemoryContext});
   const result=await desktop.runAgent(payload);
   if(result?.error)throw new Error(result.error);
+  setConversationTeamRunState('complete',result);
   $('#agentOutput').textContent=result?.text||'Agent selesai tanpa output.';
   desktopMemory?.remember({
    type:'task',
@@ -954,6 +1120,7 @@ async function runDeveloperAgent(event){
   updateDesktopMemoryContextUi();
   workSucceeded=hasAppliedWorkChanges(result);
  }catch(error){
+  setConversationTeamRunState('failed',null,error?.message||'Agent gagal dijalankan.');
   $('#agentOutput').textContent=error?.message||'Agent gagal dijalankan.';
   desktopMemory?.remember({
    type:'result',
@@ -966,6 +1133,7 @@ async function runDeveloperAgent(event){
  }finally{
   if(mode==='work')setEvolutionVisual(workSucceeded?'complete':'stop');
   syncAgentMode();
+  renderConversationTeam();
  }
 }
 async function chooseProjectFolder(){
@@ -989,16 +1157,23 @@ async function runProjectWork(text){
  const status=await desktop.agents();
  latestAgentStatus=status;
  let executor;
- try{executor=selectWorkAgent(status,aiProvider,selectedDeveloperAgentId);}
+ const orchestratorReady=(status.agents||[]).some(agent=>agent.id==='humanale-orchestrator'&&agent.canRun===true);
+ const preferredAgent=selectedDeveloperAgentId||(orchestratorReady?'humanale-orchestrator':'');
+ try{executor=selectWorkAgent(status,aiProvider,preferredAgent);}
  catch(error){
+  setConversationTeamRunState('failed',null,error?.message||'Tidak ada executor yang siap.');
   desktop.openPanel?.('agentDialog');
   throw error;
  }
  state(executor.name+' mengerjakan proyek…');$('#liveText').textContent=executor.name+' · Mode Kerja';
+ setConversationTeamRunState('running');
+ renderConversationTeam();
  const prompt=buildProjectWorkPrompt(text);
  try{
   const payload=await createAgentTaskPayload({id:executor.id,mode:'work',prompt});
   const result=await desktop.runAgent(payload);
+  if(result?.error)throw new Error(result.error);
+  setConversationTeamRunState('complete',result);
   if(!result?.error)desktopMemory?.remember({
    type:'task',title:executor.name+' · mode kerja',
    summary:'Permintaan kerja agent selesai. Prompt dan output mentah tidak disimpan otomatis.',
@@ -1007,6 +1182,7 @@ async function runProjectWork(text){
   updateDesktopMemoryContextUi();
   return result;
  }catch(error){
+  setConversationTeamRunState('failed',null,error?.message||'Agent gagal menjalankan tugas.');
   desktopMemory?.remember({
    type:'result',title:executor.name+' · mode kerja',
    summary:'Pekerjaan proyek melalui agent gagal dan memerlukan tindak lanjut.',
@@ -1234,6 +1410,15 @@ $('#center').onclick=center;
 $('#refreshStatus').onclick=()=>{checkAI();refreshCloudMemoryStatus();};
 $('#provider').onchange=e=>{aiProvider=['chatgpt',...apiProviders].includes(e.target.value)?e.target.value:'chatgpt';localStorage.setItem('dudidam-provider',aiProvider);history=[];stopCamera();setPersona(aiProvider);checkAI();};
 $('#agentHub').onclick=async()=>{if(!desktop)return;showDialog('#agentDialog');await loadAgents();};
+$('#conversationTeamToggle')?.addEventListener('click',()=>{
+ const button=$('#conversationTeamToggle'),details=$('#conversationTeamDetails');
+ const open=button.getAttribute('aria-expanded')!=='true';
+ button.setAttribute('aria-expanded',String(open));
+ details.hidden=!open;
+});
+$('#conversationOpenAgentHub')?.addEventListener('click',async()=>{showDialog('#agentDialog');await loadAgents();});
+$('#conversationTeamRefresh')?.addEventListener('click',async()=>{const button=$('#conversationTeamRefresh');button.disabled=true;try{await refreshConversationTeam();}finally{button.disabled=false;}});
+$('#conversationTeamTest')?.addEventListener('click',runConversationTeamDiagnostic);
 $('#agentRefresh').onclick=loadAgents;
 $('#projectPick').onclick=chooseProjectFolder;
 $('#agentSelect').onchange=()=>{selectedDeveloperAgentId=$('#agentSelect').value;syncAgentMode();};
@@ -1314,7 +1499,7 @@ if(!panelOnly){
  desktop?.onDismiss?.(reason=>dismissAle(reason));
  desktop?.onNaraVoice?.(cue=>enqueueNaraVoice(cue));
  desktop?.onNaraState?.(snapshot=>syncNaraBrainState(snapshot));
- if(desktop?.naraSkillSnapshot)refreshNaraSkillSnapshot(false).catch(()=>{});
+ if(desktop)refreshConversationTeam().catch(()=>{});
  desktop?.onRuntimeState?.(runtime=>syncHumanALERuntime(runtime));
  if(desktop?.naraSnapshot)desktop.naraSnapshot().then(result=>{
   if(result?.state)syncNaraBrainState(result.state);

@@ -67,7 +67,9 @@ test('renderer uses readiness and shared payload policy for both manual and chat
  const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
  assert.match(app,/if\(!image&&isExplicitProjectWorkRequest\(text\)\)/);
  assert.doesNotMatch(app,/aiProvider==='copilot'&&!image&&isExplicitProjectWorkRequest/);
- assert.match(app,/selectWorkAgent\(status,aiProvider,selectedDeveloperAgentId\)/);
+ assert.match(app,/const orchestratorReady=\(status\.agents\|\|\[\]\)\.some\(agent=>agent\.id==='humanale-orchestrator'&&agent\.canRun===true\)/);
+ assert.match(app,/const preferredAgent=selectedDeveloperAgentId\|\|\(orchestratorReady\?'humanale-orchestrator':''\)/);
+ assert.match(app,/selectWorkAgent\(status,aiProvider,preferredAgent\)/);
  assert.match(app,/createAgentTaskPayload\(\{id,prompt,mode,prepareMemory:prepareEffectiveMemoryContext\}\)/);
  assert.match(app,/workSucceeded=hasAppliedWorkChanges\(result\)/);
  assert.match(app,/Mode Kerja diblokir:/);
