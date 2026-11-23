@@ -15,6 +15,10 @@ test('structured HumanALE orchestrator classifies difficult work and review verd
  assert.equal(alternate.worker,'cursor');
  assert.equal(alternate.reviewer,'github-copilot');
  assert.equal(alternate.degraded,false);
+ const explicit=selectStructuredRoles(['codex','github-copilot','cursor'],'cursor');
+ assert.equal(explicit.worker,'cursor');
+ assert.notEqual(explicit.reviewer,'cursor');
+ assert.equal(selectStructuredRoles(['github-copilot'],'cursor'),null);
  const single=selectStructuredRoles(['codex']);
  assert.equal(single.degraded,true);
  assert.equal(single.worker,single.reviewer);
