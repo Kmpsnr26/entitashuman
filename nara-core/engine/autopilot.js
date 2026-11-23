@@ -128,11 +128,15 @@ export class NaraAutopilot{
       if(started){
         const task=this.scheduler.fail(started.id,error?.message||'handler-failed');
         this.experience.record(started.handler,{ok:false,durationMs:Date.now()-startedAt});
-        const decision=this.recovery.decide({attempt:task.attempts,errorCategory:error?.category||'runtime',
-          capabilityRequired:Boolean(required),capabilityApproved:required?this.capabilities.authorize(required).ok:true,
-          fallbackAvailable:false,idempotent:registered.idempotent===true,compensationConfirmed:error?.compensationConfirmed===true});
-        this.onEvent('autopilot.task.failed',{id:started.id,label:started.label,action:decision.action,reason:decision.reason});
-        return {ok:false,error:error?.message||'handler-failed',decision,task};
+        const cancelled=controller?.signal.aborted===true||task.status==='cancelled'||error?.code==='ABORTED';
+        const decision=cancelled?{action:'stop',reason:'task-cancelled',delayMs:0}:
+          this.recovery.decide({attempt:task.attempts,errorCategory:error?.category||'runtime',
+            capabilityRequired:Boolean(required),capabilityApproved:required?this.capabilities.authorize(required).ok:true,
+            fallbackAvailable:false,idempotent:registered.idempotent===true,compensationConfirmed:error?.compensationConfirmed===true});
+        this.onEvent(cancelled?'autopilot.task.cancelled':'autopilot.task.failed',{
+          id:started.id,label:started.label,action:decision.action,reason:decision.reason
+        });
+        return {ok:false,error:error?.message||'handler-failed',reason:cancelled?'cancelled':undefined,decision,task};
       }
       return {ok:false,error:error?.message||'setup-failed',task:this.scheduler.get(next.id)};
     }finally{
