@@ -39,15 +39,15 @@ Report mode is non-blocking during migration. Strict mode is a release gate and 
 
 - Branch: `codex/alecore-ai-global-rename-20261124`
 - Base: `main` at `741045aa5925dd27058499a1daadf16a606ad9aa`.
-- Latest inspected branch head: `3a5f1f3162eff96ada6d53a7ccbab8af0a2b0b69`.
-- Repository tree: 480 entries; 262 paths contain a case-insensitive `nara` substring (path count, not file count; not all are user-facing). Remaining references include internal compatibility names, import paths, test paths, persisted event/region IDs, workflow/environment names, and auth/session contracts.
+- Latest verified branch head: `cc4dd10a6fd5c9e6facf95aa7cbfa00cc25fcba1`.
+- A fresh path-count inventory has not yet been rerun against the latest head. Earlier inventory counted 480 tree entries and 262 paths containing `nara` (path count, not file count); treat those counts as historical, not current. Remaining references include internal compatibility names, import paths, test paths, persisted event/region IDs, workflow/environment names, and auth/session contracts.
 - The desktop main process uses `desktop/alecore-agent-coordinator.mjs` and `desktop/AleCoreCloudContextClient`; legacy implementations remain exported as aliases while consumers transition.
 - Canonical cloud desktop settings are `ALECORE_CLOUD_ORIGIN` and `ALECORE_AUTH_ORIGIN`; non-empty new values take precedence and blank/missing values fall back to the legacy `NARA_CLOUD_ORIGIN` / `NARA_AUTH_ORIGIN`.
 - Canonical Creator bootstrap settings are `ALECORE_CREATOR_USERNAME` and `ALECORE_CREATOR_PASSWORD`; legacy `NARA_CREATOR_*` variables remain supported. Desktop bootstrap removes both password variables from its process environment after provisioning.
 - Cloud server aliases `ALECORE_PORT`, `PUBLIC_ALECORE_ORIGIN`, and `ALECORE_SESSION_SECRET` normalize to the existing internal keys; the legacy names remain accepted.
 - Voice feedback exposes the AleCore profile/factory and accepts `alecore.start` / `alecore.shutdown`; old `nara.start` / `nara.shutdown` events are still mapped to the same AleCore-branded voice cues.
 - Product-facing Cloud labels, Creator Gateway instructions, core status text, workflow/goal/watchdog error messages, and Studio startup narration now use AleCore AI wording. Stable internal IDs such as `NARA_CORE`, storage paths, cookies, session tables, route paths, SSO ticket audience, and persisted event IDs are deliberately retained pending a tested versioned migration.
-- PR #255 remains Draft and targets `main`. GitHub CI for this branch is still in progress; successful partial jobs are recorded in the checks, but no full-green claim is made yet.
+- PR #255 remains Draft and targets `main`. For head `cc4dd10a6fd5c9e6facf95aa7cbfa00cc25fcba1`, the five associated GitHub Actions runs completed successfully: Private source security (`45248946366`), NARA Cloud Verify (`45248946414`), Cloud Auto Repair (`45248946443`), Build Android APK (`45248946370`), and Verify and package (`45248946288`). The Linux quality gate and Windows runtime/package job passed; the Android installable debug APK build, validation, and KVM-backed WebView runtime validation passed. The Windows portable package and installer smoke checks passed. Signing/release steps were skipped because this is a draft PR branch without the required release/signing context. Android and Windows artifact upload steps were also skipped, and the two checked workflow runs currently expose no downloadable artifacts. Therefore CI is green for the exercised branch checks, but no installable package has been delivered from these runs.
 - No broad text replacement has been performed. Changes are additive and consumer-aware.
 
 ## Completion criteria
