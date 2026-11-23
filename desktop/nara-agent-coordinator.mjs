@@ -1,5 +1,13 @@
 const safeText=(value,max=180)=>String(value??'').replace(/[\r\n\t]+/g,' ').trim().slice(0,max);
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,Math.max(0,Math.min(5000,Number(ms)||0))));
+export const NARA_AGENT_HANDLER_TIMEOUTS=Object.freeze({
+  analyzeMs:15*60*1000,
+  // Work may run Planner (2m), Specialist (2m), Worker (10m),
+  // Reviewer + one bounded verdict retry (4m), Repair (10m), and
+  // Final Reviewer (2m): up to 30m of sequential executor time.
+  // Keep a five-minute margin for transaction and cleanup overhead.
+  workMs:35*60*1000
+});
 
 export class NaraAgentCoordinator{
   constructor({nara,agentHub}={}){
@@ -19,12 +27,12 @@ export class NaraAgentCoordinator{
     this.nara.registerAutopilotHandler(
       'humanale.agent.analyze',
       context=>this.execute(context,'analyze'),
-      {timeoutMs:15*60*1000,idempotent:true}
+      {timeoutMs:NARA_AGENT_HANDLER_TIMEOUTS.analyzeMs,idempotent:true}
     );
     this.nara.registerAutopilotHandler(
       'humanale.agent.work',
       context=>this.execute(context,'work'),
-      {timeoutMs:15*60*1000}
+      {timeoutMs:NARA_AGENT_HANDLER_TIMEOUTS.workMs}
     );
     this.bound=true;
     return this;
