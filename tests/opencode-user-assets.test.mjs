@@ -119,15 +119,15 @@ test("installer uses exclusive creation for temporary files", async () => {
 test("system and package-management agents require approval for shell and file changes", () => {
   for (const id of ["windows-operator", "plugin-manager", "skill-engineer"]) {
     const content = readAgent(id);
-    assert.match(content, /action: shell[\\s\\S]*?effect: ask/);
-    assert.match(content, /action: edit[\\s\\S]*?effect: ask/);
-    assert.match(content, /action: external_directory[\\s\\S]*?effect: ask/);
+    assert.match(content, /action: shell[\s\S]*?effect: ask/);
+    assert.match(content, /action: edit[\s\S]*?effect: ask/);
+    assert.match(content, /action: external_directory[\s\S]*?effect: ask/);
   }
 });
 
 test("skill engineer labels exported catalog as unverified rather than active", () => {
   const content = readAgent("skill-engineer");
-  assert.match(content, /Source Export Skill Inventory \\(Unverified\\)/);
+  assert.match(content, /Source Export Skill Inventory \(Unverified\)/);
   assert.match(content, /only the 12 project-local skills/);
   assert.match(content, /18 community skills/);
   assert.doesNotMatch(content, /✅ Active/);
