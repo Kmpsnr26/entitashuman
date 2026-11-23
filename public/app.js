@@ -601,7 +601,7 @@ async function runConversationTeamDiagnostic(){
   if(!planner||!worker||!reviewer)throw new Error('Pipeline tidak menghasilkan tahap Planner, Worker, dan Reviewer yang lengkap.');
   if(!planner.agent||!worker.agent||!reviewer.agent)throw new Error('Salah satu tahap belum melaporkan executor yang menjalankannya.');
   if(worker.agent===reviewer.agent)throw new Error('Reviewer memakai executor yang sama dengan Worker. Uji memerlukan review independen.');
-  if(!/\\bVERDICT\\s*:\\s*PASS\\b/i.test(String(reviewer.text||''))){
+  if(!/\bVERDICT\s*:\s*PASS\b/i.test(String(reviewer.text||''))){
    throw new Error('Reviewer lokal belum memberikan VERDICT: PASS. Baca temuan Reviewer pada rincian Alur Kerja.');
   }
   const specialist=stages.filter(stage=>stage.role==='specialist');
