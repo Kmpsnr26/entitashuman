@@ -6,6 +6,7 @@ import {parseCommand} from './commands.js';
 import {AudioReactor} from './audio-reactor.js';
 import {containsAleWakeWord,HOLD_TO_SUMMON_MS} from './wake-utils.js';
 import {isExplicitProjectWorkRequest} from './work-intent.js';
+import {validateConversationTeamDiagnostic} from './conversation-team-diagnostic.js';
 import {WORK_AGENT_IDS,workReadinessError,selectWorkAgent,createAgentTaskPayload,hasAppliedWorkChanges} from './agent-task.js';
 import {emotionFromText,emotions} from './avatar-emotion.js';
 import {createRobotVoicePlayer,HUMANALE_VOICE} from './robot-voice.js';
@@ -593,21 +594,11 @@ async function runConversationTeamDiagnostic(){
   });
   result=await desktop.runAgent(payload);
   if(result?.error)throw new Error(result.error);
-  const stages=Array.isArray(result?.stages)?result.stages:[];
-  const planner=stages.find(stage=>stage.role==='planner');
-  const worker=stages.find(stage=>stage.role==='worker');
-  const reviewers=stages.filter(stage=>stage.role==='reviewer');
-  const reviewer=reviewers.at(-1);
-  if(!planner||!worker||!reviewer)throw new Error('Pipeline tidak menghasilkan tahap Planner, Worker, dan Reviewer yang lengkap.');
-  if(!planner.agent||!worker.agent||!reviewer.agent)throw new Error('Salah satu tahap belum melaporkan executor yang menjalankannya.');
-  if(worker.agent===reviewer.agent)throw new Error('Reviewer memakai executor yang sama dengan Worker. Uji memerlukan review independen.');
-  if(!/\bVERDICT\s*:\s*PASS\b/i.test(String(reviewer.text||''))){
-   throw new Error('Reviewer lokal belum memberikan VERDICT: PASS. Baca temuan Reviewer pada rincian Alur Kerja.');
-  }
-  const specialist=stages.filter(stage=>stage.role==='specialist');
-  if(executors.length>=4&&!specialist.length)throw new Error('Ada empat executor siap, tetapi tahap Specialist tidak dijalankan.');
+  const validation=validateConversationTeamDiagnostic(result);
+  if(!validation.ok)throw new Error(validation.error);
+  const {planner,worker,reviewer,specialists}=validation;
   setConversationTeamRunState('complete',result);
-  const summary='Uji kolaborasi lokal PASS · Planner '+planner.agent+' · Worker '+worker.agent+' · Reviewer '+reviewer.agent+(specialist.length?' · Specialist '+specialist.map(item=>item.agent).join(', '):'');
+  const summary='Uji kolaborasi lokal PASS · Planner '+planner.agent+' · Worker '+worker.agent+' · Reviewer '+reviewer.agent+(specialists.length?' · Specialist '+specialists.map(item=>item.agent).join(', '):'');
   message(summary,'assistant',false);
   await refreshConversationTeam();
  }catch(error){
