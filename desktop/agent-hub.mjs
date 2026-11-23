@@ -134,6 +134,20 @@ export function reviewVerdict(text=''){
  return 'unknown';
 }
 
+export function requireIndependentWorkReview(result={}){
+ const reviewers=Array.isArray(result?.stages)
+  ?result.stages.filter(stage=>stage?.role==='reviewer')
+  :[];
+ const finalReviewer=reviewers.at(-1);
+ if(!finalReviewer||reviewVerdict(finalReviewer.text)!=='pass'){
+  const error=new Error('Mode Kerja memerlukan VERDICT: PASS dari tahap Reviewer independen terakhir. Status ringkasan tidak dapat menggantikan review tersebut.');
+  error.code='AGENT_WORK_REVIEW_REQUIRED';
+  error.category='verification';
+  throw error;
+ }
+ return result;
+}
+
 export function selectStructuredRoles(available=[],preferredWorker=''){
  const allowed=new Set(['codex','github-copilot','cursor','claude']);
  const list=[...new Set((Array.isArray(available)?available:[]).filter(id=>allowed.has(id)))];
@@ -460,7 +474,7 @@ export class DeveloperAgentHub{
   this.maintenanceAbortController=new AbortController();
   this.maintenanceSignal=signal?AbortSignal.any([signal,this.maintenanceAbortController.signal]):this.maintenanceAbortController.signal;
   try{
-   const result=await this.runStructured(task,'work');
+   const result=requireIndependentWorkReview(await this.runStructured(task,'work'));
    const finalInspection=await transaction.inspect({rollbackOnViolation:false});
    if(!finalInspection.allowed)throw maintenanceChangeSetError(finalInspection);
    return {
@@ -517,6 +531,9 @@ export class DeveloperAgentHub{
     :mode==='work'
      ?await this.runStructured(prompt,mode,id)
      :await this.runDirect(id,prompt,mode);
+   // Every work-mode route, including a directly selected executor, must pass
+   // through Planner → Worker → Reviewer and the final reviewer gate.
+   if(mode==='work')requireIndependentWorkReview(result);
 
    if(transaction){
     const finalInspection=await transaction.inspect();
