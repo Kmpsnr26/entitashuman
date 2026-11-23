@@ -51,12 +51,11 @@ export class NaraTaskScheduler{
     return this.get(item.id);
   }
 
-  complete(id,result){
+  complete(id){
     const item=this.tasks.get(String(id||''));
     if(!item)throw new Error('Task NARA tidak ditemukan.');
     if(item.status!=='running')throw new Error('Hanya task yang sedang berjalan dapat diselesaikan.');
     item.status='complete';item.finishedAt=Date.now();item.lastError='';
-    if(result!==undefined)item.result=result;
     return this.get(item.id);
   }
 
