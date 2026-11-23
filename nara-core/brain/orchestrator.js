@@ -291,6 +291,14 @@ export class NaraOrchestrator{
     return created;
   }
 
+  recordGoalEvidence(id,evidence={}){
+    const goal=this.goals.recordEvidence(id,evidence);
+    if(this.running)this.bus.emit('goal.evidence.recorded',{
+      id:goal.id,criterion:evidence.criterion,verified:Boolean(evidence.verified)
+    },{source:'goal-manager'});
+    return goal;
+  }
+
   activateGoal(id){
     const goal=this.goals.activate(id);
     if(this.running)this.bus.emit('goal.activated',{
