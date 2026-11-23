@@ -128,12 +128,13 @@ for (const file of bundle.files) {
     descriptor = fs.openSync(temporary, "wx", 0o600);
     fs.writeFileSync(descriptor, file.content, { encoding: "utf8" });
     fs.fsyncSync(descriptor);
-  } finally {
-    if (descriptor !== undefined) fs.closeSync(descriptor);
-  }
-  try {
+    fs.closeSync(descriptor);
+    descriptor = undefined;
     fs.renameSync(temporary, file.target);
   } catch (error) {
+    if (descriptor !== undefined) {
+      try { fs.closeSync(descriptor); } catch {}
+    }
     try { fs.unlinkSync(temporary); } catch {}
     throw error;
   }
