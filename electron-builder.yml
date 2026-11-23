@@ -1,12 +1,12 @@
 # Stable Windows app identity retained so existing installations can upgrade in place.
 appId: id.my.aleprinting.dudidam
-productName: HumanALE god egine
+productName: HumanALE AleCore AI
 directories:
   output: release
 files:
   - public/**/*
   - desktop/**/*
-  - ALECORE-AI/**/*
+  - alecore-ai/**/*
   - sites/humanale-hologram/dist/face-rig.js
   - sites/humanale-hologram/dist/neural-core.js
   - sites/humanale-hologram/dist/alecore-ai-memory.js
@@ -33,5 +33,5 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: always
   createStartMenuShortcut: true
-  shortcutName: HumanALE god egine
-  uninstallDisplayName: HumanALE god egine
+  shortcutName: HumanALE AleCore AI
+  uninstallDisplayName: HumanALE AleCore AI

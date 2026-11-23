@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev:auth": "tsx watch src/apps/authServer.ts",
-    "dev:nara": "tsx watch src/apps/aleServer.ts",
+    "dev:alecore-ai": "tsx watch src/apps/aleServer.ts",
     "db:migrate": "tsx src/db/migrate.ts",
     "create-owner": "tsx src/scripts/createOwner.ts",
     "build": "tsc -p tsconfig.json",
@@ -14,7 +14,7 @@
     "test:db": "node --import tsx --test tests/ticket-db.test.ts",
     "verify": "npm run build && npm run test:unit",
     "start:auth": "node dist/apps/authServer.js",
-    "start:nara": "node dist/apps/aleServer.js",
+    "start:alecore-ai": "node dist/apps/aleServer.js",
     "test:e2e": "node --import tsx --test tests/runtime-e2e.test.ts"
   },
   "dependencies": {

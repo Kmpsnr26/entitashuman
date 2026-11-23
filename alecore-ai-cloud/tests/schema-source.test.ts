@@ -36,6 +36,14 @@ test(
 );
 
 test(
+  "migration renames legacy NARA tables without losing existing data",
+  () => {
+    assert.match(migration, /ALTER TABLE public\.nara_memory RENAME TO alecore_ai_memory/);
+    assert.match(migration, /ALTER TABLE public\.nara_app_sessions RENAME TO alecore_ai_app_sessions/);
+  }
+);
+
+test(
   "migration enforces Owner, Argon2id, ticket and memory constraints",
   () => {
     assert.match(

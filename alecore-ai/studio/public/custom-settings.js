@@ -1,6 +1,7 @@
 import {VOICE_PROFILES,voiceProfilePatch,populateAleVoiceSelect} from './voice-identity.js';
 
 const STORAGE_KEY='ale.visual.settings.v1';
+const LEGACY_STORAGE_KEY='nara.visual.settings.v1';
 
 export const DEFAULT_VISUAL_SETTINGS=Object.freeze({
   brainFrame:true,
@@ -102,7 +103,11 @@ export function sanitizeVisualSettings(input={}){
 
 function load(){
   try{
-    const raw=localStorage.getItem(STORAGE_KEY);
+    let raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw){
+      raw=localStorage.getItem(LEGACY_STORAGE_KEY);
+      if(raw)localStorage.setItem(STORAGE_KEY,raw);
+    }
     if(!raw)return sanitizeVisualSettings(DEFAULT_VISUAL_SETTINGS);
     return sanitizeVisualSettings(JSON.parse(raw));
   }catch{

@@ -1,6 +1,19 @@
 import { pool } from "./pool.js";
 
 const migration = `
+DO $
+BEGIN
+  IF to_regclass('public.nara_memory') IS NOT NULL
+     AND to_regclass('public.alecore_ai_memory') IS NULL THEN
+    ALTER TABLE public.nara_memory RENAME TO alecore_ai_memory;
+  END IF;
+  IF to_regclass('public.nara_app_sessions') IS NOT NULL
+     AND to_regclass('public.alecore_ai_app_sessions') IS NULL THEN
+    ALTER TABLE public.nara_app_sessions RENAME TO alecore_ai_app_sessions;
+  END IF;
+END
+$;
+
 CREATE TABLE IF NOT EXISTS owner_users (
   id UUID PRIMARY KEY,
   email TEXT NOT NULL,

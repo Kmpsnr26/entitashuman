@@ -41,13 +41,21 @@ const AAD =
     "utf8"
   );
 
+// Legacy constants are used only to decrypt backups created before the AleCore AI rename.
+const LEGACY_FORMAT = "NARA_ENCRYPTED_BACKUP" as const;
+const LEGACY_MEMORY_KIND = "nara-memory" as const;
+const LEGACY_AAD = Buffer.from(
+  "NARA_ENCRYPTED_BACKUP|1|nara-memory|aes-256-gcm|scrypt",
+  "utf8"
+);
+
 export interface EncryptedBackupEnvelope {
   format:
-    "ALECORE_AI_ENCRYPTED_BACKUP";
+    "ALECORE_AI_ENCRYPTED_BACKUP" | "NARA_ENCRYPTED_BACKUP";
   version:
     1;
   kind:
-    "alecore-ai-memory";
+    "alecore-ai-memory" | "nara-memory";
   algorithm:
     "aes-256-gcm";
   kdf:
@@ -250,12 +258,11 @@ function isEnvelope(
       Partial<EncryptedBackupEnvelope>;
 
   return (
-    envelope.format ===
-      "ALECORE_AI_ENCRYPTED_BACKUP" &&
+    (envelope.format === "ALECORE_AI_ENCRYPTED_BACKUP" && envelope.kind === "alecore-ai-memory") ||
+    (envelope.format === LEGACY_FORMAT && envelope.kind === LEGACY_MEMORY_KIND) &&
     envelope.version ===
       1 &&
-    envelope.kind ===
-      "alecore-ai-memory" &&
+    true &&
     envelope.algorithm ===
       "aes-256-gcm" &&
     envelope.kdf ===
@@ -496,7 +503,7 @@ export async function decryptMemoryBackup(
       );
 
     decipher.setAAD(
-      AAD
+      input.format === LEGACY_FORMAT ? LEGACY_AAD : AAD
     );
 
     decipher.setAuthTag(
@@ -553,8 +560,7 @@ export async function decryptMemoryBackup(
     if (
       candidate.schemaVersion !==
         1 ||
-      candidate.kind !==
-        "alecore-ai-memory" ||
+      (candidate.kind !== "alecore-ai-memory" && candidate.kind !== LEGACY_MEMORY_KIND) ||
       !isCanonicalIsoTimestamp(
         candidate.exportedAt
       ) ||

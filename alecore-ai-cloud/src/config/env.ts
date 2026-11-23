@@ -451,8 +451,15 @@ const EnvSchema =
     }
   );
 
+const normalizedEnvironment = {
+  ...process.env,
+  ALECORE_AI_PORT: process.env.ALECORE_AI_PORT ?? process.env.NARA_PORT,
+  PUBLIC_ALECORE_AI_ORIGIN: process.env.PUBLIC_ALECORE_AI_ORIGIN ?? process.env.PUBLIC_NARA_ORIGIN,
+  ALECORE_AI_SESSION_SECRET: process.env.ALECORE_AI_SESSION_SECRET ?? process.env.NARA_SESSION_SECRET
+};
+
 export const env =
-  EnvSchema.parse(process.env);
+  EnvSchema.parse(normalizedEnvironment);
 
 export const isProduction =
   env.NODE_ENV === "production";

@@ -23,7 +23,7 @@ await cp('public',path.join(appDir,'public'),{recursive:true});
 await mkdir(path.join(appDir,'public','humanale'),{recursive:true});
 for(const file of ['face-rig.js','neural-core.js','alecore-ai-memory.js','alecore-ai-context-bridge.js','avatar.js'])await cp(path.join('sites','humanale-hologram','dist',file),path.join(appDir,'public','humanale',file));
 await cp('desktop',path.join(appDir,'desktop'),{recursive:true,filter:source=>!source.includes('__pycache__')});
-await cp('ALECORE-AI',path.join(appDir,'ALECORE-AI'),{recursive:true});
+await cp('alecore-ai',path.join(appDir,'alecore-ai'),{recursive:true});
 await cp('package.json',path.join(appDir,'package.json'));
 const runtimeModules=[
  ['three'],
