@@ -40,10 +40,16 @@ export class NaraAutopilot{
   async runTask(taskId){
     const id=String(taskId||'');
     while(true){
-      const prior=this.outcomes.get(id);
-      if(prior)return prior;
       const current=this.scheduler.get(id);
       if(!current)return {ok:false,reason:'task-not-found'};
+      // Explicitly requeued failed work is a new attempt. Do not let the
+      // terminal failure cached for the previous attempt mask the queued task.
+      if(current.status==='queued'){
+        const prior=this.outcomes.get(id);
+        if(prior&&!prior.ok)this.outcomes.delete(id);
+      }
+      const prior=this.outcomes.get(id);
+      if(prior)return prior;
       if(current.status==='complete')return {ok:true,task:current,result:current.result};
       if(['failed','cancelled'].includes(current.status))return {ok:false,reason:current.lastError||current.status,task:current};
       const registered=this.handlers.get(current.handler);
