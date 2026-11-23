@@ -64,7 +64,7 @@ test('actual API bridge configuration checks never make a request or prove authe
   }
 });
 
-test('AleCore Local startup probe reports only an installed loopback model as ready',async()=>{
+test('AleCore Local startup probe reports an installed loopback model as configured but not request-verified',async()=>{
   const nara=naraFixture();
   const bridge=new AleCoreLocalBridge({
     model:'qwen3.5:2b',
@@ -241,6 +241,23 @@ test('desktop status UI distinguishes unknown checks, local login and historical
   assert.equal(context.aiReady,true);
 });
 
+test('production owner-gated IPC routes AleCore Local status and conversation to its loopback bridge',async()=>{
+  const fx=await providerIpcFixture();
+  const status=await fx.handlers.get('dudidam:status')({},'alecore-local');
+  assert.equal(status.configured,true);
+  assert.equal(status.runtimeAvailable,true);
+  assert.equal(status.modelAvailable,true);
+  assert.equal(status.model,'qwen3.5:2b');
+  const answer=await fx.handlers.get('dudidam:ask')({},{
+    provider:'alecore-local',message:'Halo AleCore'
+  });
+  assert.equal(answer.text,'usable response');
+  const state=fx.nara.snapshot().providers['alecore-local'];
+  assert.equal(state.ready,true);
+  assert.equal(state.evidence,'successful-request');
+  fx.nara.stop();
+});
+
 async function providerIpcFixture(){
   const main=await readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8');
   const source=main.slice(main.indexOf('  const pickProvider='),main.indexOf("  ipcMain.handle('dudidam:stt-status'"));
@@ -252,7 +269,12 @@ async function providerIpcFixture(){
     ask:async()=>{askCalls++;if(response instanceof Error)throw response;return response;},
     login:async()=>{loginCalls++;return {ok:true};}
   };
-  const context={nara,bridges:{openai:bridge,gemini:bridge,copilot:bridge,chatgpt:bridge},
+  const localBridge={
+    status:async()=>{statusCalls++;return {configured,runtimeAvailable:true,modelAvailable:configured,model:'qwen3.5:2b'};},
+    ask:async()=>{askCalls++;if(response instanceof Error)throw response;return response;},
+    pending:false
+  };
+  const context={nara,bridges:{'alecore-local':localBridge,openai:bridge,gemini:bridge,copilot:bridge,chatgpt:bridge},
     ipcMain:{handle:(name,handler)=>handlers.set(name,handler)},
     ownerTrusted:()=>allowed,recordNaraProviderStatus,
     validateMemoryContext:()=>null,dataFlowMeter:{recordIn(){},recordOut(){}}
