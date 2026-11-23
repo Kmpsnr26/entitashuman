@@ -15,6 +15,7 @@ import path from 'node:path';
 const ROOT = process.cwd();
 const STRICT = process.argv.includes('--strict');
 const SKIP_DIRS = new Set(['.git', 'node_modules', '.next', 'coverage', '.turbo']);
+const LEGACY_PATH = /nara/i;
 const LEGACY = /nara/ig;
 const findings = [];
 
@@ -34,7 +35,7 @@ async function walk(dir) {
     }
     if (!entry.isFile()) continue;
     const relative = path.relative(ROOT, full);
-    if (LEGACY.test(relative)) findings.push({ file: relative, line: 0, kind: 'filename' });
+    if (LEGACY_PATH.test(relative)) findings.push({ file: relative, line: 0, kind: 'filename' });
     let buffer;
     try { buffer = await readFile(full); } catch { continue; }
     if (buffer.includes(0)) continue;
