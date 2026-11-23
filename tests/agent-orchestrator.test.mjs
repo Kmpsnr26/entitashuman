@@ -135,7 +135,7 @@ test('structured HumanALE roles receive canonical NARA skill assignments',async(
  assert.match(hub,/skills:skillPlan\.planner/);
  assert.match(hub,/skills:skillPlan\.worker/);
  assert.match(hub,/skills:skillPlan\.reviewer/);
- assert.match(hub,/skillPlan,text:summary/);
+ assert.match(hub,/skillPlan,specialistResults,text:summary/);
  assert.ok(hub.includes('for(const specialist of roles.specialists||[])'));
  assert.ok(hub.includes("role:'specialist'"));
  assert.ok(hub.includes('skills:skillPlan.specialist'));
