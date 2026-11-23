@@ -659,3 +659,24 @@ test('Android screenshot evidence is saved when CDP capture succeeds',async t=>{
  assert.deepEqual(await readFile(join(directory,'loaded.png')),bytes);
  assert.deepEqual(report.evidenceWarnings,[]);
 });
+
+test('AleCore Local is the first-party offline desktop conversation provider',async()=>{
+ const [local,desktop,state,html,app]=await Promise.all([
+  readFile(new URL('../desktop/alecore-local.mjs',import.meta.url),'utf8'),
+  readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8'),
+  readFile(new URL('../nara-core/brain/provider-state.js',import.meta.url),'utf8'),
+  readFile(new URL('../public/index.html',import.meta.url),'utf8'),
+  readFile(new URL('../public/app.js',import.meta.url),'utf8')
+ ]);
+ assert.match(local,/http:\/\/127\.0\.0\.1:11434/);
+ assert.match(local,/qwen3\.5:2b/);
+ assert.match(local,/humanaleSystemPrompt/);
+ assert.match(local,/stream:false/);
+ assert.match(desktop,/AleCoreLocalBridge/);
+ assert.match(desktop,/alecore-local/);
+ assert.match(state,/alecore-local/);
+ assert.match(html,/value="alecore-local"/);
+ assert.match(app,/aiProvider=apiProviders\.includes\(savedProvider\)\?savedProvider:'alecore-local'/);
+ assert.match(app,/AleCore Local/);
+ assert.doesNotMatch(local,/OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY/);
+});
