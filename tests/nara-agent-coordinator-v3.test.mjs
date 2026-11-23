@@ -60,7 +60,11 @@ test('V3.2 work mode remains inside registered Agent Hub handler and returns Cor
   const agentHub={
     async run(value){
       received=value;
-      return {id:value.id,name:'Worker',mode:value.mode,text:'Perubahan dan test selesai'};
+      return {
+        id:value.id,name:'Worker',mode:value.mode,text:'Perubahan dan test selesai',
+        maintenance:{changedFiles:1},
+        stages:[{role:'reviewer',text:'Pemeriksaan independen selesai. VERDICT: PASS'}]
+      };
     }
   };
   const nara=createOrchestrator();
