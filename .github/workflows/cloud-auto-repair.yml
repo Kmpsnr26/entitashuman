@@ -668,11 +668,6 @@ jobs:
                 const alreadyAssigned = (issue.data.assignees || []).some((assignee) =>
                   assignee.login.startsWith('copilot-swe-agent')
                 );
-                if (alreadyAssigned) {
-                  delegated.push(candidate);
-                  continue;
-                }
-
                 const existingFallback = await github.rest.pulls.list({
                   owner,
                   repo,
@@ -681,16 +676,20 @@ jobs:
                   per_page: 1
                 });
                 const hasOpenFallback = existingFallback.data.length > 0;
-                if (hasOpenFallback) {
-                  fallback.push(candidate);
-                  continue;
-                }
-
                 if (!tokenConfigured) {
                   const route = routeWithoutCopilotToken({alreadyAssigned,hasOpenFallback});
                   if (route === 'delegated') delegated.push(candidate);
                   else if (route === 'fallback') fallback.push(candidate);
                   else queued.push(candidate);
+                  continue;
+                }
+
+                if (alreadyAssigned) {
+                  delegated.push(candidate);
+                  continue;
+                }
+                if (hasOpenFallback) {
+                  fallback.push(candidate);
                   continue;
                 }
 
