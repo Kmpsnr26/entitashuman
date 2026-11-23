@@ -10,7 +10,13 @@ export class NaraWatchdog{
   track(id,{timeoutMs=this.defaultTimeoutMs,label=''}={}){
     const taskId=safeText(id,80);
     if(!taskId)throw new Error('Watchdog task ID wajib diisi.');
-    if(!this.entries.has(taskId)&&this.entries.size>=this.limit)throw new Error('Watchdog NARA penuh.');
+    if(!this.entries.has(taskId)&&this.entries.size>=this.limit){
+      for(const [id,entry] of this.entries){
+        if(entry.status!=='watching')this.entries.delete(id);
+        if(this.entries.size<this.limit)break;
+      }
+      if(this.entries.size>=this.limit)throw new Error('Watchdog NARA penuh: seluruh slot masih memantau task aktif.');
+    }
     const now=Date.now();
     const item={
       id:taskId,
