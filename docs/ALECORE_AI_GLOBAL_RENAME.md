@@ -19,8 +19,8 @@ The legacy product/core identity is being replaced across first-party source, de
 ## Staged execution
 
 1. **Inventory and guardrails** — record all legacy identifiers and introduce a repeatable repository-wide audit. **Foundation committed.**
-2. **Core source and paths** — migrate core directory/file names, imports, exports, symbols, and internal event identifiers in dependency-aware groups. An additive `alecore-ai/index.js` facade now exposes `AleCoreOrchestrator` as an alias of the existing orchestrator; legacy imports remain valid during transition.
-3. **Desktop and cloud** — migrate desktop coordinator, cloud service, routes, environment examples, and package metadata; preserve external API contracts.
+2. **Core source and paths** — migrate core directory/file names, imports, exports, symbols, and internal event identifiers in dependency-aware groups. An additive `alecore-ai/index.js` facade exposes the new orchestrator identity while retaining `NaraOrchestrator` as a deprecated alias. The product identity now points to the existing `adult-robot-id` voice profile; no unimplemented voice preset is advertised.
+3. **Desktop and cloud** — in progress. The desktop main process now loads the AleCore coordinator facade; cloud package scripts expose `dev:alecore` and `start:alecore`, and the system prompt exports `ALECORE_AI_SYSTEM_PROMPT` with a deprecated legacy alias. Legacy service paths, environment variables, cookies, session tables, routes, and ticket audiences remain unchanged until their consumers and persisted contracts are migrated together.
 4. **Studio and product UI** — migrate visible names, accessibility labels, voice text, page metadata, and assets where they contain first-party identity.
 5. **Tests and automation** — migrate test paths/assertions, CI workflows, scripts, fixtures, and generated first-party bundles from their authoritative sources.
 6. **Compatibility and validation** — run focused tests, full test suite, lint/typecheck/build, secret scan, and a final legacy-reference audit.
@@ -38,12 +38,14 @@ Report mode is non-blocking during migration. Strict mode is a release gate and 
 ## Current branch inventory
 
 - Branch: `codex/alecore-ai-global-rename-20261124`
-- Current base before this staged facade: `fb218d6c6a4df7640641cdda7690f0558a6859b8`
-- Current repository tree inspected: 467 entries, including directories.
-- Current path inventory: 258 paths contain a case-insensitive `nara` substring (path count, not file count).
-- Root package scripts still point at `nara-core` and `nara-cloud`; cloud runtime also depends on NARA-named ports, origins, cookies, session tables, and ticket audience. These are coordinated migration surfaces, not safe standalone renames.
-- Core orchestrator currently exports `NaraOrchestrator`; readiness/authority contracts use `NARA_CORE`. These identifiers have existing consumers and need an explicit compatibility transition.
-- No source files have been bulk-rewritten. The additive facade is the first consumer-safe migration step.
+- Base: `main` at `741045aa5925dd27058499a1daadf16a606ad9aa`.
+- Latest inspected branch head at the time of this update: `65607c18a3d73654bc6289595a706ce62e0c3acb`.
+- Repository tree inspected before the latest desktop wiring commit: 470 entries, including directories.
+- Path inventory at that inspection: 258 paths contain a case-insensitive `nara` substring (path count, not file count).
+- The desktop main process now uses `desktop/alecore-agent-coordinator.mjs`; the implementation is still backed by the legacy module to preserve behavior.
+- Root and cloud package scripts expose AleCore-named entry points alongside the legacy scripts. Cloud origins, cookie names, session tables, ticket audience, and route paths remain compatibility contracts and are not renamed in isolation.
+- Core snapshots preserve the legacy `identity` field while adding `productIdentity`; `integrationPlan().identity` uses the AleCore identity and exposes `legacyIdentity` explicitly.
+- No broad text replacement has been performed. Renames are additive and consumer-aware.
 
 ## Completion criteria
 
