@@ -168,7 +168,7 @@ test('separate Visual Studio panel preserves 16 skills after controlled skill te
  assert.equal(studio.syncPayload().snapshot.skills.length,16);
  assert.equal(studio.syncPayload().snapshot.skillCounts.total,16);
  const health=studio.runHealthScan();
- assert.equal(health.find(item=>item.name==='NARA lifecycle')?.status,'PASS');
+ assert.equal(health.find(item=>item.name==='AleCore AI lifecycle')?.status,'PASS');
  const button={
   dataset:{skillTest:'skill-01',scenario:'thinking'},
   closest:selector=>selector==='[data-skill-test]'?button:null

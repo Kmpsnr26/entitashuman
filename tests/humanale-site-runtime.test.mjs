@@ -34,7 +34,7 @@ test('site NARA runtime preserves core BrainState and EventBus behavior',async()
   let state=runtime.snapshot();
   assert.equal(state.lifecycle,'active');
   assert.equal(state.regions.NARA_CORE.status,'active');
-  assert.equal(cues.at(-1).text,'NARA aktif. Sistem HumanALE siap.');
+  assert.equal(cues.at(-1).text,'AleCore AI aktif. Sistem HumanALE siap.');
 
   runtime.dispatch('brain.region.select',{region:'MEMORY'});
   state=runtime.snapshot();
@@ -71,7 +71,9 @@ test('canonical site wires real NARA state into the existing avatar instead of r
     read('sites/humanale-hologram/dist/avatar.js'),
     read('sites/humanale-hologram/dist/index.html')
   ]);
-  assert.match(site,/HumanALENaraRuntime\.create/);
+  assert.match(site,/window\.AleCoreAIRuntime\|\|window\.HumanALENaraRuntime/);
+  assert.match(site,/Runtime\.create/);
+  assert.match(site,/window\.humanALENara=runtime/);
   assert.match(site,/runtime\.state\.subscribe\(snapshot=>\{/);
   assert.match(site,/avatar\.setBrainState\?\.\(snapshot\)/);
   assert.match(site,/avatar\.onBrainRegionSelect=region=>/);
