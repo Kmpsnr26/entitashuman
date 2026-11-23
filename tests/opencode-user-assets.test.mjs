@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -75,4 +77,40 @@ test("manifest explicitly records deferred community skills and runtime boundary
   assert.equal(manifest.deferredThirdPartySkills.length, 18);
   assert.deepEqual(manifest.deferredCatalogues, ["awesome-skills"]);
   assert.equal(manifest.runtimeStatus, "assets-imported-runtime-adapter-pending");
+});
+
+
+test("installer refuses symlinked parent directories outside the destination", (t) => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "humanale-opencode-assets-"));
+  const destination = path.join(base, "destination");
+  const outside = path.join(base, "outside");
+  const agents = path.join(destination, ".opencode", "agents");
+  fs.mkdirSync(path.join(destination, ".opencode"), { recursive: true });
+  fs.mkdirSync(outside, { recursive: true });
+  try {
+    fs.symlinkSync(outside, agents, process.platform === "win32" ? "junction" : "dir");
+  } catch (error) {
+    fs.rmSync(base, { recursive: true, force: true });
+    if (["EPERM", "EACCES", "ENOTSUP"].includes(error.code)) {
+      t.skip("Directory symlinks are unavailable in this environment.");
+      return;
+    }
+    throw error;
+  }
+
+  try {
+    const installer = path.join(root, "scripts", "opencode", "materialize-user-assets.mjs");
+    const result = spawnSync(process.execPath, [installer, "--destination", destination], { encoding: "utf8" });
+    assert.notEqual(result.status, 0, "installer must reject a symlinked parent directory");
+    assert.match(result.stderr, /unsafe parent directory/i);
+    assert.deepEqual(fs.readdirSync(outside), [], "installer must not write outside the selected destination");
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test("installer uses exclusive creation for temporary files", async () => {
+  const installer = await fs.promises.readFile(path.join(root, "scripts", "opencode", "materialize-user-assets.mjs"), "utf8");
+  assert.match(installer, /openSync\(temporary, "wx"/);
+  assert.match(installer, /randomBytes\(8\)/);
 });
