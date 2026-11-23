@@ -63,3 +63,29 @@ test('stage uses layered ridge contours rather than three broad waves', async ()
   assert.ok((contour.match(/<path\b/g) ?? []).length >= 16);
   assert.doesNotMatch(contour, /M-80 620|M-110 690|M-40 790/);
 });
+
+
+test('conversation dock shows a compact collapsible live Agent and NARA Skill panel',async()=>{
+ const [html,app,css,stageCss]=await Promise.all([
+  readFile(file('public/index.html'),'utf8'),
+  readFile(file('public/app.js'),'utf8'),
+  readFile(file('public/style.css'),'utf8'),
+  readFile(file('public/conversation-stage.css'),'utf8')
+ ]);
+ for(const id of ['conversationTeam','conversationTeamStatus','conversationTeamSummary','conversationTeamToggle','conversationTeamDetails','conversationAgentBadges','conversationSkillBadges','conversationWorkflowStages','conversationTeamNote','conversationOpenAgentHub','conversationTeamRefresh']){
+  assert.equal((html.match(new RegExp('id="'+id+'"','g'))??[]).length,1,id+' must remain unique');
+ }
+ assert.match(html,/aria-controls="conversationTeamDetails"/);
+ assert.match(html,/aria-expanded="false"/);
+ assert.match(app,/function renderConversationTeam\(\)/);
+ assert.match(app,/function renderConversationWorkflow\(\)/);
+ assert.match(app,/latestNaraSkillSnapshot\?\.skills/);
+ assert.match(app,/item\.canRun===true/);
+ assert.match(app,/conversationTeamToggle/);
+ assert.match(app,/details\.hidden=!open/);
+ assert.match(app,/preferredAgent=selectedDeveloperAgentId\|\|\(orchestratorReady\?'humanale-orchestrator':''\)/);
+ assert.match(css,/#chatDialog \.conversation-team-details/);
+ assert.match(css,/#chatDialog \.conversation-team-chip/);
+ assert.match(stageCss,/\.stage-surface #chatDialog \.conversation-team-details/);
+ assert.match(stageCss,/max-height:88px/);
+});
