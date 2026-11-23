@@ -88,10 +88,23 @@ export class NaraAgentCoordinator{
       });
       heartbeat();
       if(result?.error)throw new Error(String(result.error));
-      if(meta.mode==='work'&&result?.maintenance?.changedFiles===0){
+      if(meta.mode==='work'&&Number(result?.maintenance?.changedFiles||0)<=0){
         const error=new Error('Mode Kerja belum menghasilkan perubahan berkas. Periksa hasil executor dan izin sandbox; gunakan Analisis untuk tugas baca saja.');
         error.code='AGENT_WORK_NO_CHANGES';error.category='blocked';throw error;
       }
+      const outputSummary=safeText(result?.text||result?.summary||result?.output||'',500);
+      if(!outputSummary)throw new Error('Agent Hub mengembalikan hasil kosong; NARA tidak dapat memverifikasi Goal.');
+      const verificationSummary=meta.mode==='work'
+        ? 'Output Agent Hub valid dan perubahan berkas terdeteksi: '+Number(result?.maintenance?.changedFiles||0)+' file.'
+        : 'Output analisis Agent Hub tersedia dan tidak mengandung status error.';
+      this.nara.recordGoalEvidence(task.goalId,{
+        criterion:'Agent Hub menyelesaikan task',
+        evidence:outputSummary,verified:true,source:'agent-hub-result'
+      });
+      this.nara.recordGoalEvidence(task.goalId,{
+        criterion:'Hasil melewati lifecycle verifikasi NARA',
+        evidence:verificationSummary,verified:true,source:'nara-output-contract'
+      });
 
       this.nara.dispatch('plan.complete',{source:'nara-agent-coordinator'});
       if(meta.mode==='work')this.nara.dispatch('program.complete',{source:'nara-agent-coordinator'});
