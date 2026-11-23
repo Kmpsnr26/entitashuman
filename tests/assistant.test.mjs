@@ -685,3 +685,16 @@ test('AleCore Local is the first-party offline desktop conversation provider',as
  assert.match(app,/AleCore Local/);
  assert.doesNotMatch(local,/OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY/);
 });
+
+test('AleCore Local Windows setup helper preserves existing data and exposes only loopback',async()=>{
+ const [script,packager]=await Promise.all([
+  readFile(new URL('../scripts/Setup-AleCore-Local.ps1',import.meta.url),'utf8'),
+  readFile(new URL('../package-desktop.mjs',import.meta.url),'utf8')
+ ]);
+ assert.match(script,/OLLAMA_MODELS/);
+ assert.match(script,/D:\\\\AleCoreAI\\\\Models/);
+ assert.match(script,/127\.0\.0\.1:11434\/api\/tags/);
+ assert.match(script,/ollama.*pull|pull.*\$Model/i);
+ assert.doesNotMatch(script,/0\.0\.0\.0|Remove-Item|Move-Item/);
+ assert.match(packager,/Setup-AleCore-Local\.ps1/);
+});
