@@ -123,7 +123,7 @@ export class NaraAutopilot{
         this.experience.record(started.handler,{ok:false,durationMs:Date.now()-startedAt});
         const decision=this.recovery.decide({attempt:task.attempts,errorCategory:error?.category||'runtime',
           capabilityRequired:Boolean(required),capabilityApproved:required?this.capabilities.authorize(required).ok:true,
-          fallbackAvailable:false,idempotent:registered.idempotent===true,compensationConfirmed:false});
+          fallbackAvailable:false,idempotent:registered.idempotent===true,compensationConfirmed:error?.compensationConfirmed===true});
         this.onEvent('autopilot.task.failed',{id:started.id,label:started.label,action:decision.action,reason:decision.reason});
         return {ok:false,error:error?.message||'handler-failed',decision,task};
       }
