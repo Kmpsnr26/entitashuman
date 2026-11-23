@@ -26,3 +26,14 @@
 @media(max-height:560px) and (orientation:landscape){.stage-surface #presence{min-height:100dvh}.stage-surface #avatarArea{left:26%;top:50%;width:min(46vw,78dvh);height:min(46vw,78dvh)}.stage-surface .persona-badge{left:26%;top:7%}.stage-surface .state{left:26%;bottom:7%}.stage-surface #chatDialog.conversation-stage{left:auto;right:3.5vw;top:50%;bottom:auto;transform:translateY(-50%);width:min(48vw,520px);height:calc(100dvh - 24px);padding:13px 15px}.stage-surface .conversation-stage #messages{flex:1}}
 @media(max-height:300px){.stage-surface #chatDialog.conversation-stage{overflow:auto}.stage-surface .conversation-stage #messages{flex:none;height:72px}}
 @media(prefers-reduced-motion:reduce){.stage-surface .stage-contours path{filter:none}}
+
+/* Keep the compact team strip inside the fixed-height chat dock. */
+.stage-surface #chatDialog .conversation-team{margin-bottom:5px;border-color:#8ee1f433;background:#071823aa}
+.stage-surface #chatDialog .conversation-team-heading strong{color:#e1f2f5}
+.stage-surface #chatDialog .conversation-team-heading small{color:#83a8b6}
+.stage-surface #chatDialog .conversation-team-details{max-height:88px;gap:5px}
+.stage-surface #chatDialog .conversation-team-chip{background:#8ee1f40b;border-color:#8ee1f42d;color:#d7ebef}
+.stage-surface #chatDialog .conversation-workflow-stage{padding:3px 5px}
+.stage-surface #chatDialog .conversation-team-note{font-size:9px;color:#7895a0}
+.stage-surface #chatDialog .conversation-team-controls button{color:#c5e0e5;background:#8ee1f40d;border-color:#8ee1f42e}
+@media(max-width:600px) and (orientation:portrait){.stage-surface #chatDialog .conversation-team-details{max-height:96px}}
