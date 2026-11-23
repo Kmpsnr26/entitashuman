@@ -262,3 +262,6 @@ body.detached-panel .humanale-visual-studio-dialog{width:calc(100% - 18px);max-h
 #chatDialog .conversation-team-controls button{padding:4px 7px;font-size:10px}
 #chatDialog .conversation-team[hidden],#chatDialog .conversation-team-details[hidden]{display:none!important}
 @media(max-width:430px){#chatDialog .conversation-team-group{grid-template-columns:56px minmax(0,1fr)}#chatDialog .conversation-team-details{max-height:126px}}
+
+#chatDialog #conversationTeamTest{border-color:#64d8b477;color:#caffdf;background:#64d8b412}
+#chatDialog #conversationTeamTest:disabled{opacity:.55;cursor:wait}
