@@ -132,3 +132,11 @@ test("skill engineer labels exported catalog as unverified rather than active", 
   assert.match(content, /18 community skills/);
   assert.doesNotMatch(content, /✅ Active/);
 });
+
+
+test("security auditor documentation does not claim shell access when policy denies it", () => {
+  const content = readAgent("security-auditor");
+  assert.match(content, /action: shell[\\s\\S]*?effect: deny/);
+  assert.match(content, /\| `shell` \| ❌ Denied by frontmatter/);
+  assert.doesNotMatch(content, /\| `shell` \| ✅ Audit tools/);
+});
