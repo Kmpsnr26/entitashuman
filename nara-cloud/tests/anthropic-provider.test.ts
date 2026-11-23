@@ -127,7 +127,7 @@ test(
 
     assert.match(
       body.system,
-      /NARA/
+      /AleCore AI/
     );
 
     assert.equal(
