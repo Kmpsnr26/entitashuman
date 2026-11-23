@@ -67,3 +67,39 @@ Shared context is an explicit, bounded task packet (goal, plan, relevant files, 
 ## Reproducibility
 
 The submodule pointer is the source of truth for the imported revision. Update it only in a reviewed PR that records the new upstream commit, release notes, license changes, dependency changes, and passing integration tests.
+
+
+## Pinned v2.4.0 runtime contract
+
+This section records implementation facts inspected at the exact submodule commit above. It is an integration contract, not a claim that the runtime adapter is already implemented.
+
+- The upstream monorepo uses Bun `1.4.4`.
+- `@opencode/sdk` v2.4.0 is the embedded Promise/Effect host. It creates the server router in-process and does not open an HTTP listener. Its source package uses internal `workspace:*` dependencies and is built from the upstream monorepo.
+- `@opencode/client` v2.4.0 is the typed network client for a running server. Do not copy examples from the legacy `@opencode-ai/sdk` v1 API into the v2 adapter.
+- The pinned CLI exposes `opencode serve`. Its `--stdio` mode emits a JSON object containing the server URL and keeps the process alive until stdin closes. The server defaults to `127.0.0.1` unless a different hostname is configured.
+- The CLI reads `OPENCODE_PASSWORD`, falling back to `OPENCODE_SERVER_PASSWORD`. The server process removes both names from its inherited process environment before launching tools. The v2 client uses HTTP Basic authentication with username `opencode`.
+
+### Preferred desktop adapter shape
+
+The first implementation should evaluate a separately spawned, version-pinned OpenCode CLI sidecar from the Electron main process, with a private loopback API connection. A direct in-process `@opencode/sdk` integration is an alternative only after its Bun/workspace packaging and resource lifecycle are proven on the supported desktop platforms.
+
+The sidecar must:
+
+1. Resolve and verify the expected OpenCode executable/version before starting; never silently use an arbitrary newer global CLI.
+2. Bind explicitly to `127.0.0.1`; allocate and record a private port, parse the `--stdio` JSON URL, and validate the server health/version before accepting tasks.
+3. Generate a process-scoped password, pass it only to the sidecar environment, use Basic auth from the trusted main process, and never expose it to renderer code, task snapshots, logs, or tool subprocesses.
+4. Use the selected canonical workspace as the only allowed task location. NARA remains the permission authority; OpenCode permission prompts and configuration cannot widen NARA's workspace or action policy.
+5. Default to read-only inspection. Any write, shell, network, or MCP capability requires an explicit NARA capability grant and a corresponding audit event.
+6. Stream session events to NARA with bounded buffering, support cancellation through `AbortSignal`/session interruption, enforce timeouts, and terminate the child process on application shutdown.
+7. Keep OpenCode session/config data under the intended user-controlled storage policy; never check in provider credentials, session databases, or user history.
+
+### Runtime acceptance
+
+- Clean submodule checkout proves the exact pinned source and package versions.
+- Windows x64 sidecar build starts from a clean checkout and reports the expected v2 health/version.
+- An unauthenticated provider fails visibly without being counted as ready.
+- One read-only task produces a session and streamed completion event without modifying the workspace.
+- A separately approved write task is constrained to the selected workspace; cancellation stops the task and cleans up the process.
+- Logs and task evidence contain no provider passwords, OAuth tokens, or private session data.
+
+Phase 2 remains incomplete until these runtime checks pass.
