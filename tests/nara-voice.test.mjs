@@ -17,8 +17,21 @@ test('AleCore AI voice profile is Indonesian adult robot feedback with legacy al
   assert.deepEqual(alecoreVoiceProfile(),{...ALECORE_AI_VOICE_PROFILE});
 });
 
+test('AleCore lifecycle events provide branded speech while accepting legacy event IDs',()=>{
+  const started=voiceCueForEvent({event:'alecore.start'});
+  const legacyStarted=voiceCueForEvent({event:'nara.start'});
+  const stopped=voiceCueForEvent({event:'alecore.shutdown'});
+  const legacyStopped=voiceCueForEvent({event:'nara.shutdown'});
+  assert.equal(started.text,'AleCore AI aktif. Sistem HumanALE siap.');
+  assert.equal(legacyStarted.text,started.text);
+  assert.equal(legacyStarted.key,started.key);
+  assert.equal(stopped.text,'AleCore AI dihentikan. Sampai bertemu kembali.');
+  assert.equal(legacyStopped.text,stopped.text);
+  assert.equal(legacyStopped.key,stopped.key);
+  assert.equal(voiceCueForEvent({event:'brain.region.select',payload:{region:'UNKNOWN'}}).text,'Membuka modul AleCore AI.');
+});
+
 test('voice feedback maps meaningful events and ignores continuous sensory telemetry',()=>{
-  assert.equal(voiceCueForEvent({event:'nara.start'}).text,'NARA aktif. Sistem HumanALE siap.');
   assert.equal(voiceCueForEvent({event:'brain.region.select',payload:{region:'MEMORY'}}).text,'Membuka Memory.');
   assert.equal(voiceCueForEvent({event:'bug.detected'}).priority,'high');
   assert.equal(voiceCueForEvent({event:'audio.energy',payload:{energy:.8}}),null);

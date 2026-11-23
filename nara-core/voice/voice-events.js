@@ -9,9 +9,11 @@ export function voiceCueForEvent(envelope={}){
   const label=region?.label||short(payload.region);
 
   switch(event){
-    case 'nara.start': return {key:'lifecycle:start',text:'NARA aktif. Sistem HumanALE siap.',priority:'high',cooldownMs:8000};
-    case 'nara.shutdown': return {key:'lifecycle:shutdown',text:'NARA dihentikan. Sampai bertemu kembali.',priority:'high',cooldownMs:8000};
-    case 'brain.region.select': return {key:'region:'+String(payload.region||''),text:label?'Membuka '+label+'.':'Membuka modul NARA.',priority:'normal',cooldownMs:700};
+    case 'alecore.start':
+    case 'nara.start': return {key:'lifecycle:start',text:'AleCore AI aktif. Sistem HumanALE siap.',priority:'high',cooldownMs:8000};
+    case 'alecore.shutdown':
+    case 'nara.shutdown': return {key:'lifecycle:shutdown',text:'AleCore AI dihentikan. Sampai bertemu kembali.',priority:'high',cooldownMs:8000};
+    case 'brain.region.select': return {key:'region:'+String(payload.region||''),text:label?'Membuka '+label+'.':'Membuka modul AleCore AI.',priority:'normal',cooldownMs:700};
     case 'work.start': return {key:'work:start',text:'Saya mulai mengerjakan.',priority:'normal',cooldownMs:1800};
     case 'work.complete': return {key:'work:complete',text:'Pekerjaan selesai. Menyiapkan laporan.',priority:'normal',cooldownMs:1800};
     case 'loading.start': return {key:'loading:start',text:'Memulai pemuatan sistem.',priority:'low',cooldownMs:2500};
