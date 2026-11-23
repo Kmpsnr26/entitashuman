@@ -44,7 +44,7 @@ const statusLines = git(["submodule", "status"])
   .trimEnd()
   .split(/\r?\n/);
 const rootStatus = statusLines.find((line) => line.includes("vendor/opencode"));
-const statusMatch = rootStatus?.match(/^([ +\\-U])([a-f0-9]{40})\\s+vendor\\/opencode(?:\\s|$)/);
+const statusMatch = rootStatus?.match(/^([ +U-])([a-f0-9]{40})\s+vendor\/opencode(?:\s|$)/);
 assert.ok(statusMatch, "Git must report the OpenCode submodule and its status marker");
 assert.equal(statusMatch[1], " ", "OpenCode submodule must be initialized at the recorded commit");
 assert.equal(statusMatch[2], expected, "Git submodule status must match the exact upstream pin");
