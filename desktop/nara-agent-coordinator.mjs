@@ -1,12 +1,15 @@
 const safeText=(value,max=180)=>String(value??'').replace(/[\r\n\t]+/g,' ').trim().slice(0,max);
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,Math.max(0,Math.min(5000,Number(ms)||0))));
 export const NARA_AGENT_HANDLER_TIMEOUTS=Object.freeze({
-  analyzeMs:15*60*1000,
-  // Work may run Planner (2m), Specialist (2m), Worker (10m),
-  // Reviewer + one bounded verdict retry (4m), Repair (10m), and
-  // Final Reviewer (2m): up to 30m of sequential executor time.
-  // Keep a five-minute margin for transaction and cleanup overhead.
-  workMs:35*60*1000
+  // Planner, Specialist, Worker, Reviewer and one verdict retry can run
+  // sequentially. Analyze-stage agent timeouts are capped at five minutes.
+  // Reserve five additional minutes for coordinator and cleanup overhead.
+  analyzeMs:30*60*1000,
+  // Work can include Planner (5m), Specialist (5m), Worker (10m),
+  // Reviewer + bounded verdict retry (10m), Repair (10m), and
+  // Final Reviewer (5m): up to 45m of sequential executor time.
+  // Reserve ten additional minutes for transaction and cleanup overhead.
+  workMs:55*60*1000
 });
 
 export class NaraAgentCoordinator{
