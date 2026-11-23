@@ -111,7 +111,7 @@ test('HumanALE Desktop exposes a read-only local collaboration OAT using detecte
  assert.match(validator,/result\?\.executors/);
  assert.match(validator,/expectedRoles/);
  assert.match(validator,/stage\.agent/);
- assert.match(validator,/worker\.agent===reviewer\.agent/);
+ assert.match(validator,/worker\.agent\s*===\s*reviewer\.agent/);
  assert.match(validator,/VERDICT/);
  assert.match(app,/conversationTeamTest'\)\?\.addEventListener/);
  assert.match(app,/Jangan mengedit, membuat, menghapus file/);
