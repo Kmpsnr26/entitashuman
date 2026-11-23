@@ -133,7 +133,6 @@ export class NaraAutopilot{
       if(controller&&!controller.signal.aborted)controller.abort();
       if(this.activeController===controller){this.activeController=null;this.activeTaskId=null;}
       if(watching)this.watchdog.complete(next.id);
-      this.running=false;
     }
   }
   cancel(taskId,reason='Task dibatalkan oleh pemanggil.'){
