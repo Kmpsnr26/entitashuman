@@ -474,7 +474,7 @@ export class DeveloperAgentHub{
    '[REVIEW]',
    review.text
   ].join('\n');
-  return {id:'humanale-orchestrator',name:'HumanALE Orchestrator',mode,difficulty,stages,skillPlan,specialistResults,text:summary};
+  return {id:'humanale-orchestrator',name:'HumanALE Orchestrator',mode,difficulty,executors:roles.executors,stages,skillPlan,specialistResults,text:summary};
  }
  async runTrustedMaintenanceWork(prompt,{transaction,signal=null}={}){
   if(this.maintenanceTransaction?.processTerminationUnconfirmed)throw maintenanceProcessRecoveryError();
