@@ -138,10 +138,16 @@ export function selectStructuredRoles(available=[],preferredWorker=''){
  const allowed=new Set(['codex','github-copilot','cursor','claude']);
  const list=[...new Set((Array.isArray(available)?available:[]).filter(id=>allowed.has(id)))];
  if(!list.length)return null;
- const worker=list.includes(preferredWorker)?preferredWorker:(list.includes('github-copilot')?'github-copilot':list[0]);
- const others=list.filter(id=>id!==worker);
- const planner=others[0]||worker;
- const reviewer=others[1]||others[0]||worker;
+ if(preferredWorker){
+  if(!list.includes(preferredWorker))return null;
+  const worker=preferredWorker,others=list.filter(id=>id!==worker);
+  const planner=others.includes('codex')?'codex':(others[0]||worker);
+  const reviewer=others.includes('codex')?'codex':(others[0]||worker);
+  return {planner,worker,reviewer,degraded:reviewer===worker,executors:list};
+ }
+ const planner=list.includes('codex')?'codex':list[0];
+ const worker=list.includes('github-copilot')&&planner!=='github-copilot'?'github-copilot':(list.find(id=>id!==planner)||planner);
+ const reviewer=list.includes('codex')&&worker!=='codex'?'codex':(list.find(id=>id!==worker)||worker);
  return {planner,worker,reviewer,degraded:reviewer===worker,executors:list};
 }
 function maintenanceChangeSetError(report){
