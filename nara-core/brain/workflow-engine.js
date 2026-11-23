@@ -196,7 +196,7 @@ export class NaraWorkflowEngine{
  }
 
  create(planValue,skillSnapshot={}){
-  if(this.workflow&&!['completed','failed','cancelled'].includes(this.workflow.state))throw new Error('Workflow NARA aktif harus diselesaikan atau dibatalkan terlebih dahulu.');
+  if(this.workflow&&!['completed','failed','cancelled'].includes(this.workflow.state))throw new Error('Workflow AleCore AI aktif harus diselesaikan atau dibatalkan terlebih dahulu.');
   const plan=normalizeWorkflowPlan(planValue);
   const now=this.clock();
   const id=plan.id==='workflow'?'workflow-'+(++this.serial):plan.id;
@@ -229,7 +229,7 @@ export class NaraWorkflowEngine{
  }
 
  grantPermissions(values=[],skillSnapshot=this.skillSnapshot){
-  if(!this.workflow)throw new Error('Workflow NARA belum dibuat.');
+  if(!this.workflow)throw new Error('Workflow AleCore AI belum dibuat.');
   const required=new Set(this.requiredPermissions());
   const list=[...new Set((Array.isArray(values)?values:[]).map(item=>String(item||'').trim()).filter(Boolean))];
   for(const permission of list){
@@ -246,7 +246,7 @@ export class NaraWorkflowEngine{
  }
 
  revokePermissions(values=[],skillSnapshot=this.skillSnapshot){
-  if(!this.workflow)throw new Error('Workflow NARA belum dibuat.');
+  if(!this.workflow)throw new Error('Workflow AleCore AI belum dibuat.');
   const revoked=[];
   for(const value of Array.isArray(values)?values:[]){
    const permission=String(value||'').trim();
@@ -294,8 +294,8 @@ export class NaraWorkflowEngine{
  }
 
  start(skillSnapshot=this.skillSnapshot){
-  if(!this.workflow)throw new Error('Workflow NARA belum dibuat.');
-  if(this.workflow.state!=='planned'&&this.workflow.state!=='blocked')throw new Error('Workflow NARA tidak dapat dimulai dari state '+this.workflow.state+'.');
+  if(!this.workflow)throw new Error('Workflow AleCore AI belum dibuat.');
+  if(this.workflow.state!=='planned'&&this.workflow.state!=='blocked')throw new Error('Workflow AleCore AI tidak dapat dimulai dari state '+this.workflow.state+'.');
   if(!this.workflow.startedAt)this.workflow.startedAt=this.clock();
   this.workflow.state='running';
   this.emit('workflow.started',{workflowId:this.workflow.id,goal:this.workflow.goal});
@@ -309,8 +309,8 @@ export class NaraWorkflowEngine{
  }
 
  startStep(id,skillSnapshot=this.skillSnapshot){
-  if(!this.workflow)throw new Error('Workflow NARA belum dibuat.');
-  if(this.workflow.state!=='running')throw new Error('Workflow NARA belum dalam state running.');
+  if(!this.workflow)throw new Error('Workflow AleCore AI belum dibuat.');
+  if(this.workflow.state!=='running')throw new Error('Workflow AleCore AI belum dalam state running.');
   if(Object.values(this.workflow.steps).some(step=>step.status==='running'||step.status==='verifying'))throw new Error('Hanya satu step workflow NARA boleh aktif pada satu waktu.');
   this.refresh(skillSnapshot);
   const step=this.workflow.steps[id];
@@ -323,7 +323,7 @@ export class NaraWorkflowEngine{
  }
 
  completeStep(id,result=''){
-  if(!this.workflow)throw new Error('Workflow NARA belum dibuat.');
+  if(!this.workflow)throw new Error('Workflow AleCore AI belum dibuat.');
   const step=this.workflow.steps[id];
   if(!step||step.status!=='running')throw new Error('Step workflow tidak sedang berjalan: '+id);
   step.status='verifying';
@@ -334,7 +334,7 @@ export class NaraWorkflowEngine{
  }
 
  verifyStep(id,{ok=true,message=''}={},skillSnapshot=this.skillSnapshot){
-  if(!this.workflow)throw new Error('Workflow NARA belum dibuat.');
+  if(!this.workflow)throw new Error('Workflow AleCore AI belum dibuat.');
   const step=this.workflow.steps[id];
   if(!step||step.status!=='verifying')throw new Error('Step workflow belum dalam verifikasi: '+id);
   if(ok){
@@ -359,7 +359,7 @@ export class NaraWorkflowEngine{
  }
 
  failStep(id,reason='execution-failed'){
-  if(!this.workflow)throw new Error('Workflow NARA belum dibuat.');
+  if(!this.workflow)throw new Error('Workflow AleCore AI belum dibuat.');
   const step=this.workflow.steps[id];
   if(!step||!['running','verifying'].includes(step.status))throw new Error('Step workflow tidak aktif: '+id);
   step.status='failed';step.finishedAt=this.clock();step.blockers=[bounded(reason,120)||'execution-failed'];
@@ -369,7 +369,7 @@ export class NaraWorkflowEngine{
  }
 
  recoverStep(id,skillSnapshot=this.skillSnapshot){
-  if(!this.workflow)throw new Error('Workflow NARA belum dibuat.');
+  if(!this.workflow)throw new Error('Workflow AleCore AI belum dibuat.');
   const step=this.workflow.steps[id];
   if(!step||step.status!=='failed')throw new Error('Step workflow tidak gagal: '+id);
   if(step.attempts>=NARA_WORKFLOW_LIMITS.maxRetries)throw new Error('Batas retry workflow tercapai untuk '+id+'.');

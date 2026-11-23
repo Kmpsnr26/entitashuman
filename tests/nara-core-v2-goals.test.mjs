@@ -192,7 +192,7 @@ test('NARA rejects task-to-goal links before mutating the scheduler when goal is
     id:'orphan-task',
     goalId:'missing-goal',
     handler:'safe.noop'
-  }),/Goal NARA untuk task tidak ditemukan/);
+  }),/Goal AleCore AI untuk task tidak ditemukan/);
   assert.equal(nara.snapshot().engine.autopilot.scheduler.total,0);
   nara.stop();
 });

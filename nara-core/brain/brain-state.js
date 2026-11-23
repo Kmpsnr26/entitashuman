@@ -79,7 +79,7 @@ export class NaraBrainState{
   }
 
   setRegion(id,patch={},source='state.update'){
-    if(!isRegionId(id))throw new Error('Region NARA tidak dikenal: '+id);
+    if(!isRegionId(id))throw new Error('Region AleCore AI tidak dikenal: '+id);
     const current=this.state.regions[id];
     const next={...current,...patch,id,updatedAt:Date.now(),lastEvent:patch.lastEvent||source};
     this.state.regions={...this.state.regions,[id]:next};
@@ -88,7 +88,7 @@ export class NaraBrainState{
   }
 
   selectRegion(id,source='brain.region.select'){
-    if(!isRegionId(id))throw new Error('Region NARA tidak dikenal: '+id);
+    if(!isRegionId(id))throw new Error('Region AleCore AI tidak dikenal: '+id);
     this.state.selectedRegion=id;
     const current=this.state.regions[id]||{status:'idle',activity:0};
     const status=['idle','ready'].includes(current.status)?'active':current.status;
@@ -104,10 +104,10 @@ export class NaraBrainState{
 
     if(event==='nara.start'){
       this.state.lifecycle='active';
-      this.setRegion('NARA_CORE',{status:'active',activity:1,message:'NARA aktif'},event);
+      this.setRegion('NARA_CORE',{status:'active',activity:1,message:'AleCore AI aktif'},event);
     }else if(event==='nara.shutdown'){
       this.state.lifecycle='offline';
-      this.setRegion('NARA_CORE',{status:'offline',activity:0,message:'NARA dihentikan'},event);
+      this.setRegion('NARA_CORE',{status:'offline',activity:0,message:'AleCore AI dihentikan'},event);
     }else if(event==='brain.region.select'&&isRegionId(payload.region)){
       this.selectRegion(payload.region,event);
     }else if(event==='context.prepare'){
@@ -125,10 +125,10 @@ export class NaraBrainState{
     }else if(event==='context.blocked'){
       this.setRegion('MEMORY',{status:'paused',activity:.12,message:'Context memori tidak digunakan'},event);
     }else if(event==='workflow.planned'){
-      this.setRegion('PLANNER',{status:'complete',activity:.45,message:String(payload.goal||'Workflow NARA direncanakan').slice(0,160)},event);
+      this.setRegion('PLANNER',{status:'complete',activity:.45,message:String(payload.goal||'Workflow AleCore AI direncanakan').slice(0,160)},event);
       this.setRegion('FOLLOW_UP',{status:'ready',activity:.25,message:'Workflow menunggu eksekusi terkontrol'},event);
     }else if(event==='workflow.started'){
-      this.setRegion('FOLLOW_UP',{status:'active',activity:.7,message:'Workflow NARA berjalan'},event);
+      this.setRegion('FOLLOW_UP',{status:'active',activity:.7,message:'Workflow AleCore AI berjalan'},event);
     }else if(event==='workflow.blocked'){
       this.setRegion('FOLLOW_UP',{status:'paused',activity:.35,message:'Workflow menunggu dependency atau permission'},event);
       this.setRegion('SAFETY',{status:'active',activity:.55,message:'Workflow diblokir sampai syarat terpenuhi'},event);
@@ -200,7 +200,7 @@ export class NaraBrainState{
       this.setRegion('FOLLOW_UP',{status:'complete',activity:.2,message:'Verifikasi selesai'},event);
       this.setRegion('REPORTING',{status:'complete',activity:.25,message:'Hasil siap dilaporkan'},event);
     }else if(event==='work.start'){
-      this.state.currentTask={id:String(payload.id||'task-'+envelope.id),label:String(payload.label||'Pekerjaan NARA').slice(0,160),startedAt:envelope.timestamp};
+      this.state.currentTask={id:String(payload.id||'task-'+envelope.id),label:String(payload.label||'Pekerjaan AleCore AI').slice(0,160),startedAt:envelope.timestamp};
       this.setRegion('PROGRAM',{status:'processing',activity:1,message:this.state.currentTask.label},event);
       this.setRegion('FOLLOW_UP',{status:'active',activity:.7,message:'Memantau tindak lanjut'},event);
     }else if(event==='work.complete'){

@@ -15,7 +15,7 @@ export class NaraWatchdog{
         if(entry.status!=='watching')this.entries.delete(id);
         if(this.entries.size<this.limit)break;
       }
-      if(this.entries.size>=this.limit)throw new Error('Watchdog NARA penuh: seluruh slot masih memantau task aktif.');
+      if(this.entries.size>=this.limit)throw new Error('Watchdog AleCore AI penuh: seluruh slot masih memantau task aktif.');
     }
     const now=Date.now();
     const item={

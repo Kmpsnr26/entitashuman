@@ -553,7 +553,7 @@ export function createNaraStudioServer({
           host,
           port:actualPort
         });
-        if(!metadata)return json(res,404,{error:'Region NARA tidak ditemukan.'});
+        if(!metadata)return json(res,404,{error:'Region AleCore AI tidak ditemukan.'});
         return json(res,200,{ok:true,region:metadata});
       }
 
@@ -601,7 +601,7 @@ export function createNaraStudioServer({
           ?{ok:false,error:'Event tidak diizinkan dari NARA Studio.'}
           :{ok:false,error:'Event tidak diizinkan dari NARA Studio.',event});
         if(embedded&&!Object.hasOwn(NARA_REGIONS,String(data.payload?.region||''))){
-          return json(res,400,{ok:false,error:'Region NARA tidak valid.'});
+          return json(res,400,{ok:false,error:'Region AleCore AI tidak valid.'});
         }
         const result=nara.dispatch(event,safePayload(data.payload));
         return json(res,200,{ok:true,event:result.event,state:projectState(result.state)});
@@ -669,7 +669,7 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===normalize(process.argv[1]))
   });
   const address=await studio.start();
   const actualPort=typeof address==='object'&&address?address.port:4178;
-  console.log(`NARA Core Live Studio aktif: ${studioOrigin(host,actualPort)}`);
+  console.log(`AleCore AI Live Studio aktif: ${studioOrigin(host,actualPort)}`);
   const shutdown=async()=>{await studio.stop();process.exit(0);};
   process.once('SIGINT',shutdown);process.once('SIGTERM',shutdown);
 }

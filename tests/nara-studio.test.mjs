@@ -217,7 +217,7 @@ test('standalone Studio advertises the configured host as a usable API URL',asyn
         const deadline=setTimeout(()=>reject(new Error('Studio did not advertise a URL: '+stdout+' '+stderr)),5000);
         child.stdout.setEncoding('utf8').on('data',chunk=>{
           stdout+=chunk;
-          const match=stdout.match(/NARA Core Live Studio aktif: (http:\/\/\S+)/);
+          const match=stdout.match(/AleCore AI Live Studio aktif: (http:\/\/\S+)/);
           if(match){clearTimeout(deadline);resolve(match[1]);}
         });
         child.once('error',error=>{clearTimeout(deadline);reject(error);});
