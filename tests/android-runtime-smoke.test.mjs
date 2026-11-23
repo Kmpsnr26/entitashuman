@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {assertLoadedPage, assertNativeEvidence, waitFor} from '../scripts/android/runtime-smoke.mjs';
+import {assertLoadedPage, assertNativeEvidence, shouldCaptureCDPScreenshots, waitFor} from '../scripts/android/runtime-smoke.mjs';
 import {setTimeout as delay} from 'node:timers/promises';
 
 const loaded = {origin: 'https://localhost', platform: 'android', ready: 'complete', avatar: true, prompt: true, chat: true, ownerGate: false, sendEnabled: true};
@@ -29,4 +29,11 @@ test('native acceptance rejects dead process, wrong foreground and app/renderer 
     assert.throws(() => assertNativeEvidence({...native, ...change}));
   }
   assert.doesNotThrow(() => assertNativeEvidence({...native, crash: 'Fatal signal 6 (SIGABRT) in tid 1 (bt_stack_manage)'}));
+});
+
+
+test('Android CDP screenshot evidence is opt-in and does not gate runtime checks', () => {
+  assert.equal(shouldCaptureCDPScreenshots({}), false);
+  assert.equal(shouldCaptureCDPScreenshots({HUMANALE_ANDROID_CDP_SCREENSHOTS: '0'}), false);
+  assert.equal(shouldCaptureCDPScreenshots({HUMANALE_ANDROID_CDP_SCREENSHOTS: '1'}), true);
 });

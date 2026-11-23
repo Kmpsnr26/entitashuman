@@ -116,7 +116,7 @@ function openNaraNetworkWindow(){
    const networkWindow=new BrowserWindow({
     width:1360,height:900,minWidth:860,minHeight:620,
     backgroundColor:'#030706',show:false,
-    title:'HumanALE · NARA Core Network',
+    title:'HumanALE · AleCore AI Network',
     webPreferences:{
      nodeIntegration:false,contextIsolation:true,sandbox:true,
      partition:'nara-network-studio'
@@ -151,7 +151,7 @@ function openNaraNetworkWindow(){
    else if(studio)await studio.stop();
    if(naraNetworkWin&&!naraNetworkWin.isDestroyed())naraNetworkWin.close();
    naraNetworkWin=null;
-   return {ok:false,error:'NARA Core Network Studio gagal dibuka.'};
+   return {ok:false,error:'AleCore AI Network Studio gagal dibuka.'};
   }
  })().finally(()=>{networkStudioOpenPromise=null;});
  return networkStudioOpenPromise;
@@ -827,7 +827,7 @@ else{
    const avatarStudioMaterial=await win.webContents.executeJavaScript("window.dudidamAvatar?.getAvatarStudioMaterial?.()==='matrix'");
    if(!avatarStudioMaterial)throw new Error('Avatar Live Studio material tidak sinkron ke avatar utama.');
    await openPanel('humanaleVisualStudio');
-   const visualStudioReady=await panelWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+3000;const check=()=>{const dialog=document.querySelector('#humanaleVisualStudio');const controller=document.querySelector('#visualStudioController')?.textContent;const renderer=document.querySelector('#visualStudioRenderer')?.textContent;const fps=document.querySelector('#visualStudioFps')?.textContent;const ready=Boolean(dialog?.open&&controller==='NARA_CORE'&&renderer&&fps&&document.querySelector('#visualStudioHealth'));if(ready||Date.now()>deadline)resolve(ready);else setTimeout(check,60);};check();})");
+   const visualStudioReady=await panelWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+3000;const check=()=>{const dialog=document.querySelector('#humanaleVisualStudio');const controller=document.querySelector('#visualStudioController')?.textContent;const renderer=document.querySelector('#visualStudioRenderer')?.textContent;const fps=document.querySelector('#visualStudioFps')?.textContent;const ready=Boolean(dialog?.open&&controller==='AleCore AI'&&renderer&&fps&&document.querySelector('#visualStudioHealth'));if(ready||Date.now()>deadline)resolve(ready);else setTimeout(check,60);};check();})");
    if(!visualStudioReady)throw new Error('HumanALE Visual Studio tidak menerima telemetri runtime utama.');
    const visualStudioV2Ready=await panelWin.webContents.executeJavaScript("new Promise(resolve=>{const deadline=Date.now()+2600;const check=()=>{const regions=document.querySelectorAll('#visualStudioRegions [data-region]').length;const connections=document.querySelectorAll('#visualStudioConnections .visual-studio-connection').length;const timeline=document.querySelectorAll('#visualStudioTimeline .visual-studio-event').length;const ready=regions>=8&&connections>=4&&timeline>=1&&document.querySelector('#visualStudioSceneAccent')&&document.querySelector('#visualStudioPerformanceHistory');if(ready||Date.now()>deadline)resolve(Boolean(ready));else setTimeout(check,80);};check();})");
    if(!visualStudioV2Ready)throw new Error('HumanALE Visual Studio v2 region/timeline/scene diagnostics tidak siap.');
@@ -891,7 +891,7 @@ else{
    const visualTestRestored=await win.webContents.executeJavaScript("window.dudidamDesktop.naraSnapshot().then(result=>Boolean(result?.ok&&result.state?.humanale?.state==='idle'&&result.state?.humanale?.rendererMode==='eco'&&!result.state?.currentTask&&!result.state?.sensory?.hearing?.active&&!result.state?.sensory?.speech?.active))");
    if(!visualTestRestored)throw new Error('HumanALE Visual Studio v3 tidak mengembalikan NARA ke IDLE/ECO setelah test.');
    await panelWin.webContents.executeJavaScript("document.querySelector('#visualStudioHealthScan')?.click()");
-   const visualHealthPass=await panelWin.webContents.executeJavaScript("(()=>{const rows=[...document.querySelectorAll('#visualStudioHealthChecks .visual-studio-health-row')];return rows.length>=6&&rows.some(row=>row.textContent.includes('PASS · NARA authority'));})()");
+   const visualHealthPass=await panelWin.webContents.executeJavaScript("(()=>{const rows=[...document.querySelectorAll('#visualStudioHealthChecks .visual-studio-health-row')];return rows.length>=6&&rows.some(row=>row.textContent.includes('PASS · AleCore AI authority'));})()");
    if(!visualHealthPass)throw new Error('HumanALE Visual Studio v3 Health Scan tidak menghasilkan pemeriksaan runtime.');
    const visualInvalidBlocked=await panelWin.webContents.executeJavaScript("window.dudidamDesktop.naraTestScenario('owner.secret').then(result=>Boolean(result?.error&&String(result.error).includes('tidak dikenal')))");
    if(!visualInvalidBlocked)throw new Error('HumanALE Visual Studio v3 menerima skenario test di luar whitelist.');

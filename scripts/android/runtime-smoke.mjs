@@ -1,6 +1,10 @@
 import {writeFile, mkdir, appendFile, readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 
+export function shouldCaptureCDPScreenshots(source = process.env) {
+  return source.HUMANALE_ANDROID_CDP_SCREENSHOTS === '1';
+}
+
 export function assertLoadedPage(state) {
   if (state.origin !== 'https://localhost' || state.platform !== 'android') throw new Error('Expected the APK native Android page at https://localhost');
   if (state.ready !== 'complete' || !state.avatar || !state.prompt || !state.chat || state.ownerGate || !state.sendEnabled) throw new Error(`HumanALE did not reach a usable page: ${JSON.stringify(state)}`);
@@ -101,7 +105,10 @@ export async function runAndroidRuntimeSmoke(base, directory) {
       return result.result.value;
     };
     const screenshot = async name => {
-      const captured = await captureScreenshotEvidence(cdp, directory, name, report, {timeoutMs: 5000});
+      // CDP screenshots are optional: some accelerated emulator/WebView builds stall the renderer.
+      // The shell runner always captures an ADB screenshot during cleanup instead.
+      if (!shouldCaptureCDPScreenshots()) return false;
+      const captured = await captureScreenshotEvidence(cdp, directory, name, report, {timeoutMs: 15000});
       if (!captured) {
         const warning = report.evidenceWarnings.at(-1);
         console.warn(`WARN: optional Android screenshot evidence unavailable for ${name}: ${warning.error}`);

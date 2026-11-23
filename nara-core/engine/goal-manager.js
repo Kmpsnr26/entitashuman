@@ -6,12 +6,12 @@ export class NaraGoalManager{
   constructor({limit=100}={}){this.limit=Math.max(5,Math.min(1000,Number(limit)||100));this.goals=new Map();this.taskStatuses=new Map();this.sequence=0;}
   create({id='',label='AleCore AI goal',priority=50,parentId='',dependencies=[],successCriteria=[]}={}){
     const goalId=safeText(id||('goal-'+(++this.sequence)),80);
-    if(!SAFE_ID.test(goalId))throw new Error('Goal ID NARA tidak valid.');
+    if(!SAFE_ID.test(goalId))throw new Error('Goal ID AleCore AI tidak valid.');
     if(this.goals.has(goalId))throw new Error('Goal AleCore AI sudah ada: '+goalId);
-    if(this.goals.size>=this.limit)throw new Error('Goal Manager NARA penuh.');
-    const parent=safeText(parentId,80);if(parent&&!this.goals.has(parent))throw new Error('Parent goal NARA tidak ditemukan.');
+    if(this.goals.size>=this.limit)throw new Error('AleCore AI Goal Manager penuh.');
+    const parent=safeText(parentId,80);if(parent&&!this.goals.has(parent))throw new Error('Parent goal AleCore AI tidak ditemukan.');
     const deps=[...new Set((Array.isArray(dependencies)?dependencies:[]).map(value=>safeText(value,80)).filter(Boolean))].slice(0,16);
-    for(const dep of deps)if(!this.goals.has(dep))throw new Error('Dependensi goal NARA tidak ditemukan: '+dep);
+    for(const dep of deps)if(!this.goals.has(dep))throw new Error('Dependensi goal AleCore AI tidak ditemukan: '+dep);
     const criteria=(Array.isArray(successCriteria)?successCriteria:[]).slice(0,16)
       .map(value=>typeof value==='string'?safeText(value,180):safeText(value?.id||value?.description,180)).filter(Boolean);
     const now=Date.now();
@@ -47,7 +47,7 @@ export class NaraGoalManager{
   activate(id){
     const item=this.goals.get(String(id||''));if(!item)throw new Error('Goal AleCore AI tidak ditemukan.');
     if(!['pending','active'].includes(item.status))throw new Error('Goal AleCore AI tidak dapat diaktifkan.');
-    if(!this.dependenciesSatisfied(item))throw new Error('Dependensi goal NARA belum selesai.');
+    if(!this.dependenciesSatisfied(item))throw new Error('Dependensi goal AleCore AI belum selesai.');
     item.status='active';item.activatedAt=item.activatedAt||Date.now();item.updatedAt=Date.now();return this.get(item.id);
   }
   attachTask(goalId,taskId){

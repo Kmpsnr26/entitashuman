@@ -9,7 +9,7 @@ When `ALECORE_CREATOR_PASSWORD` (or legacy `NARA_CREATOR_PASSWORD`) is configure
 - the password is never returned to the browser
 - the session token is stored in an `HttpOnly`, `SameSite=Strict` cookie
 - login failures are rate-limited
-- unsafe NARA events remain denied by the existing event allowlist
+- unsafe events (including legacy NARA event IDs) remain denied by the existing AleCore AI event allowlist
 - camera and microphone permissions remain controlled by Chromium/Windows
 - the gateway only probes media capability after a user action and immediately stops probe tracks
 - raw API keys, tokens, database passwords and other secrets must never be rendered in Neural Space

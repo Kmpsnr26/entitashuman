@@ -311,7 +311,7 @@ export class NaraWorkflowEngine{
  startStep(id,skillSnapshot=this.skillSnapshot){
   if(!this.workflow)throw new Error('Workflow AleCore AI belum dibuat.');
   if(this.workflow.state!=='running')throw new Error('Workflow AleCore AI belum dalam state running.');
-  if(Object.values(this.workflow.steps).some(step=>step.status==='running'||step.status==='verifying'))throw new Error('Hanya satu step workflow NARA boleh aktif pada satu waktu.');
+  if(Object.values(this.workflow.steps).some(step=>step.status==='running'||step.status==='verifying'))throw new Error('Hanya satu step workflow AleCore AI boleh aktif pada satu waktu.');
   this.refresh(skillSnapshot);
   const step=this.workflow.steps[id];
   if(!step)throw new Error('Step workflow tidak dikenal: '+id);
