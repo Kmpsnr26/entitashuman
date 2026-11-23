@@ -35,6 +35,10 @@ When Copilot or an automation is assigned an issue:
 - Treat successful tests as evidence only for what they cover. Do not claim that packaging, native UI, credentials, or live cloud providers work unless those paths were actually verified.
 - Summarize changed files, root cause, tests run, residual risk, and any manual verification required in the Draft PR.
 
+## Optional cloud agents
+
+Cloud coding agents that require a paid entitlement or separate cloud secret are optional. Do not make them a prerequisite for local development, tests, builds, or release checks. When Copilot Cloud Agent is not configured, the repository workflow must leave eligible issues visibly queued/deferred and must not claim that an agent accepted or started work. Prefer locally installed, authenticated executors that pass the Agent Hub readiness checks. If no suitable local executor is available, stop safely and explain the missing setup rather than inventing an agent run.
+
 ## Change discipline
 - Prefer small, reviewable patches.
 - Never delete a feature solely to make a test pass.
