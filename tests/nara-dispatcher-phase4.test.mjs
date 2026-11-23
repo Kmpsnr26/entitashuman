@@ -497,3 +497,35 @@ test('explicitly requeued task ignores its cached terminal failure and executes 
   assert.equal(calls,2);
   assert.equal(scheduler.get('manual-requeue-task').status,'complete');
 });
+
+
+test('cancelling a requeued task never returns its previous cached failure',async()=>{
+  const scheduler=createTaskScheduler();
+  const watchdog=createWatchdog();
+  const capabilities=createCapabilityBroker();
+  const experience=createExperienceModel();
+  const recovery={decide(){return {action:'escalate',reason:'manual-requeue-required',delayMs:0};}};
+  const autopilot=createAutopilot({scheduler,watchdog,recovery,capabilities,experience});
+  let calls=0;
+  autopilot.registerHandler('test.cancel-requeued',async()=>{
+    calls+=1;
+    throw new Error('original attempt failed');
+  });
+  autopilot.enqueue({id:'cancel-requeued-task',handler:'test.cancel-requeued'});
+  const first=await autopilot.runTask('cancel-requeued-task');
+  assert.equal(first.ok,false);
+  assert.equal(first.error,'original attempt failed');
+  assert.equal(calls,1);
+
+  scheduler.requeue('cancel-requeued-task');
+  assert.equal(scheduler.get('cancel-requeued-task').status,'queued');
+  autopilot.cancel('cancel-requeued-task','cancelled before retry starts');
+  assert.equal(scheduler.get('cancel-requeued-task').status,'cancelled');
+
+  const cancelled=await autopilot.runTask('cancel-requeued-task');
+  assert.equal(cancelled.ok,false);
+  assert.equal(cancelled.reason,'cancelled');
+  assert.equal(cancelled.task.status,'cancelled');
+  assert.equal(calls,1,'a cancelled requeued task must not invoke its handler again');
+  assert.equal(autopilot.snapshot().scheduler.tasks.find(task=>task.id==='cancel-requeued-task').status,'cancelled');
+});
