@@ -109,7 +109,11 @@ function pipeline(root,worker,{signal,commandRunner,commandTimeoutMs,limits,dete
   assert.equal(transaction.released,false);
   assert.equal(hub.getProjectRoot(),transaction.cwd);
   await worker({attempt:++attempts,transaction});
-  return {text:'bounded fixture executor'};
+  return {text:'bounded fixture executor',stages:[
+   {role:'planner',text:'Fixture plan'},
+   {role:'worker',text:'Fixture work completed'},
+   {role:'reviewer',text:'Fixture review passed. VERDICT: PASS'}
+  ]};
  };
  const broker=createTrustedMaintenanceBroker({
   projectRoot:root,
