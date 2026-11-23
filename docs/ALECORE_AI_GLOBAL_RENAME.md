@@ -39,13 +39,16 @@ Report mode is non-blocking during migration. Strict mode is a release gate and 
 
 - Branch: `codex/alecore-ai-global-rename-20261124`
 - Base: `main` at `741045aa5925dd27058499a1daadf16a606ad9aa`.
-- Latest inspected branch head at the time of this update: `65607c18a3d73654bc6289595a706ce62e0c3acb`.
-- Repository tree inspected before the latest desktop wiring commit: 470 entries, including directories.
-- Path inventory at that inspection: 258 paths contain a case-insensitive `nara` substring (path count, not file count).
-- The desktop main process now uses `desktop/alecore-agent-coordinator.mjs`; the implementation is still backed by the legacy module to preserve behavior.
-- Root and cloud package scripts expose AleCore-named entry points alongside the legacy scripts. Cloud origins, cookie names, session tables, ticket audience, and route paths remain compatibility contracts and are not renamed in isolation.
-- Core snapshots preserve the legacy `identity` field while adding `productIdentity`; `integrationPlan().identity` uses the AleCore identity and exposes `legacyIdentity` explicitly.
-- No broad text replacement has been performed. Renames are additive and consumer-aware.
+- Latest inspected branch head: `3a5f1f3162eff96ada6d53a7ccbab8af0a2b0b69`.
+- Repository tree: 479 entries; 262 paths contain a case-insensitive `nara` substring (path count, not file count). Most remaining references are internal compatibility names, import paths, test paths, persisted event/region IDs, workflow/environment names, and auth/session contracts.
+- The desktop main process uses `desktop/alecore-agent-coordinator.mjs` and `desktop/AleCoreCloudContextClient`; legacy implementations remain exported as aliases while consumers transition.
+- Canonical cloud desktop settings are `ALECORE_CLOUD_ORIGIN` and `ALECORE_AUTH_ORIGIN`; non-empty new values take precedence and blank/missing values fall back to the legacy `NARA_CLOUD_ORIGIN` / `NARA_AUTH_ORIGIN`.
+- Canonical Creator bootstrap settings are `ALECORE_CREATOR_USERNAME` and `ALECORE_CREATOR_PASSWORD`; legacy `NARA_CREATOR_*` variables remain supported. Desktop bootstrap removes both password variables from its process environment after provisioning.
+- Cloud server aliases `ALECORE_PORT`, `PUBLIC_ALECORE_ORIGIN`, and `ALECORE_SESSION_SECRET` normalize to the existing internal keys; the legacy names remain accepted.
+- Voice feedback exposes the AleCore profile/factory and accepts `alecore.start` / `alecore.shutdown`; old `nara.start` / `nara.shutdown` events are still mapped to the same AleCore-branded voice cues.
+- Product-facing Cloud labels, Creator Gateway instructions, core status text, workflow/goal/watchdog error messages, and Studio startup narration now use AleCore AI wording. Stable internal IDs such as `NARA_CORE`, storage paths, cookies, session tables, route paths, SSO ticket audience, and persisted event IDs are deliberately retained pending a tested versioned migration.
+- PR #255 remains Draft and targets `main`. GitHub CI for this branch is still in progress; successful partial jobs are recorded in the checks, but no full-green claim is made yet.
+- No broad text replacement has been performed. Changes are additive and consumer-aware.
 
 ## Completion criteria
 
