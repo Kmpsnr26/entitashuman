@@ -40,12 +40,14 @@ assert.equal(treeMatch[1], expected, "Gitlink must match the documented upstream
 const checkedOutSha = git(["rev-parse", "HEAD"], upstream).trim();
 assert.equal(checkedOutSha, expected, "Initialized OpenCode submodule must match the pinned commit");
 
-const statusLines = git(["submodule", "status", "--recursive", "vendor/opencode"])
+const statusLines = git(["submodule", "status"])
   .trimEnd()
   .split(/\r?\n/);
-const rootStatus = statusLines.find((line) => line.endsWith(" vendor/opencode"));
-assert.ok(rootStatus, "Git must report the OpenCode submodule");
-assert.equal(rootStatus[0], " ", "OpenCode submodule must be initialized at the recorded commit");
+const rootStatus = statusLines.find((line) => line.includes("vendor/opencode"));
+const statusMatch = rootStatus?.match(/^([ +\\-U])([a-f0-9]{40})\\s+vendor\\/opencode(?:\\s|$)/);
+assert.ok(statusMatch, "Git must report the OpenCode submodule and its status marker");
+assert.equal(statusMatch[1], " ", "OpenCode submodule must be initialized at the recorded commit");
+assert.equal(statusMatch[2], expected, "Git submodule status must match the exact upstream pin");
 
 const rootPackage = readJson(join(upstream, "package.json"));
 assert.equal(rootPackage.name, "opencode");
