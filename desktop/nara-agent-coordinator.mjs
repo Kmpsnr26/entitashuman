@@ -177,7 +177,7 @@ export class NaraAgentCoordinator{
       }
 
       if(outcome?.ok){
-        if(retried){
+        if(retried||outcome.recovered){
           const monitor=this.nara.state?.snapshot?.().regions?.ERROR_MONITOR;
           if(monitor?.lastEvent==='autopilot.task.failed'){
             this.nara.state.setRegion('ERROR_MONITOR',{
