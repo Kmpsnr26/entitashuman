@@ -109,7 +109,11 @@ function pipeline(root,worker,{signal,commandRunner,commandTimeoutMs,limits,dete
   assert.equal(transaction.released,false);
   assert.equal(hub.getProjectRoot(),transaction.cwd);
   await worker({attempt:++attempts,transaction});
-  return {text:'bounded fixture executor'};
+  return {text:'bounded fixture executor',stages:[
+   {role:'planner',text:'Fixture plan'},
+   {role:'worker',text:'Fixture work completed'},
+   {role:'reviewer',text:'Fixture review passed. VERDICT: PASS'}
+  ]};
  };
  const broker=createTrustedMaintenanceBroker({
   projectRoot:root,
@@ -163,7 +167,9 @@ test('real HumanALE Orchestrator runs Planner → Worker → Reviewer and retain
  assert.equal(git(root,'rev-parse','HEAD'),head,'verified maintenance must not create a checkpoint commit yet');
  assert.ok(spawns.some(item=>item.id==='github-copilot'&&item.mode==='analyze'),'Planner/Reviewer must use a read-only executor');
  assert.ok(spawns.some(item=>item.id==='cursor'&&item.mode==='work'),'Worker must use the writable bounded executor');
- assert.ok(spawns.filter(item=>item.id==='github-copilot'&&item.mode==='analyze').length>=2,'Planner and Reviewer must both run');
+ const readOnlyStages=spawns.filter(item=>item.mode==='analyze');
+ assert.ok(readOnlyStages.length>=2,'Planner and Reviewer must both run read-only');
+ assert.ok(new Set(readOnlyStages.map(item=>item.id)).size>=2,'Planner and Reviewer must use distinct executors when three are available');
  assert.ok(Object.values(result.authority).every(value=>value===false));
  assert.equal(broker.snapshot().activeSessions,0);
  assert.ok(transactions.every(tx=>tx.released));

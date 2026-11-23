@@ -1,5 +1,16 @@
 const safeText=(value,max=180)=>String(value??'').replace(/[\r\n\t]+/g,' ').trim().slice(0,max);
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,Math.max(0,Math.min(5000,Number(ms)||0))));
+export const NARA_AGENT_HANDLER_TIMEOUTS=Object.freeze({
+  // Planner, Specialist, Worker, Reviewer and one verdict retry can run
+  // sequentially. Analyze-stage agent timeouts are capped at five minutes.
+  // Reserve five additional minutes for coordinator and cleanup overhead.
+  analyzeMs:30*60*1000,
+  // Work can include Planner (5m), Specialist (5m), Worker (10m),
+  // Reviewer + bounded verdict retry (10m), Repair (10m), and
+  // Final Reviewer (5m): up to 45m of sequential executor time.
+  // Reserve ten additional minutes for transaction and cleanup overhead.
+  workMs:55*60*1000
+});
 
 export class NaraAgentCoordinator{
   constructor({nara,agentHub}={}){
@@ -19,12 +30,12 @@ export class NaraAgentCoordinator{
     this.nara.registerAutopilotHandler(
       'humanale.agent.analyze',
       context=>this.execute(context,'analyze'),
-      {timeoutMs:15*60*1000}
+      {timeoutMs:NARA_AGENT_HANDLER_TIMEOUTS.analyzeMs,idempotent:true}
     );
     this.nara.registerAutopilotHandler(
       'humanale.agent.work',
       context=>this.execute(context,'work'),
-      {timeoutMs:15*60*1000}
+      {timeoutMs:NARA_AGENT_HANDLER_TIMEOUTS.workMs}
     );
     this.bound=true;
     return this;
@@ -53,7 +64,7 @@ export class NaraAgentCoordinator{
     };
   }
 
-  async execute({task,heartbeat},expectedMode){
+  async execute({task,heartbeat,signal},expectedMode){
     const meta=this.pending.get(task.id);
     if(!meta)throw new Error('Metadata task Agent Hub tidak tersedia.');
     if(meta.mode!==expectedMode)throw new Error('Mode task Agent Hub tidak konsisten.');
@@ -84,14 +95,36 @@ export class NaraAgentCoordinator{
         id:meta.id,
         prompt:meta.prompt,
         mode:meta.mode,
-        memoryContext:meta.memoryContext
+        memoryContext:meta.memoryContext,
+        signal
       });
       heartbeat();
       if(result?.error)throw new Error(String(result.error));
-      if(meta.mode==='work'&&result?.maintenance?.changedFiles===0){
+      if(meta.mode==='work'&&Number(result?.maintenance?.changedFiles||0)<=0){
         const error=new Error('Mode Kerja belum menghasilkan perubahan berkas. Periksa hasil executor dan izin sandbox; gunakan Analisis untuk tugas baca saja.');
         error.code='AGENT_WORK_NO_CHANGES';error.category='blocked';throw error;
       }
+      const outputSummary=safeText(result?.text||result?.summary||result?.output||'',500);
+      if(!outputSummary)throw new Error('Agent Hub mengembalikan hasil kosong; NARA tidak dapat memverifikasi Goal.');
+      const reviewerStages=Array.isArray(result?.stages)?result.stages.filter(stage=>stage?.role==='reviewer'):[];
+      const reviewerText=String(reviewerStages.at(-1)?.text||'');
+      // A final reviewer NEEDS_FIX always wins; aggregate status is not an independent review.
+      const reviewerPassed=reviewerStages.length>0&&new RegExp('\\bVERDICT\\s*:\\s*PASS\\b','i').test(reviewerText);
+      if(meta.mode==='work'&&!reviewerPassed){
+        const error=new Error('Mode Kerja belum lolos verifikasi reviewer independen. NARA menolak menyelesaikan Goal tanpa VERDICT: PASS.');
+        error.code='AGENT_WORK_REVIEW_REQUIRED';error.category='verification';throw error;
+      }
+      const verificationSummary=meta.mode==='work'
+        ? 'Reviewer independen memberikan VERDICT: PASS dan perubahan berkas terdeteksi: '+Number(result?.maintenance?.changedFiles||0)+' file.'
+        : 'Output analisis Agent Hub tersedia dan tidak mengandung status error.';
+      this.nara.recordGoalEvidence(task.goalId,{
+        criterion:'Agent Hub menyelesaikan task',
+        evidence:outputSummary,verified:true,source:'agent-hub-result'
+      });
+      this.nara.recordGoalEvidence(task.goalId,{
+        criterion:'Hasil melewati lifecycle verifikasi NARA',
+        evidence:verificationSummary,verified:true,source:'nara-output-contract'
+      });
 
       this.nara.dispatch('plan.complete',{source:'nara-agent-coordinator'});
       if(meta.mode==='work')this.nara.dispatch('program.complete',{source:'nara-agent-coordinator'});
@@ -155,7 +188,7 @@ export class NaraAgentCoordinator{
       }
 
       if(outcome?.ok){
-        if(retried){
+        if(retried||outcome.recovered){
           const monitor=this.nara.state?.snapshot?.().regions?.ERROR_MONITOR;
           if(monitor?.lastEvent==='autopilot.task.failed'){
             this.nara.state.setRegion('ERROR_MONITOR',{
@@ -197,6 +230,8 @@ export class NaraAgentCoordinator{
       const goal=core.engine.goals.goals.find(item=>item.id===goalId)||null;
       return {
         error:outcome?.error||outcome?.reason||'Agent task gagal.',
+        reason:outcome?.reason||null,
+        decision:outcome?.decision||null,
         nara:{
           goalId,
           taskId,

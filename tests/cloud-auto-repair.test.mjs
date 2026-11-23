@@ -8,6 +8,7 @@ import {
  issueRecovered,
  managedCiSource,
  routeFallbackCandidates,
+ routeWithoutCopilotToken,
  selectLatestFailedRuns
 } from './helpers/cloud-auto-repair-logic.mjs';
 
@@ -17,15 +18,22 @@ const workflow=await readFile(
 );
 
 function extractBlocks(name){
- const escaped=name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
- const pattern=new RegExp(
-  `// cloud-auto-repair-test:start ${escaped}\\r?\\n([\\s\\S]*?)`+
-  `// cloud-auto-repair-test:end ${escaped}`,
-  'g'
- );
- return [...workflow.matchAll(pattern)].map((match)=>match[1].trim());
+ const startMarker='// cloud-auto-repair-test:start '+name;
+ const endMarker='// cloud-auto-repair-test:end '+name;
+ const blocks=[];
+ let cursor=0;
+ while(true){
+  const marker=workflow.indexOf(startMarker,cursor);
+  if(marker<0)break;
+  const lineBreak=workflow.indexOf('\n',marker);
+  if(lineBreak<0)break;
+  const end=workflow.indexOf(endMarker,lineBreak+1);
+  if(end<0)break;
+  blocks.push(workflow.slice(lineBreak+1,end).trim());
+  cursor=end+endMarker.length;
+ }
+ return blocks;
 }
-
 function normalizeSource(source){
  const lines=source.trim().split(/\r?\n/);
  const indents=lines.slice(1)
@@ -191,8 +199,30 @@ test('Actions PR creation disabled leaves candidates queued and skips fallback j
   fallback:candidates,queued:[]
  });
  assert.match(workflow,/can_approve_pull_request_reviews === true/);
- assert.match(workflow,/core\.setOutput\('queued_issues', JSON\.stringify\(route\.queued\)\)/);
+ assert.match(workflow,/core\.setOutput\('queued_issues', JSON\.stringify\(\[\.\.\.queued, \.\.\.route\.queued\]\)\)/);
  assert.match(workflow,/if: needs\.triage\.outputs\.fallback_issues != '\[\]'/);
+});
+
+test('Copilot Cloud Agent is explicitly deferred when no token is configured',()=>{
+ assert.match(workflow,/COPILOT_TOKEN_CONFIGURED: \$\{\{ secrets\.COPILOT_ASSIGN_TOKEN != '' \}\}/);
+ assert.match(workflow,/Copilot Cloud Agent is intentionally deferred/);
+ assert.match(workflow,/core\.setOutput\('queued_issues', JSON\.stringify\(\[\.\.\.queued, \.\.\.route\.queued\]\)\)/);
+ assert.match(workflow,/'automation:deferred': \{/);
+ assert.match(workflow,/Cloud agent is intentionally deferred/);
+ assert.match(workflow,/automation:deferred', 'ai-fix-needed'/);
+ assert.match(workflow,/await remove\(candidate\.issue_number, 'automation:deferred'\)/);
+ assert.match(workflow,/routeWithoutCopilotToken\(\{alreadyAssigned,hasOpenFallback\}\)/);
+ assert.match(workflow,/existingFallbackCandidates\.push\(candidate\)/);
+ assert.match(workflow,/if \(route === 'delegated'\) delegated\.push\(candidate\)/);
+ assert.match(workflow,/else queued\.push\(candidate\)/);
+ assert.doesNotMatch(workflow,/if \(process\.env\.COPILOT_TOKEN_CONFIGURED !== 'true'\)[\s\S]{0,500}return;/);
+ assert.match(workflow,/if \(!tokenConfigured\) queued\.push\(candidate\);\s*else fallback\.push\(candidate\);/);
+ const lookupCatch=workflow.slice(
+  workflow.indexOf("const issue = await github.rest.issues.get"),
+  workflow.indexOf("const route = routeFallbackCandidates")
+ );
+ assert.match(lookupCatch,/if \(!tokenConfigured\) queued\.push\(candidate\)/);
+ assert.match(lookupCatch,/else fallback\.push\(candidate\)/);
 });
 
 test('stale CI retirement identifies only managed non-default source branches',()=>{
@@ -220,4 +250,39 @@ test('stale CI retirement identifies only managed non-default source branches',(
  assert.match(workflow,/if \(error\.status !== 404\) throw error;/);
  assert.match(workflow,/run\.head_sha !== source\.headSha/);
  assert.match(workflow,/state_reason: 'not_planned'/);
+});
+
+
+test('missing Copilot token preserves existing assignments and fallback PRs',()=>{
+ const blocks=extractBlocks('no-token-routing');
+ assert.equal(blocks.length,1);
+ assert.equal(normalizeSource(blocks[0]),normalizeSource(routeWithoutCopilotToken.toString()));
+
+ assert.equal(routeWithoutCopilotToken({alreadyAssigned:true,hasOpenFallback:false}),'delegated');
+ assert.equal(routeWithoutCopilotToken({alreadyAssigned:false,hasOpenFallback:true}),'fallback');
+ assert.equal(routeWithoutCopilotToken({alreadyAssigned:false,hasOpenFallback:false}),'queued');
+
+ const loopStart=workflow.indexOf("for (const candidate of candidates)");
+ const issueLookup=workflow.indexOf("github.rest.issues.get",loopStart);
+ const activeAssignment=workflow.indexOf("if (alreadyAssigned)",issueLookup);
+ const fallbackLookup=workflow.indexOf("github.rest.pulls.list",activeAssignment);
+ const noTokenRoute=workflow.indexOf("routeWithoutCopilotToken({alreadyAssigned,hasOpenFallback})",fallbackLookup);
+ const existingFallback=workflow.indexOf("if (hasOpenFallback)",noTokenRoute);
+ const assignApi=workflow.indexOf("'POST /repos/{owner}/{repo}/issues/{issue_number}/assignees'",existingFallback);
+ assert.ok(loopStart>=0);
+ assert.ok(issueLookup>loopStart);
+ assert.ok(activeAssignment>issueLookup);
+ assert.ok(fallbackLookup>activeAssignment);
+ assert.ok(noTokenRoute>fallbackLookup);
+ assert.ok(existingFallback>noTokenRoute);
+ assert.ok(assignApi>existingFallback);
+ assert.match(workflow,/fallback_issues', JSON\.stringify\(\[\.\.\.existingFallbackCandidates, \.\.\.route\.fallback\]\)/);
+ assert.match(workflow,/existingFallbackCandidates\.push\(candidate\)/);
+ assert.match(workflow,/const existingFallbackPulls = await github\.rest\.pulls\.list/);
+ assert.match(workflow,/existingFallbackPulls\.data\.length > 0/);
+ assert.ok(workflow.indexOf("if (alreadyAssigned)")<workflow.indexOf("const existingFallbackPulls = await github.rest.pulls.list"));
+ assert.match(workflow,/if \(alreadyAssigned\) \{\s*delegated\.push\(candidate\);\s*continue;/);
+ assert.doesNotMatch(workflow,/const existingFallback =/);
+ assert.match(workflow,/queued_issues', JSON\.stringify\(\[\.\.\.queued, \.\.\.route\.queued\]\)/);
+ assert.doesNotMatch(workflow,/if \(process\.env\.COPILOT_TOKEN_CONFIGURED !== 'true'\)[\s\S]{0,500}return;/);
 });

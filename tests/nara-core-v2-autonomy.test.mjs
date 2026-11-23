@@ -36,9 +36,12 @@ test('watchdog only marks overdue registered tasks as stalled',()=>{
 
 test('recovery engine keeps retries bounded and escalates auth or policy failures',()=>{
   const recovery=createRecoveryEngine({maxRetries:2});
-  assert.equal(recovery.decide({attempt:0,errorCategory:'runtime'}).action,'retry');
-  assert.equal(recovery.decide({attempt:1,errorCategory:'runtime'}).action,'retry');
-  assert.equal(recovery.decide({attempt:2,errorCategory:'runtime'}).action,'escalate');
+  assert.equal(recovery.decide({attempt:0,errorCategory:'runtime'}).action,'escalate');
+  assert.equal(recovery.decide({attempt:0,errorCategory:'runtime'}).reason,
+    'unsafe-retry-requires-idempotency-or-confirmed-compensation');
+  assert.equal(recovery.decide({attempt:0,errorCategory:'runtime',idempotent:true}).action,'retry');
+  assert.equal(recovery.decide({attempt:1,errorCategory:'runtime',idempotent:true}).action,'retry');
+  assert.equal(recovery.decide({attempt:2,errorCategory:'runtime',idempotent:true}).action,'escalate');
   assert.equal(recovery.decide({attempt:0,errorCategory:'auth'}).action,'escalate');
   assert.equal(recovery.decide({
     attempt:0,

@@ -102,3 +102,10 @@ export function selectLatestFailedRuns(runs, options) {
     })
     .slice(0, limit);
 }
+
+
+export function routeWithoutCopilotToken({alreadyAssigned,hasOpenFallback}) {
+  if (alreadyAssigned) return 'delegated';
+  if (hasOpenFallback) return 'fallback';
+  return 'queued';
+}

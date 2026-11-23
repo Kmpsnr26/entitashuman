@@ -5,6 +5,7 @@ import {
   createAutopilot,
   createCapabilityBroker,
   createExperienceModel,
+  createGoalManager,
   createRecoveryEngine,
   createTaskScheduler,
   createWatchdog
@@ -259,4 +260,272 @@ test('autopilot retry reuses its request ID and rolls back before retrying',asyn
   assert.ok(rollbackIndex>=0);
   assert.ok(retryIndex>rollbackIndex);
   assert.deepEqual(calls.filter(call=>call[0]==='rollback').map(call=>call[2]),[1]);
+});
+
+
+test('NARA Core dispatcher serializes concurrent task waiters and preserves each result',async()=>{
+  const {autopilot,scheduler}=createAutopilotFixture();
+  const firstStarted=deferred(),releaseFirst=deferred();
+  autopilot.registerHandler('test.concurrent',async({task})=>{
+    if(task.id==='concurrent-a'){firstStarted.resolve();await releaseFirst.promise;}
+    return {taskId:task.id};
+  });
+  autopilot.enqueue({id:'concurrent-a',handler:'test.concurrent',priority:90});
+  autopilot.enqueue({id:'concurrent-b',handler:'test.concurrent',priority:80});
+  const first=autopilot.runTask('concurrent-a');
+  await firstStarted.promise;
+  const second=autopilot.runTask('concurrent-b');
+  releaseFirst.resolve();
+  const [a,b]=await Promise.all([first,second]);
+  assert.equal(a.ok,true);assert.equal(b.ok,true);
+  assert.equal(a.result.taskId,'concurrent-a');assert.equal(b.result.taskId,'concurrent-b');
+  assert.equal(scheduler.get('concurrent-a').status,'complete');
+  assert.equal(scheduler.get('concurrent-b').status,'complete');
+});
+
+test('NARA Core timeout aborts the handler and releases dispatcher capacity',async()=>{
+  const {autopilot,scheduler}=createAutopilotFixture();
+  let signalSeen=false;
+  autopilot.registerHandler('test.timeout',async({signal})=>new Promise((resolve)=>{
+    signal.addEventListener('abort',()=>{signalSeen=true;resolve('aborted');},{once:true});
+  }),{timeoutMs:1000});
+  autopilot.registerHandler('test.after-timeout',async()=>({ok:true}));
+  autopilot.enqueue({id:'timeout-task',handler:'test.timeout'});
+  autopilot.enqueue({id:'after-timeout-task',handler:'test.after-timeout'});
+  const result=await autopilot.runTask('timeout-task');
+  assert.equal(result.ok,false);
+  assert.equal(result.error,'Autopilot task timeout.');
+  assert.equal(signalSeen,true);
+  assert.equal(scheduler.get('timeout-task').status,'failed');
+  assert.equal(scheduler.snapshot().running,0);
+  const next=await autopilot.runTask('after-timeout-task');
+  assert.equal(next.ok,true);
+});
+
+test('NARA Core honors recovery delay before retrying an idempotent task',async()=>{
+  const scheduler=createTaskScheduler();
+  const watchdog=createWatchdog();
+  const capabilities=createCapabilityBroker();
+  const experience=createExperienceModel();
+  const retryDelayMs=80;
+  const recovery={decide(){return {action:'retry',reason:'idempotent-retry',delayMs:retryDelayMs};}};
+  const autopilot=createAutopilot({scheduler,watchdog,recovery,capabilities,experience});
+  let calls=0;
+  autopilot.registerHandler('test.retry-delay',async()=>{
+    calls+=1;
+    if(calls===1)throw new Error('temporary provider failure');
+    return 'recovered';
+  },{idempotent:true});
+  autopilot.enqueue({id:'retry-delay-task',handler:'test.retry-delay'});
+  const startedAt=Date.now();
+
+  const result=await autopilot.runTask('retry-delay-task');
+
+  assert.equal(result.ok,true);
+  assert.equal(result.result,'recovered');
+  assert.equal(calls,2);
+  assert.ok(Date.now()-startedAt>=retryDelayMs-15,'retry must wait for the recovery backoff');
+  assert.equal(scheduler.get('retry-delay-task').status,'complete');
+});
+
+test('NARA Core classifies an internal timeout separately from caller cancellation',async()=>{
+  const scheduler=createTaskScheduler();
+  const watchdog=createWatchdog();
+  const capabilities=createCapabilityBroker();
+  const experience=createExperienceModel();
+  let recoveryInput=null;
+  const recovery={decide(input){recoveryInput=input;return {action:'escalate',reason:'timeout-observed',delayMs:0};}};
+  const autopilot=createAutopilot({scheduler,watchdog,recovery,capabilities,experience});
+  let signalSeen=false;
+  autopilot.registerHandler('test.timeout-category',async({signal})=>new Promise(()=>{
+    signal.addEventListener('abort',()=>{signalSeen=true;},{once:true});
+  }),{timeoutMs:1000,idempotent:true});
+  autopilot.enqueue({id:'timeout-category-task',handler:'test.timeout-category'});
+
+  const result=await autopilot.runTask('timeout-category-task');
+
+  assert.equal(signalSeen,true);
+  assert.equal(result.ok,false);
+  assert.equal(result.reason,undefined);
+  assert.equal(result.decision.reason,'timeout-observed');
+  assert.equal(recoveryInput.errorCategory,'timeout');
+  assert.equal(scheduler.get('timeout-category-task').status,'failed');
+});
+
+test('NARA Core GoalManager rejects completion without verified evidence',()=>{
+  const goals=createGoalManager();
+  goals.create({id:'evidence-goal',successCriteria:['deliverable exists','verification passed']});
+  goals.activate('evidence-goal');
+  goals.attachTask('evidence-goal','evidence-task');
+  assert.throws(()=>goals.complete('evidence-goal'),/task terkait|bukti terverifikasi/);
+  goals.recordEvidence('evidence-goal',{criterion:'deliverable exists',evidence:'artifact-123',verified:true});
+  assert.throws(()=>goals.complete('evidence-goal'),/bukti terverifikasi/);
+  goals.recordEvidence('evidence-goal',{criterion:'verification passed',evidence:'test-run-456',verified:true});
+  assert.throws(()=>goals.complete('evidence-goal'),/seluruh task terkait harus selesai/);
+  goals.reconcileTasks([{id:'evidence-task',status:'complete'}]);
+  assert.equal(goals.complete('evidence-goal').status,'complete');
+});
+
+test('NARA Core recovery refuses retry without idempotency or confirmed compensation',()=>{
+  const recovery=createRecoveryEngine({maxRetries:2});
+  assert.equal(recovery.decide({attempt:1,errorCategory:'runtime'}).action,'escalate');
+  assert.equal(recovery.decide({attempt:1,errorCategory:'runtime'}).reason,
+    'unsafe-retry-requires-idempotency-or-confirmed-compensation');
+  assert.equal(recovery.decide({attempt:1,errorCategory:'runtime',idempotent:true}).action,'retry');
+  assert.equal(recovery.decide({attempt:1,errorCategory:'runtime',compensationConfirmed:true}).action,'retry');
+});
+
+
+test('NARA Core cancellation aborts only the targeted running handler',async()=>{
+  const {autopilot,scheduler}=createAutopilotFixture();
+  const started=deferred();
+  let abortObserved=false;
+  autopilot.registerHandler('test.cancel',async({signal,task})=>new Promise((resolve)=>{
+    started.resolve(task.id);
+    signal.addEventListener('abort',()=>{abortObserved=true;resolve('cancelled');},{once:true});
+  }));
+  autopilot.enqueue({id:'cancel-target',handler:'test.cancel'});
+  const pending=autopilot.runTask('cancel-target');
+  await started.promise;
+  const cancelled=autopilot.cancel('cancel-target','test cancellation');
+  const result=await pending;
+  assert.equal(cancelled.status,'cancelled');
+  assert.equal(result.ok,false);
+  assert.equal(scheduler.get('cancel-target').status,'cancelled');
+  assert.equal(abortObserved,true);
+  assert.equal(scheduler.snapshot().running,0);
+});
+
+
+test('Coordinator forwards NARA cancellation to the Agent Hub executor',async()=>{
+  const nara=createOrchestrator();nara.start();
+  const started=deferred();let receivedSignal=null;
+  try{
+    const coordinator=createNaraAgentCoordinator({
+      nara,
+      agentHub:{run({signal}){
+        receivedSignal=signal;
+        return new Promise((resolve,reject)=>{
+          signal.addEventListener('abort',()=>reject(new Error('Agent Hub aborted by NARA')), {once:true});
+          started.resolve(signal);
+        });
+      }}
+    });
+    const pending=coordinator.run({id:'codex',prompt:'cancel this task',mode:'analyze'});
+    const signal=await started.promise;
+    const running=nara.snapshot().engine.autopilot.scheduler.tasks.find(task=>task.status==='running');
+    assert.ok(running);
+    nara.autopilot.cancel(running.id,'test cancellation');
+    const result=await pending;
+    assert.equal(receivedSignal,signal);
+    assert.equal(signal.aborted,true);
+    assert.match(result.error,/Agent Hub aborted by NARA|test cancellation/);
+    assert.equal(result.reason,'cancelled');
+    assert.equal(result.decision?.action,'stop');
+    assert.equal(nara.snapshot().engine.autopilot.scheduler.tasks.find(task=>task.id===running.id)?.status,'cancelled');
+  }finally{nara.stop();}
+});
+
+
+test('NARA Core does not wait forever for an orphaned running task',async()=>{
+  const {autopilot,scheduler}=createAutopilotFixture();
+  autopilot.registerHandler('test.orphan',async()=>({ok:true}));
+  scheduler.enqueue({id:'orphan-running',handler:'test.orphan'});
+  scheduler.start('orphan-running');
+  const result=await autopilot.runTask('orphan-running');
+  assert.equal(result.ok,false);
+  assert.equal(result.reason,'task-already-running');
+});
+
+
+test('Coordinator work Goal requires an independent reviewer PASS',async()=>{
+  const nara=createOrchestrator();nara.start();
+  try{
+    const coordinator=createNaraAgentCoordinator({
+      nara,
+      agentHub:{async run(value){
+        return {
+          text:'Work output for '+value.prompt,
+          maintenance:{changedFiles:1},
+          verification:value.prompt.includes('stale-pass')?{status:'passed'}:undefined,
+          stages:value.prompt.includes('stale-pass')
+            ?[{role:'reviewer',text:'VERDICT: PASS'},{role:'reviewer',text:'VERDICT: NEEDS_FIX'}]
+            :value.prompt.includes('review-pass')
+              ?[{role:'reviewer',text:'Review complete. VERDICT: PASS'}]
+              :[]
+        };
+      }}
+    });
+    const rejected=await coordinator.run({id:'codex',prompt:'work without reviewer',mode:'work'});
+    assert.match(rejected.error,/reviewer independen/);
+    assert.equal(rejected.nara.goalStatus,'blocked');
+    const accepted=await coordinator.run({id:'codex',prompt:'work with review-pass',mode:'work'});
+    assert.equal(accepted.nara.goalStatus,'complete');
+    const stale=await coordinator.run({id:'codex',prompt:'work with stale-pass',mode:'work'});
+    assert.match(stale.error,/reviewer independen/);
+    assert.equal(stale.nara.goalStatus,'blocked');
+  }finally{nara.stop();}
+});
+
+
+test('explicitly requeued task ignores its cached terminal failure and executes again',async()=>{
+  const scheduler=createTaskScheduler();
+  const watchdog=createWatchdog();
+  const capabilities=createCapabilityBroker();
+  const experience=createExperienceModel();
+  const recovery={decide(){return {action:'escalate',reason:'manual-requeue-required',delayMs:0};}};
+  const autopilot=createAutopilot({scheduler,watchdog,recovery,capabilities,experience});
+  let calls=0;
+  autopilot.registerHandler('test.manual-requeue',async()=>{
+    calls+=1;
+    if(calls===1)throw new Error('first attempt failed');
+    return {ok:true,attempt:calls};
+  });
+  autopilot.enqueue({id:'manual-requeue-task',handler:'test.manual-requeue'});
+  const first=await autopilot.runTask('manual-requeue-task');
+  assert.equal(first.ok,false);
+  assert.equal(first.error,'first attempt failed');
+  assert.equal(calls,1);
+  assert.equal(scheduler.get('manual-requeue-task').status,'failed');
+
+  scheduler.requeue('manual-requeue-task');
+  assert.equal(scheduler.get('manual-requeue-task').status,'queued');
+  const second=await autopilot.runNext();
+
+  assert.equal(second.ok,true);
+  assert.deepEqual(second.result,{ok:true,attempt:2});
+  assert.equal(calls,2);
+  assert.equal(scheduler.get('manual-requeue-task').status,'complete');
+});
+
+
+test('cancelling a requeued task never returns its previous cached failure',async()=>{
+  const scheduler=createTaskScheduler();
+  const watchdog=createWatchdog();
+  const capabilities=createCapabilityBroker();
+  const experience=createExperienceModel();
+  const recovery={decide(){return {action:'escalate',reason:'manual-requeue-required',delayMs:0};}};
+  const autopilot=createAutopilot({scheduler,watchdog,recovery,capabilities,experience});
+  let calls=0;
+  autopilot.registerHandler('test.cancel-requeued',async()=>{
+    calls+=1;
+    throw new Error('original attempt failed');
+  });
+  autopilot.enqueue({id:'cancel-requeued-task',handler:'test.cancel-requeued'});
+  const first=await autopilot.runTask('cancel-requeued-task');
+  assert.equal(first.ok,false);
+  assert.equal(first.error,'original attempt failed');
+  assert.equal(calls,1);
+
+  scheduler.requeue('cancel-requeued-task');
+  assert.equal(scheduler.get('cancel-requeued-task').status,'queued');
+  autopilot.cancel('cancel-requeued-task','cancelled before retry starts');
+  assert.equal(scheduler.get('cancel-requeued-task').status,'cancelled');
+
+  const cancelled=await autopilot.runTask('cancel-requeued-task');
+  assert.equal(cancelled.ok,false);
+  assert.equal(cancelled.reason,'cancelled');
+  assert.equal(cancelled.task.status,'cancelled');
+  assert.equal(calls,1,'a cancelled requeued task must not invoke its handler again');
+  assert.equal(autopilot.snapshot().scheduler.tasks.find(task=>task.id==='cancel-requeued-task').status,'cancelled');
 });

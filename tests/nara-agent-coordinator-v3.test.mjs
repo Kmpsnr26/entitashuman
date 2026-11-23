@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {createOrchestrator} from '../nara-core/brain/orchestrator.js';
-import {createNaraAgentCoordinator} from '../desktop/nara-agent-coordinator.mjs';
+import {createNaraAgentCoordinator,NARA_AGENT_HANDLER_TIMEOUTS} from '../desktop/nara-agent-coordinator.mjs';
 
 test('write refusal with zero changes blocks work instead of claiming completion or retrying',async()=>{
   let calls=0;const nara=createOrchestrator();nara.start();
@@ -60,7 +60,11 @@ test('V3.2 work mode remains inside registered Agent Hub handler and returns Cor
   const agentHub={
     async run(value){
       received=value;
-      return {id:value.id,name:'Worker',mode:value.mode,text:'Perubahan dan test selesai'};
+      return {
+        id:value.id,name:'Worker',mode:value.mode,text:'Perubahan dan test selesai',
+        maintenance:{changedFiles:1},
+        stages:[{role:'reviewer',text:'Pemeriksaan independen selesai. VERDICT: PASS'}]
+      };
     }
   };
   const nara=createOrchestrator();
@@ -177,4 +181,22 @@ test('V3.2 successful bounded retry clears transient recovery warning',async()=>
   assert.equal(snapshot.regions.ERROR_MONITOR.lastEvent,'autopilot.task.recovered');
   assert.notEqual(snapshot.engine.metacognition.recommendation,'recover');
   nara.stop();
+});
+
+
+test('NARA work handler deadline covers the complete sequential repair and final review pipeline',()=>{
+  const registrations=new Map();
+  const nara={
+    registerAutopilotHandler(id,handler,options){registrations.set(id,{handler,options});},
+    queueAutopilotTask(){},
+    runAutopilotOnce(){}
+  };
+  const coordinator=createNaraAgentCoordinator({nara,agentHub:{run:async()=>({text:'unused'})}});
+  coordinator.bind();
+
+  assert.equal(NARA_AGENT_HANDLER_TIMEOUTS.analyzeMs,30*60*1000);
+  assert.equal(NARA_AGENT_HANDLER_TIMEOUTS.workMs,55*60*1000);
+  assert.equal(registrations.get('humanale.agent.analyze').options.timeoutMs,30*60*1000);
+  assert.equal(registrations.get('humanale.agent.work').options.timeoutMs,55*60*1000);
+  assert.equal(registrations.get('humanale.agent.work').options.idempotent??false,false);
 });

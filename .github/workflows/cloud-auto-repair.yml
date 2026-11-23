@@ -59,7 +59,11 @@ jobs:
               },
               'automation:queued': {
                 color: 'fbca04',
-                description: 'Queued for cloud repair'
+                description: 'Waiting for an eligible executor or manual handling'
+              },
+              'automation:deferred': {
+                color: 'cfd3d7',
+                description: 'Cloud agent is intentionally deferred; no paid cloud executor was invoked'
               },
               'automation:delegated': {
                 color: '0e8a16',
@@ -223,6 +227,7 @@ jobs:
               await removeLabel(issue.number, 'ai-fix-needed');
               await removeLabel(issue.number, 'automation:fallback');
               await removeLabel(issue.number, 'automation:delegated');
+              await removeLabel(issue.number, 'automation:deferred');
               await closeFallbackPullRequest(issue.number);
             }
 
@@ -302,6 +307,7 @@ jobs:
               await removeLabel(issue.number, 'automation:queued');
               await removeLabel(issue.number, 'automation:fallback');
               await removeLabel(issue.number, 'automation:delegated');
+              await removeLabel(issue.number, 'automation:deferred');
               await removeLabel(issue.number, 'ai-fix-needed');
               return true;
             }
@@ -611,7 +617,10 @@ jobs:
           script: |
             const candidates = JSON.parse(process.env.CANDIDATES || '[]');
             const fallback = [];
+            const existingFallbackCandidates = [];
             const delegated = [];
+            const queued = [];
+            const tokenConfigured = process.env.COPILOT_TOKEN_CONFIGURED === 'true';
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
@@ -622,6 +631,14 @@ jobs:
                 : { fallback: [], queued: candidates };
             }
             // cloud-auto-repair-test:end fallback-permission-routing
+
+            // cloud-auto-repair-test:start no-token-routing
+            function routeWithoutCopilotToken({alreadyAssigned,hasOpenFallback}) {
+              if (alreadyAssigned) return 'delegated';
+              if (hasOpenFallback) return 'fallback';
+              return 'queued';
+            }
+            // cloud-auto-repair-test:end no-token-routing
 
             async function actionsCanCreatePullRequests() {
               try {
@@ -636,16 +653,10 @@ jobs:
               }
             }
 
-            if (process.env.COPILOT_TOKEN_CONFIGURED !== 'true') {
-              core.info('COPILOT_ASSIGN_TOKEN is not configured; retaining or routing the issue queue.');
-              const route = routeFallbackCandidates(
-                candidates,
-                await actionsCanCreatePullRequests()
+            if (!tokenConfigured) {
+              core.notice(
+                'Copilot Cloud Agent is intentionally deferred. Existing Copilot assignments and fallback PRs will be preserved; only untouched candidates will be queued.'
               );
-              core.setOutput('fallback_issues', JSON.stringify(route.fallback));
-              core.setOutput('queued_issues', JSON.stringify(route.queued));
-              core.setOutput('delegated_issues', '[]');
-              return;
             }
 
             for (const candidate of candidates) {
@@ -658,20 +669,30 @@ jobs:
                 const alreadyAssigned = (issue.data.assignees || []).some((assignee) =>
                   assignee.login.startsWith('copilot-swe-agent')
                 );
+                // A known active Copilot assignment must not be downgraded if a
+                // later fallback lookup fails. Preserve it before any extra API call.
                 if (alreadyAssigned) {
                   delegated.push(candidate);
                   continue;
                 }
-
-                const existingFallback = await github.rest.pulls.list({
+                const existingFallbackPulls = await github.rest.pulls.list({
                   owner,
                   repo,
                   state: 'open',
                   head: owner + ':automation/issue-' + candidate.issue_number,
                   per_page: 1
                 });
-                if (existingFallback.data.length > 0) {
-                  fallback.push(candidate);
+                const hasOpenFallback = existingFallbackPulls.data.length > 0;
+                if (!tokenConfigured) {
+                  const route = routeWithoutCopilotToken({alreadyAssigned,hasOpenFallback});
+                  if (route === 'delegated') delegated.push(candidate);
+                  else if (route === 'fallback') existingFallbackCandidates.push(candidate);
+                  else queued.push(candidate);
+                  continue;
+                }
+
+                if (hasOpenFallback) {
+                  existingFallbackCandidates.push(candidate);
                   continue;
                 }
 
@@ -711,7 +732,10 @@ jobs:
                   ': ' +
                   error.message
                 );
-                fallback.push(candidate);
+                // Without the cloud token, failed lookups cannot prove that the
+                // candidate is untouched. Defer safely instead of creating work.
+                if (!tokenConfigured) queued.push(candidate);
+                else fallback.push(candidate);
               }
             }
 
@@ -719,8 +743,8 @@ jobs:
               fallback,
               fallback.length > 0 && await actionsCanCreatePullRequests()
             );
-            core.setOutput('fallback_issues', JSON.stringify(route.fallback));
-            core.setOutput('queued_issues', JSON.stringify(route.queued));
+            core.setOutput('fallback_issues', JSON.stringify([...existingFallbackCandidates, ...route.fallback]));
+            core.setOutput('queued_issues', JSON.stringify([...queued, ...route.queued]));
             core.setOutput('delegated_issues', JSON.stringify(delegated));
 
       - name: Record delegation state
@@ -764,15 +788,18 @@ jobs:
               await add(candidate.issue_number, ['automation:delegated']);
               await remove(candidate.issue_number, 'automation:fallback');
               await remove(candidate.issue_number, 'automation:queued');
+              await remove(candidate.issue_number, 'automation:deferred');
             }
 
             for (const candidate of fallback) {
               await add(candidate.issue_number, ['automation:fallback', 'ai-fix-needed']);
               await remove(candidate.issue_number, 'automation:delegated');
+              await remove(candidate.issue_number, 'automation:queued');
+              await remove(candidate.issue_number, 'automation:deferred');
             }
 
             for (const candidate of queued) {
-              await add(candidate.issue_number, ['automation:queued', 'ai-fix-needed']);
+              await add(candidate.issue_number, ['automation:queued', 'automation:deferred', 'ai-fix-needed']);
               await remove(candidate.issue_number, 'automation:fallback');
               await remove(candidate.issue_number, 'automation:delegated');
             }

@@ -291,6 +291,14 @@ export class NaraOrchestrator{
     return created;
   }
 
+  recordGoalEvidence(id,evidence={}){
+    const goal=this.goals.recordEvidence(id,evidence);
+    if(this.running)this.bus.emit('goal.evidence.recorded',{
+      id:goal.id,criterion:evidence.criterion,verified:Boolean(evidence.verified)
+    },{source:'goal-manager'});
+    return goal;
+  }
+
   activateGoal(id){
     const goal=this.goals.activate(id);
     if(this.running)this.bus.emit('goal.activated',{
@@ -300,6 +308,7 @@ export class NaraOrchestrator{
   }
 
   completeGoal(id){
+    this.goals.reconcileTasks(this.scheduler.snapshot().tasks);
     const goal=this.goals.complete(id);
     if(this.running)this.bus.emit('goal.complete',{
       id:goal.id,label:goal.label,progress:goal.progress

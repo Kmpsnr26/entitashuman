@@ -6,6 +6,18 @@ export function assertLoadedPage(state) {
   if (state.ready !== 'complete' || !state.avatar || !state.prompt || !state.chat || state.ownerGate || !state.sendEnabled) throw new Error(`HumanALE did not reach a usable page: ${JSON.stringify(state)}`);
 }
 
+export async function captureScreenshotEvidence(cdp, directory, name, report, {timeoutMs=5000}={}) {
+  try {
+    const result = await cdp.call('Page.captureScreenshot', {format: 'png'}, timeoutMs);
+    await writeFile(`${directory}/${name}.png`, Buffer.from(result.data, 'base64'));
+    return true;
+  } catch (error) {
+    if (!Array.isArray(report.evidenceWarnings)) report.evidenceWarnings = [];
+    report.evidenceWarnings.push({name, error: String(error?.message || error).slice(0, 500)});
+    return false;
+  }
+}
+
 export function assertNativeEvidence({process, foreground, crash}) {
   if (!/^[1-9][0-9]*(?:\s+[1-9][0-9]*)*$/.test(process.trim())) throw new Error('HumanALE native process is not alive');
   if (!/topResumedActivity=.*id\.my\.aleprinting\.humanale\/|mResumedActivity:.*id\.my\.aleprinting\.humanale\//.test(foreground)) throw new Error('HumanALE is not the foreground Android activity');
@@ -63,7 +75,7 @@ async function connect(url) {
 
 export async function runAndroidRuntimeSmoke(base, directory) {
   await mkdir(directory, {recursive: true});
-  const report = {schema: 'humanale-android-ci-runtime/1', startedAt: new Date().toISOString(), checks: [], uncaughtErrors: [], localResourceErrors: [], physicalDeviceAcceptance: false};
+  const report = {schema: 'humanale-android-ci-runtime/1', startedAt: new Date().toISOString(), checks: [], uncaughtErrors: [], localResourceErrors: [], evidenceWarnings: [], physicalDeviceAcceptance: false};
   let cdp, observedPage;
   const check = async (name, run) => {
     try { await run(); report.checks.push({name, status: 'passed'}); console.log(`PASS: ${name}`); annotation('notice', 'Android WebView check', `passed: ${name}`); }
@@ -89,8 +101,13 @@ export async function runAndroidRuntimeSmoke(base, directory) {
       return result.result.value;
     };
     const screenshot = async name => {
-      const result = await cdp.call('Page.captureScreenshot', {format: 'png'});
-      await writeFile(`${directory}/${name}.png`, Buffer.from(result.data, 'base64'));
+      const captured = await captureScreenshotEvidence(cdp, directory, name, report, {timeoutMs: 5000});
+      if (!captured) {
+        const warning = report.evidenceWarnings.at(-1);
+        console.warn(`WARN: optional Android screenshot evidence unavailable for ${name}: ${warning.error}`);
+        annotation('warning', 'Optional Android screenshot evidence unavailable', `${name}: ${warning.error}`);
+      }
+      return captured;
     };
     const click = async selector => {
       const point = await evaluate(`(() => { const e=document.querySelector(${JSON.stringify(selector)}); if(!e)throw Error('Missing interaction target'); const r=e.getBoundingClientRect(); if(!r.width||!r.height)throw Error('Invisible interaction target'); return {x:r.x+r.width/2,y:r.y+r.height/2}; })()`);
@@ -138,8 +155,8 @@ export async function runAndroidRuntimeSmoke(base, directory) {
     cdp?.close(); report.finishedAt = new Date().toISOString();
     await writeFile(`${directory}/webview-report.json`, JSON.stringify(report, null, 2) + '\n');
     console.log(JSON.stringify(report, null, 2));
-    annotation('notice', 'Android WebView result', JSON.stringify({status: report.status, checks: report.checks, lastObservedPage: observedPage, uncaughtErrors: report.uncaughtErrors.slice(0, 5), localResourceErrors: report.localResourceErrors.slice(0, 5), error: report.error}).slice(0, 6000));
-    if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `\nAndroid WebView runtime: **${report.status}** (KVM emulator; physical-device acceptance pending).\n\n${report.checks.map(value => `- ${value.status}: ${value.name}`).join('\n')}\n${report.error ? `\nFailure: ${report.error.replaceAll('\n', ' ')}\n` : ''}`);
+    annotation('notice', 'Android WebView result', JSON.stringify({status: report.status, checks: report.checks, evidenceWarnings: report.evidenceWarnings.slice(0, 5), lastObservedPage: observedPage, uncaughtErrors: report.uncaughtErrors.slice(0, 5), localResourceErrors: report.localResourceErrors.slice(0, 5), error: report.error}).slice(0, 6000));
+    if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, `\nAndroid WebView runtime: **${report.status}** (KVM emulator; physical-device acceptance pending).\n\n${report.checks.map(value => `- ${value.status}: ${value.name}`).join('\n')}\n${report.evidenceWarnings.length ? `\nOptional screenshot evidence warnings:\n${report.evidenceWarnings.map(value => `- ${value.name}: ${value.error}`).join('\n')}\n` : ''}${report.error ? `\nFailure: ${report.error.replaceAll('\n', ' ')}\n` : ''}`);
   }
   if (report.status !== 'passed') throw new Error(report.error);
   return report;

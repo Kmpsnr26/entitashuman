@@ -84,9 +84,10 @@ export function parseCodexJsonOutput(stdout=''){
 }
 export function agentTimeoutMs(mode='analyze',env=process.env){
  const fallback=mode==='work'?600000:120000;
+ const maximum=mode==='work'?600000:300000;
  const raw=Number(env.HUMANALE_AGENT_TIMEOUT_MS??env.DUDIDAM_AGENT_TIMEOUT_MS);
  if(!Number.isFinite(raw)||raw<=0)return fallback;
- return Math.max(30000,Math.min(900000,Math.round(raw)));
+ return Math.max(30000,Math.min(maximum,Math.round(raw)));
 }
 function runProcess(executable,args,{cwd,timeout=12000}={}){
  return new Promise(resolve=>{
@@ -134,17 +135,35 @@ export function reviewVerdict(text=''){
  return 'unknown';
 }
 
-export function selectStructuredRoles(available=[]){
+export function requireIndependentWorkReview(result={}){
+ const reviewers=Array.isArray(result?.stages)
+  ?result.stages.filter(stage=>stage?.role==='reviewer')
+  :[];
+ const finalReviewer=reviewers.at(-1);
+ if(!finalReviewer||reviewVerdict(finalReviewer.text)!=='pass'){
+  const error=new Error('Mode Kerja memerlukan VERDICT: PASS dari tahap Reviewer independen terakhir. Status ringkasan tidak dapat menggantikan review tersebut.');
+  error.code='AGENT_WORK_REVIEW_REQUIRED';
+  error.category='verification';
+  throw error;
+ }
+ return result;
+}
+
+export function selectStructuredRoles(available=[],preferredWorker=''){
  const allowed=new Set(['codex','github-copilot','cursor','claude']);
  const list=[...new Set((Array.isArray(available)?available:[]).filter(id=>allowed.has(id)))];
  if(!list.length)return null;
+ if(preferredWorker){
+  if(!list.includes(preferredWorker))return null;
+  const worker=preferredWorker,others=list.filter(id=>id!==worker);
+  const planner=others[0]||worker;
+  const reviewer=others[1]||others[0]||worker;
+  return {planner,worker,reviewer,degraded:reviewer===worker,executors:list};
+ }
  const planner=list.includes('codex')?'codex':list[0];
- const worker=list.includes('github-copilot')&&planner!=='github-copilot'
-  ?'github-copilot'
-  :(list.find(id=>id!==planner)||planner);
- const reviewer=list.includes('codex')&&worker!=='codex'
-  ?'codex'
-  :(list.find(id=>id!==worker)||worker);
+ const worker=list.includes('github-copilot')&&planner!=='github-copilot'?'github-copilot':(list.find(id=>id!==planner)||planner);
+ const others=list.filter(id=>id!==worker);
+ const reviewer=others.find(id=>id!==planner)||others[0]||worker;
  return {planner,worker,reviewer,degraded:reviewer===worker,executors:list};
 }
 function maintenanceChangeSetError(report){
@@ -359,14 +378,15 @@ export class DeveloperAgentHub{
   }
   return directResult;
  }
- async runStructured(prompt,mode){
+ async runStructured(prompt,mode,preferredWorker=''){
   if(mode==='work'&&!await this.projectRootReady())throw new Error('Folder proyek belum dipilih atau bukan checkout Git.');
   const available=await this.availableStructuredExecutors();
   if(!available.length)throw new Error('HumanALE Orchestrator memerlukan minimal satu executor lokal yang siap: Codex, GitHub Copilot, Cursor, atau Claude Code.');
   const difficulty=classifyTaskDifficulty(prompt);
-  const roles=selectStructuredRoles(available);
+  const roles=selectStructuredRoles(available,preferredWorker);
   if(!roles)throw new Error('HumanALE Orchestrator tidak menemukan executor terverifikasi.');
   const {planner,worker,reviewer,degraded}=roles;
+  if(mode==='work'&&reviewer===worker)throw new Error('Mode Kerja memerlukan executor reviewer independen yang berbeda dari Worker. Hubungkan minimal dua executor sebelum menjalankan perubahan.');
   const planPrompt='Kamu adalah Planner HumanALE. Analisis tugas berikut secara read-only. Pecah menjadi langkah berurutan, dependensi, file/area yang mungkin terdampak, risiko, dan kriteria selesai. Jangan edit file. Jangan menjalankan publish/push/merge. Tugas: '+prompt;
   const plan=await this.runDirect(planner,planPrompt,'analyze');
   const workPrompt='Kamu adalah Worker HumanALE. Ikuti rencana Planner berikut dan fokus menyelesaikan tugas pengguna. Jika mode ini read-only, berikan implementasi/rencana konkret tanpa edit. Jika mode kerja, edit hanya yang perlu, jalankan test relevan, dan jangan push/merge/publish. TASK:\n'+prompt+'\n\nPLAN:\n'+plan.text;
@@ -455,7 +475,7 @@ export class DeveloperAgentHub{
   this.maintenanceAbortController=new AbortController();
   this.maintenanceSignal=signal?AbortSignal.any([signal,this.maintenanceAbortController.signal]):this.maintenanceAbortController.signal;
   try{
-   const result=await this.runStructured(task,'work');
+   const result=requireIndependentWorkReview(await this.runStructured(task,'work'));
    const finalInspection=await transaction.inspect({rollbackOnViolation:false});
    if(!finalInspection.allowed)throw maintenanceChangeSetError(finalInspection);
    return {
@@ -477,11 +497,14 @@ export class DeveloperAgentHub{
   if(this.maintenanceTransaction?.processTerminationUnconfirmed)throw maintenanceProcessRecoveryError();
   if(this.pending)throw new Error('Tunggu agent sebelumnya selesai.');
   const id=String(value?.id||''),mode=value?.mode==='work'?'work':'analyze';
+  const externalSignal=value?.signal||null;
   let prompt=String(value?.prompt||'').trim();
   if(!prompt||prompt.length>4000)throw new Error('Prompt agent harus berisi 1–4000 karakter.');
+  if(externalSignal?.aborted)throw Object.assign(new Error('Agent Hub task aborted.'),{code:'ABORTED'});
 
   this.pending=true;
   let transaction=null;
+  this.maintenanceSignal=externalSignal;
   try{
    if(mode==='work'){
     assertMaintenanceTaskAllowed(prompt,{mode});
@@ -489,7 +512,10 @@ export class DeveloperAgentHub{
     if(!await this.projectRootReady())throw new Error('AI maintenance memerlukan checkout Git proyek yang dipilih secara eksplisit.');
     transaction=await beginMaintenanceTransaction(cwd);
     this.maintenanceTransaction=transaction;
-    this.maintenanceAbortController=new AbortController();this.maintenanceSignal=this.maintenanceAbortController.signal;
+    this.maintenanceAbortController=new AbortController();
+    this.maintenanceSignal=externalSignal
+     ?AbortSignal.any([externalSignal,this.maintenanceAbortController.signal])
+     :this.maintenanceAbortController.signal;
    }
 
    if(mode==='work'&&value?.memoryContext!=null){
@@ -503,7 +529,12 @@ export class DeveloperAgentHub{
 
    const result=id==='humanale-orchestrator'
     ?await this.runStructured(prompt,mode)
-    :await this.runDirect(id,prompt,mode);
+    :mode==='work'
+     ?await this.runStructured(prompt,mode,id)
+     :await this.runDirect(id,prompt,mode);
+   // Every work-mode route, including a directly selected executor, must pass
+   // through Planner → Worker → Reviewer and the final reviewer gate.
+   if(mode==='work')requireIndependentWorkReview(result);
 
    if(transaction){
     const finalInspection=await transaction.inspect();
