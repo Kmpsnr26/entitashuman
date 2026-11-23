@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {classifyTaskDifficulty,reviewVerdict,selectStructuredRoles,requireIndependentWorkReview} from '../desktop/agent-hub.mjs';
+import {classifyTaskDifficulty,reviewVerdict,selectStructuredRoles,requireIndependentWorkReview,buildStructuredSkillPlan} from '../desktop/agent-hub.mjs';
 
 test('structured HumanALE orchestrator classifies difficult work and review verdicts',()=>{
  assert.equal(classifyTaskDifficulty('halo'),'low');
@@ -107,4 +107,29 @@ test('Agent Hub trusted maintenance entrypoint requires external active transact
   hub.match(/async runTrustedMaintenanceWork[\s\S]*?\n \}\n\n async run\(/)?.[0]||'',
   /beginMaintenanceTransaction\(|transaction\.release\(/
  );
+});
+
+
+test('structured HumanALE roles receive canonical NARA skill assignments',async()=>{
+ const plan=buildStructuredSkillPlan();
+ assert.deepEqual(plan.planner.map(skill=>skill.id),['reasoning','planner','memory']);
+ assert.deepEqual(plan.worker.map(skill=>skill.id),['program','terminal','github','safety']);
+ assert.deepEqual(plan.repair.map(skill=>skill.id),['program','terminal','safety','bug-hunter']);
+ assert.deepEqual(plan.reviewer.map(skill=>skill.id),['bug-hunter','reasoning','safety','reporting']);
+ const registry=await readFile(new URL('../nara-core/brain/skill-registry.js',import.meta.url),'utf8');
+ for(const skills of Object.values(plan)){
+  for(const skill of skills){
+   assert.ok(registry.includes("'" + skill.id + "'"),'Unknown canonical skill: '+skill.id);
+   assert.ok(skill.label&&skill.group&&skill.region);
+  }
+ }
+ const hub=await readFile(new URL('../desktop/agent-hub.mjs',import.meta.url),'utf8');
+ assert.match(hub,/structuredSkillInstructions\('planner',skillPlan\.planner\)/);
+ assert.match(hub,/structuredSkillInstructions\('worker',skillPlan\.worker\)/);
+ assert.match(hub,/structuredSkillInstructions\('reviewer',skillPlan\.reviewer\)/);
+ assert.match(hub,/structuredSkillInstructions\('repair',skillPlan\.repair\)/);
+ assert.match(hub,/skills:skillPlan\.planner/);
+ assert.match(hub,/skills:skillPlan\.worker/);
+ assert.match(hub,/skills:skillPlan\.reviewer/);
+ assert.match(hub,/skillPlan,text:summary/);
 });
