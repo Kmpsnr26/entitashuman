@@ -84,6 +84,8 @@ export class NaraAutopilot{
         retried.add(next.id);
         this.scheduler.requeue(next.id);
         this.outcomes.delete(next.id);
+        const delayMs=Math.max(0,Math.min(30000,Math.floor(Number(outcome.decision.delayMs)||0)));
+        if(delayMs>0)await new Promise(resolve=>setTimeout(resolve,delayMs));
       }
     }
   }
@@ -99,7 +101,7 @@ export class NaraAutopilot{
       const auth=this.capabilities.authorize(required);
       if(!auth.ok){this.onEvent('autopilot.task.blocked',{id:next.id,capability:required,reason:auth.reason});return {ok:false,reason:auth.reason,task:next};}
     }
-    let started=null,watching=false,controller=null,startedAt=Date.now();
+    let started=null,watching=false,controller=null,startedAt=Date.now(),timedOut=false;
     try{
       started=this.scheduler.start(next.id);
       this.watchdog.track(started.id,{timeoutMs:registered.timeoutMs,label:started.label});watching=true;
@@ -107,7 +109,7 @@ export class NaraAutopilot{
       this.onEvent('autopilot.task.start',{id:started.id,label:started.label});
       let timeoutHandle;
       const timeout=new Promise((_,reject)=>{
-        timeoutHandle=setTimeout(()=>{const error=new Error('Autopilot task timeout.');error.code='AUTOPILOT_TIMEOUT';error.category='timeout';controller.abort(error);reject(error);},registered.timeoutMs);
+        timeoutHandle=setTimeout(()=>{timedOut=true;const error=new Error('Autopilot task timeout.');error.code='AUTOPILOT_TIMEOUT';error.category='timeout';controller.abort(error);reject(error);},registered.timeoutMs);
       });
       const aborted=new Promise((_,reject)=>{
         if(controller.signal.aborted){reject(controller.signal.reason||new Error('Task dibatalkan.'));return;}
@@ -128,7 +130,7 @@ export class NaraAutopilot{
       if(started){
         const task=this.scheduler.fail(started.id,error?.message||'handler-failed');
         this.experience.record(started.handler,{ok:false,durationMs:Date.now()-startedAt});
-        const cancelled=controller?.signal.aborted===true||task.status==='cancelled'||error?.code==='ABORTED';
+        const cancelled=!timedOut&&(controller?.signal.aborted===true||task.status==='cancelled'||error?.code==='ABORTED');
         const decision=cancelled?{action:'stop',reason:'task-cancelled',delayMs:0}:
           this.recovery.decide({attempt:task.attempts,errorCategory:error?.category||'runtime',
             capabilityRequired:Boolean(required),capabilityApproved:required?this.capabilities.authorize(required).ok:true,
