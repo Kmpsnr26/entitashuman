@@ -194,9 +194,9 @@ test('NARA work handler deadline covers the complete sequential repair and final
   const coordinator=createNaraAgentCoordinator({nara,agentHub:{run:async()=>({text:'unused'})}});
   coordinator.bind();
 
-  assert.equal(NARA_AGENT_HANDLER_TIMEOUTS.analyzeMs,15*60*1000);
-  assert.equal(NARA_AGENT_HANDLER_TIMEOUTS.workMs,35*60*1000);
-  assert.equal(registrations.get('humanale.agent.analyze').options.timeoutMs,15*60*1000);
-  assert.equal(registrations.get('humanale.agent.work').options.timeoutMs,35*60*1000);
+  assert.equal(NARA_AGENT_HANDLER_TIMEOUTS.analyzeMs,30*60*1000);
+  assert.equal(NARA_AGENT_HANDLER_TIMEOUTS.workMs,55*60*1000);
+  assert.equal(registrations.get('humanale.agent.analyze').options.timeoutMs,30*60*1000);
+  assert.equal(registrations.get('humanale.agent.work').options.timeoutMs,55*60*1000);
   assert.equal(registrations.get('humanale.agent.work').options.idempotent??false,false);
 });
