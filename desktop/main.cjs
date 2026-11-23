@@ -317,7 +317,7 @@ if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
-  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{AleCoreCloudContextClient,normalizeOrigin},{resolveAleCoreCloudOrigins},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./alecore-cloud-env.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
+  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{AleCoreCloudContextClient,normalizeOrigin},{resolveAleCoreCloudOrigins},{resolveAleCoreCreatorCredentials},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./alecore-cloud-env.mjs'),import('../nara-core/studio/creator-env.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
   const [{createOrchestrator,createExperienceModel,getHumanALETestScenario,listHumanALETestScenarios,createSkillSnapshot},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createAleCoreAgentCoordinator},{createHumanALEOwnerGate,isOwnerTargetUnlocked,authorizedDisplayMediaTarget},{createNaraStudioServer:studioServerFactory},{bootstrapNaraConnections,recordNaraProviderStatus,recordNaraAgentHubStatus}]=await Promise.all([
    import('../nara-core/brain/index.js'),
    import('../nara-core/voice/index.js'),
@@ -338,13 +338,15 @@ else{
    ?path.join(app.getPath('userData'),'nara-owner.json')
    :(process.env.NARA_OWNER_STORE||path.join(homedir(),'.nara','owner.json'));
   ownerStore=createOwnerStore({filePath:ownerStorePath});
-  const bootstrapOwnerPassword=String(process.env.NARA_CREATOR_PASSWORD||'');
+  const creatorCredentials=resolveAleCoreCreatorCredentials(process.env);
+  const bootstrapOwnerPassword=creatorCredentials.password;
   if(!ownerStore.configured()&&bootstrapOwnerPassword){
    ownerStore.provision({
-    username:process.env.NARA_CREATOR_USERNAME||'creator',
+    username:creatorCredentials.username,
     password:bootstrapOwnerPassword
    });
   }
+  delete process.env.ALECORE_CREATOR_PASSWORD;
   delete process.env.NARA_CREATOR_PASSWORD;
   ownerGate=createHumanALEOwnerGate({store:ownerStore});
   const experience=createExperienceModel();

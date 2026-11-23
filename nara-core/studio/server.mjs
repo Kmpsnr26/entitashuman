@@ -9,6 +9,7 @@ import {createStudioTelemetry} from './telemetry.mjs';
 import {createSkillRegistry} from '../skills/index.js';
 import {createCreatorAuth} from './creator-auth.mjs';
 import {createOwnerStore} from '../security/owner-store.mjs';
+import {resolveAleCoreCreatorCredentials} from './creator-env.mjs';
 
 const HERE=fileURLToPath(new URL('.',import.meta.url));
 const PUBLIC=join(HERE,'public');
@@ -350,8 +351,9 @@ export function createNaraStudioServer({
   embedded=false,
   voiceBackend=null
 }={}){
-  const bootstrapUsername=creatorOptions.username||process.env.NARA_CREATOR_USERNAME||'creator';
-  const bootstrapPassword=creatorOptions.password??process.env.NARA_CREATOR_PASSWORD??'';
+  const creatorEnv=resolveAleCoreCreatorCredentials(process.env);
+  const bootstrapUsername=creatorOptions.username||creatorEnv.username;
+  const bootstrapPassword=creatorOptions.password??creatorEnv.password;
   const ownerStorePath=String(creatorOptions.ownerStorePath||process.env.NARA_OWNER_STORE||'').trim();
   let ownerStore=creatorOptions.credentialStore||null,ownerStoreError='';
   if(!ownerStore&&ownerStorePath){
