@@ -192,18 +192,23 @@ test('Actions PR creation disabled leaves candidates queued and skips fallback j
   fallback:candidates,queued:[]
  });
  assert.match(workflow,/can_approve_pull_request_reviews === true/);
- assert.match(workflow,/core\.setOutput\('queued_issues', JSON\.stringify\(route\.queued\)\)/);
+ assert.match(workflow,/core\.setOutput\('queued_issues', JSON\.stringify\(\[\.\.\.queued, \.\.\.route\.queued\]\)\)/);
  assert.match(workflow,/if: needs\.triage\.outputs\.fallback_issues != '\[\]'/);
 });
 
 test('Copilot Cloud Agent is explicitly deferred when no token is configured',()=>{
  assert.match(workflow,/COPILOT_TOKEN_CONFIGURED: \$\{\{ secrets\.COPILOT_ASSIGN_TOKEN != '' \}\}/);
  assert.match(workflow,/Copilot Cloud Agent is intentionally deferred/);
- assert.match(workflow,/core\.setOutput\('queued_issues', JSON\.stringify\(candidates\)\)/);
+ assert.match(workflow,/core\.setOutput\('queued_issues', JSON\.stringify\(\[\.\.\.queued, \.\.\.route\.queued\]\)\)/);
  assert.match(workflow,/'automation:deferred': \{/);
  assert.match(workflow,/Cloud agent is intentionally deferred/);
  assert.match(workflow,/automation:deferred', 'ai-fix-needed'/);
  assert.match(workflow,/await remove\(candidate\.issue_number, 'automation:deferred'\)/);
+ assert.match(workflow,/routeWithoutCopilotToken\(\{alreadyAssigned,hasOpenFallback\}\)/);
+ assert.match(workflow,/existingFallbackCandidates\.push\(candidate\)/);
+ assert.match(workflow,/if \(route === 'delegated'\) delegated\.push\(candidate\)/);
+ assert.match(workflow,/else queued\.push\(candidate\)/);
+ assert.doesNotMatch(workflow,/if \(process\.env\.COPILOT_TOKEN_CONFIGURED !== 'true'\)[\\s\\S]{0,500}return;/);
 });
 
 test('stale CI retirement identifies only managed non-default source branches',()=>{
