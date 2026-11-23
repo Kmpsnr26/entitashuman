@@ -219,6 +219,8 @@ export class NaraAgentCoordinator{
       const goal=core.engine.goals.goals.find(item=>item.id===goalId)||null;
       return {
         error:outcome?.error||outcome?.reason||'Agent task gagal.',
+        reason:outcome?.reason||null,
+        decision:outcome?.decision||null,
         nara:{
           goalId,
           taskId,
