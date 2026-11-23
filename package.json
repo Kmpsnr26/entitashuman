@@ -18,7 +18,7 @@
     "smoke:neural-gpu": "electron scripts/nara-neural-live-smoke.cjs"
   },
   "devDependencies": {
-    "electron": "44.4.3"
+    "electron": "44.11.5"
   },
   "main": "desktop/main.cjs",
   "dependencies": {
