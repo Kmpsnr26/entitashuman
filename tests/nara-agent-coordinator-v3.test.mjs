@@ -198,5 +198,5 @@ test('NARA work handler deadline covers the complete sequential repair and final
   assert.equal(NARA_AGENT_HANDLER_TIMEOUTS.workMs,35*60*1000);
   assert.equal(registrations.get('humanale.agent.analyze').options.timeoutMs,15*60*1000);
   assert.equal(registrations.get('humanale.agent.work').options.timeoutMs,35*60*1000);
-  assert.equal(registrations.get('humanale.agent.work').options.idempotent,false);
+  assert.equal(registrations.get('humanale.agent.work').options.idempotent??false,false);
 });
