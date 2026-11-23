@@ -11,15 +11,10 @@ AleCore AI contributes its own assistant identity, system instructions, reasonin
 ## Windows setup
 
 1. Install the official native Windows version of Ollama using [Ollama's Windows instructions](https://github.com/ollama/ollama/blob/main/docs/windows.mdx). The official app runs in the background and provides the local API.
-2. On the current development PC, the C: drive has limited free space and D: has more room. To store model weights on D: without touching existing files, open PowerShell and run:
-
-   `New-Item -ItemType Directory -Force -Path 'D:\AleCoreAI\Models' | Out-Null`
-   `[Environment]::SetEnvironmentVariable('OLLAMA_MODELS', 'D:\AleCoreAI\Models', 'User')`
-
-   This creates only the new folder and sets a user-scoped environment variable. It does not move, delete, or overwrite existing files. If D: is unavailable on another PC, choose a folder on a drive with enough free space instead.
-3. Quit Ollama from its system-tray icon, then start Ollama again so it inherits the new environment variable. Open a new PowerShell window.
-4. Download the model with `ollama pull qwen3.5:2b`.
-5. Confirm it is installed with `ollama list`.
+2. Extract the AleCore AI portable package to a folder you control. It includes `Setup-AleCore-Local.ps1`.
+3. Open PowerShell in that folder and run `.Setup-AleCore-Local.ps1`.
+4. On the current development PC, the helper selects `D:\AleCoreAI\Models` when D: is available. Otherwise it uses an already configured `OLLAMA_MODELS` folder or the user's Ollama model folder. It creates the target directory but does not move, delete, or overwrite existing files.
+5. On its first run, the helper sets the user-scoped `OLLAMA_MODELS` variable and asks you to quit Ollama from the system-tray icon and start it again. Run the helper once more after restarting Ollama. It then checks the local server, downloads `qwen3.5:2b` if missing, and verifies the model.
 6. Start AleCore AI Desktop, select **AleCore Local**, and press **Periksa lagi**. The status should show that Ollama and the configured model are available.
 
 Ollama's local API is expected at `http://127.0.0.1:11434`. AleCore Local hard-codes this loopback origin; the renderer cannot supply another host. Do not change Ollama to listen on `0.0.0.0` and do not expose port 11434 to Wi-Fi/LAN. The Android phase must use a separate authenticated bridge, not a direct connection to Ollama's unauthenticated API.
