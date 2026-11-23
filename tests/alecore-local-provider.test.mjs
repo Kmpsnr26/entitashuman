@@ -90,6 +90,25 @@ test('AleCore Local sends bounded chat history and a single non-streaming local 
   assert.equal(sent.messages.at(-1).content, 'Halo');
 });
 
+test('AleCore Local bounds recent conversation history to its context budget', async () => {
+  let sent;
+  const bridge = new AleCoreLocalBridge({
+    fetchImpl: async (_url, init) => {
+      sent = JSON.parse(init.body);
+      return response({ message: { content: 'Siap.' } });
+    }
+  });
+  const history = Array.from({ length: 10 }, (_, index) => ({
+    role: index % 2 === 0 ? 'user' : 'assistant',
+    content: String(index).repeat(8000)
+  }));
+  await bridge.ask({ message: 'Pesan baru', history });
+  const retained = sent.messages.slice(1, -1);
+  assert.ok(retained.reduce((total, entry) => total + entry.content.length, 0) <= 6000);
+  assert.equal(retained.at(-1).role, 'assistant');
+  assert.equal(retained.at(-1).content.length, 6000);
+});
+
 test('AleCore Local supports the validated JPEG payload without forwarding its data URL prefix', async () => {
   let sent;
   const bridge = new AleCoreLocalBridge({
