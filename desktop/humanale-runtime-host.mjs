@@ -1,10 +1,10 @@
 import {
-  NARA_UNIFIED_RUNTIME_CONTRACT,
+  ALECORE_AI_UNIFIED_RUNTIME_CONTRACT,
   normalizeHumanALEInput,
   projectRuntimeAuthority
-} from '../nara-core/runtime/unified-contract.js';
+} from '../ALECORE-AI/runtime/unified-contract.js';
 
-const DEFAULT_RENDERER_EVENTS=NARA_UNIFIED_RUNTIME_CONTRACT.rendererEvents;
+const DEFAULT_RENDERER_EVENTS=ALECORE_AI_UNIFIED_RUNTIME_CONTRACT.rendererEvents;
 
 const safeNumber=(value,min=0,max=1)=>{
   const number=Number(value);
@@ -44,7 +44,7 @@ function deriveBodyState(core={}){
       reasoning,
       working,
       warning,
-      selectedRegion:String(core.selectedRegion||'NARA_CORE')
+      selectedRegion:String(core.selectedRegion||'ALECORE_AI')
     })
   });
 }
@@ -59,7 +59,7 @@ export class HumanALERuntimeHost{
     rendererEvents=DEFAULT_RENDERER_EVENTS,
     onExperienceDirty=()=>{}
   }={}){
-    if(!nara?.snapshot||!nara?.dispatch||!nara?.bus)throw new Error('HumanALE Runtime Host membutuhkan NARA Orchestrator.');
+    if(!nara?.snapshot||!nara?.dispatch||!nara?.bus)throw new Error('HumanALE Runtime Host membutuhkan AleCore AI Orchestrator.');
     this.nara=nara;
     this.voiceFeedback=voiceFeedback;
     this.dataFlowMeter=dataFlowMeter;
@@ -85,20 +85,20 @@ export class HumanALERuntimeHost{
     for(const target of selected)target.webContents.send(channel,payload);
   }
 
-  buildRuntimeSnapshot(core=this.nara.snapshot()){
+  buildRuntimeSnapshot(core=this.ale.snapshot()){
     const runtime=Object.freeze({
       version:3,
-      contract:NARA_UNIFIED_RUNTIME_CONTRACT,
+      contract:ALECORE_AI_UNIFIED_RUNTIME_CONTRACT,
       authority:projectRuntimeAuthority(core),
       timestamp:Date.now(),
       core,
       humanale:Object.freeze({
-        role:'nara-body',
+        role:'alecore-ai-body',
         body:deriveBodyState(core),
         channels:Object.freeze({
           state:'dudidam:runtime-state',
-          coreState:'dudidam:nara-state',
-          voice:'dudidam:nara-voice'
+          coreState:'dudidam:alecore-ai-state',
+          voice:'dudidam:alecore-ai-voice'
         })
       })
     });
@@ -107,13 +107,13 @@ export class HumanALERuntimeHost{
   }
 
   publishState(core){
-    this.send('dudidam:nara-state',core);
+    this.send('dudidam:alecore-ai-state',core);
     this.send('dudidam:runtime-state',this.buildRuntimeSnapshot(core));
   }
 
   publishVoice(cue){
     if(!cue)return null;
-    this.send('dudidam:nara-voice',cue,{avatarOnly:true});
+    this.send('dudidam:alecore-ai-voice',cue,{avatarOnly:true});
     return cue;
   }
 
@@ -137,12 +137,12 @@ export class HumanALERuntimeHost{
   start(){
     if(this.started)return this.buildRuntimeSnapshot();
     this.unsubState=null;
-    this.unsubBus=this.nara.bus.onAny(envelope=>{
+    this.unsubBus=this.ale.bus.onAny(envelope=>{
       this.consumeEnvelope(envelope);
-      this.publishState(this.nara.snapshot());
+      this.publishState(this.ale.snapshot());
     });
     this.started=true;
-    const core=this.nara.snapshot();
+    const core=this.ale.snapshot();
     this.publishState(core);
     return this.buildRuntimeSnapshot(core);
   }
@@ -156,12 +156,12 @@ export class HumanALERuntimeHost{
   }
 
   snapshot(){
-    return this.buildRuntimeSnapshot(this.nara.snapshot());
+    return this.buildRuntimeSnapshot(this.ale.snapshot());
   }
 
   snapshotRequest(event){
     if(!this.isTrustedEvent(event))return {error:'Akses ditolak.'};
-    const core=this.nara.snapshot();
+    const core=this.ale.snapshot();
     const result={ok:true,state:core,runtime:this.buildRuntimeSnapshot(core)};
     this.dataFlowMeter?.recordOut?.(result);
     return result;
@@ -182,22 +182,22 @@ export class HumanALERuntimeHost{
     if(encoded.length>4096)return {error:'Payload event HumanALE terlalu besar.'};
     this.dataFlowMeter?.recordIn?.(value);
     const name=String(value?.event||'');
-    if(!this.rendererEvents.has(name))return {error:'Event NARA tidak diizinkan dari renderer.'};
+    if(!this.rendererEvents.has(name))return {error:'Event AleCore AI tidak diizinkan dari renderer.'};
     const payload=normalizeHumanALEInput(name,value?.payload);
     if(payload===null)return {error:'Payload event HumanALE tidak valid.'};
     try{
-      const result={ok:true,...this.nara.dispatch(name,payload,{source:'humanale-renderer'})};
+      const result={ok:true,...this.ale.dispatch(name,payload,{source:'humanale-renderer'})};
       return result;
     }catch(error){
-      return {error:error?.message||'NARA dispatch gagal.'};
+      return {error:error?.message||'AleCore AI dispatch gagal.'};
     }
   }
 
   bindIpc(ipcMain){
     if(!ipcMain?.handle)throw new TypeError('Electron ipcMain wajib tersedia.');
-    ipcMain.handle('dudidam:nara-snapshot',event=>this.snapshotRequest(event));
+    ipcMain.handle('dudidam:alecore-ai-snapshot',event=>this.snapshotRequest(event));
     ipcMain.handle('dudidam:runtime-snapshot',event=>this.runtimeSnapshotRequest(event));
-    ipcMain.handle('dudidam:nara-dispatch',(event,value)=>this.dispatchRenderer(event,value));
+    ipcMain.handle('dudidam:alecore-ai-dispatch',(event,value)=>this.dispatchRenderer(event,value));
   }
 }
 

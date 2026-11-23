@@ -10,19 +10,19 @@ import {powershellCommand,powershellSkip,powershellEnv} from './helpers/powershe
 const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');
 
-test('V3.6 one-click wrapper runs HumanALE unified smoke and physical NARA GPU acceptance',async()=>{
+test('V3.6 one-click wrapper runs HumanALE unified smoke and physical AleCore AI GPU acceptance',async()=>{
   const [bat,ps1]=await Promise.all([
     read('HumanALE-Unified-Acceptance.bat'),
     read('scripts/humanale-unified-acceptance.ps1')
   ]);
 
-  assert.match(bat,/NARA \+ HumanALE V3 - Unified Physical Acceptance/);
+  assert.match(bat,/AleCore AI \+ HumanALE V3 - Unified Physical Acceptance/);
   assert.match(bat,/scripts\\humanale-unified-acceptance\.ps1/);
   assert.match(ps1,/desktop\\main\.cjs/);
   assert.match(ps1,/--ci-smoke/);
   assert.match(ps1,/DUDIDAM_CAPTURE_SMOKE/);
-  assert.match(ps1,/nara-neural-gpu-acceptance\.ps1/);
-  assert.match(ps1,/NARA Core \+ HumanALE Unified Runtime V3 lolos physical acceptance/);
+  assert.match(ps1,/alecore-ai-neural-gpu-acceptance\.ps1/);
+  assert.match(ps1,/AleCore AI \+ HumanALE Unified Runtime V3 lolos physical acceptance/);
 });
 
 test('V3.6 acceptance produces bounded evidence without embedding Creator credentials',async()=>{
@@ -30,13 +30,13 @@ test('V3.6 acceptance produces bounded evidence without embedding Creator creden
   for(const marker of [
     'humanale-unified-acceptance.json',
     'humanale-unified.png',
-    'nara-neural-live-report.json',
+    'alecore-ai-neural-live-report.json',
     'creator-owner-gate',
     'unified-runtime-v3',
     'renderer-event-deny'
   ])assert.equal(ps1.includes(marker),true,marker+' missing');
 
-  assert.doesNotMatch(ps1,/NARA_CREATOR_PASSWORD|password\s*=|access[_-]?token|api[_-]?key/i);
+  assert.doesNotMatch(ps1,/ALECORE_AI_CREATOR_PASSWORD|password\s*=|access[_-]?token|api[_-]?key/i);
   assert.match(ps1,/\$passed = \$desktopPassed -and \$gpuPassed/);
   assert.match(ps1,/gpuModeMatched/);
 });

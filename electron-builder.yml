@@ -6,11 +6,11 @@ directories:
 files:
   - public/**/*
   - desktop/**/*
-  - nara-core/**/*
+  - ALECORE-AI/**/*
   - sites/humanale-hologram/dist/face-rig.js
   - sites/humanale-hologram/dist/neural-core.js
-  - sites/humanale-hologram/dist/nara-memory.js
-  - sites/humanale-hologram/dist/nara-context-bridge.js
+  - sites/humanale-hologram/dist/alecore-ai-memory.js
+  - sites/humanale-hologram/dist/alecore-ai-context-bridge.js
   - sites/humanale-hologram/dist/avatar.js
   - package.json
 asar: false

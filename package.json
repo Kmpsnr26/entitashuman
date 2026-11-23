@@ -12,10 +12,10 @@
     "package:desktop": "install-electron --no && node package-desktop.mjs",
     "package:installer": "npx --yes electron-builder@26.16.1 --win nsis --x64 --publish never",
     "smoke:terminal": "node scripts/terminal-smoke.mjs",
-    "nara:studio": "node nara-core/studio/server.mjs",
-    "test:nara": "node --test tests/nara-core.test.mjs tests/nara-studio.test.mjs tests/nara-voice.test.mjs",
-    "smoke:neural-live": "electron scripts/nara-neural-live-smoke.cjs",
-    "smoke:neural-gpu": "electron scripts/nara-neural-live-smoke.cjs"
+    "ale:studio": "node ALECORE-AI/studio/server.mjs",
+    "test:nara": "node --test tests/ALECORE-AI.test.mjs tests/alecore-ai-studio.test.mjs tests/alecore-ai-voice.test.mjs",
+    "smoke:neural-live": "electron scripts/alecore-ai-neural-live-smoke.cjs",
+    "smoke:neural-gpu": "electron scripts/alecore-ai-neural-live-smoke.cjs"
   },
   "devDependencies": {
     "electron": "44.11.5"

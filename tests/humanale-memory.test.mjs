@@ -8,18 +8,18 @@ let nonce=0;
 
 async function createRuntime(){
   delete globalThis.NeuralCore;
-  delete globalThis.HumanALENaraRuntime;
+  delete globalThis.HumanALEAleRuntime;
   await import('../sites/humanale-hologram/dist/neural-core.js?phase9='+ ++nonce);
-  await import('../sites/humanale-hologram/dist/nara-runtime.js?phase9='+ ++nonce);
+  await import('../sites/humanale-hologram/dist/alecore-ai-runtime.js?phase9='+ ++nonce);
   const graph=globalThis.NeuralCore.create();
-  const runtime=globalThis.HumanALENaraRuntime.create({regions:graph.regions});
+  const runtime=globalThis.HumanALEAleRuntime.create({regions:graph.regions});
   runtime.start();
   return {graph,runtime};
 }
 
 async function loadMemory(){
   delete globalThis.HumanALEMemory;
-  await import('../sites/humanale-hologram/dist/nara-memory.js?phase9='+ ++nonce);
+  await import('../sites/humanale-hologram/dist/alecore-ai-memory.js?phase9='+ ++nonce);
   return globalThis.HumanALEMemory;
 }
 
@@ -33,7 +33,7 @@ function fakeStorage(){
   };
 }
 
-test('persistent NARA memory survives reload and recalls relevant project context',async()=>{
+test('persistent AleCore AI memory survives reload and recalls relevant project context',async()=>{
   const {runtime}=await createRuntime();
   const Memory=await loadMemory();
   const storage=fakeStorage();
@@ -191,9 +191,9 @@ test('canonical HumanALE site wires persistent memory controls and lifecycle',as
   const [html,site,memory]=await Promise.all([
     read('sites/humanale-hologram/dist/index.html'),
     read('sites/humanale-hologram/dist/site.js'),
-    read('sites/humanale-hologram/dist/nara-memory.js')
+    read('sites/humanale-hologram/dist/alecore-ai-memory.js')
   ]);
-  assert.match(html,/\.\/nara-memory\.js/);
+  assert.match(html,/\.\/alecore-ai-memory\.js/);
   assert.match(html,/id="memoryForm"/);
   assert.match(html,/id="memorySearch"/);
   assert.match(html,/id="memoryList"/);
@@ -210,7 +210,7 @@ test('canonical HumanALE site wires persistent memory controls and lifecycle',as
 });
 
 test('Data Spine continues to route real memory lifecycle events',async()=>{
-  const spine=await read('sites/humanale-hologram/dist/nara-data-spine.js');
+  const spine=await read('sites/humanale-hologram/dist/alecore-ai-data-spine.js');
   assert.match(spine,/'memory\.read':'MEMORY'/);
   assert.match(spine,/'memory\.write':'MEMORY'/);
   assert.match(spine,/'memory\.complete':'MEMORY'/);

@@ -4,7 +4,7 @@ import {mkdtempSync,readFileSync,writeFileSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 
-import {createOwnerStore} from '../nara-core/security/owner-store.mjs';
+import {createOwnerStore} from '../ALECORE-AI/security/owner-store.mjs';
 import {createHumanALEOwnerGate} from '../desktop/humanale-owner-gate.mjs';
 
 test('unreadable Owner store fails closed and remains unchanged instead of enabling provisioning',()=>{

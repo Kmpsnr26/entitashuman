@@ -1,0 +1,531 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import {
+  createAutopilot,
+  createCapabilityBroker,
+  createExperienceModel,
+  createGoalManager,
+  createRecoveryEngine,
+  createTaskScheduler,
+  createWatchdog
+} from '../ALECORE-AI/engine/index.js';
+import {createOrchestrator} from '../ALECORE-AI/brain/orchestrator.js';
+import {
+  AI_AUTOPILOT_STATES,
+  createAIAutopilotTransaction
+} from '../desktop/agent-autopilot-transaction.mjs';
+import {createAleAgentCoordinator} from '../desktop/alecore-ai-agent-coordinator.mjs';
+
+const deferred=()=>{
+  let resolve;
+  const promise=new Promise(done=>{resolve=done;});
+  return {promise,resolve};
+};
+
+function createAutopilotFixture(){
+  const scheduler=createTaskScheduler();
+  const watchdog=createWatchdog();
+  const recovery=createRecoveryEngine();
+  const capabilities=createCapabilityBroker();
+  const experience=createExperienceModel();
+  const autopilot=createAutopilot({scheduler,watchdog,recovery,capabilities,experience});
+  return {autopilot,scheduler};
+}
+
+function transactionBroker(overrides={}){
+  return Object.assign({
+    async detect(){return {ok:true,code:'ISSUE'};},
+    async reproduce(){return {ok:true,code:'REPRODUCED'};},
+    async patch(){return {ok:true,code:'PATCHED'};},
+    async inspect(){return {ok:true,code:'SAFE_DIFF'};},
+    async test(){return {ok:true,code:'TEST_PASS'};},
+    async verify(){return {ok:true,code:'VERIFY_PASS'};},
+    async rollback(){return {ok:true,code:'ROLLBACK_OK'};}
+  },overrides);
+}
+
+test('concurrent coordinator requests both complete instead of losing the busy request',async()=>{
+  const firstStarted=deferred();
+  const releaseFirst=deferred();
+  const nara=createOrchestrator();
+  ale.start();
+  try{
+    const coordinator=createAleAgentCoordinator({
+      nara,
+      agentHub:{
+        async run(value){
+          if(value.prompt==='first request'){
+            firstStarted.resolve();
+            await releaseFirst.promise;
+          }
+          return {text:'completed '+value.prompt};
+        }
+      }
+    });
+
+    const first=coordinator.run({id:'codex',prompt:'first request',mode:'analyze'});
+    await firstStarted.promise;
+    const second=coordinator.run({id:'codex',prompt:'second request',mode:'analyze'});
+    releaseFirst.resolve();
+    const results=await Promise.all([first,second]);
+
+    assert.ok(results.every(result=>!result.error));
+    assert.deepEqual(results.map(result=>result.text),[
+      'completed first request',
+      'completed second request'
+    ]);
+    assert.notEqual(results[0].ale.taskId,results[1].ale.taskId);
+  }finally{
+    releaseFirst.resolve();
+    ale.stop();
+  }
+});
+
+test('coordinator results remain correlated to their task and goal IDs',async()=>{
+  const nara=createOrchestrator();
+  ale.start();
+  try{
+    const coordinator=createAleAgentCoordinator({
+      nara,
+      agentHub:{run:async value=>({text:'result for '+value.prompt})}
+    });
+    const results=[];
+    for(const prompt of ['task alpha','task beta']){
+      results.push(await coordinator.run({id:'codex',prompt,mode:'analyze'}));
+    }
+
+    assert.notEqual(results[0].ale.taskId,results[1].ale.taskId);
+    assert.notEqual(results[0].ale.goalId,results[1].ale.goalId);
+    const tasks=ale.snapshot().engine.autopilot.scheduler.tasks;
+    for(const result of results){
+      const task=tasks.find(item=>item.id===result.ale.taskId);
+      assert.ok(task);
+      assert.equal(task.goalId,result.ale.goalId);
+      assert.equal(task.status,'complete');
+    }
+  }finally{
+    ale.stop();
+  }
+});
+
+test('capability-blocked high-priority work does not starve runnable tasks',async()=>{
+  const {autopilot,scheduler}=createAutopilotFixture();
+  const calls=[];
+  autopilot.registerHandler('system.protected',async()=>{calls.push('protected');return {ok:true};},{
+    capability:'os.privileged.action'
+  });
+  autopilot.registerHandler('safe.read',async()=>{calls.push('safe');return {ok:true};});
+  autopilot.enqueue({id:'protected-task',handler:'system.protected',priority:100});
+  autopilot.enqueue({id:'safe-task',handler:'safe.read',priority:50});
+
+  const result=await autopilot.runNext();
+
+  assert.equal(result.ok,true);
+  assert.equal(result.task.id,'safe-task');
+  assert.deepEqual(calls,['safe']);
+  assert.equal(scheduler.get('protected-task').status,'queued');
+  assert.equal(scheduler.get('safe-task').status,'complete');
+});
+
+test('autopilot timeout and cancellation abort work and roll back partial changes',async()=>{
+  const broker=transactionBroker({
+    async patch(){
+      await new Promise(resolve=>setTimeout(resolve,20));
+      return {ok:true,code:'PATCHED'};
+    }
+  });
+  const auto=createAIAutopilotTransaction({broker,limits:{maxAttempts:1}});
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),5);
+  let result;
+  try{
+    result=await auto.runOnce({requestId:'phase4-timeout',signal:controller.signal});
+  }finally{
+    clearTimeout(timeout);
+  }
+
+  assert.equal(result.status,AI_AUTOPILOT_STATES.ROLLED_BACK);
+  assert.equal(result.reason,'ABORTED');
+  assert.deepEqual(result.steps.map(step=>step.name),[
+    'detect','reproduce','patch','rollback'
+  ]);
+  assert.equal(result.steps[result.steps.length-1].ok,true);
+
+  const cancelled=new AbortController();
+  cancelled.abort();
+  const calls=[];
+  const preCancelled=createAIAutopilotTransaction({
+    broker:transactionBroker({
+      async detect(){calls.push('detect');return {ok:true,code:'ISSUE'};}
+    }),
+    limits:{maxAttempts:1}
+  });
+  const cancelledResult=await preCancelled.runOnce({signal:cancelled.signal});
+  assert.equal(cancelledResult.reason,'ABORTED');
+  assert.deepEqual(calls,[]);
+});
+
+test('goal success criteria are recorded and unmet work does not complete the goal',async()=>{
+  const nara=createOrchestrator();
+  ale.start();
+  try{
+    const coordinator=createAleAgentCoordinator({
+      nara,
+      agentHub:{
+        async run(value){
+          return value.prompt==='Apply the required change'
+            ?{
+              id:value.id,
+              mode:value.mode,
+              text:'No files changed',
+              maintenance:{changedFiles:0}
+            }
+            :{id:value.id,mode:value.mode,text:'Verified'};
+        }
+      }
+    });
+    const verified=await coordinator.run({
+      id:'codex',
+      prompt:'Verify goal success',
+      mode:'analyze'
+    });
+    const verifiedGoal=ale.snapshot().engine.goals.goals.find(item=>item.id===verified.ale.goalId);
+    assert.equal(verifiedGoal.status,'complete');
+    assert.deepEqual(verifiedGoal.successCriteria,[
+      'Agent Hub menyelesaikan task',
+      'Hasil melewati lifecycle verifikasi AleCore AI'
+    ]);
+
+    const result=await coordinator.run({
+      id:'codex',
+      prompt:'Apply the required change',
+      mode:'work'
+    });
+    const goal=ale.snapshot().engine.goals.goals.find(item=>item.id===result.ale.goalId);
+
+    assert.deepEqual(goal.successCriteria,[
+      'Agent Hub menyelesaikan task',
+      'Hasil melewati lifecycle verifikasi AleCore AI'
+    ]);
+    assert.match(result.error,/belum menghasilkan perubahan berkas/);
+    assert.equal(result.ale.goalStatus,'blocked');
+    assert.notEqual(goal.status,'complete');
+  }finally{
+    ale.stop();
+  }
+});
+
+test('autopilot retry reuses its request ID and rolls back before retrying',async()=>{
+  const calls=[];
+  let patchAttempts=0;
+  const broker=transactionBroker({
+    async detect({transactionId}){calls.push(['detect',transactionId]);return {ok:true,code:'ISSUE'};},
+    async reproduce({transactionId,attempt}){
+      calls.push(['reproduce',transactionId,attempt]);
+      return {ok:true,code:'REPRODUCED'};
+    },
+    async patch({transactionId,attempt}){
+      calls.push(['patch',transactionId,attempt]);
+      patchAttempts++;
+      return patchAttempts===1
+        ?{ok:false,code:'PATCH_FAILED'}
+        :{ok:true,code:'PATCHED'};
+    },
+    async rollback({transactionId,attempt}){
+      calls.push(['rollback',transactionId,attempt]);
+      return {ok:true,code:'ROLLBACK_OK'};
+    },
+    async inspect({transactionId,attempt}){
+      calls.push(['inspect',transactionId,attempt]);
+      return {ok:true,code:'SAFE_DIFF'};
+    },
+    async test({transactionId,attempt}){
+      calls.push(['test',transactionId,attempt]);
+      return {ok:true,code:'TEST_PASS'};
+    },
+    async verify({transactionId,attempt}){
+      calls.push(['verify',transactionId,attempt]);
+      return {ok:true,code:'VERIFY_PASS'};
+    }
+  });
+  const auto=createAIAutopilotTransaction({broker,limits:{maxAttempts:2}});
+  const result=await auto.runOnce({requestId:'phase4-idempotent-retry'});
+
+  assert.equal(result.status,AI_AUTOPILOT_STATES.PASSED);
+  assert.equal(result.transactionId,'phase4-idempotent-retry');
+  assert.ok(calls.every(call=>call[1]==='phase4-idempotent-retry'));
+  const rollbackIndex=calls.findIndex(call=>call[0]==='rollback');
+  const retryIndex=calls.findIndex(call=>call[0]==='reproduce'&&call[2]===2);
+  assert.ok(rollbackIndex>=0);
+  assert.ok(retryIndex>rollbackIndex);
+  assert.deepEqual(calls.filter(call=>call[0]==='rollback').map(call=>call[2]),[1]);
+});
+
+
+test('AleCore AI dispatcher serializes concurrent task waiters and preserves each result',async()=>{
+  const {autopilot,scheduler}=createAutopilotFixture();
+  const firstStarted=deferred(),releaseFirst=deferred();
+  autopilot.registerHandler('test.concurrent',async({task})=>{
+    if(task.id==='concurrent-a'){firstStarted.resolve();await releaseFirst.promise;}
+    return {taskId:task.id};
+  });
+  autopilot.enqueue({id:'concurrent-a',handler:'test.concurrent',priority:90});
+  autopilot.enqueue({id:'concurrent-b',handler:'test.concurrent',priority:80});
+  const first=autopilot.runTask('concurrent-a');
+  await firstStarted.promise;
+  const second=autopilot.runTask('concurrent-b');
+  releaseFirst.resolve();
+  const [a,b]=await Promise.all([first,second]);
+  assert.equal(a.ok,true);assert.equal(b.ok,true);
+  assert.equal(a.result.taskId,'concurrent-a');assert.equal(b.result.taskId,'concurrent-b');
+  assert.equal(scheduler.get('concurrent-a').status,'complete');
+  assert.equal(scheduler.get('concurrent-b').status,'complete');
+});
+
+test('AleCore AI timeout aborts the handler and releases dispatcher capacity',async()=>{
+  const {autopilot,scheduler}=createAutopilotFixture();
+  let signalSeen=false;
+  autopilot.registerHandler('test.timeout',async({signal})=>new Promise((resolve)=>{
+    signal.addEventListener('abort',()=>{signalSeen=true;resolve('aborted');},{once:true});
+  }),{timeoutMs:1000});
+  autopilot.registerHandler('test.after-timeout',async()=>({ok:true}));
+  autopilot.enqueue({id:'timeout-task',handler:'test.timeout'});
+  autopilot.enqueue({id:'after-timeout-task',handler:'test.after-timeout'});
+  const result=await autopilot.runTask('timeout-task');
+  assert.equal(result.ok,false);
+  assert.equal(result.error,'Autopilot task timeout.');
+  assert.equal(signalSeen,true);
+  assert.equal(scheduler.get('timeout-task').status,'failed');
+  assert.equal(scheduler.snapshot().running,0);
+  const next=await autopilot.runTask('after-timeout-task');
+  assert.equal(next.ok,true);
+});
+
+test('AleCore AI honors recovery delay before retrying an idempotent task',async()=>{
+  const scheduler=createTaskScheduler();
+  const watchdog=createWatchdog();
+  const capabilities=createCapabilityBroker();
+  const experience=createExperienceModel();
+  const retryDelayMs=80;
+  const recovery={decide(){return {action:'retry',reason:'idempotent-retry',delayMs:retryDelayMs};}};
+  const autopilot=createAutopilot({scheduler,watchdog,recovery,capabilities,experience});
+  let calls=0;
+  autopilot.registerHandler('test.retry-delay',async()=>{
+    calls+=1;
+    if(calls===1)throw new Error('temporary provider failure');
+    return 'recovered';
+  },{idempotent:true});
+  autopilot.enqueue({id:'retry-delay-task',handler:'test.retry-delay'});
+  const startedAt=Date.now();
+
+  const result=await autopilot.runTask('retry-delay-task');
+
+  assert.equal(result.ok,true);
+  assert.equal(result.result,'recovered');
+  assert.equal(calls,2);
+  assert.ok(Date.now()-startedAt>=retryDelayMs-15,'retry must wait for the recovery backoff');
+  assert.equal(scheduler.get('retry-delay-task').status,'complete');
+});
+
+test('AleCore AI classifies an internal timeout separately from caller cancellation',async()=>{
+  const scheduler=createTaskScheduler();
+  const watchdog=createWatchdog();
+  const capabilities=createCapabilityBroker();
+  const experience=createExperienceModel();
+  let recoveryInput=null;
+  const recovery={decide(input){recoveryInput=input;return {action:'escalate',reason:'timeout-observed',delayMs:0};}};
+  const autopilot=createAutopilot({scheduler,watchdog,recovery,capabilities,experience});
+  let signalSeen=false;
+  autopilot.registerHandler('test.timeout-category',async({signal})=>new Promise(()=>{
+    signal.addEventListener('abort',()=>{signalSeen=true;},{once:true});
+  }),{timeoutMs:1000,idempotent:true});
+  autopilot.enqueue({id:'timeout-category-task',handler:'test.timeout-category'});
+
+  const result=await autopilot.runTask('timeout-category-task');
+
+  assert.equal(signalSeen,true);
+  assert.equal(result.ok,false);
+  assert.equal(result.reason,undefined);
+  assert.equal(result.decision.reason,'timeout-observed');
+  assert.equal(recoveryInput.errorCategory,'timeout');
+  assert.equal(scheduler.get('timeout-category-task').status,'failed');
+});
+
+test('AleCore AI GoalManager rejects completion without verified evidence',()=>{
+  const goals=createGoalManager();
+  goals.create({id:'evidence-goal',successCriteria:['deliverable exists','verification passed']});
+  goals.activate('evidence-goal');
+  goals.attachTask('evidence-goal','evidence-task');
+  assert.throws(()=>goals.complete('evidence-goal'),/task terkait|bukti terverifikasi/);
+  goals.recordEvidence('evidence-goal',{criterion:'deliverable exists',evidence:'artifact-123',verified:true});
+  assert.throws(()=>goals.complete('evidence-goal'),/bukti terverifikasi/);
+  goals.recordEvidence('evidence-goal',{criterion:'verification passed',evidence:'test-run-456',verified:true});
+  assert.throws(()=>goals.complete('evidence-goal'),/seluruh task terkait harus selesai/);
+  goals.reconcileTasks([{id:'evidence-task',status:'complete'}]);
+  assert.equal(goals.complete('evidence-goal').status,'complete');
+});
+
+test('AleCore AI recovery refuses retry without idempotency or confirmed compensation',()=>{
+  const recovery=createRecoveryEngine({maxRetries:2});
+  assert.equal(recovery.decide({attempt:1,errorCategory:'runtime'}).action,'escalate');
+  assert.equal(recovery.decide({attempt:1,errorCategory:'runtime'}).reason,
+    'unsafe-retry-requires-idempotency-or-confirmed-compensation');
+  assert.equal(recovery.decide({attempt:1,errorCategory:'runtime',idempotent:true}).action,'retry');
+  assert.equal(recovery.decide({attempt:1,errorCategory:'runtime',compensationConfirmed:true}).action,'retry');
+});
+
+
+test('AleCore AI cancellation aborts only the targeted running handler',async()=>{
+  const {autopilot,scheduler}=createAutopilotFixture();
+  const started=deferred();
+  let abortObserved=false;
+  autopilot.registerHandler('test.cancel',async({signal,task})=>new Promise((resolve)=>{
+    started.resolve(task.id);
+    signal.addEventListener('abort',()=>{abortObserved=true;resolve('cancelled');},{once:true});
+  }));
+  autopilot.enqueue({id:'cancel-target',handler:'test.cancel'});
+  const pending=autopilot.runTask('cancel-target');
+  await started.promise;
+  const cancelled=autopilot.cancel('cancel-target','test cancellation');
+  const result=await pending;
+  assert.equal(cancelled.status,'cancelled');
+  assert.equal(result.ok,false);
+  assert.equal(scheduler.get('cancel-target').status,'cancelled');
+  assert.equal(abortObserved,true);
+  assert.equal(scheduler.snapshot().running,0);
+});
+
+
+test('Coordinator forwards AleCore AI cancellation to the Agent Hub executor',async()=>{
+  const nara=createOrchestrator();ale.start();
+  const started=deferred();let receivedSignal=null;
+  try{
+    const coordinator=createAleAgentCoordinator({
+      nara,
+      agentHub:{run({signal}){
+        receivedSignal=signal;
+        return new Promise((resolve,reject)=>{
+          signal.addEventListener('abort',()=>reject(new Error('Agent Hub aborted by AleCore AI')), {once:true});
+          started.resolve(signal);
+        });
+      }}
+    });
+    const pending=coordinator.run({id:'codex',prompt:'cancel this task',mode:'analyze'});
+    const signal=await started.promise;
+    const running=ale.snapshot().engine.autopilot.scheduler.tasks.find(task=>task.status==='running');
+    assert.ok(running);
+    ale.autopilot.cancel(running.id,'test cancellation');
+    const result=await pending;
+    assert.equal(receivedSignal,signal);
+    assert.equal(signal.aborted,true);
+    assert.match(result.error,/Agent Hub aborted by AleCore AI|test cancellation/);
+    assert.equal(result.reason,'cancelled');
+    assert.equal(result.decision?.action,'stop');
+    assert.equal(ale.snapshot().engine.autopilot.scheduler.tasks.find(task=>task.id===running.id)?.status,'cancelled');
+  }finally{ale.stop();}
+});
+
+
+test('AleCore AI does not wait forever for an orphaned running task',async()=>{
+  const {autopilot,scheduler}=createAutopilotFixture();
+  autopilot.registerHandler('test.orphan',async()=>({ok:true}));
+  scheduler.enqueue({id:'orphan-running',handler:'test.orphan'});
+  scheduler.start('orphan-running');
+  const result=await autopilot.runTask('orphan-running');
+  assert.equal(result.ok,false);
+  assert.equal(result.reason,'task-already-running');
+});
+
+
+test('Coordinator work Goal requires an independent reviewer PASS',async()=>{
+  const nara=createOrchestrator();ale.start();
+  try{
+    const coordinator=createAleAgentCoordinator({
+      nara,
+      agentHub:{async run(value){
+        return {
+          text:'Work output for '+value.prompt,
+          maintenance:{changedFiles:1},
+          verification:value.prompt.includes('stale-pass')?{status:'passed'}:undefined,
+          stages:value.prompt.includes('stale-pass')
+            ?[{role:'reviewer',text:'VERDICT: PASS'},{role:'reviewer',text:'VERDICT: NEEDS_FIX'}]
+            :value.prompt.includes('review-pass')
+              ?[{role:'reviewer',text:'Review complete. VERDICT: PASS'}]
+              :[]
+        };
+      }}
+    });
+    const rejected=await coordinator.run({id:'codex',prompt:'work without reviewer',mode:'work'});
+    assert.match(rejected.error,/reviewer independen/);
+    assert.equal(rejected.ale.goalStatus,'blocked');
+    const accepted=await coordinator.run({id:'codex',prompt:'work with review-pass',mode:'work'});
+    assert.equal(accepted.ale.goalStatus,'complete');
+    const stale=await coordinator.run({id:'codex',prompt:'work with stale-pass',mode:'work'});
+    assert.match(stale.error,/reviewer independen/);
+    assert.equal(stale.ale.goalStatus,'blocked');
+  }finally{ale.stop();}
+});
+
+
+test('explicitly requeued task ignores its cached terminal failure and executes again',async()=>{
+  const scheduler=createTaskScheduler();
+  const watchdog=createWatchdog();
+  const capabilities=createCapabilityBroker();
+  const experience=createExperienceModel();
+  const recovery={decide(){return {action:'escalate',reason:'manual-requeue-required',delayMs:0};}};
+  const autopilot=createAutopilot({scheduler,watchdog,recovery,capabilities,experience});
+  let calls=0;
+  autopilot.registerHandler('test.manual-requeue',async()=>{
+    calls+=1;
+    if(calls===1)throw new Error('first attempt failed');
+    return {ok:true,attempt:calls};
+  });
+  autopilot.enqueue({id:'manual-requeue-task',handler:'test.manual-requeue'});
+  const first=await autopilot.runTask('manual-requeue-task');
+  assert.equal(first.ok,false);
+  assert.equal(first.error,'first attempt failed');
+  assert.equal(calls,1);
+  assert.equal(scheduler.get('manual-requeue-task').status,'failed');
+
+  scheduler.requeue('manual-requeue-task');
+  assert.equal(scheduler.get('manual-requeue-task').status,'queued');
+  const second=await autopilot.runNext();
+
+  assert.equal(second.ok,true);
+  assert.deepEqual(second.result,{ok:true,attempt:2});
+  assert.equal(calls,2);
+  assert.equal(scheduler.get('manual-requeue-task').status,'complete');
+});
+
+
+test('cancelling a requeued task never returns its previous cached failure',async()=>{
+  const scheduler=createTaskScheduler();
+  const watchdog=createWatchdog();
+  const capabilities=createCapabilityBroker();
+  const experience=createExperienceModel();
+  const recovery={decide(){return {action:'escalate',reason:'manual-requeue-required',delayMs:0};}};
+  const autopilot=createAutopilot({scheduler,watchdog,recovery,capabilities,experience});
+  let calls=0;
+  autopilot.registerHandler('test.cancel-requeued',async()=>{
+    calls+=1;
+    throw new Error('original attempt failed');
+  });
+  autopilot.enqueue({id:'cancel-requeued-task',handler:'test.cancel-requeued'});
+  const first=await autopilot.runTask('cancel-requeued-task');
+  assert.equal(first.ok,false);
+  assert.equal(first.error,'original attempt failed');
+  assert.equal(calls,1);
+
+  scheduler.requeue('cancel-requeued-task');
+  assert.equal(scheduler.get('cancel-requeued-task').status,'queued');
+  autopilot.cancel('cancel-requeued-task','cancelled before retry starts');
+  assert.equal(scheduler.get('cancel-requeued-task').status,'cancelled');
+
+  const cancelled=await autopilot.runTask('cancel-requeued-task');
+  assert.equal(cancelled.ok,false);
+  assert.equal(cancelled.reason,'cancelled');
+  assert.equal(cancelled.task.status,'cancelled');
+  assert.equal(calls,1,'a cancelled requeued task must not invoke its handler again');
+  assert.equal(autopilot.snapshot().scheduler.tasks.find(task=>task.id==='cancel-requeued-task').status,'cancelled');
+});

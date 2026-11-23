@@ -17,7 +17,7 @@ test('HumanALE final readiness is fail-closed by default',()=>{
   assert.ok(result.blockers.includes('runtime-core:PENDING'));
 });
 
-test('technical readiness alone does not unlock Nara Core integration',()=>{
+test('technical readiness alone does not unlock AleCore AI integration',()=>{
   const result=evaluateHumanALEFinalReadiness({
     build:{version:'2.5.0',commit:'abc123',branch:'candidate'},
     checks:passingChecks
@@ -32,7 +32,7 @@ test('explicit creator approval plus all required gates unlocks final integratio
   const evidence={
     build:{version:'2.5.0',commit:'abc123',branch:'candidate'},
     checks:passingChecks,
-    creatorApproval:{approved:true,by:'CREATOR',note:'Approved for final Nara Core integration.',timestamp:2}
+    creatorApproval:{approved:true,by:'CREATOR',note:'Approved for final AleCore AI integration.',timestamp:2}
   };
   const result=assertHumanALEIntegrationUnlocked(evidence);
   assert.equal(result.finalState,'FINAL_READY');

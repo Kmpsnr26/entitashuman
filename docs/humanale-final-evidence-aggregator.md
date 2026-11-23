@@ -112,7 +112,7 @@ The command exits:
 - 2 while technical gates remain incomplete;
 - 1 on aggregator/runtime error.
 
-The generated result is evidence for review. It does not merge branches, change the official certificate, or activate NARA integration.
+The generated result is evidence for review. It does not merge branches, change the official certificate, or activate AleCore AI integration.
 
 ## Publication source identity
 

@@ -60,7 +60,7 @@ function Read-CurrentPhysicalGpuEvidence {
 }
 
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host " NARA + HumanALE V3 Unified Physical Acceptance" -ForegroundColor Cyan
+Write-Host " AleCore AI + HumanALE V3 Unified Physical Acceptance" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Repository: $Root"
 
@@ -99,7 +99,7 @@ $artifactDir = Join-Path $Root 'artifacts'
 New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
 $desktopShot = Join-Path $artifactDir 'humanale-unified.png'
 $reportPath = Join-Path $artifactDir 'humanale-unified-acceptance.json'
-$neuralReportPath = Join-Path $artifactDir 'nara-neural-live-report.json'
+$neuralReportPath = Join-Path $artifactDir 'alecore-ai-neural-live-report.json'
 
 Write-Host "[3/6] Menjalankan HumanALE desktop unified runtime smoke..." -ForegroundColor Yellow
 $env:DUDIDAM_CAPTURE_SMOKE = $desktopShot
@@ -114,8 +114,8 @@ if ($desktopPassed) {
   Write-Host "Desktop unified runtime : FAIL ($desktopExit)" -ForegroundColor Red
 }
 
-Write-Host "[4/6] Menjalankan NARA Neural physical GPU acceptance..." -ForegroundColor Yellow
-$gpuScript = Join-Path $PSScriptRoot 'nara-neural-gpu-acceptance.ps1'
+Write-Host "[4/6] Menjalankan AleCore AI Neural physical GPU acceptance..." -ForegroundColor Yellow
+$gpuScript = Join-Path $PSScriptRoot 'alecore-ai-neural-gpu-acceptance.ps1'
 # A prior successful report must never substitute for this invocation's evidence.
 Remove-Item -LiteralPath $neuralReportPath -Force -ErrorAction SilentlyContinue
 $gpuStartedAt = [DateTimeOffset]::UtcNow
@@ -131,7 +131,7 @@ Write-Host ""
 Write-Host "[5/6] Unified result" -ForegroundColor Cyan
 Write-Host "Desktop Runtime Host   : $desktopPassed"
 Write-Host "Creator Gate smoke     : $desktopPassed"
-Write-Host "NARA Core V2/V3 bridge : $desktopPassed"
+Write-Host "AleCore AI V2/V3 bridge : $desktopPassed"
 Write-Host "Renderer sensory gate  : $desktopPassed"
 Write-Host "Physical GPU gate      : $gpuPassed"
 Write-Host "Current GPU evidence   : $($neuralEvidence.accepted) $($neuralEvidence.reason)"
@@ -155,7 +155,7 @@ $report = [ordered]@{
     checks = @(
       'creator-owner-gate'
       'unified-runtime-v3'
-      'nara-core-identity'
+      'ALECORE-AI-identity'
       'humanale-body-state'
       'sensory-dispatch'
       'renderer-event-deny'
@@ -184,8 +184,8 @@ Write-Host "Neural report          : $neuralReportPath"
 Write-Host ""
 Write-Host "[6/6] Release gate" -ForegroundColor Cyan
 if (-not $passed) {
-  Fail "NARA + HumanALE V3 unified acceptance belum lolos."
+  Fail "AleCore AI + HumanALE V3 unified acceptance belum lolos."
 }
 
-Write-Host "[PASS] NARA Core + HumanALE Unified Runtime V3 lolos physical acceptance." -ForegroundColor Green
+Write-Host "[PASS] AleCore AI + HumanALE Unified Runtime V3 lolos physical acceptance." -ForegroundColor Green
 exit 0

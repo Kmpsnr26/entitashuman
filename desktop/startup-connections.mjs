@@ -1,4 +1,4 @@
-import {normalizeProviderStatus,normalizeStartupConnections} from '../nara-core/brain/provider-state.js';
+import {normalizeProviderStatus,normalizeStartupConnections} from '../ALECORE-AI/brain/provider-state.js';
 
 export const AUTO_PROVIDER_IDS=Object.freeze(['chatgpt','copilot','openai','gemini']);
 export const STARTUP_STATUS_TIMEOUT_MS=15000;
@@ -6,7 +6,7 @@ const providerSessions=new WeakMap();
 const codexStatusError=(agent,fallback='')=>fallback||
   (/^CODEX_PROBE_/.test(agent?.errorCode||'')?(agent.errorCode==='CODEX_PROBE_TIMEOUT'?'STATUS_TIMEOUT':'STATUS_FAILED'):'');
 
-export function recordNaraAgentHubStatus({nara,hub={},pending=false,now=()=>Date.now(),statusError=''}={}){
+export function recordAleAgentHubStatus({nara,hub={},pending=false,now=()=>Date.now(),statusError=''}={}){
   const codex=Array.isArray(hub.agents)?hub.agents.find(agent=>agent?.id==='codex'):null;
   const verified=codex?.executable===true&&codex?.state==='configured'&&codex?.canRun===true;
   const provider=normalizeProviderStatus({id:'codex',attached:codex?.executable===true,
@@ -25,7 +25,7 @@ function safeDispatch(nara,event,payload){
   try{nara?.dispatch?.(event,payload,{source:'startup-connections'});}catch{}
 }
 
-export function recordNaraProviderStatus({nara,id,raw={},busy=false,statusError='',requestSucceeded=false,requestFailed=false,clearEvidence=false}={}){
+export function recordAleProviderStatus({nara,id,raw={},busy=false,statusError='',requestSucceeded=false,requestFailed=false,clearEvidence=false}={}){
   if(!normalizeProviderStatus({id}))return null;
   const canStore=nara!==null&&['object','function'].includes(typeof nara);
   const session=canStore?providerSessions.get(nara)||new Map():new Map();
@@ -65,7 +65,7 @@ async function boundedStatus(read,timeoutMs){
   }finally{clearTimeout(timer);}
 }
 
-export async function bootstrapNaraConnections({bridges={},agentHub=null,nara=null,
+export async function bootstrapAleConnections({bridges={},agentHub=null,nara=null,
   timeoutMs=STARTUP_STATUS_TIMEOUT_MS,now=()=>Date.now()}={}){
   if(!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>STARTUP_STATUS_TIMEOUT_MS){
     throw new TypeError('Startup status timeout must be between 1 and 15000 milliseconds.');
@@ -75,7 +75,7 @@ export async function bootstrapNaraConnections({bridges={},agentHub=null,nara=nu
       const bridge=bridges[id];
       const result=typeof bridge?.status==='function'
         ?await boundedStatus(()=>bridge.status(),timeoutMs):{statusError:'BRIDGE_MISSING'};
-      const state=recordNaraProviderStatus({nara,id,raw:result.raw,
+      const state=recordAleProviderStatus({nara,id,raw:result.raw,
         busy:bridge?.pending===true,statusError:result.statusError});
       return [id,state];
     })),

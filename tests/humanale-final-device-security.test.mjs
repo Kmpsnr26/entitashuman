@@ -144,7 +144,7 @@ test('final device/security runners remain evidence-driven and fail closed',asyn
  assert.match(security,/Get-AuthenticodeSignature/);
  assert.match(security,/apksigner verify/);
  assert.match(security,/RELEASE_SECURITY_PASS/);
- assert.doesNotMatch(android+security,/integrationUnlocked|authority-control|NARA.*dispatch/i);
+ assert.doesNotMatch(android+security,/integrationUnlocked|authority-control|AleCore AI.*dispatch/i);
 });
 
 test('release workflows require final readiness and signed Windows artifacts',async()=>{

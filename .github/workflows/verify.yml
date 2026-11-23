@@ -79,7 +79,7 @@ jobs:
       - name: Smoke interactive Windows terminal
         run: npm run smoke:terminal
       - name: Verify Windows device and acceptance evidence regressions
-        run: node --test tests/humanale-final-device-security.test.mjs tests/humanale-release-security.test.mjs tests/humanale-performance-stability-runner.test.mjs tests/humanale-unified-acceptance.test.mjs tests/nara-neural-gpu-acceptance.test.mjs
+        run: node --test tests/humanale-final-device-security.test.mjs tests/humanale-release-security.test.mjs tests/humanale-performance-stability-runner.test.mjs tests/humanale-unified-acceptance.test.mjs tests/alecore-ai-neural-gpu-acceptance.test.mjs
       - name: Package portable desktop
         run: npm run package:desktop
       - name: Smoke portable Windows terminal in packaged Electron

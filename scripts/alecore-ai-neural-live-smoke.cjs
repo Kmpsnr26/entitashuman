@@ -1,0 +1,283 @@
+const {app,BrowserWindow}=require('electron');
+const {mkdirSync,writeFileSync}=require('node:fs');
+const path=require('node:path');
+const {pathToFileURL}=require('node:url');
+
+const GPU_MODE=String(process.env.ALECORE_AI_GPU_MODE||'hardware').toLowerCase()==='software'?'software':'hardware';
+const SOFTWARE_GPU=GPU_MODE==='software';
+
+app.commandLine.appendSwitch('enable-webgl');
+if(SOFTWARE_GPU){
+  app.commandLine.appendSwitch('ignore-gpu-blocklist');
+  app.commandLine.appendSwitch('use-gl','angle');
+  app.commandLine.appendSwitch('use-angle','swiftshader');
+  app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+}
+
+const ROOT=path.resolve(__dirname,'..');
+const ARTIFACTS=path.join(ROOT,'artifacts');
+const SMOKE_CREATOR=Object.freeze({
+  username:'creator',
+  password:'browser-acceptance-'+process.pid
+});
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+
+function isSoftwareRenderer(renderer=''){
+  return /swiftshader|llvmpipe|software rasterizer|microsoft basic render|\bwarp\b/i.test(String(renderer));
+}
+
+function gpuModeMatches(mode,{hardwareAcceleration=false,renderer=''}={}){
+  const softwareRenderer=isSoftwareRenderer(renderer);
+  if(mode==='software')return softwareRenderer;
+  return Boolean(hardwareAcceleration&&!softwareRenderer);
+}
+
+async function waitFor(win,expression,{timeout=15000,interval=150}={}){
+  const started=Date.now();
+  let lastError=null;
+  while(Date.now()-started<timeout){
+    try{
+      if(await win.webContents.executeJavaScript(expression,true))return true;
+    }catch(error){lastError=error;}
+    await sleep(interval);
+  }
+  throw new Error('Timeout waiting for: '+expression+(lastError?' · '+lastError.message:''));
+}
+
+const evaluate=(win,source)=>win.webContents.executeJavaScript(source,true);
+
+async function run(){
+  mkdirSync(ARTIFACTS,{recursive:true});
+  const moduleUrl=pathToFileURL(path.join(ROOT,'ALECORE-AI/studio/server.mjs')).href;
+  const {createAleStudioServer}=await import(moduleUrl);
+  const studio=createAleStudioServer({
+    host:'127.0.0.1',
+    port:0,
+    creatorAuth:SMOKE_CREATOR
+  });
+  const address=await studio.start();
+  const url='http://127.0.0.1:'+address.port;
+
+  const browserErrors=[];
+  const rendererGone=[];
+  const network=[];
+  const win=new BrowserWindow({
+    width:1440,height:960,show:true,backgroundColor:'#02070b',
+    webPreferences:{backgroundThrottling:false,contextIsolation:true,nodeIntegration:false,sandbox:true}
+  });
+
+  win.webContents.on('console-message',details=>{
+    const level=String(details.level||'info');
+    if(level==='warning'||level==='error'){
+      browserErrors.push({
+        level,
+        message:details.message,
+        line:details.lineNumber,
+        sourceId:details.sourceId
+      });
+    }
+  });
+  win.webContents.on('render-process-gone',(_event,details)=>rendererGone.push(details));
+  win.webContents.session.webRequest.onCompleted(details=>{
+    if(details.url.startsWith(url))network.push({
+      url:details.url,statusCode:details.statusCode,
+      method:details.method,resourceType:details.resourceType
+    });
+  });
+  win.webContents.session.webRequest.onErrorOccurred(details=>{
+    if(details.url.startsWith(url))network.push({
+      url:details.url,error:details.error,
+      method:details.method,resourceType:details.resourceType
+    });
+  });
+
+  const report={
+    startedAt:new Date().toISOString(),url,checks:{},webgl:null,hud:null,
+    browserErrors,rendererGone,network,moduleProbe:null,
+    gpu:{requestedMode:GPU_MODE}
+  };
+
+  try{
+    await win.loadURL(url);
+    await waitFor(win,"Boolean(document.getElementById('creatorGateway'))");
+    await waitFor(win,"Boolean(document.getElementById('creatorLoginForm')&&!document.getElementById('creatorLoginForm')?.hidden)");
+    report.checks.creatorBrainCanvasVisible=await evaluate(win,"(()=>{const canvas=document.getElementById('creatorBrainCanvas');if(!canvas)return false;const rect=canvas.getBoundingClientRect();return rect.width>300&&rect.height>300&&canvas.width>0&&canvas.height>0;})()");
+    report.checks.creatorLoginAuthenticated=await evaluate(win,`(async()=>{
+      const username=document.getElementById('creatorUsername');
+      const password=document.getElementById('creatorPassword');
+      const form=document.getElementById('creatorLoginForm');
+      if(!username||!password||!form)return false;
+      username.value=${JSON.stringify(SMOKE_CREATOR.username)};
+      password.value=${JSON.stringify(SMOKE_CREATOR.password)};
+      form.requestSubmit();
+      const started=Date.now();
+      while(Date.now()-started<8000){
+        if(!document.getElementById('creatorAccessPanel')?.hidden)return true;
+        await new Promise(resolve=>setTimeout(resolve,100));
+      }
+      return false;
+    })()`);
+    if(!report.checks.creatorLoginAuthenticated)throw new Error('Creator browser login failed');
+    report.creatorSession=await evaluate(win,"({identity:document.getElementById('creatorIdentity')?.textContent,mode:document.getElementById('creatorSessionMode')?.textContent})");
+    report.checks.creatorSecureSession=report.creatorSession.identity==='CREATOR VERIFIED'&&report.creatorSession.mode==='SECURE SESSION';
+    await waitFor(win,"Boolean(document.getElementById('creatorEnter')&&!document.getElementById('creatorAccessPanel')?.hidden)");
+    report.checks.creatorGatewayPassed=await evaluate(win,"(()=>{const button=document.getElementById('creatorEnter');if(!button)return false;button.click();return true;})()");
+    await sleep(120);
+    report.checks.cinematicEntryTriggered=await evaluate(win,"(()=>{const entry=document.getElementById('neuralEntryTransition');return Boolean(entry&&!entry.hidden&&entry.classList.contains('neural-entry-active'));})()");
+    report.checks.matrixTransitionVisible=await evaluate(win,"(()=>{const canvas=document.getElementById('neuralEntryMatrix');if(!canvas)return false;const rect=canvas.getBoundingClientRect();return rect.width>300&&rect.height>300&&canvas.width>0&&canvas.height>0;})()");
+    report.checks.audioControlPresent=await evaluate(win,"Boolean(document.getElementById('edgeAudioToggle'))");
+    await waitFor(win,"document.getElementById('connection')?.textContent==='LIVE'",{timeout:18000});
+    report.checks.liveConnection=true;
+    report.checks.edgeHudVisible=await evaluate(win,"(()=>{const el=document.getElementById('edgeHud');return Boolean(el&&!el.hidden&&getComputedStyle(el).display!=='none');})()");
+    report.checks.legacyPanelsHidden=await evaluate(win,"getComputedStyle(document.querySelector('.state-panel')).display==='none'");
+    report.checks.edgeMonitorDrawer=await evaluate(win,"(()=>{const button=document.querySelector('[data-edge-monitor=connection]');const drawer=document.getElementById('edgeMonitorDrawer');button?.click();const visible=Boolean(drawer&&!drawer.hidden);document.getElementById('edgeMonitorClose')?.click();return visible;})()");
+    report.checks.customSettingsPanel=await evaluate(win,"(()=>{const button=document.getElementById('edgeCustomSettings');const panel=document.getElementById('customSettingsPanel');button?.click();const visible=Boolean(panel&&!panel.hidden&&panel.classList.contains('custom-settings-open'));const controls=Boolean(panel?.querySelector('[data-visual-setting=brainFrame]')&&panel?.querySelector('[data-visual-setting=binary]')&&panel?.querySelector('[data-visual-setting=ringSpeedA]')&&panel?.querySelector('[data-visual-preset=neural-galaxy]'));document.getElementById('customSettingsClose')?.click();return visible&&controls;})()");
+    report.checks.r5AudioControls=await evaluate(win,"(()=>{const panel=document.getElementById('customSettingsPanel');return Boolean(panel?.querySelector('[data-visual-setting=masterVolume]')&&panel?.querySelector('[data-visual-setting=transitionFx]')&&panel?.querySelector('[data-visual-setting=voiceVolume]')&&panel?.querySelector('[data-visual-setting=voiceRate]')&&panel?.querySelector('[data-visual-setting=voicePitch]')&&panel?.querySelector('[data-visual-setting=droidCharacter]'));})()");
+    report.checks.r7VoiceIdentityControls=await evaluate(win,"(()=>{const panel=document.getElementById('customSettingsPanel');const voice=document.getElementById('aleVoiceSelect');const preview=document.getElementById('aleVoicePreview');return Boolean(panel?.querySelector('[data-visual-setting=voiceProfile]')&&panel?.querySelector('[data-visual-setting=uiSfx]')&&panel?.querySelector('[data-visual-setting=coreFx]')&&voice&&preview&&voice.options.length>=1);})()");
+    report.r7VoiceProfileState=await evaluate(win,"(async()=>{const profile=document.querySelector('[data-visual-setting=voiceProfile]');const ui=document.querySelector('[data-visual-setting=uiSfx]');const core=document.querySelector('[data-visual-setting=coreFx]');const voice=document.getElementById('aleVoiceSelect');if(!profile||!ui||!core||!voice)return {ok:false,reason:'missing-controls'};profile.value='droid';profile.dispatchEvent(new Event('change',{bubbles:true}));await new Promise(resolve=>setTimeout(resolve,40));ui.value='.54';ui.dispatchEvent(new Event('input',{bubbles:true}));core.value='.74';core.dispatchEvent(new Event('input',{bubbles:true}));await new Promise(resolve=>setTimeout(resolve,40));voice.value='auto';voice.dispatchEvent(new Event('change',{bubbles:true}));await new Promise(resolve=>setTimeout(resolve,120));try{const raw=localStorage.getItem('ale.visual.settings.v1');const data=JSON.parse(raw||'{}');return {ok:true,voiceProfile:data.voiceProfile,voiceURI:data.voiceURI,voiceRate:data.voiceRate,voicePitch:data.voicePitch,droidCharacter:data.droidCharacter,uiSfx:data.uiSfx,coreFx:data.coreFx,clean:!/password|api[_-]?key|access[_-]?token|bearer/i.test(String(raw||''))};}catch(error){return {ok:false,reason:error.message};}})()");
+    report.checks.r7VoiceProfileRuntime=Boolean(report.r7VoiceProfileState?.ok&&report.r7VoiceProfileState.voiceProfile==='adult'&&report.r7VoiceProfileState.voiceURI==='auto'&&Math.abs(Number(report.r7VoiceProfileState.voiceRate)-.86)<.001&&Math.abs(Number(report.r7VoiceProfileState.voicePitch)-.80)<.001&&report.r7VoiceProfileState.droidCharacter===false&&Math.abs(Number(report.r7VoiceProfileState.uiSfx)-.54)<.001&&Math.abs(Number(report.r7VoiceProfileState.coreFx)-.74)<.001&&report.r7VoiceProfileState.clean);
+    report.checks.r7VoicePreviewSafe=await evaluate(win,"(()=>{const button=document.getElementById('aleVoicePreview');if(!button)return false;button.click();return true;})()");
+    report.checks.r5AudioProfileRuntime=await evaluate(win,"(async()=>{const values={masterVolume:.64,transitionFx:.58,voiceVolume:.76,voiceRate:.81,voicePitch:.60};for(const [key,value] of Object.entries(values)){const control=document.querySelector('[data-visual-setting='+key+']');if(!control)return false;control.value=String(value);control.dispatchEvent(new Event('input',{bubbles:true}));}const droid=document.querySelector('[data-visual-setting=droidCharacter]');if(!droid)return false;droid.checked=true;droid.dispatchEvent(new Event('change',{bubbles:true}));await new Promise(resolve=>setTimeout(resolve,120));try{const raw=localStorage.getItem('ale.visual.settings.v1');const data=JSON.parse(raw||'{}');const clean=!/password|api[_-]?key|access[_-]?token|bearer/i.test(String(raw||''));return clean&&Math.abs(data.masterVolume-.64)<.001&&Math.abs(data.transitionFx-.58)<.001&&Math.abs(data.voiceVolume-.76)<.001&&Math.abs(data.voiceRate-.86)<.001&&Math.abs(data.voicePitch-.80)<.001&&data.droidCharacter===false&&document.querySelector('[data-visual-setting=voiceRate]').disabled&&document.querySelector('[data-visual-setting=voicePitch]').disabled;}catch{return false;}})()");
+
+    await evaluate(win,"document.getElementById('edgeView2d')?.click(); true");
+    await waitFor(win,"document.getElementById('brainMap')?.hidden===false");
+    await waitFor(win,"Boolean(document.querySelector('.brain-node[data-region=MEMORY]'))");
+    await evaluate(win,"document.querySelector('.brain-node[data-region=MEMORY]')?.click(); true");
+    await waitFor(win,"document.getElementById('neuralNodeInspector')?.hidden===false");
+    await waitFor(win,"document.getElementById('nodeInspectorTitle')?.textContent==='Memory'");
+    report.checks.nodeInspectorVisible=true;
+    await waitFor(win,"document.getElementById('nodeInspectorVoiceText')?.textContent.includes('Memory')");
+    report.nodeInspector=await evaluate(win,"({title:document.getElementById('nodeInspectorTitle')?.textContent,status:document.getElementById('nodeInspectorStatus')?.textContent,text:document.getElementById('nodeInspectorBody')?.textContent,voice:document.getElementById('nodeInspectorVoiceText')?.textContent})");
+    report.checks.nodeVoiceNarration=Boolean(
+      String(report.nodeInspector.voice||'').includes('Memory')&&
+      String(report.nodeInspector.voice||'').includes('Database')&&
+      String(report.nodeInspector.voice||'').includes('Credential, secret, dan private reasoning tidak ditampilkan')&&
+      !/DO_NOT_SPEAK|password|api[_ -]?key|bearer\s+[a-z0-9._-]+/i.test(String(report.nodeInspector.voice||''))
+    );
+    report.checks.nodeVoiceReplayPresent=await evaluate(win,"Boolean(document.getElementById('nodeInspectorSpeak'))");
+    report.checks.nodeInspectorSafeMetadata=Boolean(
+      String(report.nodeInspector.text||'').includes('NETWORK / SERVER')&&
+      String(report.nodeInspector.text||'').includes('127.0.0.1')&&
+      String(report.nodeInspector.text||'').includes('DATABASE')&&
+      String(report.nodeInspector.text||'').includes('not_configured')&&
+      String(report.nodeInspector.text||'').includes('RAW SECRETS')&&
+      !/password|api[_ -]?key|bearer\s+[a-z0-9._-]+/i.test(String(report.nodeInspector.text||''))
+    );
+    await evaluate(win,"document.getElementById('edgeView3d')?.click(); true");
+
+    report.moduleProbe=await evaluate(win,"(async()=>{const urls=['/neural-space.js','/vendor/three/three.module.js'];const result={};for(const url of urls){try{const res=await fetch(url);const text=await res.text();result[url]={ok:res.ok,status:res.status,contentType:res.headers.get('content-type'),length:text.length,prefix:text.slice(0,120)};}catch(error){result[url]={ok:false,error:error.message};}}return result;})()");
+
+    await evaluate(win,"document.getElementById('view3d').click(); true");
+    await waitFor(win,"Boolean(document.querySelector('.neural3d-canvas'))");
+    await waitFor(win,"document.getElementById('neural3dStatus')?.textContent.includes('LIVE')");
+    report.checks.canvasCreated=true;
+    await sleep(500);
+    report.checks.visualQualityPinned=await evaluate(win,"(()=>{const quality=document.getElementById('neuralQuality');if(!quality)return false;quality.value='balanced';quality.dispatchEvent(new Event('change',{bubbles:true}));return true;})()");
+    if(!report.checks.visualQualityPinned)throw new Error('Neural quality control unavailable');
+    await waitFor(win,"(document.getElementById('neural3dPerf')?.textContent||'').includes('quality balanced')");
+    report.checks.galacticEnvironment=await evaluate(win,"(()=>{const perf=document.getElementById('neural3dPerf')?.textContent||'';return perf.includes('galaxy on')&&perf.includes('aurora on');})()");
+    report.checks.mechanicalCoreRings=await evaluate(win,"(document.getElementById('neural3dPerf')?.textContent||'').includes('core rings on')");
+    report.checks.r4VisualDefaults=await evaluate(win,"(()=>{const perf=document.getElementById('neural3dPerf')?.textContent||'';return perf.includes('binary on')&&perf.includes('guardian A/B');})()");
+    report.checks.customSettingsRuntime=await evaluate(win,"(async()=>{const binary=document.querySelector('[data-visual-setting=binary]');const ringA=document.querySelector('[data-visual-setting=ringA]');if(!binary||!ringA)return false;binary.checked=false;binary.dispatchEvent(new Event('change',{bubbles:true}));ringA.checked=false;ringA.dispatchEvent(new Event('change',{bubbles:true}));await new Promise(resolve=>setTimeout(resolve,120));let perf=document.getElementById('neural3dPerf')?.textContent||'';const off=perf.includes('binary off')&&perf.includes('guardian -/B');binary.checked=true;binary.dispatchEvent(new Event('change',{bubbles:true}));ringA.checked=true;ringA.dispatchEvent(new Event('change',{bubbles:true}));await new Promise(resolve=>setTimeout(resolve,120));perf=document.getElementById('neural3dPerf')?.textContent||'';return off&&perf.includes('binary on')&&perf.includes('guardian A/B');})()");
+    report.checks.customSettingsPersistence=await evaluate(win,"(()=>{try{const raw=localStorage.getItem('ale.visual.settings.v1');const data=JSON.parse(raw||'{}');const text=String(raw||'');return data.binary===true&&data.ringA===true&&!/password|api[_-]?key|access[_-]?token|bearer/i.test(text);}catch{return false;}})()");
+
+    report.webgl=await evaluate(win,"(()=>{const canvas=document.querySelector('.neural3d-canvas');const gl=canvas?.getContext('webgl2')||canvas?.getContext('webgl');if(!gl)return {available:false};const ext=gl.getExtension('WEBGL_debug_renderer_info');return {available:true,version:gl.getParameter(gl.VERSION),shadingLanguage:gl.getParameter(gl.SHADING_LANGUAGE_VERSION),vendor:ext?gl.getParameter(ext.UNMASKED_VENDOR_WEBGL):gl.getParameter(gl.VENDOR),renderer:ext?gl.getParameter(ext.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER),width:canvas.width,height:canvas.height};})()");
+    if(!report.webgl.available)throw new Error('WebGL context unavailable');
+    report.checks.webglContext=true;
+    // GPUFeatureStatus is only reliable after Chromium's GPU process has initialized.
+    // The live WebGL renderer is therefore the primary mode gate; feature status is advisory evidence.
+    await sleep(180);
+    let gpuInfo=null;
+    let gpuInfoError=null;
+    try{gpuInfo=await app.getGPUInfo('basic');}
+    catch(error){gpuInfoError=error.message;}
+    const featureStatus=app.getGPUFeatureStatus();
+    const hardwareAcceleration=app.isHardwareAccelerationEnabled();
+    const gpuDevices=Array.isArray(gpuInfo?.gpuDevice)?gpuInfo.gpuDevice.map(device=>({
+      active:Boolean(device.active),
+      vendorId:device.vendorId,
+      deviceId:device.deviceId,
+      vendorString:device.vendorString,
+      deviceString:device.deviceString,
+      driverVendor:device.driverVendor,
+      driverVersion:device.driverVersion
+    })):[];
+    const softwareRenderer=isSoftwareRenderer(report.webgl.renderer);
+    report.gpu={
+      requestedMode:GPU_MODE,
+      hardwareAcceleration,
+      featureStatus,
+      webglFeature:String(featureStatus.webgl2||featureStatus.webgl||''),
+      devices:gpuDevices,
+      infoError:gpuInfoError,
+      softwareRenderer,
+      modeMatched:gpuModeMatches(GPU_MODE,{
+        hardwareAcceleration,
+        renderer:report.webgl.renderer
+      })
+    };
+    report.checks.gpuModeMatched=report.gpu.modeMatched;
+
+    await evaluate(win,"(async()=>{const events=[['work.start',{id:'live-smoke',label:'Real browser smoke'}],['reason.start',{label:'Inspect realtime route'}],['reason.complete',{}],['plan.start',{label:'Build visual route'}],['plan.complete',{}],['memory.read',{label:'Read live context'}],['agent.start',{label:'Browser worker'}],['program.start',{label:'Renderer program'}],['error.detected',{message:'Live smoke simulated error'}],['bug.detected',{message:'Live smoke route check'}],['bug.fixed',{message:'Live smoke fixed'}],['verify.start',{}],['verify.complete',{}],['work.complete',{id:'live-smoke'}]];for(const [event,payload] of events){const res=await fetch('/api/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({event,payload})});if(!res.ok)throw new Error(event+' -> '+res.status);await new Promise(resolve=>setTimeout(resolve,90));}return true;})()");
+    await waitFor(win,"Number((document.getElementById('neural3dRoutes')?.textContent.match(/routes:\\s*(\\d+)/)||[])[1]||0)>=8");
+    report.checks.semanticRoutes=true;
+
+    await evaluate(win,"document.getElementById('neuralCore').click(); true");
+    await sleep(350);
+    report.checks.coreMode=await evaluate(win,"document.getElementById('neural3dPerf').textContent.includes('core')");
+
+    await evaluate(win,"document.getElementById('neuralFocus').click(); true");
+    await sleep(300);
+    report.checks.focusMode=await evaluate(win,"document.getElementById('neural3dPerf').textContent.includes('focus')");
+
+    await evaluate(win,"(()=>{const select=document.getElementById('neuralQuality');select.value='low';select.dispatchEvent(new Event('change',{bubbles:true}));return true;})()");
+    await sleep(300);
+    report.checks.lowQuality=await evaluate(win,"document.getElementById('neural3dPerf').textContent.includes('quality low')");
+
+    report.checks.keyboardFocus=await evaluate(win,"(()=>{const select=document.getElementById('neuralQuality');select.value='auto';select.dispatchEvent(new Event('change',{bubbles:true}));document.getElementById('neuralExplorer').click();const canvas=document.querySelector('.neural3d-canvas');canvas.focus();return document.activeElement===canvas;})()");
+    win.webContents.sendInputEvent({type:'keyDown',keyCode:'Right'});
+    win.webContents.sendInputEvent({type:'keyUp',keyCode:'Right'});
+    win.webContents.sendInputEvent({type:'keyDown',keyCode:'+'});
+    win.webContents.sendInputEvent({type:'keyUp',keyCode:'+'});
+    await sleep(2200);
+
+    report.hud=await evaluate(win,"({status:document.getElementById('neural3dStatus')?.textContent,selected:document.getElementById('neural3dSelected')?.textContent,roots:document.getElementById('neural3dRoots')?.textContent,routes:document.getElementById('neural3dRoutes')?.textContent,performance:document.getElementById('neural3dPerf')?.textContent,lastRoute:document.getElementById('neural3dLastRoute')?.textContent,detail:document.getElementById('neuralDetailLabel')?.textContent})");
+
+    const fpsMatch=String(report.hud.performance||'').match(/fps\s+(\d+)/);
+    report.checks.fpsMeasured=Number(fpsMatch?.[1]||0)>0;
+    report.checks.noRendererCrash=rendererGone.length===0;
+    const fatalErrors=browserErrors.filter(item=>/uncaught|referenceerror|typeerror|webgl.*(fail|error)|three\\.webglrenderer/i.test(item.message));
+    report.checks.noFatalBrowserErrors=fatalErrors.length===0;
+    report.fatalErrors=fatalErrors;
+
+    const image=await win.capturePage();
+    writeFileSync(path.join(ARTIFACTS,'alecore-ai-neural-live.png'),image.toPNG());
+
+    const failed=Object.entries(report.checks).filter(([,value])=>value!==true);
+    report.completedAt=new Date().toISOString();
+    report.passed=failed.length===0;
+    report.failedChecks=failed.map(([name])=>name);
+    writeFileSync(path.join(ARTIFACTS,'alecore-ai-neural-live-report.json'),JSON.stringify(report,null,2));
+
+    process.stdout.write(JSON.stringify(report,null,2)+'\\n');
+    if(failed.length)throw new Error('Live browser checks failed: '+failed.map(([name])=>name).join(', '));
+  }catch(error){
+    report.completedAt=new Date().toISOString();
+    report.passed=false;
+    report.error={name:error.name,message:error.message,stack:error.stack};
+    try{
+      report.failureDom=await evaluate(win,"({status:document.getElementById('neural3dStatus')?.textContent,host:document.getElementById('neural3dHost')?.innerText,consoleLog:document.getElementById('consoleLog')?.textContent,connection:document.getElementById('connection')?.textContent})");
+      const image=await win.capturePage();
+      writeFileSync(path.join(ARTIFACTS,'alecore-ai-neural-live.png'),image.toPNG());
+    }catch(captureError){
+      report.captureError=captureError.message;
+    }
+    writeFileSync(path.join(ARTIFACTS,'alecore-ai-neural-live-report.json'),JSON.stringify(report,null,2));
+    throw error;
+  }finally{
+    if(!win.isDestroyed())win.destroy();
+    await studio.stop();
+  }
+}
+
+app.whenReady().then(run).then(()=>app.quit()).catch(error=>{console.error(error);app.exit(1);});

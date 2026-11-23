@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AleCore AI Live Studio</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div id="creatorGateway" class="creator-gateway" aria-label="AleCore AI Creator Gateway">
+    <canvas id="creatorBrainCanvas" class="creator-brain-canvas" aria-hidden="true"></canvas>
+    <div class="creator-brain-caption" aria-hidden="true">
+      <span>NEURAL IDENTITY MATRIX</span>
+      <strong>AleCore AI // CREATOR LINK</strong>
+      <small>binary neural lattice · secure access surface</small>
+    </div>
+    <div class="creator-gateway-grid" aria-hidden="true"></div>
+    <div class="creator-gateway-aura" aria-hidden="true"></div>
+    <section class="creator-gateway-card">
+      <div class="creator-core-mark" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
+      <p class="creator-kicker">AleCore AI · CREATOR ACCESS GATEWAY</p>
+      <h1 id="creatorIdentity">IDENTITY REQUIRED</h1>
+      <p id="creatorSessionMode" class="creator-session-mode">SECURE SESSION LOCKED</p>
+
+      <form id="creatorLoginForm" class="creator-login-form" autocomplete="on">
+        <label>Creator ID
+          <input id="creatorUsername" name="username" autocomplete="username" maxlength="120" value="creator" required>
+        </label>
+        <label>Access Key
+          <input id="creatorPassword" name="password" type="password" autocomplete="current-password" maxlength="512" required>
+        </label>
+        <p>Gunakan Creator ID dan Access Key Owner server ini. Login PC lain atau akun GitHub/ChatGPT tidak otomatis berlaku di sini.</p><button type="submit">VERIFY CREATOR</button>
+        <output id="creatorLoginStatus">Awaiting creator authentication.</output>
+      </form>
+
+      <div id="creatorAccessPanel" class="creator-access-panel" hidden>
+        <div class="creator-access-title">
+          <span>CAPABILITY MATRIX</span>
+          <strong>AUTHORIZED SURFACE SCAN</strong>
+        </div>
+        <div id="creatorCapabilityRows" class="creator-capability-rows"></div>
+        <p class="creator-permission-note">Camera and microphone access always follow browser/OS permission controls. Secrets are never displayed in Neural Space.</p>
+        <button id="creatorEnter" type="button">INITIALIZE NEURAL SPACE</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="neuralEntryTransition" class="neural-entry-transition" hidden aria-live="polite">
+    <canvas id="neuralEntryMatrix" class="neural-entry-matrix" aria-hidden="true"></canvas>
+    <div class="neural-entry-space" aria-hidden="true"></div>
+    <div class="neural-entry-warp" aria-hidden="true"></div>
+    <div class="neural-entry-sweep sweep-one" aria-hidden="true"></div>
+    <div class="neural-entry-sweep sweep-two" aria-hidden="true"></div>
+    <div class="neural-entry-ring ring-a" aria-hidden="true"></div>
+    <div class="neural-entry-ring ring-b" aria-hidden="true"></div>
+    <div class="neural-entry-ring ring-c" aria-hidden="true"></div>
+    <div class="neural-entry-scan" aria-hidden="true"></div>
+    <div class="neural-entry-copy">
+      <span id="neuralEntryPhase">CREATOR VERIFIED</span>
+      <strong>AleCore AI</strong>
+      <small id="neuralEntryDetail">IDENTITY CHANNEL SECURED</small>
+    </div>
+  </div>
+
+  <aside id="neuralNodeInspector" class="neural-node-inspector" hidden aria-label="Neural node inspector">
+    <div class="node-inspector-head">
+      <div>
+        <span class="node-inspector-kicker">NEURAL NODE</span>
+        <strong id="nodeInspectorTitle">AleCore AI</strong>
+        <small id="nodeInspectorSubtitle">ALECORE_AI · core</small>
+      </div>
+      <div class="node-inspector-actions">
+        <button id="nodeInspectorSpeak" type="button">SPEAK</button>
+        <button id="nodeInspectorFocus" type="button">FOCUS</button>
+        <button id="nodeInspectorClose" type="button" aria-label="Close node inspector">×</button>
+      </div>
+    </div>
+    <div class="node-inspector-state">
+      <span>STATE</span>
+      <strong id="nodeInspectorStatus">IDLE</strong>
+    </div>
+    <div class="node-voice-transcript">
+      <span>AleCore AI VOICE</span>
+      <p id="nodeInspectorVoiceText">Select a node to hear its operational summary.</p>
+    </div>
+    <div id="nodeInspectorBody" class="node-inspector-body"></div>
+  </aside>
+
+  <div id="edgeHud" class="edge-hud" hidden>
+    <div class="edge-top">
+      <div class="edge-brand"><span class="dot"></span><strong>AleCore AI</strong><small id="edgeLifecycle">idle</small></div>
+      <div class="edge-top-center"><span id="edgeSelected">ALECORE_AI</span><span id="edgeConnection">LOCKED</span></div>
+      <div class="edge-top-right"><span id="edgeFps">FPS —</span><span id="edgeQuality">auto</span><span id="edgeClock"></span></div>
+    </div>
+
+    <nav class="edge-left" aria-label="System monitors">
+      <button type="button" data-edge-monitor="connection">CONNECTION</button>
+      <button type="button" data-edge-monitor="loading">LOADING</button>
+      <button type="button" data-edge-monitor="error">ERROR</button>
+      <button type="button" data-edge-monitor="progress">PROGRESS</button>
+      <button type="button" data-edge-monitor="evolution">EVOLUTION</button>
+      <button type="button" data-edge-monitor="damage">DAMAGE</button>
+    </nav>
+
+    <div class="edge-right-tools">
+      <button id="edgeAudioToggle" type="button" aria-pressed="true">AUDIO ON</button>
+      <button id="edgeCustomSettings" type="button" data-ui-sound-managed="true" aria-expanded="false" aria-controls="customSettingsPanel">⚙ CUSTOM</button>
+      <button id="edgeView3d" type="button">3D</button>
+      <button id="edgeView2d" type="button">2D</button>
+    </div>
+
+    <aside id="edgeMonitorDrawer" class="edge-monitor-drawer" hidden>
+      <div class="edge-monitor-head">
+        <strong id="edgeMonitorTitle">SYSTEM MONITOR</strong>
+        <button id="edgeMonitorClose" type="button">×</button>
+      </div>
+      <div id="edgeMonitorBody" class="edge-monitor-body"></div>
+    </aside>
+
+    <aside id="customSettingsPanel" class="custom-settings-panel" hidden aria-label="AleCore AI custom visual settings">
+      <div class="custom-settings-head">
+        <div>
+          <span>CREATOR CONTROL CENTER</span>
+          <strong>CUSTOM VISUAL</strong>
+        </div>
+        <button id="customSettingsClose" type="button" data-ui-sound-managed="true" aria-label="Close custom settings">×</button>
+      </div>
+
+      <div class="custom-settings-body">
+        <section class="custom-setting-section">
+          <h3>PRESET</h3>
+          <div class="custom-preset-grid">
+            <button type="button" data-ui-sound-managed="true" data-visual-preset="minimal">MINIMAL</button>
+            <button type="button" data-ui-sound-managed="true" data-visual-preset="ai-lab">AI LAB</button>
+            <button type="button" data-ui-sound-managed="true" data-visual-preset="neural-galaxy">NEURAL GALAXY</button>
+            <button type="button" data-ui-sound-managed="true" data-visual-preset="cinematic">CINEMATIC</button>
+            <button type="button" data-ui-sound-managed="true" data-visual-preset="creator">CREATOR</button>
+          </div>
+        </section>
+
+        <section class="custom-setting-section">
+          <h3>BRAIN / ENVIRONMENT</h3>
+          <label class="custom-toggle"><span>Brain Frame</span><input type="checkbox" data-visual-setting="brainFrame"></label>
+          <label class="custom-toggle"><span>Binary Lattice</span><input type="checkbox" data-visual-setting="binary"></label>
+          <label class="custom-range"><span>Frame Glow <b data-visual-value="frameGlow"></b></span><input type="range" min=".35" max="2" step=".05" data-visual-setting="frameGlow"></label>
+          <label class="custom-toggle"><span>Aurora</span><input type="checkbox" data-visual-setting="aurora"></label>
+          <label class="custom-range"><span>Aurora Intensity <b data-visual-value="auroraIntensity"></b></span><input type="range" min=".2" max="2" step=".05" data-visual-setting="auroraIntensity"></label>
+          <label class="custom-toggle"><span>Nebula</span><input type="checkbox" data-visual-setting="nebula"></label>
+          <label class="custom-toggle"><span>Particles</span><input type="checkbox" data-visual-setting="particles"></label>
+        </section>
+
+        <section class="custom-setting-section">
+          <h3>ROOT / DATA FLOW</h3>
+          <label class="custom-toggle"><span>Living Roots</span><input type="checkbox" data-visual-setting="roots"></label>
+          <label class="custom-range"><span>Root Glow <b data-visual-value="rootGlow"></b></span><input type="range" min=".35" max="2" step=".05" data-visual-setting="rootGlow"></label>
+          <label class="custom-toggle"><span>Data Flow</span><input type="checkbox" data-visual-setting="dataFlow"></label>
+        </section>
+
+        <section class="custom-setting-section">
+          <h3>AleCore AI / EMBLEM</h3>
+          <label class="custom-range"><span>Core Scale <b data-visual-value="coreScale"></b></span><input type="range" min=".72" max="1.35" step=".01" data-visual-setting="coreScale"></label>
+          <label class="custom-range"><span>Core Glow <b data-visual-value="coreGlow"></b></span><input type="range" min=".5" max="2" step=".05" data-visual-setting="coreGlow"></label>
+          <label class="custom-toggle"><span>Guardian Ring A</span><input type="checkbox" data-visual-setting="ringA"></label>
+          <label class="custom-toggle"><span>Guardian Ring B</span><input type="checkbox" data-visual-setting="ringB"></label>
+          <label class="custom-range"><span>Ring A Speed <b data-visual-value="ringSpeedA"></b></span><input type="range" min=".15" max="2.2" step=".05" data-visual-setting="ringSpeedA"></label>
+          <label class="custom-range"><span>Ring B Speed <b data-visual-value="ringSpeedB"></b></span><input type="range" min=".15" max="2.2" step=".05" data-visual-setting="ringSpeedB"></label>
+        </section>
+
+        <section class="custom-setting-section">
+          <h3>INTERFACE / SYSTEM</h3>
+          <label class="custom-range"><span>HUD Opacity <b data-visual-value="hudOpacity"></b></span><input type="range" min=".45" max="1" step=".05" data-visual-setting="hudOpacity"></label>
+          <label class="custom-range"><span>UI Scale <b data-visual-value="uiScale"></b></span><input type="range" min=".82" max="1.18" step=".02" data-visual-setting="uiScale"></label>
+          <label class="custom-toggle"><span>Audio</span><input type="checkbox" data-visual-setting="audio"></label>
+          <label class="custom-range"><span>Master Volume <b data-visual-value="masterVolume"></b></span><input type="range" min="0" max="1" step=".02" data-visual-setting="masterVolume"></label>
+          <label class="custom-range"><span>UI SFX <b data-visual-value="uiSfx"></b></span><input type="range" min="0" max="1" step=".02" data-visual-setting="uiSfx"></label>
+          <label class="custom-range"><span>Transition FX <b data-visual-value="transitionFx"></b></span><input type="range" min="0" max="1" step=".02" data-visual-setting="transitionFx"></label>
+          <label class="custom-range"><span>Core FX <b data-visual-value="coreFx"></b></span><input type="range" min="0" max="1" step=".02" data-visual-setting="coreFx"></label>
+
+          <label class="custom-select"><span>Voice Character</span>
+            <select data-visual-setting="voiceProfile" disabled>
+              <option value="adult">Pria dewasa - gema HumanALE</option>
+            </select>
+          </label>
+
+          <label class="custom-select"><span>System Voice</span>
+            <select id="aleVoiceSelect" data-visual-setting="voiceURI">
+              <option value="auto">Auto · best available</option>
+            </select>
+          </label>
+
+          <p id="aleVoiceStatus" aria-live="polite">Satu karakter suara HumanALE untuk semua model dan narasi.</p><button id="aleVoicePreview" class="custom-preview-button" type="button" data-ui-sound-managed="true">▶ PREVIEW VOICE</button>
+
+          <label class="custom-range"><span>Voice Volume <b data-visual-value="voiceVolume"></b></span><input type="range" min="0" max="1" step=".02" data-visual-setting="voiceVolume"></label>
+          <label class="custom-range"><span>Voice Rate <b data-visual-value="voiceRate"></b></span><input type="range" min=".72" max="1.15" step=".01" data-visual-setting="voiceRate" disabled></label>
+          <label class="custom-range"><span>Voice Pitch <b data-visual-value="voicePitch"></b></span><input type="range" min=".5" max="1.2" step=".01" data-visual-setting="voicePitch" disabled></label>
+          <label class="custom-toggle"><span>Droid Character</span><input type="checkbox" data-visual-setting="droidCharacter" disabled></label>
+          <label class="custom-select"><span>Quality</span>
+            <select data-visual-setting="quality">
+              <option value="auto">Auto</option>
+              <option value="high">High</option>
+              <option value="balanced">Balanced</option>
+              <option value="low">Low power</option>
+            </select>
+          </label>
+        </section>
+      </div>
+
+      <div class="custom-settings-foot">
+        <span>Visual / audio preferences only · no credentials stored</span>
+        <button id="customSettingsReset" type="button" data-ui-sound-managed="true">RESET VISUAL</button>
+      </div>
+    </aside>
+
+    <div class="edge-bottom">
+      <span id="edgeErrors">ERR 0</span>
+      <span id="edgeBugs">BUG 0</span>
+      <span id="edgeRoutes">ROUTES 0</span>
+      <span>CREATOR SESSION</span>
+    </div>
+  </div>
+
+  <header>
+    <div><span class="dot"></span><strong>AleCore AI LIVE STUDIO</strong><small>Realtime Brain Laboratory</small></div>
+    <div class="status"><button id="creatorLogout" class="creator-logout" type="button">CREATOR LOGOUT</button><span id="connection">LOCKED</span><span id="clock"></span></div>
+  </header>
+
+  <main>
+    <section class="panel brain-panel">
+      <div class="panel-title neural-title">
+        <h2>Neural Space</h2>
+        <div class="view-switch" role="group" aria-label="Neural view">
+          <button id="view2d" class="view-active" type="button">2D Brain Map</button>
+          <button id="view3d" type="button">3D Neural Explorer</button>
+          <span id="brainSummary">22 regions</span>
+        </div>
+      </div>
+      <div id="brainStage" class="brain-stage">
+        <div id="brainMap" class="brain-map neural-view"><svg id="brainLines"></svg><div id="brainNodes"></div></div>
+        <div id="neural3d" class="neural-3d neural-view" hidden>
+          <div class="neural3d-toolbar" role="group" aria-label="Neural navigation">
+            <button id="neuralExplorer" type="button">Explorer</button>
+            <button id="neuralFocus" type="button">Focus</button>
+            <button id="neuralCore" type="button">Core</button>
+            <button id="neuralReset" type="button">Reset</button>
+            <label>Quality
+              <select id="neuralQuality">
+                <option value="auto">Auto</option>
+                <option value="high">High</option>
+                <option value="balanced">Balanced</option>
+                <option value="low">Low power</option>
+              </select>
+            </label>
+          </div>
+          <div class="neural3d-detail">
+            <span>SELECTED REGION</span>
+            <strong id="neuralDetailLabel">AleCore AI</strong>
+            <small><b id="neuralDetailId">ALECORE_AI</b> · <span id="neuralDetailStatus">ready</span> · <span id="neuralDetailGroup">core</span></small>
+            <small id="neuralDetailNeighbors">neighbors: —</small>
+          </div>
+          <div class="neural3d-hud">
+            <span id="neural3dStatus">EXPERIMENTAL</span>
+            <strong id="neural3dSelected">ALECORE_AI</strong>
+            <small>drag rotate · right-drag pan · wheel zoom · double-click focus</small>
+            <small id="neural3dRoots">living roots initializing…</small>
+            <small id="neural3dRoutes">routes: 0 · active 0</small>
+            <small id="neural3dPerf">fps — · quality auto</small>
+            <small id="neural3dLastRoute">last route: —</small>
+          </div>
+          <div class="neural3d-vignette" aria-hidden="true"></div>
+          <div id="neural3dHost" class="neural3d-host" aria-label="AleCore AI Neural Space 3D"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel state-panel">
+      <div class="panel-title"><h2>Live State</h2><span id="lifecycle">idle</span></div>
+      <dl class="state-grid">
+        <div><dt>Selected</dt><dd id="selectedRegion">—</dd></div>
+        <div><dt>Current task</dt><dd id="currentTask">—</dd></div>
+        <div><dt>Last event</dt><dd id="lastEvent">—</dd></div>
+        <div><dt>Safety</dt><dd id="safetyState">—</dd></div>
+      </dl>
+      <h3>Sensory telemetry</h3>
+      <div class="meters">
+        <label>Hearing <progress id="hearing" max="1" value="0"></progress></label>
+        <label>Vision <progress id="vision" max="1" value="0"></progress></label>
+        <label>Speech <progress id="speech" max="1" value="0"></progress></label>
+      </div>
+      <h3>Connections</h3>
+      <div id="connections" class="chips"></div>
+    </section>
+
+    <section class="panel decision-panel">
+      <div class="panel-title"><h2>Decision / Reasoning Inspector</h2><span id="decisionStatus">idle</span></div>
+      <div class="phase-pipeline">
+        <div class="phase-card" data-stage="reason"><span>REASON</span><strong id="phaseReason">idle</strong><small id="phaseReasonTime">—</small></div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-card" data-stage="plan"><span>PLAN</span><strong id="phasePlan">idle</strong><small id="phasePlanTime">—</small></div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-card" data-stage="agent"><span>AGENT</span><strong id="phaseAgent">idle</strong><small id="phaseAgentTime">—</small></div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-card" data-stage="program"><span>PROGRAM</span><strong id="phaseProgram">idle</strong><small id="phaseProgramTime">—</small></div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-card" data-stage="verify"><span>VERIFY</span><strong id="phaseVerify">idle</strong><small id="phaseVerifyTime">—</small></div>
+      </div>
+      <div class="inspector-summary">
+        <div><span>Current stage</span><strong id="decisionCurrent">—</strong></div>
+        <div><span>Label</span><strong id="decisionLabel">—</strong></div>
+        <div><span>Completed</span><strong id="decisionCompleted">0</strong></div>
+        <div><span>Failed</span><strong id="decisionFailed">0</strong></div>
+      </div>
+      <div id="decisionHistory" class="trace-list"></div>
+    </section>
+
+    <section class="panel memory-panel">
+      <div class="panel-title"><h2>Memory Inspector</h2><span id="memoryActivity">idle</span></div>
+      <div class="memory-counters">
+        <div><span>READ</span><strong id="memoryReadCount">0</strong></div>
+        <div><span>WRITE</span><strong id="memoryWriteCount">0</strong></div>
+        <div><span>USED</span><strong id="memoryUsedCount">0</strong></div>
+        <div><span>BLOCKED</span><strong id="memoryBlockedCount">0</strong></div>
+      </div>
+      <div class="memory-last">
+        <span>Last operation</span>
+        <strong id="memoryLastOperation">—</strong>
+        <small id="memoryLastLabel">No memory activity yet.</small>
+      </div>
+      <div id="memoryHistory" class="trace-list memory-trace"></div>
+    </section>
+
+    <section class="panel skill-panel">
+      <div class="panel-title"><h2>Skill Registry</h2><span id="skillSummary">0 skills</span></div>
+      <div class="skill-stats">
+        <div><span>ENABLED</span><strong id="skillEnabled">0</strong></div>
+        <div><span>RUNNING</span><strong id="skillRunning">0</strong></div>
+        <div><span>FAILED</span><strong id="skillFailed">0</strong></div>
+      </div>
+      <div class="skill-table">
+        <div class="skill-head"><span>Skill</span><span>Region</span><span>Status</span><span>Runs</span><span>Last</span></div>
+        <div id="skillRows"></div>
+      </div>
+    </section>
+
+    <section class="panel agent-panel">
+      <div class="panel-title"><h2>Agent Monitor</h2><span id="agentStatus">ready</span></div>
+      <div class="agent-orbit">
+        <div class="agent-core">
+          <span>AGENT_MANAGER</span>
+          <strong id="agentCoreStatus">idle</strong>
+        </div>
+      </div>
+      <dl class="agent-grid">
+        <div><dt>Current work</dt><dd id="agentLabel">—</dd></div>
+        <div><dt>Runs</dt><dd id="agentRuns">0</dd></div>
+        <div><dt>Success</dt><dd id="agentSuccess">0</dd></div>
+        <div><dt>Failures</dt><dd id="agentFailures">0</dd></div>
+        <div><dt>Last duration</dt><dd id="agentDuration">—</dd></div>
+        <div><dt>Last event</dt><dd id="agentLastEvent">—</dd></div>
+      </dl>
+    </section>
+
+    <section class="panel bug-panel">
+      <div class="panel-title"><h2>Bug Hunter / Repair Monitor</h2><span id="bugStatus">idle</span></div>
+      <div class="bug-stats">
+        <div><span>ERRORS</span><strong id="bugErrors">0</strong></div>
+        <div><span>BUGS</span><strong id="bugDetected">0</strong></div>
+        <div><span>FIXED</span><strong id="bugFixed">0</strong></div>
+        <div><span>VERIFIED</span><strong id="bugVerified">0</strong></div>
+      </div>
+      <div class="bug-current">
+        <span>Current issue</span>
+        <strong id="bugCurrent">—</strong>
+        <small>Last repair: <b id="bugRepairDuration">—</b></small>
+      </div>
+      <div id="bugHistory" class="trace-list bug-trace"></div>
+    </section>
+
+    <section class="panel performance-panel">
+      <div class="panel-title"><h2>Performance Monitor</h2><span>read-only</span></div>
+      <div class="perf-grid">
+        <div><span>EVENTS</span><strong id="perfTotalEvents">0</strong><small>total</small></div>
+        <div><span>RATE</span><strong id="perfRate">0</strong><small>events/sec</small></div>
+        <div><span>ACTIVE REGIONS</span><strong id="perfActiveRegions">0</strong><small>live</small></div>
+        <div><span>UPTIME</span><strong id="perfUptime">0s</strong><small>studio telemetry</small></div>
+        <div><span>MEMORY OPS</span><strong id="perfMemoryOps">0</strong><small>read + write</small></div>
+        <div><span>SKILL RUNS</span><strong id="perfSkillRuns">0</strong><small>all skills</small></div>
+      </div>
+      <div class="perf-bar-wrap"><span>10s event window</span><progress id="perfEventWindow" max="100" value="0"></progress></div>
+    </section>
+
+    <section class="panel event-panel">
+      <div class="panel-title"><h2>Event Timeline / Replay</h2><span>visual replay only</span></div>
+      <div class="timeline-controls">
+        <input id="eventFilter" maxlength="80" placeholder="Filter event...">
+        <button id="pauseEvents">Pause</button>
+        <button id="replayEvents">Replay last 30</button>
+        <button id="clearEvents">Clear view</button>
+      </div>
+      <div id="events" class="events timeline-events"></div>
+    </section>
+
+    <section class="panel console-panel">
+      <div class="panel-title"><h2>Safe Test Console</h2><span>allowlisted events only</span></div>
+      <div class="console-controls">
+        <select id="eventSelect"></select>
+        <input id="eventLabel" maxlength="160" placeholder="Label / message opsional">
+        <button id="sendEvent">Dispatch</button>
+        <button id="resetStudio" class="secondary">Reset state</button>
+      </div>
+      <div class="quick">
+        <button data-event="reason.start">Reason Start</button>
+        <button data-event="reason.complete">Reason Done</button>
+        <button data-event="plan.start">Plan Start</button>
+        <button data-event="plan.complete">Plan Done</button>
+        <button data-event="memory.read">Memory Read</button>
+        <button data-event="agent.start">Agent Start</button>
+        <button data-event="error.detected">Simulate Error</button>
+        <button data-event="bug.fixed">Bug Fixed</button>
+      </div>
+      <pre id="consoleLog">Studio ready.</pre>
+    </section>
+  </main>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

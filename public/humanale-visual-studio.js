@@ -24,14 +24,14 @@ function safeSnapshot(value={}){
    state:text(policy.state||'idle'),
    rendererMode:text(policy.rendererMode||'eco'),
    activity:Math.max(0,Math.min(1,Number(policy.activity)||0)),
-   controlledBy:text(policy.controlledBy||'NARA_CORE'),
-   reason:text(policy.reason||'nara.idle')
+   controlledBy:text(policy.controlledBy||'ALECORE_AI'),
+   reason:text(policy.reason||'ale.idle')
   },
-  nara:{
-   lifecycle:text(nara.lifecycle||'idle'),
-   selectedRegion:text(nara.selectedRegion||'NARA_CORE'),
-   currentTask:text(nara.currentTask||''),
-   lastEvent:text(nara.lastEvent||'')
+  ale:{
+   lifecycle:text(ale.lifecycle||'idle'),
+   selectedRegion:text(ale.selectedRegion||'ALECORE_AI'),
+   currentTask:text(ale.currentTask||''),
+   lastEvent:text(ale.lastEvent||'')
   },
   sensors:{
    hearing:Boolean(sensory.hearing),
@@ -81,7 +81,7 @@ function safeSnapshot(value={}){
    id:text(skill?.id).slice(0,48),
    label:text(skill?.label).slice(0,80),
    group:text(skill?.group||'capability').slice(0,30),
-   region:text(skill?.region||'NARA_CORE').slice(0,40),
+   region:text(skill?.region||'ALECORE_AI').slice(0,40),
    state:text(skill?.state||'setup').slice(0,24),
    regionStatus:text(skill?.regionStatus||'idle').slice(0,24),
    activity:Math.max(0,Math.min(1,Number(skill?.activity)||0)),
@@ -164,10 +164,10 @@ export function createHumanALEVisualStudio({
   setText(root,'visualStudioActivity',percent(current.runtime.activity));
   setText(root,'visualStudioController',current.runtime.controlledBy);
   setText(root,'visualStudioReason',current.runtime.reason);
-  setText(root,'visualStudioLifecycle',current.nara.lifecycle.toUpperCase());
-  setText(root,'visualStudioRegion',current.nara.selectedRegion);
-  setText(root,'visualStudioTask',current.nara.currentTask);
-  setText(root,'visualStudioEvent',current.nara.lastEvent);
+  setText(root,'visualStudioLifecycle',current.ale.lifecycle.toUpperCase());
+  setText(root,'visualStudioRegion',current.ale.selectedRegion);
+  setText(root,'visualStudioTask',current.ale.currentTask);
+  setText(root,'visualStudioEvent',current.ale.lastEvent);
   setText(root,'visualStudioHearing',current.sensors.hearing?'ON · '+percent(current.sensors.hearingEnergy):'OFF');
   setText(root,'visualStudioVision',current.sensors.vision?'ON · '+percent(current.sensors.visionActivity):'OFF');
   setText(root,'visualStudioSpeech',current.sensors.speech?'ON · '+percent(current.sensors.speechEnergy):'OFF');
@@ -315,8 +315,8 @@ export function createHumanALEVisualStudio({
   const snapshot=safeSnapshot(liveSnapshot());
   const badConnections=snapshot.connections.filter(item=>['error','bug'].includes(item.status));
   const checks=[
-   {name:'NARA authority',status:snapshot.runtime.controlledBy==='NARA_CORE'?'PASS':'FAIL',detail:snapshot.runtime.controlledBy},
-   {name:'NARA lifecycle',status:snapshot.nara.lifecycle==='active'?'PASS':'WARN',detail:snapshot.nara.lifecycle},
+   {name:'AleCore AI authority',status:snapshot.runtime.controlledBy==='ALECORE_AI'?'PASS':'FAIL',detail:snapshot.runtime.controlledBy},
+   {name:'AleCore AI lifecycle',status:snapshot.ale.lifecycle==='active'?'PASS':'WARN',detail:snapshot.ale.lifecycle},
    {name:'Renderer telemetry',status:snapshot.performance.fps>0&&snapshot.performance.points>0?'PASS':'WARN',detail:snapshot.performance.fps+' FPS / '+snapshot.performance.points+' points'},
    {name:'Runtime errors',status:snapshot.health.errorCount===0?'PASS':'FAIL',detail:snapshot.health.errorCount+' active'},
    {name:'Connection errors',status:badConnections.length===0?'PASS':'WARN',detail:badConnections.length?badConnections.map(item=>item.id).join(', '):'none'},
@@ -416,7 +416,7 @@ export function createHumanALEVisualStudio({
   const button=event.target?.closest?.('[data-skill-test]');
   const scenario=button?.dataset?.scenario;
   if(!scenario||testRunning)return;
-  const buttons=[...(root.querySelectorAll?.('[data-nara-test],[data-skill-test]')||[])];
+  const buttons=[...(root.querySelectorAll?.('[data-alecore-ai-test],[data-skill-test]')||[])];
   testRunning=true;buttons.forEach(item=>item.disabled=true);
   const baselineFps=current.performance.fps;
   setText(root,'visualStudioTestStatus','RUNNING · SKILL '+String(button.dataset.skillTest||'').toUpperCase()+' · '+scenario.toUpperCase());
@@ -443,14 +443,14 @@ export function createHumanALEVisualStudio({
   try{storage?.setItem?.(HUMANALE_VISUAL_REAL_TEST_EVIDENCE_KEY,JSON.stringify(realTestEvidence));}catch{}
   renderRealTestPreflight();
  });
- for(const button of root.querySelectorAll?.('[data-nara-test]')||[]){
+ for(const button of root.querySelectorAll?.('[data-alecore-ai-test]')||[]){
   button.addEventListener('click',async()=>{
    if(testRunning)return;
-   const scenario=String(button.dataset.naraTest||'');
-   const buttons=[...(root.querySelectorAll?.('[data-nara-test]')||[])];
+   const scenario=String(button.dataset.aleTest||'');
+   const buttons=[...(root.querySelectorAll?.('[data-alecore-ai-test]')||[])];
    const baselineFps=current.performance.fps;
    testRunning=true;buttons.forEach(item=>item.disabled=true);
-   setText(root,'visualStudioTestStatus','RUNNING · '+scenario.toUpperCase()+' · NARA Core mengendalikan transisi…');
+   setText(root,'visualStudioTestStatus','RUNNING · '+scenario.toUpperCase()+' · AleCore AI mengendalikan transisi…');
    try{
     const result=await onTestScenario(scenario);
     render(liveSnapshot());

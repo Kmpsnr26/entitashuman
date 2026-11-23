@@ -19,7 +19,7 @@ test('performance stability runner is bounded and operator-evidence based',async
  assert.match(src,/allProcessesStayedAlive/);
  assert.match(src,/operatorStable/);
  assert.match(src,/rev-parse HEAD/);
- assert.doesNotMatch(src,/NARA.*dispatch|integrationUnlocked|authority-control/i);
+ assert.doesNotMatch(src,/AleCore AI.*dispatch|integrationUnlocked|authority-control/i);
 });
 
 test('Windows stability rejects stale/process-mismatched evidence and observation never grants acceptance',{

@@ -28,7 +28,7 @@ export class HumanALEOwnerGate{
     attemptWindowMs=60*1000
   }={}){
     if(!store?.publicProfile||!store?.verify||!store?.provision||!store?.changeCredentials){
-      throw new Error('HumanALE Owner Gate membutuhkan NARA Owner Store.');
+      throw new Error('HumanALE Owner Gate membutuhkan AleCore AI Owner Store.');
     }
     this.store=store;
     this.ttlMs=Math.max(5*60*1000,Math.min(24*60*60*1000,Number(ttlMs)||8*60*60*1000));

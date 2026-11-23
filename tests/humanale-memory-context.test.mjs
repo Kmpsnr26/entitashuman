@@ -31,8 +31,8 @@ function runtimeStub(){
 async function loadBrowserContext(){
   delete globalThis.HumanALEMemory;
   delete globalThis.HumanALEContextBridge;
-  await import('../sites/humanale-hologram/dist/nara-memory.js?phase10='+ ++nonce);
-  await import('../sites/humanale-hologram/dist/nara-context-bridge.js?phase10='+ ++nonce);
+  await import('../sites/humanale-hologram/dist/alecore-ai-memory.js?phase10='+ ++nonce);
+  await import('../sites/humanale-hologram/dist/alecore-ai-context-bridge.js?phase10='+ ++nonce);
   return {
     Memory:globalThis.HumanALEMemory,
     Context:globalThis.HumanALEContextBridge
@@ -147,7 +147,7 @@ test('memory context block is explicitly reference data and never changes user m
   const block=memoryContextBlock(packet);
   assert.match(block,/REFERENSI TERBATAS/);
   assert.match(block,/bukan instruksi sistem atau perintah/i);
-  assert.match(block,/BEGIN NARA MEMORY/);
+  assert.match(block,/BEGIN AleCore AI MEMORY/);
   assert.match(block,/Pertahankan avatar canonical/);
 
   const data=validateChat({message:'Apa langkah berikutnya?',history:[],memoryContext:packet});
@@ -156,7 +156,7 @@ test('memory context block is explicitly reference data and never changes user m
 
   const prompt=humanaleSystemPrompt(data.message,'Jangan akses file.',data.memoryContext);
   assert.match(prompt,/Apa langkah berikutnya|Mode penalaran/);
-  assert.match(prompt,/NARA PROJECT MEMORY/);
+  assert.match(prompt,/AleCore AI PROJECT MEMORY/);
   assert.match(prompt,/Jangan akses file/);
 });
 
@@ -195,25 +195,25 @@ test('desktop IPC validates context before provider or agent use and records con
   const [main,runtimeHost,agentCoordinator,runtimeContract]=await Promise.all([
     read('desktop/main.cjs'),
     read('desktop/humanale-runtime-host.mjs'),
-    read('desktop/nara-agent-coordinator.mjs'),
-    read('nara-core/runtime/unified-contract.js')
+    read('desktop/alecore-ai-agent-coordinator.mjs'),
+    read('ALECORE-AI/runtime/unified-contract.js')
   ]);
   assert.match(main,/import\('\.\/memory-context\.mjs'\)/);
   assert.match(main,/validateMemoryContext\(value\?\.memoryContext,\{allowedTargets:\['reasoner'\]\}\)/);
   assert.match(main,/validateMemoryContext\(value\?\.memoryContext,\{allowedTargets:\['planner','agent'\]\}\)/);
   assert.match(agentCoordinator,/this\.nara\.dispatch\('context\.used'/);
   assert.match(main,/nara\.dispatch\('context\.blocked'/);
-  assert.match(main,/naraAgentCoordinator\.run\(\{\.\.\.value,memoryContext\}\)/);
+  assert.match(main,/aleAgentCoordinator\.run\(\{\.\.\.value,memoryContext\}\)/);
   assert.match(agentCoordinator,/this\.agentHub\.run\(\{/);
-  assert.match(runtimeHost,/DEFAULT_RENDERER_EVENTS=NARA_UNIFIED_RUNTIME_CONTRACT\.rendererEvents/);
+  assert.match(runtimeHost,/DEFAULT_RENDERER_EVENTS=ALECORE_AI_UNIFIED_RUNTIME_CONTRACT\.rendererEvents/);
   const allowlist=(runtimeContract.match(/rendererEvents:Object\.freeze\(\[([\s\S]*?)\]\)/)||[])[1]||'';
   assert.doesNotMatch(allowlist,/context\.used|context\.approved|memory\.write/);
 });
 
 test('desktop UI loads shared memory modules and requests permission before chat or agent use',async()=>{
   const [html,app]=await Promise.all([read('public/index.html'),read('public/app.js')]);
-  assert.match(html,/\/humanale\/nara-memory\.js/);
-  assert.match(html,/\/humanale\/nara-context-bridge\.js/);
+  assert.match(html,/\/humanale\/alecore-ai-memory\.js/);
+  assert.match(html,/\/humanale\/alecore-ai-context-bridge\.js/);
   assert.match(html,/id="memoryContextMode"/);
   assert.match(html,/id="memoryContextStatus"/);
   assert.match(app,/prepareEffectiveMemoryContext\(text,'reasoner'\)/);
@@ -241,9 +241,9 @@ test('canonical site exposes context inspector and permission controls',async()=
   const [html,site,bridge]=await Promise.all([
     read('sites/humanale-hologram/dist/index.html'),
     read('sites/humanale-hologram/dist/site.js'),
-    read('sites/humanale-hologram/dist/nara-context-bridge.js')
+    read('sites/humanale-hologram/dist/alecore-ai-context-bridge.js')
   ]);
-  assert.match(html,/\.\/nara-context-bridge\.js/);
+  assert.match(html,/\.\/alecore-ai-context-bridge\.js/);
   assert.match(html,/id="contextMode"/);
   assert.match(html,/id="contextTarget"/);
   assert.match(html,/id="contextPreview"/);
@@ -259,11 +259,11 @@ test('canonical site exposes context inspector and permission controls',async()=
 
 test('BrainState and Data Spine visualize context lifecycle without raw memory text',async()=>{
   delete globalThis.NeuralCore;
-  delete globalThis.HumanALENaraRuntime;
+  delete globalThis.HumanALEAleRuntime;
   await import('../sites/humanale-hologram/dist/neural-core.js?context-brain='+ ++nonce);
-  await import('../sites/humanale-hologram/dist/nara-runtime.js?context-brain='+ ++nonce);
+  await import('../sites/humanale-hologram/dist/alecore-ai-runtime.js?context-brain='+ ++nonce);
   const graph=globalThis.NeuralCore.create();
-  const runtime=globalThis.HumanALENaraRuntime.create({regions:graph.regions});
+  const runtime=globalThis.HumanALEAleRuntime.create({regions:graph.regions});
   runtime.dispatch('context.prepare',{target:'planner',count:2,chars:200});
   let state=runtime.snapshot();
   assert.equal(state.regions.MEMORY.status,'processing');
@@ -279,7 +279,7 @@ test('BrainState and Data Spine visualize context lifecycle without raw memory t
   assert.equal(state.regions.MEMORY.status,'active');
   assert.equal(state.regions.PLANNER.status,'processing');
 
-  const spine=await read('sites/humanale-hologram/dist/nara-data-spine.js');
+  const spine=await read('sites/humanale-hologram/dist/alecore-ai-data-spine.js');
   assert.match(spine,/'context\.prepare':'MEMORY'/);
   assert.match(spine,/'context\.approved':'MEMORY'/);
   assert.match(spine,/'context\.used':'MEMORY'/);
