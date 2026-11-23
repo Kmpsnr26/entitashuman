@@ -730,7 +730,10 @@ jobs:
                   ': ' +
                   error.message
                 );
-                fallback.push(candidate);
+                // Without the cloud token, failed lookups cannot prove that the
+                // candidate is untouched. Defer safely instead of creating work.
+                if (!tokenConfigured) queued.push(candidate);
+                else fallback.push(candidate);
               }
             }
 
