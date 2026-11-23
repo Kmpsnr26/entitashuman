@@ -377,13 +377,13 @@ test(
 
     assert.match(
       unauthorizedBody.login,
-      /\/ownernara\/authorize/
+      /\/owner-alecore-ai\/authorize/
     );
 
     const loginPage =
       await fetch(
         AUTH_ORIGIN +
-        "/ownernara/login?return_to=" +
+        "/owner-alecore-ai/login?return_to=" +
         encodeURIComponent(
           CALLBACK
         ),
@@ -421,7 +421,7 @@ test(
     const rejectedCsrfLogin =
       await fetch(
         AUTH_ORIGIN +
-        "/ownernara/login",
+        "/owner-alecore-ai/login",
         {
           method:
             "POST",
@@ -455,7 +455,7 @@ test(
     const login =
       await fetch(
         AUTH_ORIGIN +
-        "/ownernara/login",
+        "/owner-alecore-ai/login",
         {
           method:
             "POST",
@@ -1049,14 +1049,14 @@ test(
       backup.headers.get(
         "content-type"
       ) ?? "",
-      /application\/vnd\.nara\.backup\+json/
+      /application\/vnd\.alecore-ai\.backup\+json/
     );
 
     assert.match(
       backup.headers.get(
         "content-disposition"
       ) ?? "",
-      /alecore-ai-memory-backup-.*\.nara/
+      /alecore-ai-memory-backup-.*\.alecore-ai/
     );
 
     const envelope =
@@ -1172,12 +1172,12 @@ test("AleCore AI live error boundaries and active-owner session revocation", asy
       assert.equal((await response.json()).error, "AUTHENTICATION_REQUIRED");
     });
   }
-  const page = await fetch(AUTH_ORIGIN + "/ownernara/login?return_to=" + encodeURIComponent(CALLBACK));
+  const page = await fetch(AUTH_ORIGIN + "/owner-alecore-ai/login?return_to=" + encodeURIComponent(CALLBACK));
   const ownerCookie = cookiePair(page);
   const loginCsrf = (await page.text()).match(/name="csrf_token"\s+value="([^"]+)"/)?.[1];
   assert.ok(loginCsrf);
   await t.test("hostile login origin is rejected before credentials are used", async () => {
-    const response = await fetch(AUTH_ORIGIN + "/ownernara/login", {
+    const response = await fetch(AUTH_ORIGIN + "/owner-alecore-ai/login", {
       method: "POST", redirect: "manual",
       headers: {Cookie: ownerCookie, Origin: "https://attacker.example.invalid", "Content-Type": "application/x-www-form-urlencoded"},
       body: new URLSearchParams({email: OWNER_EMAIL, password: OWNER_PASSWORD, csrf_token: loginCsrf, return_to: CALLBACK})
@@ -1185,7 +1185,7 @@ test("AleCore AI live error boundaries and active-owner session revocation", asy
     assert.equal(response.status, 403);
   });
   await t.test("auth malformed JSON does not become a server error", async () => {
-    const response = await fetch(AUTH_ORIGIN + "/ownernara/login", {
+    const response = await fetch(AUTH_ORIGIN + "/owner-alecore-ai/login", {
       method: "POST", headers: {"Content-Type": "application/json"}, body: '{"password":'
     });
     assert.equal(response.status, 400);
@@ -1198,7 +1198,7 @@ test("AleCore AI live error boundaries and active-owner session revocation", asy
     assert.equal(response.status, 413);
     assert.deepEqual(await response.json(), {error: "REQUEST_BODY_TOO_LARGE"});
   });
-  const login = await fetch(AUTH_ORIGIN + "/ownernara/login", {
+  const login = await fetch(AUTH_ORIGIN + "/owner-alecore-ai/login", {
     method: "POST", redirect: "manual",
     headers: { Cookie: ownerCookie, "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({email: OWNER_EMAIL, password: OWNER_PASSWORD, csrf_token: loginCsrf, return_to: CALLBACK})

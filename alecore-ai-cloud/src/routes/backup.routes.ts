@@ -109,7 +109,7 @@ function usbBackupName(
   return (
     "alecore-ai-memory-backup-" +
     safeTimestamp +
-    ".nara"
+    ".alecoreai"
   );
 }
 
@@ -407,7 +407,7 @@ router.post(
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.ale.backup+json; charset=utf-8"
+        "application/vnd.alecore-ai.backup+json; charset=utf-8"
       );
 
       res.setHeader(
