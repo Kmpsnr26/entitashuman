@@ -53,7 +53,7 @@ export class NaraAgentCoordinator{
     };
   }
 
-  async execute({task,heartbeat},expectedMode){
+  async execute({task,heartbeat,signal},expectedMode){
     const meta=this.pending.get(task.id);
     if(!meta)throw new Error('Metadata task Agent Hub tidak tersedia.');
     if(meta.mode!==expectedMode)throw new Error('Mode task Agent Hub tidak konsisten.');
@@ -84,7 +84,8 @@ export class NaraAgentCoordinator{
         id:meta.id,
         prompt:meta.prompt,
         mode:meta.mode,
-        memoryContext:meta.memoryContext
+        memoryContext:meta.memoryContext,
+        signal
       });
       heartbeat();
       if(result?.error)throw new Error(String(result.error));
