@@ -19,7 +19,7 @@ export class NaraAgentCoordinator{
     this.nara.registerAutopilotHandler(
       'humanale.agent.analyze',
       context=>this.execute(context,'analyze'),
-      {timeoutMs:15*60*1000}
+      {timeoutMs:15*60*1000,idempotent:true}
     );
     this.nara.registerAutopilotHandler(
       'humanale.agent.work',
@@ -97,7 +97,8 @@ export class NaraAgentCoordinator{
       if(!outputSummary)throw new Error('Agent Hub mengembalikan hasil kosong; NARA tidak dapat memverifikasi Goal.');
       const reviewerStages=Array.isArray(result?.stages)?result.stages.filter(stage=>stage?.role==='reviewer'):[];
       const reviewerText=String(reviewerStages.at(-1)?.text||'');
-      const reviewerPassed=result?.verification?.status==='passed'||new RegExp('\\bVERDICT\\s*:\\s*PASS\\b','i').test(reviewerText);
+      // A final reviewer NEEDS_FIX always wins; aggregate status is not an independent review.
+      const reviewerPassed=reviewerStages.length>0&&new RegExp('\\bVERDICT\\s*:\\s*PASS\\b','i').test(reviewerText);
       if(meta.mode==='work'&&!reviewerPassed){
         const error=new Error('Mode Kerja belum lolos verifikasi reviewer independen. NARA menolak menyelesaikan Goal tanpa VERDICT: PASS.');
         error.code='AGENT_WORK_REVIEW_REQUIRED';error.category='verification';throw error;
