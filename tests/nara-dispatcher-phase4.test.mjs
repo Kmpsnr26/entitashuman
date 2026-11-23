@@ -466,3 +466,34 @@ test('Coordinator work Goal requires an independent reviewer PASS',async()=>{
     assert.equal(stale.nara.goalStatus,'blocked');
   }finally{nara.stop();}
 });
+
+
+test('explicitly requeued task ignores its cached terminal failure and executes again',async()=>{
+  const scheduler=createTaskScheduler();
+  const watchdog=createWatchdog();
+  const capabilities=createCapabilityBroker();
+  const experience=createExperienceModel();
+  const recovery={decide(){return {action:'escalate',reason:'manual-requeue-required',delayMs:0};}};
+  const autopilot=createAutopilot({scheduler,watchdog,recovery,capabilities,experience});
+  let calls=0;
+  autopilot.registerHandler('test.manual-requeue',async()=>{
+    calls+=1;
+    if(calls===1)throw new Error('first attempt failed');
+    return {ok:true,attempt:calls};
+  });
+  autopilot.enqueue({id:'manual-requeue-task',handler:'test.manual-requeue'});
+  const first=await autopilot.runTask('manual-requeue-task');
+  assert.equal(first.ok,false);
+  assert.equal(first.error,'first attempt failed');
+  assert.equal(calls,1);
+  assert.equal(scheduler.get('manual-requeue-task').status,'failed');
+
+  scheduler.requeue('manual-requeue-task');
+  assert.equal(scheduler.get('manual-requeue-task').status,'queued');
+  const second=await autopilot.runNext();
+
+  assert.equal(second.ok,true);
+  assert.deepEqual(second.result,{ok:true,attempt:2});
+  assert.equal(calls,2);
+  assert.equal(scheduler.get('manual-requeue-task').status,'complete');
+});
