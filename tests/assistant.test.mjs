@@ -692,7 +692,7 @@ test('AleCore Local Windows setup helper preserves existing data and exposes onl
   readFile(new URL('../package-desktop.mjs',import.meta.url),'utf8')
  ]);
  assert.match(script,/OLLAMA_MODELS/);
- assert.match(script,/D:\\\\AleCoreAI\\\\Models/);
+ assert.match(script,/D:\\AleCoreAI\\Models/);
  assert.match(script,/127\.0\.0\.1:11434\/api\/tags/);
  assert.match(script,/ollama.*pull|pull.*\$Model/i);
  assert.doesNotMatch(script,/0\.0\.0\.0|Remove-Item|Move-Item/);
