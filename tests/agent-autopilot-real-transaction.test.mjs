@@ -40,9 +40,11 @@ async function structuredExecutorFixture(t){
    'class HumanALEAgentFixture {',
    ' static int Main(string[] args) {',
    '  var joined=String.Join(" ",args);',
+   '  if(joined == "status") { Console.WriteLine("Authenticated: true"); return 0; }',
    '  if(joined.Contains("--version")) { Console.WriteLine("HumanALE fixture 1.0"); return 0; }',
    '  if(joined.Contains("Planner HumanALE")) { Console.WriteLine("PLAN: edit app.mjs, then test and review."); return 0; }',
    '  if(joined.Contains("Final Reviewer HumanALE") || joined.Contains("Reviewer HumanALE")) { Console.WriteLine("Review passed.\\nVERDICT: PASS"); return 0; }',
+   '  if(joined.Contains("--available-tools=view,grep,glob") || joined.Contains("--mode=ask") || joined.Contains("--permission-mode plan")) { Console.WriteLine("Read-only synthesis."); return 0; }',
    '  if(joined.Contains("Repair Worker HumanALE") || joined.Contains("Worker HumanALE")) {',
    '   var value=Environment.GetEnvironmentVariable("HUMANALE_ACCEPTANCE_VALUE") ?? "2";',
    '   File.WriteAllText("app.mjs","export const value="+value+";\\n");',
@@ -67,9 +69,11 @@ async function structuredExecutorFixture(t){
    '#!/bin/sh',
    'joined="$*"',
    'case "$joined" in',
+   ' status) echo "Authenticated: true"; exit 0 ;;',
    ' *"--version"*) echo "HumanALE fixture 1.0"; exit 0 ;;',
    ' *"Planner HumanALE"*) echo "PLAN: edit app.mjs, then test and review."; exit 0 ;;',
    ' *"Final Reviewer HumanALE"*|*"Reviewer HumanALE"*) printf "Review passed.\\nVERDICT: PASS\\n"; exit 0 ;;',
+   ' *"--available-tools=view,grep,glob"*|*"--mode=ask"*|*"--permission-mode plan"*) echo "Read-only synthesis."; exit 0 ;;',
    ' *"Repair Worker HumanALE"*|*"Worker HumanALE"*) value="${HUMANALE_ACCEPTANCE_VALUE:-2}"; printf "export const value=%s;\\n" "$value" > app.mjs; echo "Updated app.mjs to value=$value."; exit 0 ;;',
    ' *"login status"*) echo "Not logged in"; exit 1 ;;',
    'esac',
@@ -388,4 +392,48 @@ test('abort after real patch restores source, releases lock and skips npm',async
  assert.equal(commands,0);
  assert.equal(git(root,'status','--porcelain'),'');
  await released(p,root,head);
+});
+
+
+test('HumanALE local collaboration diagnostic verifies provider output and does not infer login from version alone',async t=>{
+ const {root}=await fixture(t);
+ const executors=await structuredExecutorFixture(t);
+ bindStructuredExecutorFixture(t,executors);
+ const hub=new DeveloperAgentHub();
+ hub.setProjectRoot(root);
+ const before=await readFile(join(root,'app.mjs'));
+ const initialStatus=await hub.status();
+ const candidates=(initialStatus.agents||[]).filter(agent=>
+  ['github-copilot','cursor','claude'].includes(agent.id)&&(agent.canRun===true||agent.canAttempt===true)
+ );
+ assert.ok(candidates.length>=2,'fixture must expose at least two local executor candidates');
+ const copilot=initialStatus.agents.find(agent=>agent.id==='github-copilot');
+ const cursor=initialStatus.agents.find(agent=>agent.id==='cursor');
+ const claude=initialStatus.agents.find(agent=>agent.id==='claude');
+ assert.equal(copilot.canRun,false,'Copilot version detection must not claim authenticated status');
+ assert.equal(copilot.canAttempt,true,'Copilot can be tested by a real read-only stage');
+ assert.equal(copilot.authState,'unverified');
+ assert.equal(cursor.canRun,true,'Cursor status probe explicitly confirms authentication');
+ assert.equal(cursor.authState,'authenticated');
+ assert.equal(claude.canRun,false,'Claude version detection must not claim authenticated status');
+ assert.equal(claude.canAttempt,true,'Claude can be tested by a real read-only stage');
+ assert.equal(claude.authState,'unverified');
+ const result=await hub.run({
+  id:'humanale-orchestrator',
+  mode:'analyze',
+  prompt:'UJI KOLABORASI LOKAL READ ONLY. Planner, Worker, and Reviewer must inspect and synthesize without changing files. Reviewer must return VERDICT: PASS.'
+ });
+ assert.equal(result.id,'humanale-orchestrator');
+ const roles=result.stages.map(stage=>stage.role);
+ assert.deepEqual(roles,['planner','worker','reviewer']);
+ const planner=result.stages.find(stage=>stage.role==='planner');
+ const worker=result.stages.find(stage=>stage.role==='worker');
+ const reviewer=result.stages.at(-1);
+ assert.ok(candidates.some(agent=>agent.id===planner.agent));
+ assert.ok(candidates.some(agent=>agent.id===worker.agent));
+ assert.ok(candidates.some(agent=>agent.id===reviewer.agent));
+ assert.notEqual(worker.agent,reviewer.agent,'Reviewer must use an executor different from Worker');
+ assert.match(reviewer.text,/VERDICT: PASS/);
+ assert.deepEqual(await readFile(join(root,'app.mjs')),before,'read-only collaboration must not edit project files');
+ assert.equal(git(root,'--no-optional-locks','status','--porcelain'),'','read-only collaboration must leave Git worktree clean');
 });

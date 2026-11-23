@@ -1,6 +1,7 @@
 import {spawn} from 'node:child_process';
 import {access,realpath,stat} from 'node:fs/promises';
 import {join} from 'node:path';
+import {getSkill} from '../nara-core/brain/skill-registry.js';
 import {validateMemoryContext,memoryContextBlock} from './memory-context.mjs';
 import {
  AI_MAINTENANCE_ALLOWED_CAPABILITIES,
@@ -117,6 +118,25 @@ async function codexLoginStatus(executable,cwd){
  const result=await runProcess(executable,['login','status'],{cwd,timeout:12000});
  return {...result,...codexLoginProbe(result)};
 }
+export function cursorLoginProbe(result={}){
+ const output=String(result.stdout||'')+'\n'+String(result.stderr||'');
+ if(/\b(?:not authenticated|unauthenticated|not logged in|logged out|authentication required)\b/i.test(output)){
+  return {ready:false,canAttempt:false,authState:'unauthenticated',errorCode:'CURSOR_NOT_AUTHENTICATED'};
+ }
+ if(result.code===0&&!result.timedOut&&!result.error&&/\bauthenticated\s*[:=]\s*(?:yes|true)\b|\blogged\s+in\b|\bsigned\s+in\b/i.test(output)){
+  return {ready:true,canAttempt:true,authState:'authenticated',errorCode:null};
+ }
+ return {
+  ready:false,
+  canAttempt:true,
+  authState:'unverified',
+  errorCode:result.timedOut?'CURSOR_STATUS_TIMEOUT':result.error?'CURSOR_STATUS_FAILED':'CURSOR_AUTH_UNVERIFIED'
+ };
+}
+async function cursorLoginStatus(executable,cwd){
+ const result=await runProcess(executable,['status'],{cwd,timeout:12000});
+ return cursorLoginProbe(result);
+}
 export function agentDefinitions(){return agents.map(({commands,envPath,configEnv,configEnvs,secondaryEnv,...agent})=>({...agent}));}
 
 export function classifyTaskDifficulty(prompt=''){
@@ -158,14 +178,48 @@ export function selectStructuredRoles(available=[],preferredWorker=''){
   const worker=preferredWorker,others=list.filter(id=>id!==worker);
   const planner=others[0]||worker;
   const reviewer=others[1]||others[0]||worker;
-  return {planner,worker,reviewer,degraded:reviewer===worker,executors:list};
+  const specialists=others.filter(id=>id!==planner&&id!==reviewer);
+  return {planner,worker,reviewer,specialists,degraded:reviewer===worker,executors:list};
  }
  const planner=list.includes('codex')?'codex':list[0];
  const worker=list.includes('github-copilot')&&planner!=='github-copilot'?'github-copilot':(list.find(id=>id!==planner)||planner);
  const others=list.filter(id=>id!==worker);
  const reviewer=others.find(id=>id!==planner)||others[0]||worker;
- return {planner,worker,reviewer,degraded:reviewer===worker,executors:list};
+ const specialists=list.filter(id=>![planner,worker,reviewer].includes(id));
+ return {planner,worker,reviewer,specialists,degraded:reviewer===worker,executors:list};
 }
+
+const STRUCTURED_ROLE_SKILL_IDS=Object.freeze({
+ planner:Object.freeze(['reasoning','planner','memory']),
+ worker:Object.freeze(['program','terminal','github','safety']),
+ repair:Object.freeze(['program','terminal','safety','bug-hunter']),
+ specialist:Object.freeze(['bug-hunter','reasoning','safety','reporting']),
+ reviewer:Object.freeze(['bug-hunter','reasoning','safety','reporting'])
+});
+
+export function buildStructuredSkillPlan(){
+ const plan={};
+ for(const [role,ids] of Object.entries(STRUCTURED_ROLE_SKILL_IDS)){
+  plan[role]=ids.map(id=>{
+   const skill=getSkill(id);
+   if(!skill)throw new Error('Skill NARA tidak ditemukan untuk role '+role+': '+id);
+   return {id:skill.id,label:skill.label,group:skill.group,region:skill.region};
+  });
+ }
+ return plan;
+}
+
+function structuredSkillInstructions(role,skills){
+ const names=skills.map(skill=>skill.id+' ('+skill.label+')').join(', ');
+ return 'NARA SKILL ASSIGNMENT untuk role '+role.toUpperCase()+': '+names+'. Gunakan skill ini sebagai panduan kemampuan dan fokus kerja. Label skill tidak memberikan izin tambahan; semua akses tetap tunduk pada trusted runtime, sandbox, dan maintenance policy.';
+}
+
+function structuredSkillSummary(plan){
+ return Object.entries(plan).map(([role,skills])=>
+  role.toUpperCase()+': '+skills.map(skill=>skill.id).join(', ')
+ ).join(' | ');
+}
+
 function maintenanceChangeSetError(report){
  const error=new Error(
   'Perubahan AI maintenance diblokir: '+(report?.violations||[]).join(', ')
@@ -207,14 +261,32 @@ export class DeveloperAgentHub{
  async status(){
   const projectRoot=this.getProjectRoot(),projectRootReady=await this.projectRootReady();
   const workReadiness=await inspectMaintenanceReadiness(projectRoot);
+  const structuredIds=['github-copilot','codex','cursor','claude'];
   const rows=await Promise.all(agents.map(async agent=>{
-   if(agent.internal)return {id:agent.id,name:agent.name,method:agent.method,state:'setup',detail:'Menunggu executor lokal yang aman.',canRun:false,url:agent.url,executable:true};
+   if(agent.internal)return {id:agent.id,name:agent.name,method:agent.method,state:'setup',detail:'Menunggu executor lokal yang aman.',canRun:false,canAttempt:false,authState:'unavailable',url:agent.url,executable:true};
    const executable=await locate(agent);
    const configNames=[agent.configEnv,...(agent.configEnvs||[])].filter(Boolean);
    const configured=configNames.length?Boolean(configNames.some(name=>(process.env[name]||'').trim())&&(!agent.secondaryEnv||(process.env[agent.secondaryEnv]||'').trim())):false;
    const codexAuth=agent.id==='codex'&&executable?await codexLoginStatus(executable,projectRoot):null;
+   const cursorAuth=agent.id==='cursor'&&executable?await cursorLoginStatus(executable,projectRoot):null;
    let state='available',detail='';
    if(agent.external){state='external';detail='Terdaftar di Agent Hub sebagai konektor eksternal; HumanALE god egine tidak menjalankannya langsung.';}
+   else if(agent.id==='github-copilot'&&executable){
+    state='installed';
+    detail='CLI terdeteksi. Versi CLI tidak membuktikan login; autentikasi baru dikonfirmasi setelah permintaan read-only benar-benar berhasil.';
+   }
+   else if(agent.id==='claude'&&executable){
+    state='installed';
+    detail='CLI terdeteksi. Status login belum diverifikasi otomatis; autentikasi dikonfirmasi melalui hasil eksekusi read-only, bukan deteksi versi.';
+   }
+   else if(agent.id==='cursor'&&executable){
+    state=cursorAuth?.ready?'configured':'installed';
+    detail=cursorAuth?.ready
+     ?'Cursor CLI terdeteksi dan perintah status mengonfirmasi autentikasi.'
+     :cursorAuth?.authState==='unauthenticated'
+      ?'Cursor CLI terdeteksi tetapi belum login. Jalankan agent login.'
+      :'Cursor CLI terdeteksi; status autentikasi belum dapat dipastikan. Uji kolaborasi akan memvalidasi hasil eksekusi read-only.';
+   }
    else if(agent.runtime){state=configured?'configured':executable?'installed':'setup';detail=configured?'Kredensial provider runtime terdeteksi dari environment.':executable?'CLI lokal terdeteksi; provider runtime masih memerlukan kredensial environment.':'Provider tersedia di HumanALE god egine tetapi belum dikonfigurasi di environment.';}
    else if(agent.id==='replit'){state='mcp-client';detail='Replit Agent menerima remote MCP dari halaman Integrations.';}
    else if(agent.id==='pieces'){state=configured?'configured':executable?'installed':'setup';detail=configured?'PIECES_MCP_URL terdeteksi.':executable?'PiecesOS terdeteksi; salin URL MCP ke PIECES_MCP_URL bila ingin dipakai lintas agent.':'Install PiecesOS lalu ambil URL MCP lokal.';}
@@ -222,16 +294,35 @@ export class DeveloperAgentHub{
    else if(agent.id==='codex'&&executable){state=codexAuth?.ready?'configured':'installed';detail=codexAuth?.ready?'Codex CLI terdeteksi dan login aktif.':codexProbeMessage(codexAuth);}
    else if(executable){state='installed';detail='CLI/aplikasi lokal terdeteksi.';}
    else{state='setup';detail=agent.method.includes('MCP')?'Belum terdeteksi lokal; integrasi MCP tetap didukung oleh produknya.':'Belum dikonfigurasi.';}
-   return {id:agent.id,name:agent.name,method:agent.method,state,detail,canRun:Boolean(agent.canRun&&executable&&(agent.id!=='codex'||codexAuth?.ready)),url:agent.url,executable:executable?true:false,...(codexAuth?.errorCode?{errorCode:codexAuth.errorCode}:{})};
+   const authState=!structuredIds.includes(agent.id)?undefined:
+    !executable?'unavailable':
+    agent.id==='codex'?(codexAuth?.ready?'authenticated':'unauthenticated'):
+    agent.id==='cursor'?(cursorAuth?.authState||'unverified'):'unverified';
+   const canAttempt=Boolean(structuredIds.includes(agent.id)&&executable&&(
+    agent.id==='codex'?codexAuth?.ready:
+    agent.id==='cursor'?cursorAuth?.canAttempt:
+    true
+   ));
+   const canRun=Boolean(structuredIds.includes(agent.id)&&executable&&(
+    agent.id==='codex'?codexAuth?.ready:
+    agent.id==='cursor'?cursorAuth?.ready:
+    false
+   ));
+   return {id:agent.id,name:agent.name,method:agent.method,state,detail,canRun,canAttempt,authState,url:agent.url,executable:executable?true:false,...(codexAuth?.errorCode?{errorCode:codexAuth.errorCode}:{})};
   }));
-  const structuredExecutors=rows.filter(row=>['github-copilot','codex','cursor','claude'].includes(row.id)&&row.canRun);
+  const structuredCandidates=rows.filter(row=>structuredIds.includes(row.id)&&(row.canRun||row.canAttempt));
+  const structuredVerified=structuredCandidates.filter(row=>row.canRun===true);
   const orchestrator=rows.find(row=>row.id==='humanale-orchestrator');
   if(orchestrator){
-   orchestrator.state=structuredExecutors.length?'configured':'setup';
-   orchestrator.canRun=structuredExecutors.length>0;
-   orchestrator.detail=structuredExecutors.length
-    ?'Pipeline terstruktur siap: Planner membaca, Worker mengerjakan dengan izin terbatas, Reviewer memeriksa ulang. Executor: '+structuredExecutors.map(row=>row.name).join(', ')+'.'
-    :'Pasang/login minimal satu executor: GitHub Copilot, OpenAI Codex, Cursor, atau Claude Code.';
+   orchestrator.state=structuredCandidates.length?(structuredVerified.length?'configured':'installed'):'setup';
+   orchestrator.canRun=structuredCandidates.length>0;
+   orchestrator.canAttempt=structuredCandidates.length>0;
+   orchestrator.authState=!structuredCandidates.length?'unavailable':
+    structuredVerified.length===structuredCandidates.length?'authenticated':
+    structuredVerified.length?'partially-verified':'unverified';
+   orchestrator.detail=structuredCandidates.length
+    ?'Pipeline terstruktur dapat diuji dengan executor lokal: '+structuredCandidates.map(row=>row.name).join(', ')+'. Autentikasi provider tanpa probe aman baru dianggap terverifikasi setelah tahap read-only menghasilkan output.'
+    :'Pasang/login minimal satu executor lokal: GitHub Copilot, OpenAI Codex, Cursor, atau Claude Code.';
   }
   return {
    projectRoot,
@@ -251,7 +342,12 @@ export class DeveloperAgentHub{
    if(id==='codex'){
     const auth=await codexLoginStatus(executable,cwd);
     if(!auth.ready)continue;
+   }else if(id==='cursor'){
+    const auth=await cursorLoginStatus(executable,cwd);
+    if(!auth.canAttempt)continue;
    }else{
+    // --version verifies installation only. Copilot and Claude remain
+    // authentication-unverified until their actual read-only stage succeeds.
     const probe=await runProcess(executable,['--version'],{cwd,timeout:8000});
     if(probe.code!==0||probe.timedOut)continue;
    }
@@ -386,12 +482,20 @@ export class DeveloperAgentHub{
   const roles=selectStructuredRoles(available,preferredWorker);
   if(!roles)throw new Error('HumanALE Orchestrator tidak menemukan executor terverifikasi.');
   const {planner,worker,reviewer,degraded}=roles;
+  const skillPlan=buildStructuredSkillPlan();
   if(mode==='work'&&reviewer===worker)throw new Error('Mode Kerja memerlukan executor reviewer independen yang berbeda dari Worker. Hubungkan minimal dua executor sebelum menjalankan perubahan.');
-  const planPrompt='Kamu adalah Planner HumanALE. Analisis tugas berikut secara read-only. Pecah menjadi langkah berurutan, dependensi, file/area yang mungkin terdampak, risiko, dan kriteria selesai. Jangan edit file. Jangan menjalankan publish/push/merge. Tugas: '+prompt;
+  const planPrompt='Kamu adalah Planner HumanALE. '+structuredSkillInstructions('planner',skillPlan.planner)+' Analisis tugas berikut secara read-only. Pecah menjadi langkah berurutan, dependensi, file/area yang mungkin terdampak, risiko, dan kriteria selesai. Jangan edit file. Jangan menjalankan publish/push/merge. Tugas: '+prompt;
   const plan=await this.runDirect(planner,planPrompt,'analyze');
-  const workPrompt='Kamu adalah Worker HumanALE. Ikuti rencana Planner berikut dan fokus menyelesaikan tugas pengguna. Jika mode ini read-only, berikan implementasi/rencana konkret tanpa edit. Jika mode kerja, edit hanya yang perlu, jalankan test relevan, dan jangan push/merge/publish. TASK:\n'+prompt+'\n\nPLAN:\n'+plan.text;
+  const specialistResults=[];
+  for(const specialist of roles.specialists||[]){
+   const specialistPrompt='Kamu adalah Specialist HumanALE. '+structuredSkillInstructions('specialist',skillPlan.specialist)+' Baca tugas dan rencana Planner secara read-only. Berikan masukan terfokus pada risiko domain, ketergantungan, compatibility, dan kasus uji yang mungkin terlewat. Jangan edit file dan jangan menjalankan publish/push/merge. TASK:\n'+prompt+'\n\nPLAN:\n'+plan.text;
+   const result=await this.runDirect(specialist,specialistPrompt,'analyze');
+   specialistResults.push({agent:specialist,text:result.text,skills:skillPlan.specialist});
+  }
+  const specialistContext=specialistResults.map((item,index)=>'SPECIALIST '+(index+1)+' ('+item.agent+'):\n'+item.text).join('\n\n');
+  const workPrompt='Kamu adalah Worker HumanALE. '+structuredSkillInstructions('worker',skillPlan.worker)+' Ikuti rencana Planner dan masukan Specialist berikut. Jika mode ini read-only, berikan implementasi/rencana konkret tanpa edit. Jika mode kerja, edit hanya yang perlu, jalankan test relevan, dan jangan push/merge/publish. TASK:\n'+prompt+'\n\nPLAN:\n'+plan.text+(specialistContext?'\n\nSPECIALIST REVIEW:\n'+specialistContext:'');
   const work=await this.runDirect(worker,workPrompt,mode);
-  const reviewPrompt='Kamu adalah Reviewer HumanALE. Periksa tugas, rencana, dan hasil Worker. Dalam mode read-only, inspeksi proyek bila tersedia tetapi jangan edit. Fokus pada correctness, regression, security, test coverage, dan apakah permintaan benar-benar selesai. Akhiri tepat dengan salah satu baris: VERDICT: PASS atau VERDICT: NEEDS_FIX.\n\nTASK:\n'+prompt+'\n\nPLAN:\n'+plan.text+'\n\nWORKER RESULT:\n'+work.text;
+  const reviewPrompt='Kamu adalah Reviewer HumanALE. '+structuredSkillInstructions('reviewer',skillPlan.reviewer)+' Periksa tugas, rencana, masukan Specialist, dan hasil Worker. Dalam mode read-only, inspeksi proyek bila tersedia tetapi jangan edit. Fokus pada correctness, regression, security, test coverage, dan apakah permintaan benar-benar selesai. Akhiri tepat dengan salah satu baris: VERDICT: PASS atau VERDICT: NEEDS_FIX.\n\nTASK:\n'+prompt+'\n\nPLAN:\n'+plan.text+(specialistContext?'\n\nSPECIALIST REVIEW:\n'+specialistContext:'')+'\n\nWORKER RESULT:\n'+work.text;
   let review=await this.runDirect(reviewer,reviewPrompt,'analyze'),repair=null;
   let verdict=reviewVerdict(review.text);
   if(verdict==='unknown'){
@@ -401,25 +505,28 @@ export class DeveloperAgentHub{
    if(verdict==='unknown')throw new Error('Reviewer HumanALE tidak memberikan VERDICT valid setelah retry. Pipeline dihentikan fail-closed.');
   }
   if(mode==='work'&&verdict==='needs_fix'){
-   const repairPrompt='Kamu adalah Repair Worker HumanALE. Perbaiki hanya masalah konkret yang disebut Reviewer, tetap di folder proyek, tanpa push/merge/publish atau perubahan kredensial. Jalankan test relevan. TASK:\n'+prompt+'\n\nREVIEW:\n'+review.text;
+   const repairPrompt='Kamu adalah Repair Worker HumanALE. '+structuredSkillInstructions('repair',skillPlan.repair)+' Perbaiki hanya masalah konkret yang disebut Reviewer, tetap di folder proyek, tanpa push/merge/publish atau perubahan kredensial. Jalankan test relevan. TASK:\n'+prompt+'\n\nREVIEW:\n'+review.text;
    repair=await this.runDirect(worker,repairPrompt,'work');
-   const finalPrompt='Kamu adalah Final Reviewer HumanALE. Periksa ulang tugas setelah repair. Jangan edit. Akhiri tepat dengan VERDICT: PASS atau VERDICT: NEEDS_FIX.\n\nTASK:\n'+prompt+'\n\nREPAIR RESULT:\n'+repair.text;
+   const finalPrompt='Kamu adalah Final Reviewer HumanALE. '+structuredSkillInstructions('reviewer',skillPlan.reviewer)+' Periksa ulang tugas setelah repair. Jangan edit. Akhiri tepat dengan VERDICT: PASS atau VERDICT: NEEDS_FIX.\n\nTASK:\n'+prompt+'\n\nREPAIR RESULT:\n'+repair.text;
    review=await this.runDirect(reviewer,finalPrompt,'analyze');
    verdict=reviewVerdict(review.text);
    if(verdict!=='pass')throw new Error('Final Reviewer HumanALE belum memberikan VERDICT: PASS. Pipeline dihentikan fail-closed.');
   }
   const stages=[
-   {role:'planner',agent:planner,text:plan.text},
-   {role:'worker',agent:worker,text:work.text},
-   ...(repair?[{role:'repair',agent:worker,text:repair.text}]:[]),
-   {role:'reviewer',agent:reviewer,text:review.text}
+   {role:'planner',agent:planner,skills:skillPlan.planner,text:plan.text},
+   ...specialistResults.map(item=>({role:'specialist',agent:item.agent,skills:item.skills,text:item.text})),
+   {role:'worker',agent:worker,skills:skillPlan.worker,text:work.text},
+   ...(repair?[{role:'repair',agent:worker,skills:skillPlan.repair,text:repair.text}]:[]),
+   {role:'reviewer',agent:reviewer,skills:skillPlan.reviewer,text:review.text}
   ];
   const summary=[
    'HumanALE Orchestrator · '+difficulty.toUpperCase()+' · '+mode.toUpperCase()+(degraded?' · DEGRADED SINGLE-EXECUTOR':' · INDEPENDENT REVIEW'),
    'Planner: '+planner+' · Worker: '+worker+' · Reviewer: '+reviewer,
+   'Skill map: '+structuredSkillSummary(skillPlan),
    '',
    '[PLAN]',
    plan.text,
+   ...specialistResults.flatMap((item,index)=>['','[SPECIALIST '+(index+1)+' · '+item.agent+']',item.text]),
    '',
    '[WORK]',
    work.text,
@@ -428,7 +535,7 @@ export class DeveloperAgentHub{
    '[REVIEW]',
    review.text
   ].join('\n');
-  return {id:'humanale-orchestrator',name:'HumanALE Orchestrator',mode,difficulty,stages,text:summary};
+  return {id:'humanale-orchestrator',name:'HumanALE Orchestrator',mode,difficulty,executors:roles.executors,stages,skillPlan,specialistResults,text:summary};
  }
  async runTrustedMaintenanceWork(prompt,{transaction,signal=null}={}){
   if(this.maintenanceTransaction?.processTerminationUnconfirmed)throw maintenanceProcessRecoveryError();

@@ -12,7 +12,7 @@ export function workReadinessError(status={}){
 export function selectWorkAgent(status={},provider='chatgpt',selectedId=''){
  const blocker=workReadinessError(status);
  if(blocker)throw new Error(blocker);
- const available=new Map((status.agents||[]).filter(agent=>agent?.canRun===true&&WORK_AGENT_IDS.includes(agent.id)).map(agent=>[agent.id,agent]));
+ const available=new Map((status.agents||[]).filter(agent=>(agent?.canRun===true||agent?.canAttempt===true)&&WORK_AGENT_IDS.includes(agent.id)).map(agent=>[agent.id,agent]));
  const preferred=provider==='copilot'?'github-copilot':provider==='chatgpt'?'humanale-orchestrator':'';
  for(const id of [selectedId,preferred,'humanale-orchestrator',...WORK_AGENT_IDS]){
   if(available.has(id))return available.get(id);

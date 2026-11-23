@@ -21,6 +21,20 @@ test('explicit work selects a ready executor independently of the chat provider'
  assert.equal(selectWorkAgent(status(['claude']),'chatgpt').id,'claude');
 });
 
+test('manual work selection may attempt an unverified installed executor without treating it as authenticated',()=>{
+ const candidate=status(['github-copilot']);
+ const copilot=candidate.agents[0];
+ copilot.canRun=false;
+ copilot.canAttempt=true;
+ copilot.authState='unverified';
+ assert.equal(selectWorkAgent(candidate,'chatgpt','github-copilot').id,'github-copilot');
+ assert.equal(copilot.authState,'unverified');
+ const unavailable=status(['github-copilot']);
+ unavailable.agents[0].canRun=false;
+ unavailable.agents[0].canAttempt=false;
+ assert.throws(()=>selectWorkAgent(unavailable,'chatgpt','github-copilot'),/Tidak ada executor CLI/);
+});
+
 test('work readiness reports backend transaction blockers even when .git exists',()=>{
  for(const error of ['Branch main dilindungi.','Worktree memiliki perubahan lokal.','Checkout mengandung file secret.','Checkout mengandung symbolic link.']){
   const blocked={...status(),workReady:false,workReadiness:{ready:false,code:'BLOCKED',error}};
@@ -67,7 +81,10 @@ test('renderer uses readiness and shared payload policy for both manual and chat
  const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
  assert.match(app,/if\(!image&&isExplicitProjectWorkRequest\(text\)\)/);
  assert.doesNotMatch(app,/aiProvider==='copilot'&&!image&&isExplicitProjectWorkRequest/);
- assert.match(app,/selectWorkAgent\(status,aiProvider,selectedDeveloperAgentId\)/);
+ assert.match(app,/const orchestratorReady=\(status\.agents\|\|\[\]\)\.some\(agent=>agent\.id==='humanale-orchestrator'&&agent\.canRun===true\)/);
+ assert.match(app,/const preferredAgent=selectedDeveloperAgentId\|\|\(orchestratorReady\?'humanale-orchestrator':''\)/);
+ assert.match(app,/selectWorkAgent\(status,aiProvider,preferredAgent\)/);
+ assert.match(app,/agent\.canRun===true\|\|agent\.canAttempt===true/);
  assert.match(app,/createAgentTaskPayload\(\{id,prompt,mode,prepareMemory:prepareEffectiveMemoryContext\}\)/);
  assert.match(app,/workSucceeded=hasAppliedWorkChanges\(result\)/);
  assert.match(app,/Mode Kerja diblokir:/);
