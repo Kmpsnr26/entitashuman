@@ -15,7 +15,9 @@
     "verify": "npm run build && npm run test:unit",
     "start:auth": "node dist/apps/authServer.js",
     "start:nara": "node dist/apps/naraServer.js",
-    "test:e2e": "node --import tsx --test tests/runtime-e2e.test.ts"
+    "test:e2e": "node --import tsx --test tests/runtime-e2e.test.ts",
+    "dev:alecore": "tsx watch src/apps/naraServer.ts",
+    "start:alecore": "node dist/apps/naraServer.js"
   },
   "dependencies": {
     "argon2": "0.45.1",
