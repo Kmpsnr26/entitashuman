@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createOrchestrator} from '../ALECORE-AI/brain/orchestrator.js';
+import {createOrchestrator} from '../alecore-ai/brain/orchestrator.js';
 import {
  ALECORE_AI_HUMANALE_PROTOCOL,
  ALECORE_AI_HUMANALE_ACTIONS,
@@ -8,7 +8,7 @@ import {
  normalizeHumanALEIntegrationRequest,
  evaluateHumanALEIntegrationRequest,
  describeHumanALEIntegrationContract
-} from '../ALECORE-AI/brain/humanale-integration-contract.js';
+} from '../alecore-ai/brain/humanale-integration-contract.js';
 
 test('final integration contract exposes only bounded whitelisted HumanALE actions',()=>{
  assert.equal(ALECORE_AI_HUMANALE_PROTOCOL,'alecore-ai-humanale/1');
@@ -59,7 +59,7 @@ test('malformed or unknown integration requests fail closed',()=>{
 });
 
 test('development and validation keep every contract action blocked',()=>{
- const nara=createOrchestrator();ale.start();
+ const ale=createOrchestrator();ale.start();
  for(const phase of ['development','validation']){
   if(phase==='validation')ale.advanceAuthorityPhase('validation');
   const contract=ale.humanaleIntegrationContract();
@@ -78,7 +78,7 @@ test('development and validation keep every contract action blocked',()=>{
 });
 
 test('creator-approved final integration allows reads but keeps control and execution per-action confirmation',()=>{
- const nara=createOrchestrator();ale.start();
+ const ale=createOrchestrator();ale.start();
  ale.advanceAuthorityPhase('validation');
  ale.advanceAuthorityPhase('final-integration',{creatorConfirmed:true});
 

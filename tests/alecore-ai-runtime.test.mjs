@@ -18,22 +18,22 @@ test('Electron preload exposes only the narrow AleCore AI runtime bridge',async(
 
 test('Electron main owns and starts the AleCore AI orchestrator with renderer event allowlist',async()=>{
   const main=await readFile(new URL('desktop/main.cjs',root),'utf8');
-  assert.match(main,/import\('\.\.\/ALECORE-AI\/brain\/index\.js'\)/);
-  assert.match(main,/nara=createOrchestrator\(\{deviceProfile:systemObserver\.deviceProfile\(\),experience\}\)/);
+  assert.match(main,/import\('\.\.\/alecore-ai\/brain\/index\.js'\)/);
+  assert.match(main,/ale=createOrchestrator\(\{deviceProfile:systemObserver\.deviceProfile\(\),experience\}\)/);
   assert.match(main,/createSystemObserver/);
   assert.match(main,/createDataFlowMeter/);
   assert.match(main,/createExperienceModel/);
   assert.match(main,/createExperienceStore/);
   assert.match(main,/alecore-ai-experience\.json/);
   assert.match(main,/experience\.hydrate\(restoredExperience\)/);
-  assert.match(main,/experienceStore\.save\(nara\.experience\.snapshot\(\)\)/);
-  assert.match(main,/experienceStore\.saveSync\(nara\.experience\.snapshot\(\)\)/);
+  assert.match(main,/experienceStore\.save\(ale\.experience\.snapshot\(\)\)/);
+  assert.match(main,/experienceStore\.saveSync\(ale\.experience\.snapshot\(\)\)/);
   assert.match(main,/experience\.persisted/);
-  assert.match(main,/nara\.configureDevice\(systemObserver\.deviceProfile\(\)\)/);
-  assert.match(main,/nara\.dispatch\('system\.telemetry'/);
-  assert.match(main,/nara\.dispatch\('dataflow\.sample'/);
-  assert.match(main,/nara\.dispatch\('server\.observe'/);
-  assert.match(main,/nara\.start\(\)/);
+  assert.match(main,/ale\.configureDevice\(systemObserver\.deviceProfile\(\)\)/);
+  assert.match(main,/ale\.dispatch\('system\.telemetry'/);
+  assert.match(main,/ale\.dispatch\('dataflow\.sample'/);
+  assert.match(main,/ale\.dispatch\('server\.observe'/);
+  assert.match(main,/ale\.start\(\)/);
   assert.match(main,/dudidam:alecore-ai-test-scenario/);
   assert.match(main,/dudidam:alecore-ai-skill-snapshot/);
   assert.match(main,/createSkillSnapshot/);
@@ -46,7 +46,7 @@ test('Electron main owns and starts the AleCore AI orchestrator with renderer ev
   assert.match(main,/humanaleRuntime\.bindIpc\(ipcMain\)/);
   assert.match(main,/humanaleRuntime\.start\(\)/);
   assert.match(main,/humanaleRuntime\?\.stop\(\)/);
-  assert.match(main,/app\.on\('before-quit'.*nara\?\.stop/s);
+  assert.match(main,/app\.on\('before-quit'.*ale\?\.stop/s);
   assert.match(main,/aleDispatch\('audio\.energy',\{energy:\.5,low:\.2,mid:\.4,high:\.6\}\)/);
   assert.match(main,/wakeIndicator'\)\?\.dataset\.active==='false'/);
 });
@@ -69,15 +69,15 @@ test('terminal and Agent Coordinator lifecycle feed AleCore AI operational state
     readFile(new URL('desktop/main.cjs',root),'utf8'),
     readFile(new URL('desktop/alecore-ai-agent-coordinator.mjs',root),'utf8')
   ]);
-  assert.match(main,/nara\.dispatch\('terminal\.open'/);
+  assert.match(main,/ale\.dispatch\('terminal\.open'/);
   assert.match(main,/createAleAgentCoordinator/);
   assert.match(main,/aleAgentCoordinator=createAleAgentCoordinator/);
   assert.match(main,/aleAgentCoordinator\.run/);
-  assert.match(coordinator,/this\.nara\.startWork\(/);
-  assert.match(coordinator,/this\.nara\.completeWork\(/);
-  assert.match(coordinator,/this\.nara\.dispatch\('agent\.start'/);
-  assert.match(coordinator,/this\.nara\.dispatch\('verify\.complete'/);
-  assert.match(coordinator,/this\.nara\.dispatch\('error\.detected'/);
+  assert.match(coordinator,/this\.ale\.startWork\(/);
+  assert.match(coordinator,/this\.ale\.completeWork\(/);
+  assert.match(coordinator,/this\.ale\.dispatch\('agent\.start'/);
+  assert.match(coordinator,/this\.ale\.dispatch\('verify\.complete'/);
+  assert.match(coordinator,/this\.ale\.dispatch\('error\.detected'/);
 });
 
 
@@ -117,6 +117,6 @@ test('Visual Studio test lab cannot use the generic renderer event allowlist for
 test('AleCore AI skill snapshot caches agent probes but always recomputes from current BrainState',async()=>{
   const main=await readFile(new URL('desktop/main.cjs',root),'utf8');
   assert.match(main,/now-aleSkillCache\.at>=8000/);
-  assert.match(main,/return createSkillSnapshot\(\{brainState:nara\.snapshot\(\),agents:aleSkillCache\.agents\}\)/);
+  assert.match(main,/return createSkillSnapshot\(\{brainState:ale\.snapshot\(\),agents:aleSkillCache\.agents\}\)/);
   assert.doesNotMatch(main,/aleSkillCache\.value/);
 });

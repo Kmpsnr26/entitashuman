@@ -7,7 +7,7 @@ import {
   createHumanALEHealthTracker,
   createAleHumanALEBridge,
   createMockHumanALE
-} from '../ALECORE-AI/integration/index.js';
+} from '../alecore-ai/integration/index.js';
 
 test('integration protocol accepts only direction-specific allowlisted JSON messages',()=>{
   const message=createIntegrationMessage({

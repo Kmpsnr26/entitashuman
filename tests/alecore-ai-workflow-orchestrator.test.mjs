@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createEventBus} from '../ALECORE-AI/brain/event-bus.js';
+import {createEventBus} from '../alecore-ai/brain/event-bus.js';
 import {
   WORKFLOW_STATUS,
   WORKFLOW_REASONS,
   createWorkflowOrchestrator
-} from '../ALECORE-AI/workflow/index.js';
+} from '../alecore-ai/workflow/index.js';
 
 function components(overrides={}){
   const calls=[];

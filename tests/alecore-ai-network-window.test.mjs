@@ -4,28 +4,28 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {createOrchestrator} from '../ALECORE-AI/brain/index.js';
-import {createOwnerStore} from '../ALECORE-AI/security/owner-store.mjs';
-import {createAleStudioServer} from '../ALECORE-AI/studio/server.mjs';
+import {createOrchestrator} from '../alecore-ai/brain/index.js';
+import {createOwnerStore} from '../alecore-ai/security/owner-store.mjs';
+import {createAleStudioServer} from '../alecore-ai/studio/server.mjs';
 
 test('embedded AleCore AI Studio projects safe telemetry from the shared desktop runtime',async t=>{
   const temp=mkdtempSync(join(tmpdir(),'humanale-network-studio-'));
   t.after(()=>rmSync(temp,{recursive:true,force:true}));
   const ownerStore=createOwnerStore({filePath:join(temp,'owner.json')});
   ownerStore.provision({username:'shared-owner',password:'shared-owner-password'});
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
   const studio=createAleStudioServer({
     host:'127.0.0.1',
     port:0,
-    nara,
+    ale,
     embedded:true,
     creatorAuth:{required:true,credentialStore:ownerStore}
   });
   t.after(()=>studio.stop());
   const address=await studio.start();
   const base='http://127.0.0.1:'+address.port;
-  assert.equal(studio.nara,nara);
+  assert.equal(studio.ale,ale);
   assert.equal(studio.ownerStore,ownerStore);
 
   const login=await fetch(base+'/api/creator/login',{
@@ -109,13 +109,13 @@ test('desktop AleCore AI Network window stays owner-gated and hardened in packag
     readFile(new URL('../desktop/preload.cjs',import.meta.url),'utf8'),
     readFile(new URL('../public/index.html',import.meta.url),'utf8'),
     readFile(new URL('../package-desktop.mjs',import.meta.url),'utf8'),
-    readFile(new URL('../ALECORE-AI/studio/public/app.js',import.meta.url),'utf8'),
-    readFile(new URL('../ALECORE-AI/studio/public/styles.css',import.meta.url),'utf8')
+    readFile(new URL('../alecore-ai/studio/public/app.js',import.meta.url),'utf8'),
+    readFile(new URL('../alecore-ai/studio/public/styles.css',import.meta.url),'utf8')
   ]);
   assert.match(html,/id="aleNetworkOpen"[^>]*hidden/);
   assert.match(preload,/openAleNetwork:.*dudidam:alecore-ai-network-open/);
   assert.match(main,/ipcMain\.handle\('dudidam:alecore-ai-network-open',e=>\{\s*if\(!ownerTrusted\(e\)\)/);
-  assert.match(main,/nara,\s*embedded:true,\s*creatorAuth:\{required:true,credentialStore:ownerStore\}/);
+  assert.match(main,/ale,\s*embedded:true,\s*creatorAuth:\{required:true,credentialStore:ownerStore\}/);
   assert.match(main,/nodeIntegration:false,contextIsolation:true,sandbox:true,\s*partition:'alecore-ai-network-studio'/);
   assert.match(main,/clearStorageData\(\{storages:\['cookies'\]\}\)/);
   assert.match(main,/setWindowOpenHandler\(\(\)=>\(\{action:'deny'\}\)\)/);
@@ -123,9 +123,9 @@ test('desktop AleCore AI Network window stays owner-gated and hardened in packag
   assert.match(main,/loadURL\(studioOrigin\+'\/\?embedded=1'\)/);
   assert.match(studioApp,/get\('embedded'\)==='1'.*embedded-studio/s);
   assert.match(studioCss,/body\.embedded-studio \.console-panel/);
-  assert.match(main,/aleNetworkStudio\.nara!==nara/);
+  assert.match(main,/aleNetworkStudio\.ale!==ale/);
   assert.match(main,/network3dReady/);
   assert.match(main,/brainNodes[^\n]*GITHUB/);
-  assert.match(main,/nara\.snapshot\(\)\.selectedRegion!=='GITHUB'/);
+  assert.match(main,/ale\.snapshot\(\)\.selectedRegion!=='GITHUB'/);
   assert.match(packager,/\['three'\]/);
 });

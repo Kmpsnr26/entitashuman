@@ -9,8 +9,8 @@ import {
   createExperienceModel,
   createCapabilityBroker,
   createAutopilot
-} from '../ALECORE-AI/engine/index.js';
-import {createOrchestrator} from '../ALECORE-AI/brain/orchestrator.js';
+} from '../alecore-ai/engine/index.js';
+import {createOrchestrator} from '../alecore-ai/brain/orchestrator.js';
 
 test('task scheduler honors priority and dependencies',()=>{
   const scheduler=createTaskScheduler();
@@ -138,7 +138,7 @@ test('autopilot blocks capability-protected task until Creator and OS approve it
 });
 
 test('AleCore AI orchestrator exposes bounded autopilot and operational instinct in Core snapshot',async()=>{
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
   ale.registerAutopilotHandler('internal.health',async()=>({health:'ok'}));
   ale.queueAutopilotTask({id:'health-check',handler:'internal.health',priority:80});

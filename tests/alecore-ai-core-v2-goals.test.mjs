@@ -9,9 +9,9 @@ import {
   createMetacognitionEngine,
   createExperienceModel,
   createCapabilityBroker
-} from '../ALECORE-AI/engine/index.js';
-import {createExperienceStore} from '../ALECORE-AI/persistence/experience-store.mjs';
-import {createOrchestrator} from '../ALECORE-AI/brain/orchestrator.js';
+} from '../alecore-ai/engine/index.js';
+import {createExperienceStore} from '../alecore-ai/persistence/experience-store.mjs';
+import {createOrchestrator} from '../alecore-ai/brain/orchestrator.js';
 
 test('Goal Manager prioritizes ready goals and enforces dependencies',()=>{
   const goals=createGoalManager();
@@ -148,7 +148,7 @@ test('Persistent Experience Store saves and restores bounded AleCore AI experien
 });
 
 test('Persistent Experience Store validates and reads through one pinned file handle',()=>{
-  const source=readFileSync(new URL('../ALECORE-AI/persistence/experience-store.mjs',import.meta.url),'utf8');
+  const source=readFileSync(new URL('../alecore-ai/persistence/experience-store.mjs',import.meta.url),'utf8');
   assert.match(source,/handle=await open\(this\.filePath,'r'\)/);
   assert.match(source,/await handle\.stat\(\)/);
   assert.match(source,/await handle\.readFile\(\{encoding:'utf8'\}\)/);
@@ -158,7 +158,7 @@ test('Persistent Experience Store validates and reads through one pinned file ha
 });
 
 test('AleCore AI orchestrator links goals to autopilot tasks and completes goal automatically',async()=>{
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
   ale.createGoal({id:'health-goal',label:'Verify health',priority:80});
   ale.activateGoal('health-goal');
@@ -185,7 +185,7 @@ test('AleCore AI orchestrator links goals to autopilot tasks and completes goal 
 
 
 test('AleCore AI rejects task-to-goal links before mutating the scheduler when goal is unknown',()=>{
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
   ale.registerAutopilotHandler('safe.noop',async()=>({ok:true}));
   assert.throws(()=>ale.queueAutopilotTask({
@@ -198,7 +198,7 @@ test('AleCore AI rejects task-to-goal links before mutating the scheduler when g
 });
 
 test('AleCore AI metacognition requests owner attention when a protected capability is pending',()=>{
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
   ale.requestCapability('creator.login.change',{reason:'Owner credential rotation'});
   const review=ale.reviewMetacognition();

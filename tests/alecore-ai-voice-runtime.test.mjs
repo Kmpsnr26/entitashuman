@@ -13,14 +13,14 @@ test('AleCore AI runtime publishes voice cues from the event bus without exposin
   assert.match(main,/createVoiceFeedback/);
   assert.match(main,/voiceFeedback:aleVoice/);
   assert.match(main,/onExperienceDirty:scheduleExperienceSave/);
-  assert.match(runtimeHost,/this\.nara\.bus\.onAny\(envelope=>\{/);
+  assert.match(runtimeHost,/this\.ale\.bus\.onAny\(envelope=>\{/);
   assert.match(runtimeHost,/this\.consumeEnvelope\(envelope\)/);
-  assert.match(runtimeHost,/this\.publishState\(this\.nara\.snapshot\(\)\)/);
+  assert.match(runtimeHost,/this\.publishState\(this\.ale\.snapshot\(\)\)/);
   assert.match(runtimeHost,/this\.voiceFeedback\?\.consume\?\.\(envelope\)/);
   assert.match(runtimeHost,/autopilot\.task\.complete/);
   assert.match(runtimeHost,/dudidam:alecore-ai-voice/);
-  assert.match(main,/announceAleEvent\('nara\.start'\)/);
-  assert.match(main,/announceAleEvent\('nara\.shutdown'\)/);
+  assert.match(main,/announceAleEvent\('ale\.start'\)/);
+  assert.match(main,/announceAleEvent\('ale\.shutdown'\)/);
   assert.match(preload,/onAleVoice:callback/);
   assert.doesNotMatch(preload,/aleSpeak|aleVoiceText|aleRawSpeech/);
 });
@@ -31,7 +31,7 @@ test('AleCore AI voice queue is bounded, non-panel, and does not interrupt activ
   assert.match(app,/if\(aleVoiceQueue\.length>6\)aleVoiceQueue\.pop\(\)/);
   assert.match(app,/if\(panelOnly\|\|!voice\|\|!cue\?\.text\)return/);
   assert.match(app,/aleSpeechBusy\(\)/);
-  assert.match(app,/source:'nara',interrupt:false/);
+  assert.match(app,/source:'ale',interrupt:false/);
   assert.match(app,/desktop\?\.onAleVoice\?\.\(cue=>enqueueAleVoice\(cue\)\)/);
 });
 
@@ -45,7 +45,7 @@ test('adult robot style is available in UI, local Piper and native Indonesian fa
   assert.match(html,/value="adult-robot">Pria dewasa · bas &amp; gema panjang/);
   assert.match(app,/const voiceStyle=HUMANALE_VOICE.style/);
   assert.match(app,/style==='adult-robot'/);
-  assert.match(app,/source==='nara'&&!localTtsRejected&&desktop\?\.synthesize/);
+  assert.match(app,/source==='ale'&&!localTtsRejected&&desktop\?\.synthesize/);
   assert.match(app,/if\(speakNativeIndonesian\(text,style\)\)return;/);
   assert.match(tts,/\['natural','baby-robot','adult-robot'\]/);
   assert.match(python,/def adult_robot_effect/);

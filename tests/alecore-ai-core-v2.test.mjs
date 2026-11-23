@@ -9,10 +9,10 @@ import {
   createCapabilityBroker,
   integrationPlan,
   ALECORE_AI_IDENTITY
-} from '../ALECORE-AI/engine/index.js';
-import {createOrchestrator} from '../ALECORE-AI/brain/orchestrator.js';
-import {createOwnerStore} from '../ALECORE-AI/security/owner-store.mjs';
-import {createCreatorAuth} from '../ALECORE-AI/studio/creator-auth.mjs';
+} from '../alecore-ai/engine/index.js';
+import {createOrchestrator} from '../alecore-ai/brain/orchestrator.js';
+import {createOwnerStore} from '../alecore-ai/security/owner-store.mjs';
+import {createCreatorAuth} from '../alecore-ai/studio/creator-auth.mjs';
 import {createSystemObserver,createDataFlowMeter} from '../desktop/system-observer.mjs';
 
 test('AleCore AI V2 identity is stable and permissioned',()=>{
@@ -75,13 +75,13 @@ test('privileged OS capability requires creator and explicit OS confirmation',()
 });
 
 test('orchestrator exposes V2 engine snapshot and Safety follows capability lifecycle',()=>{
-  const nara=createOrchestrator({
+  const ale=createOrchestrator({
     deviceProfile:{platform:'win32',arch:'x64',hostname:'pc',adapters:['microphone','camera','admin-elevation']}
   });
   ale.start();
   ale.dispatch('system.telemetry',{platform:'win32',hostname:'pc',arch:'x64',cpuLoad:.1,memoryUsedRatio:.2});
   ale.dispatch('server.observe',{scope:'loopback',host:'127.0.0.1',port:4178,transport:'HTTP',health:'online'});
-  const request=ale.requestCapability('creator.login.change',{actor:'ALECORE-AI'});
+  const request=ale.requestCapability('creator.login.change',{actor:'alecore-ai'});
   assert.equal(ale.snapshot().regions.SAFETY.status,'processing');
   ale.denyCapability(request.id,{actor:'creator'});
   const snapshot=ale.snapshot();
@@ -121,13 +121,13 @@ test('persistent owner store keeps immutable owner id and never stores plaintext
     const changed=store.changeCredentials({
       currentUsername:'creator',
       currentPassword:'InitialPass123!',
-      newUsername:'owner.nara',
+      newUsername:'owner.ale',
       newPassword:'ChangedPass456!'
     });
     assert.equal(changed.ownerId,first.ownerId);
     assert.equal(changed.deviceId,first.deviceId);
     assert.equal(store.verify({username:'creator',password:'InitialPass123!'}),false);
-    assert.equal(store.verify({username:'owner.nara',password:'ChangedPass456!'}),true);
+    assert.equal(store.verify({username:'owner.ale',password:'ChangedPass456!'}),true);
     assert.equal(readFileSync(file,'utf8').includes('ChangedPass456!'),false);
   }finally{
     rmSync(dir,{recursive:true,force:true});

@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createEventBus} from '../ALECORE-AI/brain/event-bus.js';
+import {createEventBus} from '../alecore-ai/brain/event-bus.js';
 import {
   CIRCUIT_STATE,
   RECOVERY_RECOMMENDATION,
   createSupervisor
-} from '../ALECORE-AI/supervisor/index.js';
+} from '../alecore-ai/supervisor/index.js';
 
 test('healthy registered component is allowed to run',()=>{
   const supervisor=createSupervisor({now:()=>1000});

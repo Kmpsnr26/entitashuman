@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createEventBus} from '../ALECORE-AI/brain/event-bus.js';
+import {createEventBus} from '../alecore-ai/brain/event-bus.js';
 import {
   APPROVAL_STATUS,
   createApprovalManager
-} from '../ALECORE-AI/permissions/index.js';
+} from '../alecore-ai/permissions/index.js';
 
 test('approval starts pending and requires explicit owner decision',()=>{
   const approvals=createApprovalManager({now:()=>1000});

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {ALECORE_AI_REGION_IDS,ALECORE_AI_REGIONS} from '../ALECORE-AI/brain/regions.js';
+import {ALECORE_AI_REGION_IDS,ALECORE_AI_REGIONS} from '../alecore-ai/brain/regions.js';
 
 const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');

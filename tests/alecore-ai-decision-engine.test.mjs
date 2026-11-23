@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createEventBus} from '../ALECORE-AI/brain/event-bus.js';
+import {createEventBus} from '../alecore-ai/brain/event-bus.js';
 import {
   DECISION_OUTCOMES,
   DECISION_REASON_CODES,
   createDecisionPolicy,
   createDecisionEngine
-} from '../ALECORE-AI/decision/index.js';
+} from '../alecore-ai/decision/index.js';
 
 function readyContext(extra={}){
   return {

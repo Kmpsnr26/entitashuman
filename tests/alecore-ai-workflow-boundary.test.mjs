@@ -27,9 +27,9 @@ test('creator boundary keeps AleCore AI workflow control out of HumanALE rendere
 
 test('AleCore AI workflow implementation remains inside AleCore AI',async()=>{
  const [orchestrator,engine,index]=await Promise.all([
-  readFile(new URL('ALECORE-AI/brain/orchestrator.js',root),'utf8'),
-  readFile(new URL('ALECORE-AI/brain/workflow-engine.js',root),'utf8'),
-  readFile(new URL('ALECORE-AI/brain/index.js',root),'utf8')
+  readFile(new URL('alecore-ai/brain/orchestrator.js',root),'utf8'),
+  readFile(new URL('alecore-ai/brain/workflow-engine.js',root),'utf8'),
+  readFile(new URL('alecore-ai/brain/index.js',root),'utf8')
  ]);
  assert.match(orchestrator,/this\.workflow=createWorkflowEngine\(\{bus:this\.bus\}\)/);
  assert.match(orchestrator,/createWorkflow\(plan/);

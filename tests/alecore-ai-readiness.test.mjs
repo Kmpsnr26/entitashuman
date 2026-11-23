@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createOrchestrator} from '../ALECORE-AI/brain/orchestrator.js';
-import {evaluateAleIntegrationReadiness,readinessCertificate,ALECORE_AI_CRITICAL_SKILLS} from '../ALECORE-AI/brain/integration-readiness.js';
+import {createOrchestrator} from '../alecore-ai/brain/orchestrator.js';
+import {evaluateAleIntegrationReadiness,readinessCertificate,ALECORE_AI_CRITICAL_SKILLS} from '../alecore-ai/brain/integration-readiness.js';
 
 test('healthy development core remains locked and is not yet a final readiness certificate',()=>{
- const nara=createOrchestrator();ale.start();
+ const ale=createOrchestrator();ale.start();
  const readiness=ale.integrationReadiness();
  const certificate=ale.integrationCertificate();
  assert.equal(readiness.controlledBy,'ALECORE_AI');
@@ -18,7 +18,7 @@ test('healthy development core remains locked and is not yet a final readiness c
 });
 
 test('validation phase can become ready for creator confirmation without opening HumanALE bridge',()=>{
- const nara=createOrchestrator();ale.start();
+ const ale=createOrchestrator();ale.start();
  ale.advanceAuthorityPhase('validation');
  const readiness=ale.integrationReadiness();
  const certificate=ale.integrationCertificate();
@@ -32,7 +32,7 @@ test('validation phase can become ready for creator confirmation without opening
 });
 
 test('final integration still requires explicit creator confirmation after validation readiness',()=>{
- const nara=createOrchestrator();ale.start();
+ const ale=createOrchestrator();ale.start();
  ale.advanceAuthorityPhase('validation');
  assert.throws(()=>ale.advanceAuthorityPhase('final-integration'),/konfirmasi eksplisit pencipta/);
  ale.advanceAuthorityPhase('final-integration',{creatorConfirmed:true});

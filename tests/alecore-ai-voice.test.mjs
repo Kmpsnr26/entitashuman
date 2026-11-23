@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createVoiceFeedback,ALECORE_AI_VOICE_PROFILE,voiceCueForEvent} from '../ALECORE-AI/voice/index.js';
+import {createVoiceFeedback,ALECORE_AI_VOICE_PROFILE,voiceCueForEvent} from '../alecore-ai/voice/index.js';
 
 test('AleCore AI voice profile uses Indonesian adult robot feedback without changing assistant voice settings',()=>{
   assert.equal(ALECORE_AI_VOICE_PROFILE.language,'id-ID');

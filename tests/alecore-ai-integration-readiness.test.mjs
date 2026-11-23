@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createEventBus} from '../ALECORE-AI/brain/event-bus.js';
+import {createEventBus} from '../alecore-ai/brain/event-bus.js';
 import {
   READINESS_GATES,
   READINESS_STATUS,
   createIntegrationReadinessGate
-} from '../ALECORE-AI/readiness/index.js';
+} from '../alecore-ai/readiness/index.js';
 
 const allFalse=()=>Object.fromEntries(READINESS_GATES.map(gate=>[gate,false]));
 const simulationFacts=()=>({

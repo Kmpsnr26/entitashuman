@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {createOrchestrator} from '../ALECORE-AI/brain/orchestrator.js';
+import {createOrchestrator} from '../alecore-ai/brain/orchestrator.js';
 import {createAleAgentCoordinator,ALECORE_AI_AGENT_HANDLER_TIMEOUTS} from '../desktop/alecore-ai-agent-coordinator.mjs';
 
 test('write refusal with zero changes blocks work instead of claiming completion or retrying',async()=>{
-  let calls=0;const nara=createOrchestrator();ale.start();
+  let calls=0;const ale=createOrchestrator();ale.start();
   try{
     const agentHub={run:async()=>{calls++;return {mode:'work',text:'Tidak dapat menulis.',maintenance:{changedFiles:0}};}};
-    const result=await createAleAgentCoordinator({nara,agentHub}).run({id:'codex',mode:'work',prompt:'Edit program'});
+    const result=await createAleAgentCoordinator({ale,agentHub}).run({id:'codex',mode:'work',prompt:'Edit program'});
     assert.match(result.error,/belum menghasilkan perubahan/);
     assert.equal(calls,1);
     assert.notEqual(result.ale.goalStatus,'complete');
@@ -24,9 +24,9 @@ test('V3.2 coordinator turns a HumanALE agent request into Goal → Task → Aut
       return {id:value.id,name:'Fake Agent',mode:value.mode,text:'Selesai'};
     }
   };
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
-  const coordinator=createAleAgentCoordinator({nara,agentHub}).bind();
+  const coordinator=createAleAgentCoordinator({ale,agentHub}).bind();
 
   const result=await coordinator.run({
     id:'humanale-orchestrator',
@@ -67,9 +67,9 @@ test('V3.2 work mode remains inside registered Agent Hub handler and returns Cor
       };
     }
   };
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
-  const coordinator=createAleAgentCoordinator({nara,agentHub});
+  const coordinator=createAleAgentCoordinator({ale,agentHub});
 
   const result=await coordinator.run({
     id:'github-copilot',
@@ -98,9 +98,9 @@ test('V3.2 agent failure flows into failed task, blocked goal, Error Monitor and
       throw error;
     }
   };
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
-  const coordinator=createAleAgentCoordinator({nara,agentHub});
+  const coordinator=createAleAgentCoordinator({ale,agentHub});
 
   const result=await coordinator.run({
     id:'codex',
@@ -119,10 +119,10 @@ test('V3.2 agent failure flows into failed task, blocked goal, Error Monitor and
 });
 
 test('V3.2 validates request before mutating Goal Manager or scheduler',async()=>{
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
   const coordinator=createAleAgentCoordinator({
-    nara,
+    ale,
     agentHub:{run:async()=>({text:'unused'})}
   });
 
@@ -138,10 +138,10 @@ test('V3.2 validates request before mutating Goal Manager or scheduler',async()=
 
 test('V3.2 keeps raw prompt out of persisted Goal, Task and Experience snapshots',async()=>{
   const secretPrompt='PRIVATE-PROMPT-DO-NOT-PERSIST-9f3b7a';
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
   const coordinator=createAleAgentCoordinator({
-    nara,
+    ale,
     agentHub:{run:async()=>({text:'ok'})}
   });
 
@@ -167,9 +167,9 @@ test('V3.2 successful bounded retry clears transient recovery warning',async()=>
       return {text:'Pulih'};
     }
   };
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
-  const coordinator=createAleAgentCoordinator({nara,agentHub});
+  const coordinator=createAleAgentCoordinator({ale,agentHub});
 
   const result=await coordinator.run({id:'codex',prompt:'Coba ulang',mode:'analyze'});
 
@@ -186,12 +186,12 @@ test('V3.2 successful bounded retry clears transient recovery warning',async()=>
 
 test('AleCore AI work handler deadline covers the complete sequential repair and final review pipeline',()=>{
   const registrations=new Map();
-  const nara={
+  const ale={
     registerAutopilotHandler(id,handler,options){registrations.set(id,{handler,options});},
     queueAutopilotTask(){},
     runAutopilotOnce(){}
   };
-  const coordinator=createAleAgentCoordinator({nara,agentHub:{run:async()=>({text:'unused'})}});
+  const coordinator=createAleAgentCoordinator({ale,agentHub:{run:async()=>({text:'unused'})}});
   coordinator.bind();
 
   assert.equal(ALECORE_AI_AGENT_HANDLER_TIMEOUTS.analyzeMs,30*60*1000);

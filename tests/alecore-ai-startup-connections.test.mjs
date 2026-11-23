@@ -6,20 +6,20 @@ import {bootstrapAleConnections,recordAleProviderStatus,recordAleAgentHubStatus}
 import {OpenAIBridge} from '../desktop/openai-api.mjs';
 import {GeminiBridge} from '../desktop/gemini.mjs';
 import {CopilotBridge} from '../desktop/copilot.mjs';
-import {createOrchestrator} from '../ALECORE-AI/brain/index.js';
-import {normalizeProviderStatus} from '../ALECORE-AI/brain/provider-state.js';
+import {createOrchestrator} from '../alecore-ai/brain/index.js';
+import {normalizeProviderStatus} from '../alecore-ai/brain/provider-state.js';
 
 function hub(agents=[],projectRootReady=true){return {status:async()=>({agents,projectRootReady})};}
-function aleFixture(){const nara=createOrchestrator();ale.start();return nara;}
+function aleFixture(){const ale=createOrchestrator();ale.start();return ale;}
 
 test('refreshed workspace evidence retains CLI login but reports blocked work until checkout is ready',()=>{
-  const nara=aleFixture();
+  const ale=aleFixture();
   try{
     const agents=[{id:'codex',state:'configured',canRun:true,executable:true}];
-    const blocked=recordAleAgentHubStatus({nara,hub:{agents,projectRootReady:true,workReady:false},now:()=>1});
+    const blocked=recordAleAgentHubStatus({ale,hub:{agents,projectRootReady:true,workReady:false},now:()=>1});
     assert.equal(blocked.provider.ready,true);
     assert.equal(blocked.startupConnections.projectRootReady,false);
-    const ready=recordAleAgentHubStatus({nara,hub:{agents,projectRootReady:true,workReady:true},now:()=>2});
+    const ready=recordAleAgentHubStatus({ale,hub:{agents,projectRootReady:true,workReady:true},now:()=>2});
     assert.equal(ready.startupConnections.projectRootReady,true);
     assert.equal(ale.snapshot().startupConnections.checkedAt,2);
     assert.equal(ale.snapshot().startupConnections.armed,false);
@@ -41,11 +41,11 @@ test('actual API bridge configuration checks never make a request or prove authe
   try{
     for(const name of names)process.env[name]=marker;
     const fetchImpl=()=>{requests++;throw new Error('No provider request allowed in this test');};
-    const nara=aleFixture();
+    const ale=aleFixture();
     const schedulerBefore=ale.snapshot().engine.autopilot;
     const result=await bootstrapAleConnections({
       bridges:{openai:new OpenAIBridge(fetchImpl),gemini:new GeminiBridge(fetchImpl)},
-      agentHub:hub(),nara
+      agentHub:hub(),ale
     });
     for(const id of ['openai','gemini']){
       assert.equal(result.providers[id].configured,true);
@@ -86,11 +86,11 @@ test('Copilot --version proves installation only and bootstrap never invokes log
 });
 
 test('local ChatGPT/Codex login evidence is recorded without arming a maintenance worker',async()=>{
-  const nara=aleFixture();
+  const ale=aleFixture();
   const result=await bootstrapAleConnections({
     bridges:{chatgpt:{status:async()=>({configured:true})}},
     agentHub:hub([{id:'codex',state:'configured',canRun:true,executable:true}]),
-    nara,now:()=>1234
+    ale,now:()=>1234
   });
   assert.equal(result.providers.chatgpt.ready,true);
   assert.equal(result.providers.codex.ready,true);
@@ -116,13 +116,13 @@ test('busy bridges do not become ready from cached configuration',async()=>{
 });
 
 test('errors/timeouts publish unknown observations without leaking diagnostic text',async()=>{
-  const nara=aleFixture();
+  const ale=aleFixture();
   const marker='DO_NOT_PUBLISH_RAW_CREDENTIAL_DIAGNOSTIC';
   const result=await bootstrapAleConnections({
     bridges:{copilot:{status:async()=>{throw new Error(marker);}},
       chatgpt:{status:()=>new Promise(()=>{})}},
     agentHub:{status:async()=>{throw new Error(marker);}},
-    nara,timeoutMs:10
+    ale,timeoutMs:10
   });
   assert.equal(result.providers.copilot.auth,'unknown');
   assert.equal(result.providers.copilot.statusError,'STATUS_FAILED');
@@ -135,9 +135,9 @@ test('errors/timeouts publish unknown observations without leaking diagnostic te
 });
 
 test('public provider metadata excludes arbitrary models, keys, payloads and false verification claims',()=>{
-  const nara=aleFixture();
+  const ale=aleFixture();
   const marker='DO_NOT_PUBLISH_PROVIDER_PAYLOAD';
-  const provider=recordAleProviderStatus({nara,id:'openai',raw:{configured:true,
+  const provider=recordAleProviderStatus({ale,id:'openai',raw:{configured:true,
     verified:true,ready:true,mode:marker,model:marker,apiKey:marker,stdout:marker,error:marker}});
   assert.equal(provider.ready,false);
   assert.equal(provider.mode,'openai-api');
@@ -171,20 +171,20 @@ test('Copilot verification is invalidated after a failed request or a new login 
 });
 
 test('provider bootstrap can complete after AleCore AI shutdown without throwing or executing work',async()=>{
-  const nara=aleFixture();
+  const ale=aleFixture();
   ale.stop();
-  const result=await bootstrapAleConnections({nara,agentHub:hub()});
+  const result=await bootstrapAleConnections({ale,agentHub:hub()});
   assert.equal(result.startupConnections.armed,false);
   assert.equal(ale.snapshot().lifecycle,'offline');
 });
 
 test('provider observations preserve an active reasoning policy while startup checks finish',async()=>{
-  const nara=aleFixture();
+  const ale=aleFixture();
   ale.dispatch('reason.start',{label:'existing owner request'});
   const policy=ale.snapshot().humanale;
-  await bootstrapAleConnections({nara,agentHub:hub(),bridges:{openai:{status:async()=>({configured:true})}}});
+  await bootstrapAleConnections({ale,agentHub:hub(),bridges:{openai:{status:async()=>({configured:true})}}});
   assert.deepEqual(ale.snapshot().humanale,policy);
-  recordAleProviderStatus({nara,id:'openai',requestSucceeded:true});
+  recordAleProviderStatus({ale,id:'openai',requestSucceeded:true});
   assert.deepEqual(ale.snapshot().humanale,policy);
   ale.stop();
 });
@@ -227,21 +227,21 @@ async function providerIpcFixture(){
   const main=await readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8');
   const source=main.slice(main.indexOf('  const pickProvider='),main.indexOf("  ipcMain.handle('dudidam:stt-status'"));
   const handlers=new Map();
-  const nara=aleFixture();
+  const ale=aleFixture();
   let response={text:'usable response'},statusCalls=0,askCalls=0,loginCalls=0,allowed=true,configured=true;
   const bridge={
     status:async()=>{statusCalls++;return {configured};},
     ask:async()=>{askCalls++;if(response instanceof Error)throw response;return response;},
     login:async()=>{loginCalls++;return {ok:true};}
   };
-  const context={nara,bridges:{openai:bridge,gemini:bridge,copilot:bridge,chatgpt:bridge},
+  const context={ale,bridges:{openai:bridge,gemini:bridge,copilot:bridge,chatgpt:bridge},
     ipcMain:{handle:(name,handler)=>handlers.set(name,handler)},
     ownerTrusted:()=>allowed,recordAleProviderStatus,
     validateMemoryContext:()=>null,dataFlowMeter:{recordIn(){},recordOut(){}}
   };
   vm.createContext(context);
   vm.runInContext(source,context);
-  return {nara,handlers,set response(value){response=value;},set allowed(value){allowed=value;},
+  return {ale,handlers,set response(value){response=value;},set allowed(value){allowed=value;},
     set configured(value){configured=value;},get statusCalls(){return statusCalls;},
     get askCalls(){return askCalls;},get loginCalls(){return loginCalls;}};
 }
@@ -312,6 +312,6 @@ test('production login clears earlier successful request evidence, store is isol
   assert.equal(fx.ale.snapshot().providers.openai.verified,true);
   const second=await providerIpcFixture();
   assert.equal((await second.handlers.get('dudidam:status')({},'openai')).verified,false);
-  assert.equal(recordAleProviderStatus({ale:fx.nara,id:'arbitrary-provider',requestSucceeded:true}),null);
+  assert.equal(recordAleProviderStatus({ale:fx.ale,id:'arbitrary-provider',requestSucceeded:true}),null);
   fx.ale.stop();second.ale.stop();
 });

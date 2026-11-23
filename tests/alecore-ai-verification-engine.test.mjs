@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createEventBus} from '../ALECORE-AI/brain/event-bus.js';
+import {createEventBus} from '../alecore-ai/brain/event-bus.js';
 import {
   VERIFICATION_VERDICTS,
   VERIFICATION_REASONS,
   createVerificationEngine
-} from '../ALECORE-AI/verification/index.js';
+} from '../alecore-ai/verification/index.js';
 
 const execution=(overrides={})=>({
   executionId:'exec-1',

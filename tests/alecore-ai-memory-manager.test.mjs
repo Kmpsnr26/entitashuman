@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createEventBus} from '../ALECORE-AI/brain/event-bus.js';
-import {createMemoryManager} from '../ALECORE-AI/memory/index.js';
+import {createEventBus} from '../alecore-ai/brain/event-bus.js';
+import {createMemoryManager} from '../alecore-ai/memory/index.js';
 
 test('Memory Manager writes and reads finite JSON working memory',()=>{
   let time=1000;

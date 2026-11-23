@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createEventBus} from '../ALECORE-AI/brain/event-bus.js';
+import {createEventBus} from '../alecore-ai/brain/event-bus.js';
 import {
   LEARNING_PROPOSAL_TYPES,
   createLearningEngine
-} from '../ALECORE-AI/learning/index.js';
+} from '../alecore-ai/learning/index.js';
 
 test('Learning Engine records bounded execution metadata and computes reliability',()=>{
   let now=1000;

@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createEventBus} from '../ALECORE-AI/brain/event-bus.js';
-import {createSkillRegistry} from '../ALECORE-AI/skills/registry.js';
+import {createEventBus} from '../alecore-ai/brain/event-bus.js';
+import {createSkillRegistry} from '../alecore-ai/skills/registry.js';
 import {
   SKILL_EXECUTION_STATUS,
   SKILL_EXECUTION_REASON,
   createSkillExecutor
-} from '../ALECORE-AI/execution/index.js';
+} from '../alecore-ai/execution/index.js';
 
 const allow=(skillId,id='decision-1')=>({
   id,

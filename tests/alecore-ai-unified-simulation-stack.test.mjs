@@ -4,8 +4,8 @@ import {
   ALECORE_AI_UNIFIED_COMPONENTS,
   ALECORE_AI_UNIFIED_SIMULATION_MODE,
   createAleUnifiedSimulationStack
-} from '../ALECORE-AI/simulation/index.js';
-import {READINESS_STATUS} from '../ALECORE-AI/readiness/index.js';
+} from '../alecore-ai/simulation/index.js';
+import {READINESS_STATUS} from '../alecore-ai/readiness/index.js';
 
 function makeStack(){
   let sequence=0;

@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ALECORE_AI_REGION_IDS,ALECORE_AI_REGIONS,isRegionId} from '../ALECORE-AI/brain/regions.js';
-import {createEventBus} from '../ALECORE-AI/brain/event-bus.js';
-import {createBrainState} from '../ALECORE-AI/brain/brain-state.js';
-import {createOrchestrator} from '../ALECORE-AI/brain/orchestrator.js';
-import {ALECORE_AI_SKILL_IDS,ALECORE_AI_SKILLS,isSkillId,createSkillSnapshot,skillTestScenario,validateSkillDependencyGraph} from '../ALECORE-AI/brain/skill-registry.js';
+import {ALECORE_AI_REGION_IDS,ALECORE_AI_REGIONS,isRegionId} from '../alecore-ai/brain/regions.js';
+import {createEventBus} from '../alecore-ai/brain/event-bus.js';
+import {createBrainState} from '../alecore-ai/brain/brain-state.js';
+import {createOrchestrator} from '../alecore-ai/brain/orchestrator.js';
+import {ALECORE_AI_SKILL_IDS,ALECORE_AI_SKILLS,isSkillId,createSkillSnapshot,skillTestScenario,validateSkillDependencyGraph} from '../alecore-ai/brain/skill-registry.js';
 
 test('AleCore AI brain exposes the required Phase 1 regions with 3D positions',()=>{
   const required=['ALECORE_AI','REASONER','PLANNER','MEMORY','BUG_HUNTER','AGENT_MANAGER','TOOLS','TERMINAL','GITHUB','COPILOT','WEB','TEAM','PR','SYNC','ONLINE','SAFETY','OWNER_EMAIL','DRIVE','REPORTING','FOLLOW_UP','PROGRAM','ERROR_MONITOR'];
@@ -47,7 +47,7 @@ test('brain state maps operational, connection and sensory events into live stat
 });
 
 test('orchestrator drives selection, work lifecycle and connection changes through the shared bus',()=>{
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
   ale.selectRegion('MEMORY');
   assert.equal(ale.snapshot().selectedRegion,'MEMORY');
@@ -67,7 +67,7 @@ test('orchestrator drives selection, work lifecycle and connection changes throu
 
 
 test('AleCore AI owns HumanALE state and renderer policy',()=>{
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
   assert.equal(ale.snapshot().humanale.controlledBy,'ALECORE_AI');
   assert.equal(ale.snapshot().humanale.state,'idle');
@@ -117,7 +117,7 @@ test('AleCore AI skill registry exposes bounded capabilities, dependencies and p
 });
 
 test('AleCore AI skill snapshot derives runtime health and blocks unhealthy dependencies',()=>{
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
   let snapshot=createSkillSnapshot({brainState:ale.snapshot(),agents:[]});
   assert.equal(snapshot.controlledBy,'ALECORE_AI');

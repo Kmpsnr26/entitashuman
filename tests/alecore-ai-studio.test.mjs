@@ -5,8 +5,8 @@ import {request,createServer} from 'node:http';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
-import {createAleStudioServer,STUDIO_EVENT_ALLOWLIST,buildCreatorRegionMetadata} from '../ALECORE-AI/studio/server.mjs';
-import {createStudioTelemetry} from '../ALECORE-AI/studio/telemetry.mjs';
+import {createAleStudioServer,STUDIO_EVENT_ALLOWLIST,buildCreatorRegionMetadata} from '../alecore-ai/studio/server.mjs';
+import {createStudioTelemetry} from '../alecore-ai/studio/telemetry.mjs';
 
 function rejectedMutationCases(base){
   const url=new URL(base);
@@ -206,7 +206,7 @@ test('standalone Studio advertises the configured host as a usable API URL',asyn
       }
       const port=probe.address().port;
       await new Promise(resolve=>probe.close(resolve));
-      const child=spawn(process.execPath,[fileURLToPath(new URL('../ALECORE-AI/studio/server.mjs',import.meta.url))],{
+      const child=spawn(process.execPath,[fileURLToPath(new URL('../alecore-ai/studio/server.mjs',import.meta.url))],{
         env:{...process.env,ALECORE_AI_STUDIO_HOST:host,ALECORE_AI_STUDIO_PORT:String(port),ALECORE_AI_OWNER_STORE:join(tmpdir(),`alecore-ai-studio-cli-${process.pid}-${port}.json`)},
         stdio:['ignore','pipe','pipe']
       });
@@ -423,9 +423,9 @@ test('event replay is visual-only and exposes no replay execution API',async()=>
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [html,app,server]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/index.html',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/app.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/server.mjs',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/index.html',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/app.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/server.mjs',root),'utf8')
   ]);
   assert.match(html,/Event Timeline \/ Replay/);
   assert.match(html,/visual replay only/);
@@ -495,8 +495,8 @@ test('Neural Space 3D keeps existing Studio security boundaries',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [server,scene]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/server.mjs',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/neural-space.js',root),'utf8')
+    readFile(new URL('alecore-ai/studio/server.mjs',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/neural-space.js',root),'utf8')
   ]);
   assert.match(server,/script-src 'self'/);
   assert.match(server,/\/vendor\/three\/three\.module\.js/);
@@ -509,7 +509,7 @@ test('Neural Space 3D keeps existing Studio security boundaries',async()=>{
 test('living neural roots use bounded reusable flow packets and organic tubes',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
-  const scene=await readFile(new URL('ALECORE-AI/studio/public/neural-space.js',root),'utf8');
+  const scene=await readFile(new URL('alecore-ai/studio/public/neural-space.js',root),'utf8');
 
   assert.match(scene,/new THREE\.CatmullRomCurve3/);
   assert.match(scene,/new THREE\.TubeGeometry/);
@@ -526,9 +526,9 @@ test('Neural Space Stage 2 highlights selected neighborhood and pauses when hidd
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [scene,app,html]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/neural-space.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/app.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/index.html',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/app.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/index.html',root),'utf8')
   ]);
 
   assert.match(scene,/selectedNeighbors/);
@@ -545,8 +545,8 @@ test('Neural Space renderer scripts pass Node syntax checks',async()=>{
   const {spawnSync}=await import('node:child_process');
   const {fileURLToPath}=await import('node:url');
   const files=[
-    fileURLToPath(new URL('../ALECORE-AI/studio/public/neural-space.js',import.meta.url)),
-    fileURLToPath(new URL('../ALECORE-AI/studio/public/app.js',import.meta.url)),
+    fileURLToPath(new URL('../alecore-ai/studio/public/neural-space.js',import.meta.url)),
+    fileURLToPath(new URL('../alecore-ai/studio/public/app.js',import.meta.url)),
     fileURLToPath(new URL('../scripts/alecore-ai-neural-live-smoke.cjs',import.meta.url))
   ];
   for(const file of files){
@@ -558,7 +558,7 @@ test('Neural Space renderer scripts pass Node syntax checks',async()=>{
 test('Stage 3 routes semantic events through a bounded shortest-path packet pool',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
-  const scene=await readFile(new URL('ALECORE-AI/studio/public/neural-space.js',root),'utf8');
+  const scene=await readFile(new URL('alecore-ai/studio/public/neural-space.js',root),'utf8');
 
   assert.match(scene,/const EVENT_ROUTES=Object\.freeze/);
   assert.match(scene,/ROUTE_POOL_SIZE=24/);
@@ -576,9 +576,9 @@ test('Stage 4 provides focus core explorer modes accessibility and quality contr
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [scene,app,html]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/neural-space.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/app.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/index.html',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/app.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/index.html',root),'utf8')
   ]);
 
   assert.match(scene,/setMode\(mode\)/);
@@ -609,8 +609,8 @@ test('Stage 5 uses adaptive cinematic resources and measured performance budgets
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [scene,styles]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/neural-space.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/styles.css',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/styles.css',root),'utf8')
   ]);
 
   assert.match(scene,/function makeGlowTexture\(\)/);
@@ -634,7 +634,7 @@ test('Stage 5 uses adaptive cinematic resources and measured performance budgets
 test('Three vendor surface stays fixed to required ESM build modules',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
-  const server=await readFile(new URL('ALECORE-AI/studio/server.mjs',root),'utf8');
+  const server=await readFile(new URL('alecore-ai/studio/server.mjs',root),'utf8');
 
   assert.match(server,/THREE_VENDOR=Object\.freeze\(new Map/);
   assert.match(server,/\/vendor\/three\/three\.module\.js/);
@@ -648,8 +648,8 @@ test('Neural renderer lifecycle really pauses hidden work and skips hidden 2D re
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [scene,app]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/neural-space.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/app.js',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/app.js',root),'utf8')
   ]);
 
   assert.match(scene,/this\.animationLoop=\(\)=>this\.animate\(\)/);
@@ -680,7 +680,7 @@ test('Neural live harness separates reproducible CI software GPU from physical G
   assert.match(smoke,/swiftshader\|llvmpipe\|software rasterizer/);
   assert.match(smoke,/report\.checks\.gpuModeMatched/);
   assert.match(workflow,/ALECORE_AI_GPU_MODE: "software"/);
-  assert.match(workflow,/ALECORE-AI\/studio\/\*\*/);
+  assert.match(workflow,/alecore-ai\/studio\/\*\*/);
   assert.match(workflow,/scripts\/alecore-ai-neural-live-smoke\.cjs/);
   assert.match(pkg,/"smoke:neural-gpu": "electron scripts\/alecore-ai-neural-live-smoke\.cjs"/);
   assert.match(ps1,/ALECORE_AI_GPU_MODE = 'hardware'/);
@@ -947,12 +947,12 @@ test('Creator Gateway UI defers Studio boot and uses browser permission APIs wit
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [html,app,gateway,styles,server,auth]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/index.html',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/app.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/creator-gateway.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/styles.css',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/server.mjs',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/creator-auth.mjs',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/index.html',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/app.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/creator-gateway.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/styles.css',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/server.mjs',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/creator-auth.mjs',root),'utf8')
   ]);
 
   assert.match(html,/id="creatorGateway"/);
@@ -979,8 +979,8 @@ test('Creator Gateway modules pass Node syntax checks',async()=>{
   const {spawnSync}=await import('node:child_process');
   const {fileURLToPath}=await import('node:url');
   const files=[
-    fileURLToPath(new URL('../ALECORE-AI/studio/creator-auth.mjs',import.meta.url)),
-    fileURLToPath(new URL('../ALECORE-AI/studio/public/creator-gateway.js',import.meta.url))
+    fileURLToPath(new URL('../alecore-ai/studio/creator-auth.mjs',import.meta.url)),
+    fileURLToPath(new URL('../alecore-ai/studio/public/creator-gateway.js',import.meta.url))
   ];
   for(const file of files){
     const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
@@ -993,10 +993,10 @@ test('Stage 2 edge HUD makes Neural Space the fullscreen primary surface',async(
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [html,app,edge,styles]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/index.html',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/app.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/edge-hud.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/styles.css',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/index.html',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/app.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/edge-hud.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/styles.css',root),'utf8')
   ]);
 
   assert.match(html,/id="edgeHud"/);
@@ -1018,7 +1018,7 @@ test('Stage 2 edge HUD makes Neural Space the fullscreen primary surface',async(
 test('edge HUD module passes Node syntax check',async()=>{
   const {spawnSync}=await import('node:child_process');
   const {fileURLToPath}=await import('node:url');
-  const file=fileURLToPath(new URL('../ALECORE-AI/studio/public/edge-hud.js',import.meta.url));
+  const file=fileURLToPath(new URL('../alecore-ai/studio/public/edge-hud.js',import.meta.url));
   const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
   assert.equal(result.status,0,result.stderr||result.stdout||file);
 });
@@ -1028,13 +1028,13 @@ test('Stage 3 cinematic entry uses local bounded audio and Indonesian AleCore AI
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [html,app,gateway,entry,sound,matrix,styles]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/index.html',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/app.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/creator-gateway.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/neural-entry.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/cinematic-sound.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/matrix-transition.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/styles.css',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/index.html',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/app.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/creator-gateway.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/neural-entry.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/cinematic-sound.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/matrix-transition.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/styles.css',root),'utf8')
   ]);
 
   assert.match(html,/id="neuralEntryTransition"/);
@@ -1059,7 +1059,7 @@ test('Stage 3 cinematic entry uses local bounded audio and Indonesian AleCore AI
 test('Neural entry module passes Node syntax check',async()=>{
   const {spawnSync}=await import('node:child_process');
   const {fileURLToPath}=await import('node:url');
-  const file=fileURLToPath(new URL('../ALECORE-AI/studio/public/neural-entry.js',import.meta.url));
+  const file=fileURLToPath(new URL('../alecore-ai/studio/public/neural-entry.js',import.meta.url));
   const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
   assert.equal(result.status,0,result.stderr||result.stdout||file);
 });
@@ -1068,7 +1068,7 @@ test('Neural entry module passes Node syntax check',async()=>{
 test('Stage 4 uses bounded galactic brain and aurora geometry with adaptive quality',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
-  const scene=await readFile(new URL('ALECORE-AI/studio/public/neural-space.js',root),'utf8');
+  const scene=await readFile(new URL('alecore-ai/studio/public/neural-space.js',root),'utf8');
 
   assert.match(scene,/function makeGalacticBrainFrame\(\)/);
   assert.match(scene,/function makeAuroraRibbon\(/);
@@ -1092,7 +1092,7 @@ test('Stage 4 uses bounded galactic brain and aurora geometry with adaptive qual
 test('Stage 4 reduces idle root clutter while preserving active route emphasis',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
-  const scene=await readFile(new URL('ALECORE-AI/studio/public/neural-space.js',root),'utf8');
+  const scene=await readFile(new URL('alecore-ai/studio/public/neural-space.js',root),'utf8');
 
   assert.match(scene,/link\.targetIntensity=link\.selected\?1:link\.active\?\.72:\.032/);
   assert.match(scene,/link\.sheath\.material\.opacity=\(\.024\+energy\*\.142/);
@@ -1105,7 +1105,7 @@ test('Stage 4 reduces idle root clutter while preserving active route emphasis',
 test('Stage 4 fullscreen polish hides legacy Neural cards and keeps controls edge-like',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
-  const styles=await readFile(new URL('ALECORE-AI/studio/public/styles.css',root),'utf8');
+  const styles=await readFile(new URL('alecore-ai/studio/public/styles.css',root),'utf8');
   assert.match(styles,/\.creator-session-active \.neural3d-detail,\s*\n\.creator-session-active \.neural3d-hud\{display:none\}/);
   assert.match(styles,/\.creator-session-active \.neural3d-toolbar\{/);
   assert.match(styles,/left:50%;right:auto;top:58px;transform:translateX\(-50%\)/);
@@ -1190,11 +1190,11 @@ test('Stage 5 node inspector renders server metadata with textContent and no HTM
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [html,app,inspector,styles,server]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/index.html',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/app.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/node-inspector.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/styles.css',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/server.mjs',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/index.html',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/app.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/node-inspector.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/styles.css',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/server.mjs',root),'utf8')
   ]);
 
   assert.match(html,/id="neuralNodeInspector"/);
@@ -1218,14 +1218,14 @@ test('Stage 5 node inspector renders server metadata with textContent and no HTM
 test('node inspector module passes Node syntax check',async()=>{
   const {spawnSync}=await import('node:child_process');
   const {fileURLToPath}=await import('node:url');
-  const file=fileURLToPath(new URL('../ALECORE-AI/studio/public/node-inspector.js',import.meta.url));
+  const file=fileURLToPath(new URL('../alecore-ai/studio/public/node-inspector.js',import.meta.url));
   const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
   assert.equal(result.status,0,result.stderr||result.stdout||file);
 });
 
 
 test('Stage 6 spoken summary is bounded operational metadata only',async()=>{
-  const {buildOperationalNarration}=await import('../ALECORE-AI/studio/public/node-voice.js');
+  const {buildOperationalNarration}=await import('../alecore-ai/studio/public/node-voice.js');
   const narration=buildOperationalNarration({
     id:'MEMORY',
     label:'Memory',
@@ -1260,10 +1260,10 @@ test('Stage 6 node voice is local, audio-gated and wired to sanitized inspector 
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [html,app,voice,styles]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/index.html',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/app.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/node-voice.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/styles.css',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/index.html',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/app.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/node-voice.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/styles.css',root),'utf8')
   ]);
 
   assert.match(html,/id="nodeInspectorSpeak"/);
@@ -1282,7 +1282,7 @@ test('Stage 6 node voice is local, audio-gated and wired to sanitized inspector 
 test('node voice module passes Node syntax check',async()=>{
   const {spawnSync}=await import('node:child_process');
   const {fileURLToPath}=await import('node:url');
-  const file=fileURLToPath(new URL('../ALECORE-AI/studio/public/node-voice.js',import.meta.url));
+  const file=fileURLToPath(new URL('../alecore-ai/studio/public/node-voice.js',import.meta.url));
   const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
   assert.equal(result.status,0,result.stderr||result.stdout||file);
 });
@@ -1311,10 +1311,10 @@ test('Revision R1 Creator login uses animated neural binary brain with reduced-m
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [html,gateway,brain,styles]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/index.html',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/creator-gateway.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/creator-brain.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/styles.css',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/index.html',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/creator-gateway.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/creator-brain.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/styles.css',root),'utf8')
   ]);
 
   assert.match(html,/id="creatorBrainCanvas"/);
@@ -1338,7 +1338,7 @@ test('Revision R1 Creator login uses animated neural binary brain with reduced-m
 test('Creator brain module passes Node syntax check',async()=>{
   const {spawnSync}=await import('node:child_process');
   const {fileURLToPath}=await import('node:url');
-  const file=fileURLToPath(new URL('../ALECORE-AI/studio/public/creator-brain.js',import.meta.url));
+  const file=fileURLToPath(new URL('../alecore-ai/studio/public/creator-brain.js',import.meta.url));
   const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
   assert.equal(result.status,0,result.stderr||result.stdout||file);
 });
@@ -1348,11 +1348,11 @@ test('Revision R2 sequences sweep zoom process pulse and flow with bounded local
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [html,entry,sound,matrix,styles]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/index.html',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/neural-entry.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/cinematic-sound.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/matrix-transition.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/styles.css',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/index.html',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/neural-entry.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/cinematic-sound.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/matrix-transition.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/styles.css',root),'utf8')
   ]);
   assert.match(html,/id="neuralEntryMatrix"/);
   assert.match(html,/neural-entry-warp/);
@@ -1376,7 +1376,7 @@ test('Revision R2 sequences sweep zoom process pulse and flow with bounded local
 test('R2 cinematic sound and matrix modules pass Node syntax checks',async()=>{
   const {spawnSync}=await import('node:child_process');
   const {fileURLToPath}=await import('node:url');
-  for(const relative of ['../ALECORE-AI/studio/public/cinematic-sound.js','../ALECORE-AI/studio/public/matrix-transition.js']){
+  for(const relative of ['../alecore-ai/studio/public/cinematic-sound.js','../alecore-ai/studio/public/matrix-transition.js']){
     const file=fileURLToPath(new URL(relative,import.meta.url));
     const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
     assert.equal(result.status,0,result.stderr||result.stdout||file);
@@ -1388,8 +1388,8 @@ test('Revision R3 gives AleCore AI two counter-rotating mechanical rings and lay
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [scene,app]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/neural-space.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/app.js',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/app.js',root),'utf8')
   ]);
 
   assert.match(scene,/function makeCoreMechanicalSystem\(\)/);
@@ -1409,7 +1409,7 @@ test('Revision R3 gives AleCore AI two counter-rotating mechanical rings and lay
 test('R3 mechanical Core remains shader-free and bounded',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
-  const scene=await readFile(new URL('ALECORE-AI/studio/public/neural-space.js',root),'utf8');
+  const scene=await readFile(new URL('alecore-ai/studio/public/neural-space.js',root),'utf8');
   assert.doesNotMatch(scene,/ShaderMaterial|EffectComposer|UnrealBloomPass/);
   assert.equal((scene.match(/new THREE\.TorusGeometry/g)||[]).length,2);
   assert.match(scene,/coreFx=isCore\?makeCoreMechanicalSystem\(\):null/);
@@ -1420,11 +1420,11 @@ test('Revision R4 Creator control center stores visual preferences only and driv
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [html,app,settings,scene,styles]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/index.html',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/app.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/custom-settings.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/neural-space.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/styles.css',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/index.html',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/app.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/custom-settings.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/neural-space.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/styles.css',root),'utf8')
   ]);
 
   assert.match(html,/id="edgeCustomSettings"/);
@@ -1441,7 +1441,7 @@ test('Revision R4 Creator control center stores visual preferences only and driv
   assert.match(app,/binary '\+\(stats\.brainBinary\?'on':'off'\)/);
   assert.match(app,/guardian '\+\(stats\.guardianRingA\?'A':'-'\)/);
 
-  assert.match(settings,/const STORAGE_KEY='nara\.visual\.settings\.v1'/);
+  assert.match(settings,/const STORAGE_KEY='ale\.visual\.settings\.v1'/);
   assert.match(settings,/sanitizeVisualSettings/);
   assert.match(settings,/localStorage\.setItem\(STORAGE_KEY,JSON\.stringify\(settings\)\)/);
   assert.match(settings,/frameGlow:\[\.35,2\]/);
@@ -1460,7 +1460,7 @@ test('Revision R4 Creator control center stores visual preferences only and driv
 test('Revision R4 strengthens dark-room brain frame, binary lattice, aurora and broken living roots',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
-  const scene=await readFile(new URL('ALECORE-AI/studio/public/neural-space.js',root),'utf8');
+  const scene=await readFile(new URL('alecore-ai/studio/public/neural-space.js',root),'utf8');
 
   assert.match(scene,/function addFrameLine\(/);
   assert.match(scene,/role:'glow'/);
@@ -1480,7 +1480,7 @@ test('Revision R4 strengthens dark-room brain frame, binary lattice, aurora and 
 test('Revision R4 guardian emblem has counter-rotation plus bounded precession',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
-  const scene=await readFile(new URL('ALECORE-AI/studio/public/neural-space.js',root),'utf8');
+  const scene=await readFile(new URL('alecore-ai/studio/public/neural-space.js',root),'utf8');
 
   assert.match(scene,/guardianBladeA/);
   assert.match(scene,/guardianBladeB/);
@@ -1497,7 +1497,7 @@ test('Revision R4 guardian emblem has counter-rotation plus bounded precession',
 test('R4 custom settings module passes Node syntax check',async()=>{
   const {spawnSync}=await import('node:child_process');
   const {fileURLToPath}=await import('node:url');
-  const file=fileURLToPath(new URL('../ALECORE-AI/studio/public/custom-settings.js',import.meta.url));
+  const file=fileURLToPath(new URL('../alecore-ai/studio/public/custom-settings.js',import.meta.url));
   const result=spawnSync(process.execPath,['--check',file],{encoding:'utf8'});
   assert.equal(result.status,0,result.stderr||result.stdout||file);
 });
@@ -1506,7 +1506,7 @@ test('R4 custom settings module passes Node syntax check',async()=>{
 test('R4 guardian torus thickness remains bounded while brighter in dark scenes',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
-  const scene=await readFile(new URL('ALECORE-AI/studio/public/neural-space.js',root),'utf8');
+  const scene=await readFile(new URL('alecore-ai/studio/public/neural-space.js',root),'utf8');
   assert.match(scene,/new THREE\.TorusGeometry\(1\.34,\.055,8,64\)/);
   assert.match(scene,/new THREE\.TorusGeometry\(1\.54,\.050,8,64\)/);
   assert.match(scene,/frameGlow:1\.45/);
@@ -1518,12 +1518,12 @@ test('Revision R5 adds bounded droid voice character and Creator audio controls'
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [html,app,settings,entry,sound,voice]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/index.html',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/app.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/custom-settings.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/neural-entry.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/cinematic-sound.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/node-voice.js',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/index.html',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/app.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/custom-settings.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/neural-entry.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/cinematic-sound.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/node-voice.js',root),'utf8')
   ]);
 
   for(const key of ['masterVolume','transitionFx','voiceVolume','voiceRate','voicePitch','droidCharacter']){
@@ -1568,10 +1568,10 @@ test('R5 audio modules stay local and pass Node syntax checks',async()=>{
   const root=new URL('../',import.meta.url);
 
   for(const relative of [
-    '../ALECORE-AI/studio/public/custom-settings.js',
-    '../ALECORE-AI/studio/public/cinematic-sound.js',
-    '../ALECORE-AI/studio/public/neural-entry.js',
-    '../ALECORE-AI/studio/public/node-voice.js'
+    '../alecore-ai/studio/public/custom-settings.js',
+    '../alecore-ai/studio/public/cinematic-sound.js',
+    '../alecore-ai/studio/public/neural-entry.js',
+    '../alecore-ai/studio/public/node-voice.js'
   ]){
     const file=fileURLToPath(new URL(relative,import.meta.url));
     const source=await readFile(file,'utf8');
@@ -1588,7 +1588,7 @@ test('Revision R6/R7 Windows release-candidate wrapper requires GPU plus visual 
   const [bat,ps1,docs]=await Promise.all([
     readFile(new URL('AleCore AI-Neural-GPU-Acceptance.bat',root),'utf8'),
     readFile(new URL('scripts/alecore-ai-neural-gpu-acceptance.ps1',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/WINDOWS_GPU_ACCEPTANCE.md',root),'utf8')
+    readFile(new URL('alecore-ai/studio/WINDOWS_GPU_ACCEPTANCE.md',root),'utf8')
   ]);
 
   assert.match(bat,/AleCore AI R7 Release Candidate - Physical Acceptance/);
@@ -1628,7 +1628,7 @@ test('R6 physical acceptance wrapper does not expose Creator credentials',async(
   const [bat,ps1,docs]=await Promise.all([
     readFile(new URL('AleCore AI-Neural-GPU-Acceptance.bat',root),'utf8'),
     readFile(new URL('scripts/alecore-ai-neural-gpu-acceptance.ps1',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/WINDOWS_GPU_ACCEPTANCE.md',root),'utf8')
+    readFile(new URL('alecore-ai/studio/WINDOWS_GPU_ACCEPTANCE.md',root),'utf8')
   ]);
   const combined=[bat,ps1,docs].join('\n');
   assert.doesNotMatch(combined,/browser-acceptance-\+process\.pid/);
@@ -1640,15 +1640,15 @@ test('Revision R7 adds selectable AleCore AI voice identity and local UI sound e
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [html,app,settings,identity,uiSound,entry,nodeVoice,sound,styles]=await Promise.all([
-    readFile(new URL('ALECORE-AI/studio/public/index.html',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/app.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/custom-settings.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/voice-identity.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/ui-sound.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/neural-entry.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/node-voice.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/cinematic-sound.js',root),'utf8'),
-    readFile(new URL('ALECORE-AI/studio/public/styles.css',root),'utf8')
+    readFile(new URL('alecore-ai/studio/public/index.html',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/app.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/custom-settings.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/voice-identity.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/ui-sound.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/neural-entry.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/node-voice.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/cinematic-sound.js',root),'utf8'),
+    readFile(new URL('alecore-ai/studio/public/styles.css',root),'utf8')
   ]);
 
   for(const key of ['uiSfx','coreFx','voiceProfile','voiceURI']){
@@ -1697,12 +1697,12 @@ test('R7 audio identity modules remain local and syntax-valid',async()=>{
   const {spawnSync}=await import('node:child_process');
   const {fileURLToPath}=await import('node:url');
   for(const relative of [
-    '../ALECORE-AI/studio/public/voice-identity.js',
-    '../ALECORE-AI/studio/public/ui-sound.js',
-    '../ALECORE-AI/studio/public/custom-settings.js',
-    '../ALECORE-AI/studio/public/cinematic-sound.js',
-    '../ALECORE-AI/studio/public/neural-entry.js',
-    '../ALECORE-AI/studio/public/node-voice.js'
+    '../alecore-ai/studio/public/voice-identity.js',
+    '../alecore-ai/studio/public/ui-sound.js',
+    '../alecore-ai/studio/public/custom-settings.js',
+    '../alecore-ai/studio/public/cinematic-sound.js',
+    '../alecore-ai/studio/public/neural-entry.js',
+    '../alecore-ai/studio/public/node-voice.js'
   ]){
     const file=fileURLToPath(new URL(relative,import.meta.url));
     const source=await readFile(file,'utf8');
@@ -1715,7 +1715,7 @@ test('R7 audio identity modules remain local and syntax-valid',async()=>{
 test('R7 voice preference storage stays bounded and credential-free',async()=>{
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
-  const settings=await readFile(new URL('ALECORE-AI/studio/public/custom-settings.js',root),'utf8');
+  const settings=await readFile(new URL('alecore-ai/studio/public/custom-settings.js',root),'utf8');
   assert.match(settings,/uiSfx:\[0,1\]/);
   assert.match(settings,/coreFx:\[0,1\]/);
   assert.match(settings,/VOICE_PROFILE_NAMES/);

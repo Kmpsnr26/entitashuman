@@ -7,8 +7,8 @@ import {
  shouldInheritDependencyPermission,
  ALECORE_AI_BRIDGE_CAPABILITIES,
  ALECORE_AI_AUTHORITY_LIMITS
-} from '../ALECORE-AI/brain/authority-policy.js';
-import {createOrchestrator} from '../ALECORE-AI/brain/orchestrator.js';
+} from '../alecore-ai/brain/authority-policy.js';
+import {createOrchestrator} from '../alecore-ai/brain/orchestrator.js';
 
 test('AleCore AI authority policy centralizes known permission decisions',()=>{
  for(const permission of ['sensor:read','state:read','memory:read','diagnostic:read','network:read','repo:read','report:write','policy:enforce']){
@@ -63,7 +63,7 @@ test('authority phase progression is ordered and final integration requires expl
 });
 
 test('AleCore AI orchestrator owns authority policy without exposing it through HumanALE',()=>{
- const nara=createOrchestrator();
+ const ale=createOrchestrator();
  const initial=ale.authoritySnapshot();
  assert.equal(initial.phase,'development');
  assert.equal(initial.integrationLocked,true);

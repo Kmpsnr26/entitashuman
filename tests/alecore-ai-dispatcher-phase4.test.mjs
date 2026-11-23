@@ -9,8 +9,8 @@ import {
   createRecoveryEngine,
   createTaskScheduler,
   createWatchdog
-} from '../ALECORE-AI/engine/index.js';
-import {createOrchestrator} from '../ALECORE-AI/brain/orchestrator.js';
+} from '../alecore-ai/engine/index.js';
+import {createOrchestrator} from '../alecore-ai/brain/orchestrator.js';
 import {
   AI_AUTOPILOT_STATES,
   createAIAutopilotTransaction
@@ -48,11 +48,11 @@ function transactionBroker(overrides={}){
 test('concurrent coordinator requests both complete instead of losing the busy request',async()=>{
   const firstStarted=deferred();
   const releaseFirst=deferred();
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
   try{
     const coordinator=createAleAgentCoordinator({
-      nara,
+      ale,
       agentHub:{
         async run(value){
           if(value.prompt==='first request'){
@@ -83,11 +83,11 @@ test('concurrent coordinator requests both complete instead of losing the busy r
 });
 
 test('coordinator results remain correlated to their task and goal IDs',async()=>{
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
   try{
     const coordinator=createAleAgentCoordinator({
-      nara,
+      ale,
       agentHub:{run:async value=>({text:'result for '+value.prompt})}
     });
     const results=[];
@@ -167,11 +167,11 @@ test('autopilot timeout and cancellation abort work and roll back partial change
 });
 
 test('goal success criteria are recorded and unmet work does not complete the goal',async()=>{
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
   try{
     const coordinator=createAleAgentCoordinator({
-      nara,
+      ale,
       agentHub:{
         async run(value){
           return value.prompt==='Apply the required change'
@@ -398,11 +398,11 @@ test('AleCore AI cancellation aborts only the targeted running handler',async()=
 
 
 test('Coordinator forwards AleCore AI cancellation to the Agent Hub executor',async()=>{
-  const nara=createOrchestrator();ale.start();
+  const ale=createOrchestrator();ale.start();
   const started=deferred();let receivedSignal=null;
   try{
     const coordinator=createAleAgentCoordinator({
-      nara,
+      ale,
       agentHub:{run({signal}){
         receivedSignal=signal;
         return new Promise((resolve,reject)=>{
@@ -439,10 +439,10 @@ test('AleCore AI does not wait forever for an orphaned running task',async()=>{
 
 
 test('Coordinator work Goal requires an independent reviewer PASS',async()=>{
-  const nara=createOrchestrator();ale.start();
+  const ale=createOrchestrator();ale.start();
   try{
     const coordinator=createAleAgentCoordinator({
-      nara,
+      ale,
       agentHub:{async run(value){
         return {
           text:'Work output for '+value.prompt,

@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createOrchestrator} from '../ALECORE-AI/brain/orchestrator.js';
-import {normalizeWorkflowPlan,ALECORE_AI_WORKFLOW_LIMITS,createWorkflowEngine} from '../ALECORE-AI/brain/workflow-engine.js';
+import {createOrchestrator} from '../alecore-ai/brain/orchestrator.js';
+import {normalizeWorkflowPlan,ALECORE_AI_WORKFLOW_LIMITS,createWorkflowEngine} from '../alecore-ai/brain/workflow-engine.js';
 
-function completeVerified(nara,id,message='ok'){
+function completeVerified(ale,id,message='ok'){
  ale.startWorkflowStep(id);
  ale.completeWorkflowStep(id,message);
  return ale.verifyWorkflowStep(id,{ok:true,message});
@@ -20,7 +20,7 @@ test('AleCore AI workflow graph rejects invalid skills, unknown dependencies and
 });
 
 test('AleCore AI observe workflow executes only auto-safe capability chain and completes deterministically',()=>{
- const nara=createOrchestrator();
+ const ale=createOrchestrator();
  ale.start();
  let workflow=ale.createWorkflow({
   id:'observe-flow',
@@ -44,15 +44,15 @@ test('AleCore AI observe workflow executes only auto-safe capability chain and c
  assert.equal(workflow.state,'running');
  assert.equal(ale.nextWorkflowStep().id,'reason');
 
- workflow=completeVerified(nara,'reason','reason verified');
+ workflow=completeVerified(ale,'reason','reason verified');
  assert.equal(workflow.workflow.steps.reason.status,'complete');
  assert.equal(workflow.workflow.steps.plan.status,'ready');
  assert.equal(ale.snapshot().regions.REASONER.status,'complete');
 
- workflow=completeVerified(nara,'plan','plan verified');
+ workflow=completeVerified(ale,'plan','plan verified');
  assert.equal(workflow.workflow.steps.report.status,'ready');
 
- workflow=completeVerified(nara,'report','report verified');
+ workflow=completeVerified(ale,'report','report verified');
  assert.equal(workflow.state,'completed');
  assert.equal(workflow.workflow.progress,100);
  assert.equal(workflow.workflow.counts.complete,3);
@@ -70,7 +70,7 @@ test('AleCore AI observe workflow executes only auto-safe capability chain and c
 });
 
 test('observe workflow cannot receive execution approval or run mutating Program capability',()=>{
- const nara=createOrchestrator();ale.start();
+ const ale=createOrchestrator();ale.start();
  let workflow=ale.createWorkflow({
   id:'observe-program',
   goal:'Inspect program workflow',
@@ -88,7 +88,7 @@ test('observe workflow cannot receive execution approval or run mutating Program
 });
 
 test('execute workflow derives transitive permissions and becomes ready only after explicit grants',()=>{
- const nara=createOrchestrator();ale.start();
+ const ale=createOrchestrator();ale.start();
  let workflow=ale.createWorkflow({
   id:'execute-program',
   goal:'Controlled program execution',
@@ -127,7 +127,7 @@ test('execute workflow derives transitive permissions and becomes ready only aft
 });
 
 test('revoking an execution permission fails an active step immediately',()=>{
- const nara=createOrchestrator();ale.start();
+ const ale=createOrchestrator();ale.start();
  ale.createWorkflow({id:'revoke-flow',goal:'Test revoke',mode:'execute',steps:[{id:'code',skill:'program'}]});
  ale.startWorkflow();
  ale.grantWorkflowPermissions(['workspace:write-approved','terminal:bounded-execute']);
@@ -140,7 +140,7 @@ test('revoking an execution permission fails an active step immediately',()=>{
 });
 
 test('failed workflow step can recover once and retry at most twice',()=>{
- const nara=createOrchestrator();ale.start();
+ const ale=createOrchestrator();ale.start();
  ale.createWorkflow({id:'retry-flow',goal:'Retry bounded work',mode:'execute',steps:[{id:'code',skill:'program'}]});
  ale.startWorkflow();
  ale.grantWorkflowPermissions(['workspace:write-approved','terminal:bounded-execute']);
@@ -162,7 +162,7 @@ test('failed workflow step can recover once and retry at most twice',()=>{
 });
 
 test('workflow allows only one active step at a time even when multiple steps are ready',()=>{
- const nara=createOrchestrator();ale.start();
+ const ale=createOrchestrator();ale.start();
  ale.createWorkflow({
   id:'serial-flow',goal:'Keep execution serial',mode:'observe',
   steps:[{id:'a',skill:'reasoning'},{id:'b',skill:'reporting'}]

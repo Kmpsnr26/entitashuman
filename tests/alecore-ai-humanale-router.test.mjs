@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createOrchestrator} from '../ALECORE-AI/brain/orchestrator.js';
-import {ALECORE_AI_HUMANALE_DRY_RUN_ROUTES,previewHumanALEIntegrationRoute,describeHumanALEIntegrationDryRun} from '../ALECORE-AI/brain/humanale-integration-router.js';
+import {createOrchestrator} from '../alecore-ai/brain/orchestrator.js';
+import {ALECORE_AI_HUMANALE_DRY_RUN_ROUTES,previewHumanALEIntegrationRoute,describeHumanALEIntegrationDryRun} from '../alecore-ai/brain/humanale-integration-router.js';
 
 test('dry-run router defines one non-executing route for every integration action',()=>{
  const actions=Object.keys(ALECORE_AI_HUMANALE_DRY_RUN_ROUTES);
@@ -15,7 +15,7 @@ test('dry-run router defines one non-executing route for every integration actio
 });
 
 test('pre-final route preview remains blocked and never executes',()=>{
- const nara=createOrchestrator();ale.start();
+ const ale=createOrchestrator();ale.start();
  const result=ale.previewHumanALEIntegrationRoute({requestId:'read-1',action:'workflow.snapshot'});
  assert.equal(result.decision,'block');
  assert.equal(result.executed,false);
@@ -24,7 +24,7 @@ test('pre-final route preview remains blocked and never executes',()=>{
 });
 
 test('creator-approved final read preview resolves route but still does not execute',()=>{
- const nara=createOrchestrator();ale.start();
+ const ale=createOrchestrator();ale.start();
  ale.advanceAuthorityPhase('validation');
  ale.advanceAuthorityPhase('final-integration',{creatorConfirmed:true});
  const result=ale.previewHumanALEIntegrationRoute({requestId:'read-1',action:'workflow.snapshot'});
@@ -37,7 +37,7 @@ test('creator-approved final read preview resolves route but still does not exec
 });
 
 test('mutating final routes remain confirm-required and non-executing',()=>{
- const nara=createOrchestrator();ale.start();
+ const ale=createOrchestrator();ale.start();
  ale.advanceAuthorityPhase('validation');
  ale.advanceAuthorityPhase('final-integration',{creatorConfirmed:true});
  const requests=[
@@ -55,7 +55,7 @@ test('mutating final routes remain confirm-required and non-executing',()=>{
 });
 
 test('invalid requests stay blocked before route lookup',()=>{
- const nara=createOrchestrator();ale.start();
+ const ale=createOrchestrator();ale.start();
  const invalid=[
   {requestId:'bad id',action:'workflow.snapshot'},
   {requestId:'x1',action:'shell.exec'},
@@ -70,7 +70,7 @@ test('invalid requests stay blocked before route lookup',()=>{
 });
 
 test('dry-run description exposes routing metadata only and no execution surface',()=>{
- const nara=createOrchestrator();ale.start();
+ const ale=createOrchestrator();ale.start();
  const dry=ale.humanaleIntegrationDryRun();
  assert.equal(dry.mode,'DRY_RUN_ONLY');
  assert.equal(dry.executed,false);
