@@ -1,8 +1,8 @@
-(function exposeHumanALENaraRuntime(global){
+(function exposeHumanALEAleRuntime(global){
   const clamp01=value=>Math.max(0,Math.min(1,Number(value)||0));
   const safeEvent=value=>{
     const event=String(value||'').trim();
-    if(!event||event.length>120||!/^[a-z0-9_.:-]+$/i.test(event))throw new Error('Nama event NARA tidak valid.');
+    if(!event||event.length>120||!/^[a-z0-9_.:-]+$/i.test(event))throw new Error('Nama event AleCore AI tidak valid.');
     return event;
   };
   const connectionEvents=Object.freeze({
@@ -21,12 +21,12 @@
     }
     on(event,listener){
       const name=safeEvent(event);
-      if(typeof listener!=='function')throw new TypeError('Listener NARA harus berupa fungsi.');
+      if(typeof listener!=='function')throw new TypeError('Listener AleCore AI harus berupa fungsi.');
       const bucket=this.listeners.get(name)||new Set();bucket.add(listener);this.listeners.set(name,bucket);
       return()=>{bucket.delete(listener);if(!bucket.size)this.listeners.delete(name);};
     }
     onAny(listener){
-      if(typeof listener!=='function')throw new TypeError('Listener NARA harus berupa fungsi.');
+      if(typeof listener!=='function')throw new TypeError('Listener AleCore AI harus berupa fungsi.');
       this.anyListeners.add(listener);return()=>this.anyListeners.delete(listener);
     }
     emit(event,payload={},meta={}){
@@ -53,9 +53,9 @@
       this.regionMeta=Object.fromEntries((regions||[]).map(region=>[region.id,region]));
       this.listeners=new Set();
       this.state={
-        version:1,lifecycle:'idle',selectedRegion:'NARA_CORE',currentTask:null,
+        version:1,lifecycle:'idle',selectedRegion:'ALECORE_AI',currentTask:null,
         regions:Object.fromEntries((regions||[]).map(region=>[
-          region.id,{id:region.id,status:region.id==='NARA_CORE'?'ready':'idle',activity:0,lastEvent:'',message:'',updatedAt:0}
+          region.id,{id:region.id,status:region.id==='ALECORE_AI'?'ready':'idle',activity:0,lastEvent:'',message:'',updatedAt:0}
         ])),
         sensory:{
           hearing:{active:false,energy:0,low:0,mid:0,high:0},
@@ -107,12 +107,12 @@
       if(!envelope?.event)return this.snapshot();
       const {event,payload={}}=envelope;
       this.state.lastEvent={id:envelope.id,event,timestamp:envelope.timestamp};
-      if(event==='nara.start'){
+      if(event==='ale.start'){
         this.state.lifecycle='active';
-        this.setRegion('NARA_CORE',{status:'active',activity:1,message:'NARA aktif'},event);
-      }else if(event==='nara.shutdown'){
+        this.setRegion('ALECORE_AI',{status:'active',activity:1,message:'AleCore AI aktif'},event);
+      }else if(event==='ale.shutdown'){
         this.state.lifecycle='offline';
-        this.setRegion('NARA_CORE',{status:'offline',activity:0,message:'NARA dihentikan'},event);
+        this.setRegion('ALECORE_AI',{status:'offline',activity:0,message:'AleCore AI dihentikan'},event);
       }else if(event==='brain.region.select'&&this.isRegionId(payload.region)){
         this.selectRegion(payload.region,event);
       }else if(event==='context.prepare'){
@@ -130,9 +130,9 @@
       }else if(event==='context.blocked'){
         this.setRegion('MEMORY',{status:'paused',activity:.12,message:'Context memori tidak digunakan'},event);
       }else if(event==='observe.start'){
-        this.setRegion('NARA_CORE',{status:'processing',activity:1,message:'Mengamati konteks kerja'},event);
+        this.setRegion('ALECORE_AI',{status:'processing',activity:1,message:'Mengamati konteks kerja'},event);
       }else if(event==='observe.complete'){
-        this.setRegion('NARA_CORE',{status:'ready',activity:.35,message:'Observasi selesai'},event);
+        this.setRegion('ALECORE_AI',{status:'ready',activity:.35,message:'Observasi selesai'},event);
       }else if(event==='reason.start'){
         this.setRegion('REASONER',{status:'thinking',activity:1,message:String(payload.label||'Menganalisis permintaan').slice(0,160)},event);
       }else if(event==='reason.complete'){
@@ -164,7 +164,7 @@
         this.setRegion('FOLLOW_UP',{status:'complete',activity:.2,message:'Verifikasi selesai'},event);
         this.setRegion('REPORTING',{status:'complete',activity:.25,message:'Hasil siap dilaporkan'},event);
       }else if(event==='work.start'){
-        this.state.currentTask={id:String(payload.id||'task-'+envelope.id),label:String(payload.label||'Pekerjaan NARA').slice(0,160),startedAt:envelope.timestamp};
+        this.state.currentTask={id:String(payload.id||'task-'+envelope.id),label:String(payload.label||'Pekerjaan AleCore AI').slice(0,160),startedAt:envelope.timestamp};
         this.setRegion('PROGRAM',{status:'processing',activity:1,message:this.state.currentTask.label},event);
         this.setRegion('FOLLOW_UP',{status:'active',activity:.7,message:'Memantau tindak lanjut'},event);
       }else if(event==='work.complete'){
@@ -234,9 +234,9 @@
     map(envelope={}){
       const event=String(envelope.event||''),payload=envelope.payload||{},label=this.labels[payload.region]||short(payload.region);
       switch(event){
-        case 'nara.start':return{key:'lifecycle:start',text:'NARA aktif. Sistem HumanALE siap.',priority:'high',cooldownMs:8000};
-        case 'nara.shutdown':return{key:'lifecycle:shutdown',text:'NARA dihentikan. Sampai bertemu kembali.',priority:'high',cooldownMs:8000};
-        case 'brain.region.select':return{key:'region:'+String(payload.region||''),text:label?'Membuka '+label+'.':'Membuka modul NARA.',priority:'normal',cooldownMs:700};
+        case 'ale.start':return{key:'lifecycle:start',text:'AleCore AI aktif. Sistem HumanALE siap.',priority:'high',cooldownMs:8000};
+        case 'ale.shutdown':return{key:'lifecycle:shutdown',text:'AleCore AI dihentikan. Sampai bertemu kembali.',priority:'high',cooldownMs:8000};
+        case 'brain.region.select':return{key:'region:'+String(payload.region||''),text:label?'Membuka '+label+'.':'Membuka modul AleCore AI.',priority:'normal',cooldownMs:700};
         case 'work.start':return{key:'work:start',text:'Saya mulai mengerjakan.',priority:'normal',cooldownMs:1800};
         case 'work.complete':return{key:'work:complete',text:'Pekerjaan selesai. Menyiapkan laporan.',priority:'normal',cooldownMs:1800};
         case 'error.detected':return{key:'error:detected',text:'Terjadi kesalahan. Saya sedang menganalisis.',priority:'high',cooldownMs:5000};
@@ -277,12 +277,12 @@
     });
     return Object.freeze({
       bus,state,voice,
-      start:()=>bus.emit('nara.start'),
-      stop:()=>bus.emit('nara.shutdown'),
+      start:()=>bus.emit('ale.start'),
+      stop:()=>bus.emit('ale.shutdown'),
       dispatch:(event,payload={},meta={})=>{const envelope=bus.emit(event,payload,meta);return{envelope,state:state.snapshot()};},
       snapshot:()=>state.snapshot()
     });
   }
 
-  global.HumanALENaraRuntime=Object.freeze({create,EventBus,BrainState,VoiceFeedback});
+  global.HumanALEAleRuntime=Object.freeze({create,EventBus,BrainState,VoiceFeedback});
 })(typeof window==='undefined'?globalThis:window);

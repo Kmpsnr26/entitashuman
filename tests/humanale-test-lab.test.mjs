@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createOrchestrator} from '../ALECORE-AI/brain/orchestrator.js';
-import {getHumanALETestScenario,listHumanALETestScenarios,HUMANALE_TEST_SCENARIOS} from '../ALECORE-AI/brain/humanale-test-lab.js';
+import {createOrchestrator} from '../alecore-ai/brain/orchestrator.js';
+import {getHumanALETestScenario,listHumanALETestScenarios,HUMANALE_TEST_SCENARIOS} from '../alecore-ai/brain/humanale-test-lab.js';
 
 const ALLOWED_EVENTS=new Set([
  'hearing.start','hearing.stop','reason.start','reason.complete','speech.start','speech.stop',
@@ -25,7 +25,7 @@ test('HumanALE controlled test lab exposes only bounded named scenarios',()=>{
 });
 
 test('AleCore AI error test can recover to idle without leaving synthetic diagnostic errors',()=>{
- const nara=createOrchestrator();
+ const ale=createOrchestrator();
  ale.start();
  const scenario=getHumanALETestScenario('error');
  for(const step of scenario.steps)ale.dispatch(step.event,step.payload,{source:'visual-studio-test'});
@@ -38,7 +38,7 @@ test('AleCore AI error test can recover to idle without leaving synthetic diagno
 });
 
 test('AleCore AI full test cycle covers all HumanALE runtime states and restores idle',()=>{
- const nara=createOrchestrator();
+ const ale=createOrchestrator();
  ale.start();
  const scenario=getHumanALETestScenario('full');
  const states=[];

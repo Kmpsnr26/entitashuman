@@ -29,7 +29,7 @@ test('controlled test cancels pending automatic narration and holds voice cues u
  let finish;
  let runtime;
  runtime=await visualTestRuntime({
-  activeSpeechSource:'nara',aleSpeechBusy:()=>true,
+  activeSpeechSource:'ale',aleSpeechBusy:()=>true,
   stopSpeech:()=>{events.push('cancel-narration');runtime.activeSpeechSource='';},
   aleDispatch:async event=>{events.push(event);},
   desktop:{aleTestScenario:async()=>{events.push('start-test');return new Promise(resolve=>{finish=resolve;});}},

@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {createOrchestrator} from '../ALECORE-AI/brain/orchestrator.js';
+import {createOrchestrator} from '../alecore-ai/brain/orchestrator.js';
 import {createHumanALERuntimeHost,DEFAULT_RENDERER_EVENTS} from '../desktop/humanale-runtime-host.mjs';
 import {
   ALECORE_AI_UNIFIED_RUNTIME_CONTRACT,
   normalizeHumanALEInput
-} from '../ALECORE-AI/runtime/unified-contract.js';
+} from '../alecore-ai/runtime/unified-contract.js';
 
 function fakeTarget(){
   const messages=[];
@@ -21,11 +21,11 @@ function fakeTarget(){
 }
 
 test('V3 runtime host publishes legacy Core state and unified HumanALE state together',()=>{
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
   const target=fakeTarget();
   const host=createHumanALERuntimeHost({
-    nara,
+    ale,
     getTargets:()=>[target],
     isTrustedEvent:()=>true
   });
@@ -53,9 +53,9 @@ test('V3 runtime host publishes legacy Core state and unified HumanALE state tog
 });
 
 test('V3 runtime derives HumanALE body state from authoritative AleCore AI state',()=>{
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
-  const host=createHumanALERuntimeHost({nara,isTrustedEvent:()=>true});
+  const host=createHumanALERuntimeHost({ale,isTrustedEvent:()=>true});
   host.start();
 
   ale.dispatch('speech.start',{energy:.4});
@@ -77,9 +77,9 @@ test('V3 runtime derives HumanALE body state from authoritative AleCore AI state
 });
 
 test('V3 renderer bridge accepts only sensory and region-selection events',()=>{
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
-  const host=createHumanALERuntimeHost({nara,isTrustedEvent:()=>true});
+  const host=createHumanALERuntimeHost({ale,isTrustedEvent:()=>true});
 
   const hearing=host.dispatchRenderer({},{
     event:'audio.energy',
@@ -96,16 +96,16 @@ test('V3 renderer bridge accepts only sensory and region-selection events',()=>{
   assert.equal(DEFAULT_RENDERER_EVENTS.includes('context.used'),false);
   assert.equal(DEFAULT_RENDERER_EVENTS.includes('memory.write'),false);
 
-  const denied=createHumanALERuntimeHost({nara,isTrustedEvent:()=>false})
+  const denied=createHumanALERuntimeHost({ale,isTrustedEvent:()=>false})
     .dispatchRenderer({}, {event:'audio.energy',payload:{energy:1}});
   assert.match(denied.error,/Akses ditolak/);
   ale.stop();
 });
 
 test('V3 runtime snapshot IPC projection contains Core plus HumanALE body but no extra command surface',()=>{
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
-  const host=createHumanALERuntimeHost({nara,isTrustedEvent:()=>true});
+  const host=createHumanALERuntimeHost({ale,isTrustedEvent:()=>true});
   const result=host.runtimeSnapshotRequest({});
   assert.equal(result.ok,true);
   assert.equal(result.runtime.version,3);
@@ -151,9 +151,9 @@ test('V3.4 runtime contract strips unknown fields and clamps sensory data',()=>{
 });
 
 test('V3.4 runtime host rejects oversized renderer envelopes and sanitized payload reaches Core',()=>{
-  const nara=createOrchestrator();
+  const ale=createOrchestrator();
   ale.start();
-  const host=createHumanALERuntimeHost({nara,isTrustedEvent:()=>true});
+  const host=createHumanALERuntimeHost({ale,isTrustedEvent:()=>true});
 
   const oversized=host.dispatchRenderer({},{
     event:'vision.frame',

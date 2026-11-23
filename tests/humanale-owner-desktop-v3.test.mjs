@@ -17,7 +17,7 @@ test('V3.5 desktop shares the persistent AleCore AI Owner Store and gates unifie
     read('desktop/humanale-runtime-host.mjs')
   ]);
 
-  assert.match(main,/ALECORE_AI_OWNER_STORE\|\|path\.join\(homedir\(\),'\.nara','owner\.json'\)/);
+  assert.match(main,/ALECORE_AI_OWNER_STORE\|\|path\.join\(homedir\(\),'\.ale','owner\.json'\)/);
   assert.match(main,/createOwnerStore/);
   assert.match(main,/createHumanALEOwnerGate/);
   assert.match(main,/delete process\.env\.ALECORE_AI_CREATOR_PASSWORD/);

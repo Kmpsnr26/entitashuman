@@ -1,5 +1,5 @@
 (function exposeHumanALEContextBridge(global){
-  const STORAGE_KEY='humanale.nara.context-mode.v1';
+  const STORAGE_KEY='humanale.ale.context-mode.v1';
   const MODES=new Set(['off','ask','auto-safe']);
   const TARGETS=new Set(['reasoner','planner','agent']);
   const SECRET_PATTERNS=[
@@ -16,8 +16,8 @@
 
   class HumanALEContextBridge{
     constructor({runtime,memory,storage=null,onState=null,now=null,maxEntries=6,maxChars=1600}={}){
-      if(!runtime?.dispatch)throw new Error('Runtime NARA diperlukan untuk Context Bridge.');
-      if(!memory?.context)throw new Error('NARA Memory diperlukan untuk Context Bridge.');
+      if(!runtime?.dispatch)throw new Error('Runtime AleCore AI diperlukan untuk Context Bridge.');
+      if(!memory?.context)throw new Error('AleCore AI Memory diperlukan untuk Context Bridge.');
       this.runtime=runtime;
       this.memory=memory;
       this.storage=storageOrNull(storage);

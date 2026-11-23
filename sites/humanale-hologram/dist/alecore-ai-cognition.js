@@ -1,7 +1,7 @@
 (function exposeHumanALECognition(global){
   const EVENT_META=Object.freeze({
-    'observe.start':{stage:'OBSERVE',region:'NARA_CORE',state:'running'},
-    'observe.complete':{stage:'OBSERVE',region:'NARA_CORE',state:'complete'},
+    'observe.start':{stage:'OBSERVE',region:'ALECORE_AI',state:'running'},
+    'observe.complete':{stage:'OBSERVE',region:'ALECORE_AI',state:'complete'},
     'reason.start':{stage:'REASON',region:'REASONER',state:'running'},
     'reason.complete':{stage:'REASON',region:'REASONER',state:'complete'},
     'plan.start':{stage:'PLAN',region:'PLANNER',state:'running'},
@@ -27,7 +27,7 @@
 
   class HumanALECognition{
     constructor({runtime,onState=null,maxEntries=40}={}){
-      if(!runtime?.bus?.onAny||!runtime?.snapshot)throw new Error('Runtime NARA diperlukan untuk Cognitive Activity.');
+      if(!runtime?.bus?.onAny||!runtime?.snapshot)throw new Error('Runtime AleCore AI diperlukan untuk Cognitive Activity.');
       this.runtime=runtime;
       this.onState=typeof onState==='function'?onState:()=>{};
       this.maxEntries=Math.max(10,Math.min(120,Number(maxEntries)||40));

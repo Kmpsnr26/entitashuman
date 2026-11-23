@@ -1,5 +1,6 @@
 (function exposeHumanALEMemory(global){
-  const STORAGE_KEY='humanale.nara.memory.v1';
+  const STORAGE_KEY='humanale.ale.memory.v1';
+  const LEGACY_STORAGE_KEY='humanale.nara.memory.v1';
   const VERSION=1;
   const ALLOWED_TYPES=new Set(['task','result','note','project','debug']);
   const REDACTION_PATTERNS=[
@@ -22,7 +23,7 @@
 
   class HumanALEMemory{
     constructor({runtime,storage=null,key=STORAGE_KEY,maxEntries=80,onState=null,onError=null,now=null}={}){
-      if(!runtime?.dispatch||!runtime?.bus?.onAny)throw new Error('Runtime NARA diperlukan untuk Memory.');
+      if(!runtime?.dispatch||!runtime?.bus?.onAny)throw new Error('Runtime AleCore AI diperlukan untuk Memory.');
       this.runtime=runtime;
       this.storage=storage||defaultStorage();
       this.key=String(key||STORAGE_KEY);
@@ -50,13 +51,17 @@
       const updatedAt=Number(value.updatedAt)||createdAt;
       const id=safeText(value.id,64)||('mem-'+createdAt+'-'+(++this.sequence));
       const source=safeText(value.source,48)||'site';
-      return {id,type,title:title||summary.slice(0,80)||'Memori NARA',summary,tags,source,createdAt,updatedAt};
+      return {id,type,title:title||summary.slice(0,80)||'Memori AleCore AI',summary,tags,source,createdAt,updatedAt};
     }
 
     load(){
       if(!this.persistent)return this.snapshot();
       try{
-        const raw=this.storage.getItem(this.key);
+        let raw=this.storage.getItem(this.key);
+        if(!raw && this.key===STORAGE_KEY){
+          raw=this.storage.getItem(LEGACY_STORAGE_KEY);
+          if(raw)this.storage.setItem(this.key,raw);
+        }
         if(!raw)return this.snapshot();
         const data=JSON.parse(raw);
         if(Number(data?.version)!==VERSION||!Array.isArray(data?.entries))return this.snapshot();
@@ -174,7 +179,7 @@
       if(event==='work.start'){
         this.pendingTask={
           id:safeText(payload.id,64),
-          label:safeText(payload.label,120)||'Pekerjaan NARA',
+          label:safeText(payload.label,120)||'Pekerjaan AleCore AI',
           startedAt:Number(envelope.timestamp)||this.now()
         };
       }else if(event==='work.complete'&&this.pendingTask){
@@ -182,7 +187,7 @@
         this.remember({
           type:'task',
           title:task.label,
-          summary:'Pekerjaan selesai dan terverifikasi sebagai aktivitas NARA.',
+          summary:'Pekerjaan selesai dan terverifikasi sebagai aktivitas AleCore AI.',
           tags:['task','complete'],
           source:'auto-task'
         });

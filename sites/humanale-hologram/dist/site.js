@@ -1,4 +1,4 @@
-// Use the NARA face engine in procedural-only mode. No PNG/JPG face map is loaded.
+// Use the AleCore AI face engine in procedural-only mode. No PNG/JPG face map is loaded.
 const canvas = document.querySelector('#avatar');
 const avatar = new window.NeuralAvatar(canvas);
 // The Site stage stays dark even when the visitor's OS theme is light.
@@ -12,22 +12,22 @@ const showState = (label, delay = 1800) => {
   if (delay) showState.timer = setTimeout(() => { state.textContent = 'SIAP'; }, delay);
 };
 
-let naraVoiceUnlocked=false,naraVoiceGeneration=0;
-const speakNaraCue=cue=>{
-  if(!naraVoiceUnlocked||!cue?.text||!window.speechSynthesis)return;
+let aleVoiceUnlocked=false,aleVoiceGeneration=0;
+const speakAleCue=cue=>{
+  if(!aleVoiceUnlocked||!cue?.text||!window.speechSynthesis)return;
   const utterance=new SpeechSynthesisUtterance(cue.text);
   utterance.lang='id-ID';
   utterance.rate=.94;
   utterance.pitch=.76;
   utterance.voice=window.speechSynthesis.getVoices().find(voice=>voice.lang.toLowerCase().startsWith('id'))||null;
-  const generation=++naraVoiceGeneration;
-  utterance.onstart=()=>{if(generation===naraVoiceGeneration){avatar.setSpeaking(true);runtime.dispatch('speech.start',{energy:.55,source:'nara-site'});}};
-  utterance.onend=utterance.onerror=()=>{if(generation===naraVoiceGeneration){avatar.setSpeaking(false);runtime.dispatch('speech.stop',{source:'nara-site'});}};
+  const generation=++aleVoiceGeneration;
+  utterance.onstart=()=>{if(generation===aleVoiceGeneration){avatar.setSpeaking(true);runtime.dispatch('speech.start',{energy:.55,source:'alecore-ai-site'});}};
+  utterance.onend=utterance.onerror=()=>{if(generation===aleVoiceGeneration){avatar.setSpeaking(false);runtime.dispatch('speech.stop',{source:'alecore-ai-site'});}};
   window.speechSynthesis.speak(utterance);
 };
-const runtime=window.HumanALENaraRuntime.create({
+const runtime=window.HumanALEAleRuntime.create({
   regions:avatar.neuralCore.regions,
-  onVoice:cue=>{showState(cue.text.toUpperCase(),2200);speakNaraCue(cue);}
+  onVoice:cue=>{showState(cue.text.toUpperCase(),2200);speakAleCue(cue);}
 });
 window.humanALENara=runtime;
 
@@ -44,7 +44,7 @@ let latestBrainState=runtime.snapshot();
 
 const updateInspector=(snapshot=latestBrainState)=>{
   latestBrainState=snapshot||latestBrainState;
-  const id=latestBrainState?.selectedRegion||'NARA_CORE';
+  const id=latestBrainState?.selectedRegion||'ALECORE_AI';
   const region=latestBrainState?.regions?.[id]||{};
   const meta=regionMeta[id]||{label:id.replaceAll('_',' ')};
   if(inspectName)inspectName.textContent=meta.label||id;
@@ -52,7 +52,7 @@ const updateInspector=(snapshot=latestBrainState)=>{
   if(inspectActivity)inspectActivity.textContent=Math.round((Number(region.activity)||0)*100)+'%';
   if(inspectEvent)inspectEvent.textContent=String(region.lastEvent||'—');
   if(inspectUpdated)inspectUpdated.textContent=region.updatedAt?new Date(region.updatedAt).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';
-  if(inspectMessage)inspectMessage.textContent=String(region.message||'Region siap menerima aktivitas NARA.');
+  if(inspectMessage)inspectMessage.textContent=String(region.message||'Region siap menerima aktivitas AleCore AI.');
   for(const button of connectionButtons){
     const item=latestBrainState?.regions?.[button.dataset.region]||{};
     const status=String(item.status||'idle');
@@ -69,7 +69,7 @@ runtime.state.subscribe(snapshot=>{
 
 avatar.onBrainRegionSelect=region=>{
   runtime.dispatch('brain.region.select',{region});
-  showState('NARA · '+region.replaceAll('_',' '),0);
+  showState('AleCore AI · '+region.replaceAll('_',' '),0);
 };
 for(const button of connectionButtons)button.addEventListener('click',()=>{
   const region=button.dataset.region;
@@ -141,7 +141,7 @@ const renderMemory=state=>{
   for(const entry of entries){
     const item=document.createElement('article');item.className='memory-item';
     const top=document.createElement('div');top.className='memory-item-top';
-    const title=document.createElement('strong');title.textContent=entry.title||'Memori NARA';
+    const title=document.createElement('strong');title.textContent=entry.title||'Memori AleCore AI';
     const type=document.createElement('span');type.textContent=entry.type;
     top.append(title,type);
     const summary=document.createElement('p');summary.textContent=entry.summary||'';
@@ -199,7 +199,7 @@ memoryList?.addEventListener('click',event=>{
 });
 memoryClear?.addEventListener('click',()=>{
   if(!memory.snapshot().count)return;
-  if(!window.confirm('Hapus seluruh memori lokal NARA di browser ini?'))return;
+  if(!window.confirm('Hapus seluruh memori lokal AleCore AI di browser ini?'))return;
   memory.clear();currentMemoryResults=null;renderMemory(memory.snapshot());showState('MEMORY · DIKOSONGKAN');
 });
 
@@ -312,11 +312,11 @@ sensorCameraButton?.addEventListener('click',async()=>{
     if(sensors.cameraActive)sensors.stopCamera();else await sensors.startCamera();
   }catch(error){showState('KAMERA · '+String(error?.message||'GAGAL').toUpperCase(),2600);}
 });
-sensorStopButton?.addEventListener('click',async()=>{await sensors.stopAll();showState('SENSOR NARA BERHENTI');});
+sensorStopButton?.addEventListener('click',async()=>{await sensors.stopAll();showState('SENSOR AleCore AI BERHENTI');});
 
-const unlockNaraVoice=()=>{naraVoiceUnlocked=true;};
-window.addEventListener('pointerdown',unlockNaraVoice,{once:true});
-window.addEventListener('keydown',unlockNaraVoice,{once:true});
+const unlockAleVoice=()=>{aleVoiceUnlocked=true;};
+window.addEventListener('pointerdown',unlockAleVoice,{once:true});
+window.addEventListener('keydown',unlockAleVoice,{once:true});
 
 showState('WAJAH PROCEDURAL SIAP');
 dataSpine.start();
@@ -345,7 +345,7 @@ const zoom = document.querySelector('#zoom');
 avatar.onZoom = value => {
   zoom.value = String(value);
   document.querySelector('#zoom-value').textContent = value.toFixed(1) + '× · ' +
-    (value < 1.5 ? 'wajah' : value < 2.15 ? 'rongga kepala' : value < 2.75 ? 'otak 3D' : value < 3.3 ? 'NARA neural' : 'node / modul');
+    (value < 1.5 ? 'wajah' : value < 2.15 ? 'rongga kepala' : value < 2.75 ? 'otak 3D' : value < 3.3 ? 'AleCore AI neural' : 'node / modul');
 };
 zoom.addEventListener('input', event => avatar.setZoom(event.target.value));
 
@@ -398,7 +398,7 @@ document.querySelector('#speech').addEventListener('submit', event => {
 });
 document.addEventListener('visibilitychange', () => {
   if(document.hidden){
-    speechGeneration++;naraVoiceGeneration++;
+    speechGeneration++;aleVoiceGeneration++;
     window.speechSynthesis?.cancel();
     avatar.setSpeaking(false);
     runtime.dispatch('speech.stop',{source:'site-hidden'});
@@ -409,7 +409,7 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 window.addEventListener('pagehide',()=>{
-  naraVoiceUnlocked=false;
+  aleVoiceUnlocked=false;
   sensors.stopAll().catch(()=>{});
   connections.stop();
   memory.stop();

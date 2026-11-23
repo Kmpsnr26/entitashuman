@@ -32,7 +32,7 @@ on:
       - "alecore-ai/studio/**"
       - "scripts/alecore-ai-neural-live-smoke.cjs"
       - "scripts/alecore-ai-neural-gpu-acceptance.ps1"
-      - "AleCore AI-Neural-GPU-Acceptance.bat"
+      - "alecore-ai-neural-gpu-acceptance.bat"
       - "package.json"
       - "package-lock.json"
       - ".env.example"
@@ -67,7 +67,7 @@ jobs:
 
     env:
       NODE_ENV: test
-      DATABASE_URL: postgresql://ale:test-password@127.0.0.1:5432/nara
+      DATABASE_URL: postgresql://nara:test-password@127.0.0.1:5432/nara
       BIND_HOST: 127.0.0.1
       AUTH_PORT: 4100
       ALECORE_AI_PORT: 4200
@@ -133,8 +133,8 @@ jobs:
         run: |
           $source = Get-Content scripts/alecore-ai-neural-gpu-acceptance.ps1 -Raw
           [scriptblock]::Create($source) | Out-Null
-          if (-not (Test-Path AleCore AI-Neural-GPU-Acceptance.bat)) { throw "BAT wrapper missing" }
-          if (-not (Select-String -Path AleCore AI-Neural-GPU-Acceptance.bat -Pattern "alecore-ai-neural-gpu-acceptance.ps1" -Quiet)) { throw "BAT wrapper target missing" }
+          if (-not (Test-Path alecore-ai-neural-gpu-acceptance.bat)) { throw "BAT wrapper missing" }
+          if (-not (Select-String -Path alecore-ai-neural-gpu-acceptance.bat -Pattern "alecore-ai-neural-gpu-acceptance.ps1" -Quiet)) { throw "BAT wrapper target missing" }
 
       - name: Verify HumanALE tests and web build
         run: npm run verify

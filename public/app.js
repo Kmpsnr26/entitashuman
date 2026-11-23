@@ -467,13 +467,13 @@ async function runHumanALEVisualTest(scenario){
   });
  }
  if(aleVisualTestActive)return {error:'Test HumanALE lain masih berjalan.',scenario,trace:[]};
- if(aleSpeechBusy()&&activeSpeechSource!=='nara')return {error:'Controlled test menunggu aktivitas suara selesai.',scenario,trace:[]};
+ if(aleSpeechBusy()&&activeSpeechSource!=='ale')return {error:'Controlled test menunggu aktivitas suara selesai.',scenario,trace:[]};
  aleVisualTestActive=true;
  clearTimeout(aleVoiceDrainTimer);
  try{
   // The avatar owns queued narration. Cancel only automatic AleCore AI audio, including
   // synthesis that has not started playback, before the main-process idle check.
-  if(activeSpeechSource==='nara'){
+  if(activeSpeechSource==='ale'){
    stopSpeech(false);
    await aleDispatch('speech.stop');
   }
@@ -724,7 +724,7 @@ function refreshIndonesianVoices(){
  if(androidVoice)androidVoice.status().then(result=>{localTtsConfigured=Boolean(result.configured);localTtsRejected=!localTtsConfigured;if(status)status.textContent=result.configured?'Suara Indonesia perangkat siap · '+result.engine+'.':result.reason==='initializing'?'Menyiapkan mesin suara Android…':'Pasang data suara Bahasa Indonesia di pengaturan Text-to-speech Android.';}).catch(error=>{localTtsConfigured=false;localTtsRejected=true;if(status)status.textContent=error.message||'Mesin suara Android tidak dapat diakses.';});
 }
 function scheduleAleVoiceDrain(delay=220){clearTimeout(aleVoiceDrainTimer);if(aleVoiceQueue.length)aleVoiceDrainTimer=setTimeout(drainAleVoiceQueue,delay);}
-function finishSpeechSource(){const source=activeSpeechSource;activeSpeechSource='';if(source==='nara')aleVoiceActive=false;scheduleAleVoiceDrain();}
+function finishSpeechSource(){const source=activeSpeechSource;activeSpeechSource='';if(source==='ale')aleVoiceActive=false;scheduleAleVoiceDrain();}
 function stopSpeech(resumeWake=true){
  const hadSpeech=Boolean(ttsActive||onlineSpeech||window.speechSynthesis?.speaking||activeSpeechSource);
  speechGeneration++;clearTimeout(speechTimer);window.speechSynthesis?.cancel();onlineSpeech?.pause();onlineSpeech=null;
@@ -750,7 +750,7 @@ function drainAleVoiceQueue(){
  if(aleVisualTestActive)return;
  if(aleVoiceActive||aleSpeechBusy()){scheduleAleVoiceDrain(350);return;}
  const cue=aleVoiceQueue.shift();aleVoiceActive=true;
- if(!speak(cue.text,{style:cue.style,source:'nara',interrupt:false})){aleVoiceActive=false;scheduleAleVoiceDrain(120);}
+ if(!speak(cue.text,{style:cue.style,source:'ale',interrupt:false})){aleVoiceActive=false;scheduleAleVoiceDrain(120);}
 }
 async function speakLocal(text,style=voiceStyle){
  const generation=speechGeneration;
@@ -800,18 +800,18 @@ function speakNativeIndonesian(text,style=voiceStyle,allowLocalRetry=false){
 function speak(text,{source='assistant',interrupt=true}={}){
  const style=voiceStyle;
  if(interrupt)stopSpeech(false);
- if(!voice){if(source==='nara')aleVoiceActive=false;resumeWakeSoon();scheduleAleVoiceDrain();return false;}
+ if(!voice){if(source==='ale')aleVoiceActive=false;resumeWakeSoon();scheduleAleVoiceDrain();return false;}
  robotVoicePlayer.unlock().catch(()=>{});
  stopListening(false);suspendWakeListening('ALE · wake mic dijeda saat berbicara');activeSpeechSource=source;
  if(panelOnly)panelChannel?.postMessage({type:'speech-busy',busy:true});
- if(source==='nara'&&!localTtsRejected&&desktop?.synthesize){speakLocal(text,style);return true;}
+ if(source==='ale'&&!localTtsRejected&&desktop?.synthesize){speakLocal(text,style);return true;}
  if(androidVoice){speakLocal(text,style);return true;}
  if(style!=='natural'&&desktop?.synthesize){speakLocal(text,style);return true;}
  if(selectedVoiceURI&&speakNativeIndonesian(text,style,true))return true;
  if(localTtsConfigured&&desktop?.synthesize){speakLocal(text,style);return true;}
  if(speakNativeIndonesian(text,style))return true;
  if(desktop?.synthesize){speakLocal(text,style);return true;}
- activeSpeechSource='';if(source==='nara')aleVoiceActive=false;
+ activeSpeechSource='';if(source==='ale')aleVoiceActive=false;
  if(panelOnly)panelChannel?.postMessage({type:'speech-busy',busy:false});
  setMicStatus('Voice Bahasa Indonesia belum tersedia. Balasan tampil sebagai teks.');
  resumeWakeSoon();scheduleAleVoiceDrain();return false;

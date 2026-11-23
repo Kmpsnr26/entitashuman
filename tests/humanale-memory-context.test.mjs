@@ -196,13 +196,13 @@ test('desktop IPC validates context before provider or agent use and records con
     read('desktop/main.cjs'),
     read('desktop/humanale-runtime-host.mjs'),
     read('desktop/alecore-ai-agent-coordinator.mjs'),
-    read('ALECORE-AI/runtime/unified-contract.js')
+    read('alecore-ai/runtime/unified-contract.js')
   ]);
   assert.match(main,/import\('\.\/memory-context\.mjs'\)/);
   assert.match(main,/validateMemoryContext\(value\?\.memoryContext,\{allowedTargets:\['reasoner'\]\}\)/);
   assert.match(main,/validateMemoryContext\(value\?\.memoryContext,\{allowedTargets:\['planner','agent'\]\}\)/);
-  assert.match(agentCoordinator,/this\.nara\.dispatch\('context\.used'/);
-  assert.match(main,/nara\.dispatch\('context\.blocked'/);
+  assert.match(agentCoordinator,/this\.ale\.dispatch\('context\.used'/);
+  assert.match(main,/ale\.dispatch\('context\.blocked'/);
   assert.match(main,/aleAgentCoordinator\.run\(\{\.\.\.value,memoryContext\}\)/);
   assert.match(agentCoordinator,/this\.agentHub\.run\(\{/);
   assert.match(runtimeHost,/DEFAULT_RENDERER_EVENTS=ALECORE_AI_UNIFIED_RUNTIME_CONTRACT\.rendererEvents/);

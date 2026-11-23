@@ -669,7 +669,7 @@ test('Neural live harness separates reproducible CI software GPU from physical G
     readFile(new URL('.github/workflows/alecore-ai-cloud-verify.yml',root),'utf8'),
     readFile(new URL('package.json',root),'utf8'),
     readFile(new URL('scripts/alecore-ai-neural-gpu-acceptance.ps1',root),'utf8'),
-    readFile(new URL('AleCore AI-Neural-GPU-Acceptance.bat',root),'utf8')
+    readFile(new URL('alecore-ai-neural-gpu-acceptance.bat',root),'utf8')
   ]);
 
   assert.match(smoke,/ALECORE_AI_GPU_MODE\|\|'hardware'/);
@@ -709,7 +709,7 @@ test('Windows physical GPU wrappers use UTF-8 console output',async()=>{
   const root=new URL('../',import.meta.url);
   const [ps1,bat]=await Promise.all([
     readFile(new URL('scripts/alecore-ai-neural-gpu-acceptance.ps1',root),'utf8'),
-    readFile(new URL('AleCore AI-Neural-GPU-Acceptance.bat',root),'utf8')
+    readFile(new URL('alecore-ai-neural-gpu-acceptance.bat',root),'utf8')
   ]);
   assert.match(ps1,/\[Console\]::OutputEncoding/);
   assert.match(ps1,/UTF8Encoding/);
@@ -1586,7 +1586,7 @@ test('Revision R6/R7 Windows release-candidate wrapper requires GPU plus visual 
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [bat,ps1,docs]=await Promise.all([
-    readFile(new URL('AleCore AI-Neural-GPU-Acceptance.bat',root),'utf8'),
+    readFile(new URL('alecore-ai-neural-gpu-acceptance.bat',root),'utf8'),
     readFile(new URL('scripts/alecore-ai-neural-gpu-acceptance.ps1',root),'utf8'),
     readFile(new URL('alecore-ai/studio/WINDOWS_GPU_ACCEPTANCE.md',root),'utf8')
   ]);
@@ -1626,7 +1626,7 @@ test('R6 physical acceptance wrapper does not expose Creator credentials',async(
   const {readFile}=await import('node:fs/promises');
   const root=new URL('../',import.meta.url);
   const [bat,ps1,docs]=await Promise.all([
-    readFile(new URL('AleCore AI-Neural-GPU-Acceptance.bat',root),'utf8'),
+    readFile(new URL('alecore-ai-neural-gpu-acceptance.bat',root),'utf8'),
     readFile(new URL('scripts/alecore-ai-neural-gpu-acceptance.ps1',root),'utf8'),
     readFile(new URL('alecore-ai/studio/WINDOWS_GPU_ACCEPTANCE.md',root),'utf8')
   ]);

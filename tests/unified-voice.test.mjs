@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {request} from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {runInNewContext} from 'node:vm';
-import {createAleStudioServer} from '../ALECORE-AI/studio/server.mjs';
-import {createStudioVoice,voiceProfilePatch} from '../ALECORE-AI/studio/public/voice-identity.js';
-import {sanitizeVisualSettings} from '../ALECORE-AI/studio/public/custom-settings.js';
+import {createAleStudioServer} from '../alecore-ai/studio/server.mjs';
+import {createStudioVoice,voiceProfilePatch} from '../alecore-ai/studio/public/voice-identity.js';
+import {sanitizeVisualSettings} from '../alecore-ai/studio/public/custom-settings.js';
 import {HUMANALE_VOICE} from '../public/robot-voice.js';
 
 test('legacy Studio voice preferences migrate to the one adult character',()=>{

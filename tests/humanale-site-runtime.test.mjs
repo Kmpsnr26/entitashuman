@@ -76,7 +76,7 @@ test('canonical site wires real AleCore AI state into the existing avatar instea
   assert.match(site,/avatar\.setBrainState\?\.\(snapshot\)/);
   assert.match(site,/avatar\.onBrainRegionSelect=region=>/);
   assert.match(site,/runtime\.dispatch\('brain\.region\.select'/);
-  assert.match(site,/window\.humanALENara=runtime/);
+  assert.match(site,/window\.humanALEAle=runtime/);
   assert.match(site,/aleVoiceUnlocked=false/);
   assert.match(site,/pointerdown',unlockAleVoice/);
   assert.match(site,/runtime\.dispatch\('speech\.start'/);

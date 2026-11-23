@@ -95,14 +95,14 @@ test('desktop real AI and coordinated agent paths emit AleCore AI cognitive life
     read('desktop/main.cjs'),
     read('desktop/alecore-ai-agent-coordinator.mjs')
   ]);
-  assert.match(main,/nara\.dispatch\('observe\.start'/);
-  assert.match(main,/nara\.dispatch\('observe\.complete'/);
-  assert.match(main,/nara\.dispatch\('reason\.start'/);
-  assert.match(main,/nara\.dispatch\('reason\.complete'/);
+  assert.match(main,/ale\.dispatch\('observe\.start'/);
+  assert.match(main,/ale\.dispatch\('observe\.complete'/);
+  assert.match(main,/ale\.dispatch\('reason\.start'/);
+  assert.match(main,/ale\.dispatch\('reason\.complete'/);
   for(const event of [
     'plan.start','plan.complete','agent.start','agent.complete','agent.failed',
     'work.failed','program.start','program.complete','verify.start','verify.complete'
-  ])assert.match(coordinator,new RegExp("this\\.nara\\.dispatch\\('"+event.replace('.','\\.')+"'"));
+  ])assert.match(coordinator,new RegExp("this\\.ale\\.dispatch\\('"+event.replace('.','\\.')+"'"));
   assert.match(coordinator,/const label='Agent '\+meta\.id\+' · '/);
   assert.match(main,/aleAgentCoordinator\.run\(\{\.\.\.value,memoryContext\}\)/);
   assert.doesNotMatch(main,/reason\.start'\s*,\s*\{label\s*:\s*String\(value\?\.prompt/);
@@ -140,7 +140,7 @@ test('Data Spine routes cognition events to bounded safe lanes',async()=>{
 });
 
 test('core BrainState mirrors the browser cognitive event model',async()=>{
-  const {createBrainState}=await import('../ALECORE-AI/brain/brain-state.js?phase8='+ ++nonce);
+  const {createBrainState}=await import('../alecore-ai/brain/brain-state.js?phase8='+ ++nonce);
   const state=createBrainState();
   state.applyEvent({id:1,event:'reason.start',timestamp:1,payload:{label:'Analisis'}});
   state.applyEvent({id:2,event:'plan.start',timestamp:2,payload:{label:'Rencana'}});

@@ -185,7 +185,7 @@ test('canonical site wires Data Spine live connections and inspector without pri
 });
 
 test('core BrainState preserves connected status on visual selection and supports ONLINE events',async()=>{
-  const {createBrainState}=await import('../ALECORE-AI/brain/brain-state.js?phase7='+ ++nonce);
+  const {createBrainState}=await import('../alecore-ai/brain/brain-state.js?phase7='+ ++nonce);
   const state=createBrainState();
   state.applyEvent({id:1,event:'github.connected',timestamp:1,payload:{}});
   state.applyEvent({id:2,event:'brain.region.select',timestamp:2,payload:{region:'GITHUB'}});
