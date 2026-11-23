@@ -14,7 +14,7 @@ function authorizationUrl(): string {
     `${env.PUBLIC_ALECORE_AI_ORIGIN}/auth/callback`;
 
   const url = new URL(
-    "/ownernara/authorize",
+    "/owner-alecore-ai/authorize",
     env.PUBLIC_AUTH_ORIGIN
   );
 
