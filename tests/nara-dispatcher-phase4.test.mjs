@@ -394,9 +394,11 @@ test('Coordinator work Goal requires an independent reviewer PASS',async()=>{
         return {
           text:'Work output for '+value.prompt,
           maintenance:{changedFiles:1},
-          stages:value.prompt.includes('review-pass')
-            ?[{role:'reviewer',text:'Review complete. VERDICT: PASS'}]
-            :[]
+          stages:value.prompt.includes('stale-pass')
+            ?[{role:'reviewer',text:'VERDICT: PASS'},{role:'reviewer',text:'VERDICT: NEEDS_FIX'}]
+            :value.prompt.includes('review-pass')
+              ?[{role:'reviewer',text:'Review complete. VERDICT: PASS'}]
+              :[]
         };
       }}
     });
@@ -405,5 +407,8 @@ test('Coordinator work Goal requires an independent reviewer PASS',async()=>{
     assert.equal(rejected.nara.goalStatus,'blocked');
     const accepted=await coordinator.run({id:'codex',prompt:'work with review-pass',mode:'work'});
     assert.equal(accepted.nara.goalStatus,'complete');
+    const stale=await coordinator.run({id:'codex',prompt:'work with stale-pass',mode:'work'});
+    assert.match(stale.error,/reviewer independen/);
+    assert.equal(stale.nara.goalStatus,'blocked');
   }finally{nara.stop();}
 });
