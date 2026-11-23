@@ -73,7 +73,7 @@ export class NaraAutopilot{
       if(!next)break;
       const outcome=await this.execute(next);
       this.outcomes.set(next.id,outcome);
-      while(this.outcomes.size>200)this.outcomes.delete(this.outcomes.keys().next().value);
+      while(this.outcomes.size>(this.scheduler.limit||200))this.outcomes.delete(this.outcomes.keys().next().value);
       if(!outcome.ok&&outcome.decision?.action==='retry'){
         this.scheduler.requeue(next.id);
         this.outcomes.delete(next.id);
