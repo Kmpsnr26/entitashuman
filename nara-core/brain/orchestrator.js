@@ -308,6 +308,7 @@ export class NaraOrchestrator{
   }
 
   completeGoal(id){
+    this.goals.reconcileTasks(this.scheduler.snapshot().tasks);
     const goal=this.goals.complete(id);
     if(this.running)this.bus.emit('goal.complete',{
       id:goal.id,label:goal.label,progress:goal.progress
