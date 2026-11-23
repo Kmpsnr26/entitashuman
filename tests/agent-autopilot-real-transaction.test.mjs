@@ -40,6 +40,7 @@ async function structuredExecutorFixture(t){
    'class HumanALEAgentFixture {',
    ' static int Main(string[] args) {',
    '  var joined=String.Join(" ",args);',
+   '  if(joined == "status") { Console.WriteLine("Authenticated: true"); return 0; }',
    '  if(joined.Contains("--version")) { Console.WriteLine("HumanALE fixture 1.0"); return 0; }',
    '  if(joined.Contains("Planner HumanALE")) { Console.WriteLine("PLAN: edit app.mjs, then test and review."); return 0; }',
    '  if(joined.Contains("Final Reviewer HumanALE") || joined.Contains("Reviewer HumanALE")) { Console.WriteLine("Review passed.\\nVERDICT: PASS"); return 0; }',
@@ -68,6 +69,7 @@ async function structuredExecutorFixture(t){
    '#!/bin/sh',
    'joined="$*"',
    'case "$joined" in',
+   ' status) echo "Authenticated: true"; exit 0 ;;',
    ' *"--version"*) echo "HumanALE fixture 1.0"; exit 0 ;;',
    ' *"Planner HumanALE"*) echo "PLAN: edit app.mjs, then test and review."; exit 0 ;;',
    ' *"Final Reviewer HumanALE"*|*"Reviewer HumanALE"*) printf "Review passed.\\nVERDICT: PASS\\n"; exit 0 ;;',
@@ -393,7 +395,7 @@ test('abort after real patch restores source, releases lock and skips npm',async
 });
 
 
-test('HumanALE local collaboration diagnostic invokes independent installed executors read-only',async t=>{
+test('HumanALE local collaboration diagnostic verifies provider output and does not infer login from version alone',async t=>{
  const {root}=await fixture(t);
  const executors=await structuredExecutorFixture(t);
  bindStructuredExecutorFixture(t,executors);
@@ -401,10 +403,21 @@ test('HumanALE local collaboration diagnostic invokes independent installed exec
  hub.setProjectRoot(root);
  const before=await readFile(join(root,'app.mjs'));
  const initialStatus=await hub.status();
- const ready=(initialStatus.agents||[]).filter(agent=>
-  ['github-copilot','cursor','claude'].includes(agent.id)&&agent.canRun===true
+ const candidates=(initialStatus.agents||[]).filter(agent=>
+  ['github-copilot','cursor','claude'].includes(agent.id)&&(agent.canRun===true||agent.canAttempt===true)
  );
- assert.ok(ready.length>=2,'fixture must expose at least two ready local executors');
+ assert.ok(candidates.length>=2,'fixture must expose at least two local executor candidates');
+ const copilot=initialStatus.agents.find(agent=>agent.id==='github-copilot');
+ const cursor=initialStatus.agents.find(agent=>agent.id==='cursor');
+ const claude=initialStatus.agents.find(agent=>agent.id==='claude');
+ assert.equal(copilot.canRun,false,'Copilot version detection must not claim authenticated status');
+ assert.equal(copilot.canAttempt,true,'Copilot can be tested by a real read-only stage');
+ assert.equal(copilot.authState,'unverified');
+ assert.equal(cursor.canRun,true,'Cursor status probe explicitly confirms authentication');
+ assert.equal(cursor.authState,'authenticated');
+ assert.equal(claude.canRun,false,'Claude version detection must not claim authenticated status');
+ assert.equal(claude.canAttempt,true,'Claude can be tested by a real read-only stage');
+ assert.equal(claude.authState,'unverified');
  const result=await hub.run({
   id:'humanale-orchestrator',
   mode:'analyze',
@@ -416,9 +429,9 @@ test('HumanALE local collaboration diagnostic invokes independent installed exec
  const planner=result.stages.find(stage=>stage.role==='planner');
  const worker=result.stages.find(stage=>stage.role==='worker');
  const reviewer=result.stages.at(-1);
- assert.ok(ready.some(agent=>agent.id===planner.agent));
- assert.ok(ready.some(agent=>agent.id===worker.agent));
- assert.ok(ready.some(agent=>agent.id===reviewer.agent));
+ assert.ok(candidates.some(agent=>agent.id===planner.agent));
+ assert.ok(candidates.some(agent=>agent.id===worker.agent));
+ assert.ok(candidates.some(agent=>agent.id===reviewer.agent));
  assert.notEqual(worker.agent,reviewer.agent,'Reviewer must use an executor different from Worker');
  assert.match(reviewer.text,/VERDICT: PASS/);
  assert.deepEqual(await readFile(join(root,'app.mjs')),before,'read-only collaboration must not edit project files');

@@ -460,6 +460,10 @@ async function refreshNaraSkillSnapshot(force=false){
 const conversationTeamAgentIds=['humanale-orchestrator','codex','github-copilot','cursor','claude'];
 const conversationTeamSkillIds=['reasoning','planner','program','bug-hunter','safety','terminal','github','memory'];
 function teamAgentStateLabel(agent){
+ if(agent?.authState==='authenticated'&&agent?.canRun===true)return {state:'ready',label:'terverifikasi'};
+ if(agent?.authState==='partially-verified')return {state:'configured',label:'sebagian siap'};
+ if(agent?.authState==='unauthenticated')return {state:'blocked',label:'belum login'};
+ if(agent?.authState==='unverified'||agent?.canAttempt===true)return {state:'installed',label:'uji koneksi'};
  if(agent?.canRun===true)return {state:'ready',label:'siap'};
  const state=String(agent?.state||'setup');
  const labels={external:'eksternal',installed:'terpasang',configured:'terkonfigurasi',setup:'belum siap',blocked:'terblokir',offline:'offline',error:'error'};
@@ -525,18 +529,21 @@ function renderConversationTeam(){
   appendTeamChip(skill.label+' · '+label,state==='complete'?'ready':state,skill.message||'');
  }
  if(skillHost&&!skills.length)appendTeamChip(skillHost,'Skill belum disinkronkan','setup');
- const structuredReady=agents.filter(item=>['codex','github-copilot','cursor','claude'].includes(item.id)&&item.canRun===true);
+ const structuredCandidates=agents.filter(item=>['codex','github-copilot','cursor','claude'].includes(item.id)&&(item.canRun===true||item.canAttempt===true));
+ const structuredReady=structuredCandidates.filter(item=>item.canRun===true);
+ const unverifiedCount=Math.max(0,structuredCandidates.length-structuredReady.length);
  const orchestrator=agents.find(item=>item.id==='humanale-orchestrator');
  const status=$('#conversationTeamStatus');
  const summary=$('#conversationTeamSummary');
- if(status)status.textContent=conversationTeamRunState==='running'?'Kolaborasi sedang berjalan':conversationTeamRunState==='complete'?'Tugas selesai · hasil tersedia':conversationTeamRunState==='failed'?'Tugas perlu diperiksa':orchestrator?.canRun?'HumanALE Orchestrator siap':'Tim AI belum lengkap';
- if(summary)summary.textContent=structuredReady.length+' executor lokal siap · '+skills.length+' skill terpantau';
+ if(status)status.textContent=conversationTeamRunState==='running'?'Kolaborasi sedang berjalan':conversationTeamRunState==='complete'?'Tugas selesai · hasil tersedia':conversationTeamRunState==='failed'?'Tugas perlu diperiksa':orchestrator?.authState==='unverified'?'Executor terdeteksi · autentikasi perlu diuji':orchestrator?.authState==='partially-verified'?'Sebagian executor terverifikasi':orchestrator?.canRun?'HumanALE Orchestrator siap':'Tim AI belum lengkap';
+ if(summary)summary.textContent=structuredReady.length+' executor terverifikasi · '+unverifiedCount+' perlu uji · '+skills.length+' skill terpantau';
  const note=$('#conversationTeamNote');
  if(note){
   if(conversationTeamRunError)note.textContent='Pekerjaan belum selesai: '+conversationTeamRunError;
-  else if(structuredReady.length<2)note.textContent='Mode Kerja kolaboratif memerlukan minimal dua executor lokal berbeda agar Worker dapat diperiksa Reviewer independen.';
+  else if(structuredCandidates.length<2)note.textContent='Uji kolaborasi memerlukan minimal dua CLI executor lokal yang terdeteksi. Login dan akses provider akan divalidasi melalui hasil tahap read-only.';
+  else if(structuredReady.length<2)note.textContent=structuredCandidates.length+' executor lokal terdeteksi; '+unverifiedCount+' status autentikasinya belum terverifikasi. Jalankan Uji Kolaborasi untuk menguji eksekusi read-only yang sebenarnya.';
   else if(latestAgentStatus?.workReadiness?.error)note.textContent='Mode Kerja menunggu kesiapan folder proyek: '+latestAgentStatus.workReadiness.error;
-  else note.textContent='Semua executor terverifikasi bekerja berurutan: Planner, Specialist bila tersedia, Worker, lalu Reviewer. Skill tidak menambah izin sistem.';
+  else note.textContent='Executor yang terverifikasi bekerja berurutan: Planner, Specialist bila tersedia, Worker, lalu Reviewer. Skill tidak menambah izin sistem.';
  }
  renderConversationWorkflow();
 }
@@ -570,11 +577,11 @@ async function runConversationTeamDiagnostic(){
   latestAgentStatus=status;
   if(status?.error)throw new Error(status.error);
   const executors=(status.agents||[]).filter(agent=>
-   ['codex','github-copilot','cursor','claude'].includes(agent.id)&&agent.canRun===true
+   ['codex','github-copilot','cursor','claude'].includes(agent.id)&&(agent.canRun===true||agent.canAttempt===true)
   );
   renderConversationTeam();
   if(executors.length<2){
-   throw new Error('Uji kolaborasi independen memerlukan minimal dua executor lokal yang terpasang dan sudah login. Terdeteksi '+executors.length+'. Periksa Codex, Copilot CLI, Cursor, atau Claude Code di Kelola agent.');
+   throw new Error('Uji kolaborasi memerlukan minimal dua CLI executor lokal yang terdeteksi. Status autentikasi akan diuji melalui eksekusi read-only yang sebenarnya. Terdeteksi '+executors.length+'. Periksa Codex, Copilot CLI, Cursor, atau Claude Code di Kelola agent.');
   }
   setConversationTeamRunState('running');
   const prompt=[

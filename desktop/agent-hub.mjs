@@ -118,6 +118,25 @@ async function codexLoginStatus(executable,cwd){
  const result=await runProcess(executable,['login','status'],{cwd,timeout:12000});
  return {...result,...codexLoginProbe(result)};
 }
+export function cursorLoginProbe(result={}){
+ const output=String(result.stdout||'')+'\n'+String(result.stderr||'');
+ if(/\b(?:not authenticated|unauthenticated|not logged in|logged out|authentication required)\b/i.test(output)){
+  return {ready:false,canAttempt:false,authState:'unauthenticated',errorCode:'CURSOR_NOT_AUTHENTICATED'};
+ }
+ if(result.code===0&&!result.timedOut&&!result.error&&/\bauthenticated\s*[:=]\s*(?:yes|true)\b|\blogged\s+in\b|\bsigned\s+in\b/i.test(output)){
+  return {ready:true,canAttempt:true,authState:'authenticated',errorCode:null};
+ }
+ return {
+  ready:false,
+  canAttempt:true,
+  authState:'unverified',
+  errorCode:result.timedOut?'CURSOR_STATUS_TIMEOUT':result.error?'CURSOR_STATUS_FAILED':'CURSOR_AUTH_UNVERIFIED'
+ };
+}
+async function cursorLoginStatus(executable,cwd){
+ const result=await runProcess(executable,['status'],{cwd,timeout:12000});
+ return cursorLoginProbe(result);
+}
 export function agentDefinitions(){return agents.map(({commands,envPath,configEnv,configEnvs,secondaryEnv,...agent})=>({...agent}));}
 
 export function classifyTaskDifficulty(prompt=''){
@@ -242,14 +261,32 @@ export class DeveloperAgentHub{
  async status(){
   const projectRoot=this.getProjectRoot(),projectRootReady=await this.projectRootReady();
   const workReadiness=await inspectMaintenanceReadiness(projectRoot);
+  const structuredIds=['github-copilot','codex','cursor','claude'];
   const rows=await Promise.all(agents.map(async agent=>{
-   if(agent.internal)return {id:agent.id,name:agent.name,method:agent.method,state:'setup',detail:'Menunggu executor lokal yang aman.',canRun:false,url:agent.url,executable:true};
+   if(agent.internal)return {id:agent.id,name:agent.name,method:agent.method,state:'setup',detail:'Menunggu executor lokal yang aman.',canRun:false,canAttempt:false,authState:'unavailable',url:agent.url,executable:true};
    const executable=await locate(agent);
    const configNames=[agent.configEnv,...(agent.configEnvs||[])].filter(Boolean);
    const configured=configNames.length?Boolean(configNames.some(name=>(process.env[name]||'').trim())&&(!agent.secondaryEnv||(process.env[agent.secondaryEnv]||'').trim())):false;
    const codexAuth=agent.id==='codex'&&executable?await codexLoginStatus(executable,projectRoot):null;
+   const cursorAuth=agent.id==='cursor'&&executable?await cursorLoginStatus(executable,projectRoot):null;
    let state='available',detail='';
    if(agent.external){state='external';detail='Terdaftar di Agent Hub sebagai konektor eksternal; HumanALE god egine tidak menjalankannya langsung.';}
+   else if(agent.id==='github-copilot'&&executable){
+    state='installed';
+    detail='CLI terdeteksi. Versi CLI tidak membuktikan login; autentikasi baru dikonfirmasi setelah permintaan read-only benar-benar berhasil.';
+   }
+   else if(agent.id==='claude'&&executable){
+    state='installed';
+    detail='CLI terdeteksi. Status login belum diverifikasi otomatis; autentikasi dikonfirmasi melalui hasil eksekusi read-only, bukan deteksi versi.';
+   }
+   else if(agent.id==='cursor'&&executable){
+    state=cursorAuth?.ready?'configured':'installed';
+    detail=cursorAuth?.ready
+     ?'Cursor CLI terdeteksi dan perintah status mengonfirmasi autentikasi.'
+     :cursorAuth?.authState==='unauthenticated'
+      ?'Cursor CLI terdeteksi tetapi belum login. Jalankan agent login.'
+      :'Cursor CLI terdeteksi; status autentikasi belum dapat dipastikan. Uji kolaborasi akan memvalidasi hasil eksekusi read-only.';
+   }
    else if(agent.runtime){state=configured?'configured':executable?'installed':'setup';detail=configured?'Kredensial provider runtime terdeteksi dari environment.':executable?'CLI lokal terdeteksi; provider runtime masih memerlukan kredensial environment.':'Provider tersedia di HumanALE god egine tetapi belum dikonfigurasi di environment.';}
    else if(agent.id==='replit'){state='mcp-client';detail='Replit Agent menerima remote MCP dari halaman Integrations.';}
    else if(agent.id==='pieces'){state=configured?'configured':executable?'installed':'setup';detail=configured?'PIECES_MCP_URL terdeteksi.':executable?'PiecesOS terdeteksi; salin URL MCP ke PIECES_MCP_URL bila ingin dipakai lintas agent.':'Install PiecesOS lalu ambil URL MCP lokal.';}
@@ -257,16 +294,35 @@ export class DeveloperAgentHub{
    else if(agent.id==='codex'&&executable){state=codexAuth?.ready?'configured':'installed';detail=codexAuth?.ready?'Codex CLI terdeteksi dan login aktif.':codexProbeMessage(codexAuth);}
    else if(executable){state='installed';detail='CLI/aplikasi lokal terdeteksi.';}
    else{state='setup';detail=agent.method.includes('MCP')?'Belum terdeteksi lokal; integrasi MCP tetap didukung oleh produknya.':'Belum dikonfigurasi.';}
-   return {id:agent.id,name:agent.name,method:agent.method,state,detail,canRun:Boolean(agent.canRun&&executable&&(agent.id!=='codex'||codexAuth?.ready)),url:agent.url,executable:executable?true:false,...(codexAuth?.errorCode?{errorCode:codexAuth.errorCode}:{})};
+   const authState=!structuredIds.includes(agent.id)?undefined:
+    !executable?'unavailable':
+    agent.id==='codex'?(codexAuth?.ready?'authenticated':'unauthenticated'):
+    agent.id==='cursor'?(cursorAuth?.authState||'unverified'):'unverified';
+   const canAttempt=Boolean(structuredIds.includes(agent.id)&&executable&&(
+    agent.id==='codex'?codexAuth?.ready:
+    agent.id==='cursor'?cursorAuth?.canAttempt:
+    true
+   ));
+   const canRun=Boolean(structuredIds.includes(agent.id)&&executable&&(
+    agent.id==='codex'?codexAuth?.ready:
+    agent.id==='cursor'?cursorAuth?.ready:
+    false
+   ));
+   return {id:agent.id,name:agent.name,method:agent.method,state,detail,canRun,canAttempt,authState,url:agent.url,executable:executable?true:false,...(codexAuth?.errorCode?{errorCode:codexAuth.errorCode}:{})};
   }));
-  const structuredExecutors=rows.filter(row=>['github-copilot','codex','cursor','claude'].includes(row.id)&&row.canRun);
+  const structuredCandidates=rows.filter(row=>structuredIds.includes(row.id)&&(row.canRun||row.canAttempt));
+  const structuredVerified=structuredCandidates.filter(row=>row.canRun===true);
   const orchestrator=rows.find(row=>row.id==='humanale-orchestrator');
   if(orchestrator){
-   orchestrator.state=structuredExecutors.length?'configured':'setup';
-   orchestrator.canRun=structuredExecutors.length>0;
-   orchestrator.detail=structuredExecutors.length
-    ?'Pipeline terstruktur siap: Planner membaca, Worker mengerjakan dengan izin terbatas, Reviewer memeriksa ulang. Executor: '+structuredExecutors.map(row=>row.name).join(', ')+'.'
-    :'Pasang/login minimal satu executor: GitHub Copilot, OpenAI Codex, Cursor, atau Claude Code.';
+   orchestrator.state=structuredCandidates.length?(structuredVerified.length?'configured':'installed'):'setup';
+   orchestrator.canRun=structuredCandidates.length>0;
+   orchestrator.canAttempt=structuredCandidates.length>0;
+   orchestrator.authState=!structuredCandidates.length?'unavailable':
+    structuredVerified.length===structuredCandidates.length?'authenticated':
+    structuredVerified.length?'partially-verified':'unverified';
+   orchestrator.detail=structuredCandidates.length
+    ?'Pipeline terstruktur dapat diuji dengan executor lokal: '+structuredCandidates.map(row=>row.name).join(', ')+'. Autentikasi provider tanpa probe aman baru dianggap terverifikasi setelah tahap read-only menghasilkan output.'
+    :'Pasang/login minimal satu executor lokal: GitHub Copilot, OpenAI Codex, Cursor, atau Claude Code.';
   }
   return {
    projectRoot,
@@ -286,7 +342,12 @@ export class DeveloperAgentHub{
    if(id==='codex'){
     const auth=await codexLoginStatus(executable,cwd);
     if(!auth.ready)continue;
+   }else if(id==='cursor'){
+    const auth=await cursorLoginStatus(executable,cwd);
+    if(!auth.canAttempt)continue;
    }else{
+    // --version verifies installation only. Copilot and Claude remain
+    // authentication-unverified until their actual read-only stage succeeds.
     const probe=await runProcess(executable,['--version'],{cwd,timeout:8000});
     if(probe.code!==0||probe.timedOut)continue;
    }

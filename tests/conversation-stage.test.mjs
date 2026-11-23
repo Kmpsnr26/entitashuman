@@ -81,6 +81,8 @@ test('conversation dock shows a compact collapsible live Agent and NARA Skill pa
  assert.match(app,/function renderConversationWorkflow\(\)/);
  assert.match(app,/latestNaraSkillSnapshot\?\.skills/);
  assert.match(app,/item\.canRun===true/);
+ assert.match(app,/item\.canAttempt===true/);
+ assert.match(app,/authState/);
  assert.match(app,/conversationTeamToggle/);
  assert.match(app,/details\.hidden=!open/);
  assert.match(app,/preferredAgent=selectedDeveloperAgentId\|\|\(orchestratorReady\?'humanale-orchestrator':''\)/);

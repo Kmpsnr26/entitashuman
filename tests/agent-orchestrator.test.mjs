@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {classifyTaskDifficulty,reviewVerdict,selectStructuredRoles,requireIndependentWorkReview,buildStructuredSkillPlan,agentTimeoutMs} from '../desktop/agent-hub.mjs';
+import {classifyTaskDifficulty,reviewVerdict,selectStructuredRoles,requireIndependentWorkReview,buildStructuredSkillPlan,agentTimeoutMs,cursorLoginProbe} from '../desktop/agent-hub.mjs';
 
 test('structured HumanALE orchestrator classifies difficult work and review verdicts',()=>{
  assert.equal(classifyTaskDifficulty('halo'),'low');
@@ -26,6 +26,15 @@ test('structured HumanALE orchestrator classifies difficult work and review verd
  assert.equal(single.degraded,true);
  assert.equal(single.worker,single.reviewer);
  assert.equal(selectStructuredRoles([]),null);
+});
+
+test('Cursor auth probe distinguishes verified, unauthenticated, and unknown status output',()=>{
+ const verified=cursorLoginProbe({code:0,stdout:'Authenticated: true'});
+ assert.deepEqual(verified,{ready:true,canAttempt:true,authState:'authenticated',errorCode:null});
+ const loggedOut=cursorLoginProbe({code:1,stdout:'Not authenticated'});
+ assert.deepEqual(loggedOut,{ready:false,canAttempt:false,authState:'unauthenticated',errorCode:'CURSOR_NOT_AUTHENTICATED'});
+ const versionOnly=cursorLoginProbe({code:0,stdout:'Cursor CLI 1.0.0'});
+ assert.deepEqual(versionOnly,{ready:false,canAttempt:true,authState:'unverified',errorCode:'CURSOR_AUTH_UNVERIFIED'});
 });
 
 test('directly selected work executors cannot bypass the final independent Reviewer',()=>{
@@ -77,6 +86,11 @@ test('structured HumanALE orchestrator keeps planning, work and review bounded',
  assert.match(hub,/DEGRADED SINGLE-EXECUTOR/);
  assert.match(hub,/INDEPENDENT REVIEW/);
  assert.match(hub,/runProcess\(executable,\['--version'\]/);
+ assert.match(hub,/cursorLoginProbe/);
+ assert.match(hub,/authState/);
+ assert.match(hub,/canAttempt/);
+ assert.match(hub,/id==='github-copilot'&&executable/);
+ assert.match(hub,/id==='claude'&&executable/);
  assert.match(hub,/buildMaintenanceWorkPrompt\(prompt\)/);
  const policy=await readFile(new URL('../desktop/agent-maintenance-policy.mjs',import.meta.url),'utf8');
  assert.match(policy,/Jangan git push, git merge, publish/);
