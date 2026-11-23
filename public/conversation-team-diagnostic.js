@@ -62,10 +62,10 @@ export function validateConversationTeamDiagnostic(result) {
   }
 
   const verdict = String(reviewer.text || "").toUpperCase();
-  if (/\\bVERDICT\\s*:\\s*NEEDS_FIX\\b/.test(verdict)) {
+  if (/\bVERDICT\s*:\s*NEEDS_FIX\b/.test(verdict)) {
     return fail("Reviewer memberi VERDICT: NEEDS_FIX.");
   }
-  if (!/\\bVERDICT\\s*:\\s*PASS\\b/.test(verdict)) {
+  if (!/\bVERDICT\s*:\s*PASS\b/.test(verdict)) {
     return fail("Reviewer belum memberikan VERDICT: PASS.");
   }
 
