@@ -8,6 +8,8 @@ function makeTx(id,events){
   id,
   cwd:'/repo',
   isolatedHome:'/isolated/'+id,
+  baseHead:'1'.repeat(40),
+  baseBranch:'maintenance/integration',
   released:false,
   async inspect(){
    events.push(id+':inspect');
@@ -39,6 +41,7 @@ test('autopilot + trusted broker rollback failed first attempt then use a fresh 
   detector:async()=>({ok:true,code:'BUG_FOUND',summary:'bug'}),
   reproducer:async()=>({ok:true,code:'REPRODUCED',summary:'reproduced'}),
   transactionFactory:async()=>makeTx('tx-'+(++txSequence),events),
+  checkpointInspector:async()=>({empty:false,changeFingerprint:'a'.repeat(64),changedFiles:1,totalBytes:64}),
   commandRunner:async ({args})=>{
    if(args.length===1&&args[0]==='test'){
     testRuns++;
@@ -90,6 +93,7 @@ test('autopilot + trusted broker blocks unsafe inspection and rolls transaction 
   detector:async()=>({ok:true,code:'BUG_FOUND',summary:'bug'}),
   reproducer:async()=>({ok:true,code:'REPRODUCED',summary:'reproduced'}),
   transactionFactory:async()=>tx,
+  checkpointInspector:async()=>({empty:false,changeFingerprint:'a'.repeat(64),changedFiles:1,totalBytes:64}),
   commandRunner:async()=>({ok:true,code:'PASS',summary:'pass'})
  });
  const auto=createAIAutopilotTransaction({
@@ -118,6 +122,7 @@ test('integrated success never invokes rollback and still never publishes',async
   detector:async()=>({ok:true,code:'BUG_FOUND',summary:'bug'}),
   reproducer:async()=>({ok:true,code:'REPRODUCED',summary:'reproduced'}),
   transactionFactory:async()=>tx,
+  checkpointInspector:async()=>({empty:false,changeFingerprint:'a'.repeat(64),changedFiles:1,totalBytes:64}),
   commandRunner:async ({args})=>{
    events.push(args.join(' '));
    return {ok:true,code:'PASS',summary:'pass'};

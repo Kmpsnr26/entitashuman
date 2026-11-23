@@ -4,6 +4,7 @@ import {delimiter,dirname,isAbsolute,join,relative,sep} from 'node:path';
 import {beginMaintenanceTransaction} from './agent-maintenance-transaction.mjs';
 import {sanitizeMaintenanceEnvironment} from './agent-maintenance-guard.mjs';
 import {markMaintenanceProcessUnconfirmed,terminateMaintenanceProcessTree} from './agent-trusted-process-broker.mjs';
+import {computeMaintenanceCheckpointState} from './agent-trusted-checkpoint-broker.mjs';
 
 export const TRUSTED_MAINTENANCE_BROKER_VERSION='1.0.0';
 
@@ -169,6 +170,7 @@ export class TrustedMaintenanceBroker{
   reproducer,
   transactionFactory=beginMaintenanceTransaction,
   commandRunner=defaultCommandRunner,
+  checkpointInspector=computeMaintenanceCheckpointState,
   testPlan=FIXED_COMMANDS.test,
   verifyPlan=FIXED_COMMANDS.verify,
   commandTimeoutMs=180000
@@ -182,12 +184,14 @@ export class TrustedMaintenanceBroker{
   requireFn(reproducer,'reproducer');
   requireFn(transactionFactory,'transactionFactory');
   requireFn(commandRunner,'commandRunner');
+  requireFn(checkpointInspector,'checkpointInspector');
   this.projectRoot=root;
   this.agentHub=agentHub;
   this.detector=detector;
   this.reproducer=reproducer;
   this.transactionFactory=transactionFactory;
   this.commandRunner=commandRunner;
+  this.checkpointInspector=checkpointInspector;
   this.testPlan=this.validateFixedPlan(testPlan,'test');
   this.verifyPlan=this.validateFixedPlan(verifyPlan,'verify');
   this.commandTimeoutMs=Number.isInteger(commandTimeoutMs)&&commandTimeoutMs>=1000&&commandTimeoutMs<=600000
@@ -365,13 +369,35 @@ export class TrustedMaintenanceBroker{
   if(!after.ok)return after;
 
   const session=this.session(transactionId);
+  let checkpoint;
+  try{
+   checkpoint=await this.checkpointInspector(session.transaction.cwd,session.transaction.baseHead);
+  }catch(error){
+   return {
+    ok:false,
+    code:'CHECKPOINT_EVIDENCE_FAILED',
+    summary:redact(error?.message||error)
+   };
+  }
+  if(checkpoint.empty||checkpoint.changedFiles!==after.changedFiles){
+   return {
+    ok:false,
+    code:'CHECKPOINT_EVIDENCE_MISMATCH',
+    summary:'Trusted verification could not bind the exact post-verify changeset.'
+   };
+  }
   try{
    await session.transaction.release();
    this.sessions.delete(transactionId);
    return {
     ok:true,
     code:'VERIFY_PASS',
-    summary:'Trusted verification passed; patch remains uncommitted in worktree.'
+    summary:'Trusted verification passed; patch remains uncommitted in worktree.',
+    baseHead:session.transaction.baseHead,
+    baseBranch:session.transaction.baseBranch,
+    changeFingerprint:checkpoint.changeFingerprint,
+    changedFiles:checkpoint.changedFiles,
+    totalBytes:checkpoint.totalBytes
    };
   }catch(error){
    return {
