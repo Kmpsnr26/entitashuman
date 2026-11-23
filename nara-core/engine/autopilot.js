@@ -73,6 +73,10 @@ export class NaraAutopilot{
       if(!next)break;
       const outcome=await this.execute(next);
       this.outcomes.set(next.id,outcome);
+      if(!outcome.ok&&outcome.decision?.action==='retry'){
+        this.scheduler.requeue(next.id);
+        this.outcomes.delete(next.id);
+      }
     }
   }
   async execute(next){
