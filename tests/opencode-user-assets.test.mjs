@@ -140,3 +140,36 @@ test("security auditor documentation does not claim shell access when policy den
   assert.match(content, /\| `shell` \| ❌ Denied by frontmatter/);
   assert.doesNotMatch(content, /\| `shell` \| ✅ Audit tools/);
 });
+
+
+test("every imported agent explicitly asks or denies shell, edit, and external-directory access", () => {
+  const readOnly = new Set([
+    "architecture-planner",
+    "architecture-planner-advanced",
+    "code-reviewer",
+    "image-document-analyst",
+    "security-auditor",
+    "screenshot-analyzer",
+    "software-architect",
+    "software-architect-advanced",
+    "vision-specialist",
+  ]);
+  assert.equal(manifest.agents.length, 27);
+
+  for (const { id } of manifest.agents) {
+    const content = readAgent(id);
+    const frontmatter = content.slice(0, content.indexOf("\n---", 4));
+    const expected = readOnly.has(id) ? "deny" : "ask";
+    for (const action of ["shell", "edit", "external_directory"]) {
+      const rule = new RegExp(
+        "action: " + action + "\\s+resource: \"\\*\"\\s+effect: " + expected,
+      );
+      assert.match(frontmatter, rule, id + " must " + expected + " " + action);
+    }
+  }
+});
+
+test("repository and MCP specialist tools require approval", () => {
+  assert.match(readAgent("github-specialist"), /action: github_\*/);
+  assert.match(readAgent("mcp-specialist"), /action: "\*_\*"/);
+});
