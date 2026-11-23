@@ -618,6 +618,8 @@ jobs:
             const candidates = JSON.parse(process.env.CANDIDATES || '[]');
             const fallback = [];
             const delegated = [];
+            const queued = [];
+            const tokenConfigured = process.env.COPILOT_TOKEN_CONFIGURED === 'true';
             const owner = context.repo.owner;
             const repo = context.repo.repo;
 
@@ -628,6 +630,14 @@ jobs:
                 : { fallback: [], queued: candidates };
             }
             // cloud-auto-repair-test:end fallback-permission-routing
+
+            // cloud-auto-repair-test:start no-token-routing
+            function routeWithoutCopilotToken({alreadyAssigned,hasOpenFallback}) {
+              if (alreadyAssigned) return 'delegated';
+              if (hasOpenFallback) return 'fallback';
+              return 'queued';
+            }
+            // cloud-auto-repair-test:end no-token-routing
 
             async function actionsCanCreatePullRequests() {
               try {
@@ -642,14 +652,10 @@ jobs:
               }
             }
 
-            if (process.env.COPILOT_TOKEN_CONFIGURED !== 'true') {
+            if (!tokenConfigured) {
               core.notice(
-                'Copilot Cloud Agent is intentionally deferred. No cloud agent was invoked; eligible issues remain queued for an available local executor or manual handling.'
+                'Copilot Cloud Agent is intentionally deferred. Existing Copilot assignments and fallback PRs will be preserved; only untouched candidates will be queued.'
               );
-              core.setOutput('fallback_issues', '[]');
-              core.setOutput('queued_issues', JSON.stringify(candidates));
-              core.setOutput('delegated_issues', '[]');
-              return;
             }
 
             for (const candidate of candidates) {
@@ -674,8 +680,17 @@ jobs:
                   head: owner + ':automation/issue-' + candidate.issue_number,
                   per_page: 1
                 });
-                if (existingFallback.data.length > 0) {
+                const hasOpenFallback = existingFallback.data.length > 0;
+                if (hasOpenFallback) {
                   fallback.push(candidate);
+                  continue;
+                }
+
+                if (!tokenConfigured) {
+                  const route = routeWithoutCopilotToken({alreadyAssigned,hasOpenFallback});
+                  if (route === 'delegated') delegated.push(candidate);
+                  else if (route === 'fallback') fallback.push(candidate);
+                  else queued.push(candidate);
                   continue;
                 }
 
@@ -724,7 +739,7 @@ jobs:
               fallback.length > 0 && await actionsCanCreatePullRequests()
             );
             core.setOutput('fallback_issues', JSON.stringify(route.fallback));
-            core.setOutput('queued_issues', JSON.stringify(route.queued));
+            core.setOutput('queued_issues', JSON.stringify([...queued, ...route.queued]));
             core.setOutput('delegated_issues', JSON.stringify(delegated));
 
       - name: Record delegation state
