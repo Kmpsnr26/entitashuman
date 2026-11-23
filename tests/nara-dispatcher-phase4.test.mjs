@@ -383,3 +383,27 @@ test('NARA Core does not wait forever for an orphaned running task',async()=>{
   assert.equal(result.ok,false);
   assert.equal(result.reason,'task-already-running');
 });
+
+
+test('Coordinator work Goal requires an independent reviewer PASS',async()=>{
+  const nara=createOrchestrator();nara.start();
+  try{
+    const coordinator=createNaraAgentCoordinator({
+      nara,
+      agentHub:{async run(value){
+        return {
+          text:'Work output for '+value.prompt,
+          maintenance:{changedFiles:1},
+          stages:value.prompt.includes('review-pass')
+            ?[{role:'reviewer',text:'Review complete. VERDICT: PASS'}]
+            :[]
+        };
+      }}
+    });
+    const rejected=await coordinator.run({id:'codex',prompt:'work without reviewer',mode:'work'});
+    assert.match(rejected.error,/reviewer independen/);
+    assert.equal(rejected.nara.goalStatus,'blocked');
+    const accepted=await coordinator.run({id:'codex',prompt:'work with review-pass',mode:'work'});
+    assert.equal(accepted.nara.goalStatus,'complete');
+  }finally{nara.stop();}
+});
