@@ -69,13 +69,19 @@ export class NaraAutopilot{
   }
   async drain(){
     this.running=true;
+    const retried=new Set();
     while(true){
       const next=this.scheduler.next({isRunnable:task=>this.canRun(task)});
       if(!next)break;
-      const outcome=await this.execute(next);
+      let outcome=await this.execute(next);
+      if(outcome.ok&&retried.has(next.id)){
+        outcome={...outcome,recovered:true};
+        this.onEvent('autopilot.task.recovered',{id:next.id,label:next.label});
+      }
       this.outcomes.set(next.id,outcome);
       while(this.outcomes.size>(this.scheduler.limit||200))this.outcomes.delete(this.outcomes.keys().next().value);
       if(!outcome.ok&&outcome.decision?.action==='retry'){
+        retried.add(next.id);
         this.scheduler.requeue(next.id);
         this.outcomes.delete(next.id);
       }
