@@ -617,7 +617,7 @@ jobs:
           script: |
             const candidates = JSON.parse(process.env.CANDIDATES || '[]');
             const fallback = [];
-            const existingFallback = [];
+            const existingFallbackCandidates = [];
             const delegated = [];
             const queued = [];
             const tokenConfigured = process.env.COPILOT_TOKEN_CONFIGURED === 'true';
@@ -669,18 +669,18 @@ jobs:
                 const alreadyAssigned = (issue.data.assignees || []).some((assignee) =>
                   assignee.login.startsWith('copilot-swe-agent')
                 );
-                const existingFallback = await github.rest.pulls.list({
+                const existingFallbackPulls = await github.rest.pulls.list({
                   owner,
                   repo,
                   state: 'open',
                   head: owner + ':automation/issue-' + candidate.issue_number,
                   per_page: 1
                 });
-                const hasOpenFallback = existingFallback.data.length > 0;
+                const hasOpenFallback = existingFallbackPulls.data.length > 0;
                 if (!tokenConfigured) {
                   const route = routeWithoutCopilotToken({alreadyAssigned,hasOpenFallback});
                   if (route === 'delegated') delegated.push(candidate);
-                  else if (route === 'fallback') existingFallback.push(candidate);
+                  else if (route === 'fallback') existingFallbackCandidates.push(candidate);
                   else queued.push(candidate);
                   continue;
                 }
@@ -690,7 +690,7 @@ jobs:
                   continue;
                 }
                 if (hasOpenFallback) {
-                  existingFallback.push(candidate);
+                  existingFallbackCandidates.push(candidate);
                   continue;
                 }
 
@@ -738,7 +738,7 @@ jobs:
               fallback,
               fallback.length > 0 && await actionsCanCreatePullRequests()
             );
-            core.setOutput('fallback_issues', JSON.stringify([...existingFallback, ...route.fallback]));
+            core.setOutput('fallback_issues', JSON.stringify([...existingFallbackCandidates, ...route.fallback]));
             core.setOutput('queued_issues', JSON.stringify([...queued, ...route.queued]));
             core.setOutput('delegated_issues', JSON.stringify(delegated));
 
