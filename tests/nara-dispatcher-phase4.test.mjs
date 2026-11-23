@@ -302,6 +302,56 @@ test('NARA Core timeout aborts the handler and releases dispatcher capacity',asy
   assert.equal(next.ok,true);
 });
 
+test('NARA Core honors recovery delay before retrying an idempotent task',async()=>{
+  const scheduler=createTaskScheduler();
+  const watchdog=createWatchdog();
+  const capabilities=createCapabilityBroker();
+  const experience=createExperienceModel();
+  const retryDelayMs=80;
+  const recovery={decide(){return {action:'retry',reason:'idempotent-retry',delayMs:retryDelayMs};}};
+  const autopilot=createAutopilot({scheduler,watchdog,recovery,capabilities,experience});
+  let calls=0;
+  autopilot.registerHandler('test.retry-delay',async()=>{
+    calls+=1;
+    if(calls===1)throw new Error('temporary provider failure');
+    return 'recovered';
+  },{idempotent:true});
+  autopilot.enqueue({id:'retry-delay-task',handler:'test.retry-delay'});
+  const startedAt=Date.now();
+
+  const result=await autopilot.runTask('retry-delay-task');
+
+  assert.equal(result.ok,true);
+  assert.equal(result.result,'recovered');
+  assert.equal(calls,2);
+  assert.ok(Date.now()-startedAt>=retryDelayMs-15,'retry must wait for the recovery backoff');
+  assert.equal(scheduler.get('retry-delay-task').status,'complete');
+});
+
+test('NARA Core classifies an internal timeout separately from caller cancellation',async()=>{
+  const scheduler=createTaskScheduler();
+  const watchdog=createWatchdog();
+  const capabilities=createCapabilityBroker();
+  const experience=createExperienceModel();
+  let recoveryInput=null;
+  const recovery={decide(input){recoveryInput=input;return {action:'escalate',reason:'timeout-observed',delayMs:0};}};
+  const autopilot=createAutopilot({scheduler,watchdog,recovery,capabilities,experience});
+  let signalSeen=false;
+  autopilot.registerHandler('test.timeout-category',async({signal})=>new Promise(()=>{
+    signal.addEventListener('abort',()=>{signalSeen=true;},{once:true});
+  }),{timeoutMs:1000,idempotent:true});
+  autopilot.enqueue({id:'timeout-category-task',handler:'test.timeout-category'});
+
+  const result=await autopilot.runTask('timeout-category-task');
+
+  assert.equal(signalSeen,true);
+  assert.equal(result.ok,false);
+  assert.equal(result.reason,undefined);
+  assert.equal(result.decision.reason,'timeout-observed');
+  assert.equal(recoveryInput.errorCategory,'timeout');
+  assert.equal(scheduler.get('timeout-category-task').status,'failed');
+});
+
 test('NARA Core GoalManager rejects completion without verified evidence',()=>{
   const goals=createGoalManager();
   goals.create({id:'evidence-goal',successCriteria:['deliverable exists','verification passed']});
