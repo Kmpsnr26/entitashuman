@@ -92,9 +92,10 @@ test('conversation dock shows a compact collapsible live Agent and NARA Skill pa
 
 
 test('HumanALE Desktop exposes a read-only local collaboration OAT using detected executors',async()=>{
- const [html,app]=await Promise.all([
+ const [html,app,validator]=await Promise.all([
   readFile(file('public/index.html'),'utf8'),
-  readFile(file('public/app.js'),'utf8')
+  readFile(file('public/app.js'),'utf8'),
+  readFile(file('public/conversation-team-diagnostic.js'),'utf8')
  ]);
  assert.match(html,/id="conversationTeamTest"/);
  assert.match(html,/Uji kolaborasi/);
@@ -105,12 +106,13 @@ test('HumanALE Desktop exposes a read-only local collaboration OAT using detecte
  assert.match(app,/mode:'analyze'/);
  assert.match(app,/prepareMemory:prepareEffectiveMemoryContext/);
  assert.match(app,/await desktop\.runAgent\(payload\)/);
- assert.match(app,/stage\.role==='planner'/);
- assert.match(app,/stage\.role==='worker'/);
- assert.match(app,/stage\.role==='reviewer'/);
- assert.match(app,/worker\.agent===reviewer\.agent/);
- assert.match(app,/VERDICT/);
- assert.match(app,/stage\.role==='specialist'/);
+ assert.match(app,/import \{validateConversationTeamDiagnostic\} from '\.\/conversation-team-diagnostic\.js'/);
+ assert.match(app,/validateConversationTeamDiagnostic\(result\)/);
+ assert.match(validator,/result\?\.executors/);
+ assert.match(validator,/expectedRoles/);
+ assert.match(validator,/stage\.agent/);
+ assert.match(validator,/worker\.agent===reviewer\.agent/);
+ assert.match(validator,/VERDICT/);
  assert.match(app,/conversationTeamTest'\)\?\.addEventListener/);
  assert.match(app,/Jangan mengedit, membuat, menghapus file/);
 });
