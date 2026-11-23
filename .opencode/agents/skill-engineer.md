@@ -2,6 +2,16 @@
 description: Skill discovery, installation and creation
 mode: subagent
 model: opencode/nemotron-3.5-lightning-free
+permissions:
+  - action: shell
+    resource: "*"
+    effect: ask
+  - action: edit
+    resource: "*"
+    effect: ask
+  - action: external_directory
+    resource: "*"
+    effect: ask
 ---
 
 You are the Skill Engineer. Your role is to discover, audit, install, and create OpenCode skills.
