@@ -73,6 +73,7 @@ export class NaraAutopilot{
       if(!next)break;
       const outcome=await this.execute(next);
       this.outcomes.set(next.id,outcome);
+      while(this.outcomes.size>200)this.outcomes.delete(this.outcomes.keys().next().value);
       if(!outcome.ok&&outcome.decision?.action==='retry'){
         this.scheduler.requeue(next.id);
         this.outcomes.delete(next.id);
@@ -112,7 +113,7 @@ export class NaraAutopilot{
       try{result=await Promise.race([work,timeout,aborted]);}
       finally{clearTimeout(timeoutHandle);}
       if(controller.signal.aborted)throw controller.signal.reason||new Error('Task dibatalkan.');
-      const task=this.scheduler.complete(started.id,result);
+      const task=this.scheduler.complete(started.id);
       this.experience.record(started.handler,{ok:true,durationMs:Date.now()-startedAt});
       this.onEvent('autopilot.task.complete',{id:started.id,label:started.label});
       return {ok:true,task,result};
