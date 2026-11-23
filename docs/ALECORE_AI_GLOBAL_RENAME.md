@@ -40,7 +40,7 @@ Report mode is non-blocking during migration. Strict mode is a release gate and 
 - Branch: `codex/alecore-ai-global-rename-20261124`
 - Base: `main` at `741045aa5925dd27058499a1daadf16a606ad9aa`.
 - Latest inspected branch head: `3a5f1f3162eff96ada6d53a7ccbab8af0a2b0b69`.
-- Repository tree: 479 entries; 262 paths contain a case-insensitive `nara` substring (path count, not file count). Most remaining references are internal compatibility names, import paths, test paths, persisted event/region IDs, workflow/environment names, and auth/session contracts.
+- Repository tree: 480 entries; 262 paths contain a case-insensitive `nara` substring (path count, not file count; not all are user-facing). Remaining references include internal compatibility names, import paths, test paths, persisted event/region IDs, workflow/environment names, and auth/session contracts.
 - The desktop main process uses `desktop/alecore-agent-coordinator.mjs` and `desktop/AleCoreCloudContextClient`; legacy implementations remain exported as aliases while consumers transition.
 - Canonical cloud desktop settings are `ALECORE_CLOUD_ORIGIN` and `ALECORE_AUTH_ORIGIN`; non-empty new values take precedence and blank/missing values fall back to the legacy `NARA_CLOUD_ORIGIN` / `NARA_AUTH_ORIGIN`.
 - Canonical Creator bootstrap settings are `ALECORE_CREATOR_USERNAME` and `ALECORE_CREATOR_PASSWORD`; legacy `NARA_CREATOR_*` variables remain supported. Desktop bootstrap removes both password variables from its process environment after provisioning.
@@ -52,4 +52,4 @@ Report mode is non-blocking during migration. Strict mode is a release gate and 
 
 ## Completion criteria
 
-The migration is complete only when first-party product-facing references and internal identifiers consistently use AleCore AI, the final audit has no unapproved findings, all required CI checks pass, and a reviewer can trace every compatibility exception. Tests and builds must be executed on a real checkout before completion is declared.
+The migration is complete only when first-party product-facing references use AleCore AI, remaining internal identifiers either use canonical names or have explicitly documented and tested compatibility aliases, the final audit has no unapproved findings, all required CI checks pass, and a reviewer can trace every exception. Tests and builds must be executed on a real checkout before completion is declared. Auth/session, database, SSO, backup-format, and persisted event/region identifiers require a versioned dual-read/dual-write migration before any destructive rename.

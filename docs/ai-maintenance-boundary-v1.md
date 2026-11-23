@@ -1,4 +1,4 @@
-# HumanALE / NARA AI Maintenance Boundary v1
+# HumanALE / AleCore AI Maintenance Boundary v1
 
 Status: **repair-only boundary before realtime autopilot**
 
