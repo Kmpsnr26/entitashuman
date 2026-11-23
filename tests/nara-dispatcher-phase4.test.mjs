@@ -372,3 +372,14 @@ test('Coordinator forwards NARA cancellation to the Agent Hub executor',async()=
     assert.match(result.error,/Agent Hub aborted by NARA|test cancellation/);
   }finally{nara.stop();}
 });
+
+
+test('NARA Core does not wait forever for an orphaned running task',async()=>{
+  const {autopilot,scheduler}=createAutopilotFixture();
+  autopilot.registerHandler('test.orphan',async()=>({ok:true}));
+  scheduler.enqueue({id:'orphan-running',handler:'test.orphan'});
+  scheduler.start('orphan-running');
+  const result=await autopilot.runTask('orphan-running');
+  assert.equal(result.ok,false);
+  assert.equal(result.reason,'task-already-running');
+});
