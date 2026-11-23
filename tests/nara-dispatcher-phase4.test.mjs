@@ -394,6 +394,7 @@ test('Coordinator work Goal requires an independent reviewer PASS',async()=>{
         return {
           text:'Work output for '+value.prompt,
           maintenance:{changedFiles:1},
+          verification:value.prompt.includes('stale-pass')?{status:'passed'}:undefined,
           stages:value.prompt.includes('stale-pass')
             ?[{role:'reviewer',text:'VERDICT: PASS'},{role:'reviewer',text:'VERDICT: NEEDS_FIX'}]
             :value.prompt.includes('review-pass')
