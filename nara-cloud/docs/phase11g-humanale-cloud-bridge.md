@@ -1,18 +1,18 @@
-# NARA Cloud Phase 11G — HumanALE Cloud Bridge
+# AleCore Cloud Phase 11G — HumanALE Cloud Bridge
 
 ## Status
 
-This source checkpoint connects the existing permission-gated HumanALE Phase 10 memory-context model to Owner-scoped NARA Cloud Memory without replacing HumanALE avatar/reference-face assets.
+This source checkpoint connects the existing permission-gated HumanALE Phase 10 memory-context model to Owner-scoped AleCore Cloud Memory without replacing HumanALE avatar/reference-face assets.
 
-The bridge is additive and disabled by default from the HumanALE user's perspective: the memory source remains **Local** until the user explicitly chooses **NARA Cloud**.
+The bridge is additive and disabled by default from the HumanALE user's perspective: the memory source remains **Local** until the user explicitly chooses **AleCore Cloud**.
 
-Execution verification remains pending until both NARA Cloud and HumanALE verification commands can execute in a usable repository checkout.
+Execution verification remains pending until both AleCore Cloud and HumanALE verification commands can execute in a usable repository checkout.
 
 ## Architecture
 
 Phase 11G is split into two cooperating layers.
 
-### 11G-A — NARA Cloud server bridge
+### 11G-A — AleCore Cloud server bridge
 
 Mounted at:
 
@@ -42,7 +42,7 @@ HumanALE Desktop uses:
 - NARA Owner login page inside a sandboxed BrowserWindow
 - session cookies kept inside Electron's Chromium session
 - CSRF token obtained through authenticated `/api/me`
-- fixed NARA Cloud API paths
+- fixed AleCore Cloud API paths
 
 Renderer IPC exposes only:
 
@@ -68,7 +68,7 @@ Desktop configuration:
 
 `NARA_AUTH_ORIGIN=https://your-owner-auth-origin.example`
 
-If the Owner auth service shares the same origin as NARA Cloud, `NARA_AUTH_ORIGIN` may be left empty and the cloud origin is reused.
+If the Owner auth service shares the same origin as AleCore Cloud, `NARA_AUTH_ORIGIN` may be left empty and the cloud origin is reused.
 
 Requirements:
 
@@ -79,7 +79,7 @@ Requirements:
 - HTTP is accepted only for loopback development (`localhost`, `127.0.0.1`, `::1`)
 - login-window navigation is restricted to the configured cloud/auth origins
 
-No NARA Cloud password, cookie, API token, or CSRF token is stored in `.env.example`.
+No AleCore Cloud password, cookie, API token, or CSRF token is stored in `.env.example`.
 
 ## HumanALE permission model
 
@@ -108,7 +108,7 @@ The provider-facing memory block continues to label the context as **untrusted r
 HumanALE adds a separate memory source control:
 
 - Local
-- NARA Cloud
+- AleCore Cloud
 
 Default remains:
 
@@ -116,21 +116,21 @@ Default remains:
 
 Changing the context mode does not silently select cloud memory.
 
-A previously selected Cloud preference is not reset merely because status has not finished loading. It is reset to Local only after a real status check confirms that NARA Cloud is not configured.
+A previously selected Cloud preference is not reset merely because status has not finished loading. It is reset to Local only after a real status check confirms that AleCore Cloud is not configured.
 
 ## Ask-first flow
 
 For `ask` mode:
 
 1. HumanALE requests a cloud preview.
-2. NARA Cloud returns a preview with `approved=false`.
+2. AleCore Cloud returns a preview with `approved=false`.
 3. No context-used audit event is written at preview time.
 4. HumanALE displays the exact bounded preview to the Owner.
 5. If rejected, nothing is sent to the AI provider.
-6. If approved, HumanALE sends the previewed entry IDs back to NARA Cloud.
-7. NARA Cloud re-fetches those exact IDs through Owner-scoped queries.
+6. If approved, HumanALE sends the previewed entry IDs back to AleCore Cloud.
+7. AleCore Cloud re-fetches those exact IDs through Owner-scoped queries.
 8. If an entry is missing/not owned/no longer matches filters, the approval fails as stale.
-9. NARA Cloud rebuilds the packet.
+9. AleCore Cloud rebuilds the packet.
 10. The desktop main process validates the returned packet again using `validateMemoryContext`.
 11. Only then may the existing provider bridge receive the memory context.
 
@@ -173,13 +173,13 @@ The filter is defense-in-depth and does not replace the rule that real secrets m
 
 ## Desktop login window
 
-The NARA Cloud login BrowserWindow:
+The AleCore Cloud login BrowserWindow:
 
 - has Node integration disabled
 - has context isolation enabled
 - runs sandboxed
 - denies new popup windows
-- permits navigation only to the exact configured NARA Cloud/Auth origins
+- permits navigation only to the exact configured AleCore Cloud/Auth origins
 - rejects unrelated HTTPS origins instead of treating all HTTPS destinations as trusted
 - shares Electron's default session with the cloud API client
 - closes automatically once the Owner session and HumanALE bridge are available
@@ -204,7 +204,7 @@ At the original Phase 11G checkpoint, this bridge intentionally did not change t
 
 ## Regression coverage
 
-NARA Cloud tests cover:
+AleCore Cloud tests cover:
 
 - packet contract and bounds
 - credential-like record rejection
@@ -216,7 +216,7 @@ NARA Cloud tests cover:
 
 HumanALE root tests cover:
 
-- NARA Cloud origin validation
+- AleCore Cloud origin validation
 - loopback-only HTTP exception
 - Owner session status using fake fetch
 - CSRF header propagation
@@ -229,9 +229,9 @@ HumanALE root tests cover:
 
 Before Phase 11G can become `VERIFIED`:
 
-1. NARA Cloud: `npm run build`
-2. NARA Cloud: `npm run test:unit`
-3. NARA Cloud: `npm run verify`
+1. AleCore Cloud: `npm run build`
+2. AleCore Cloud: `npm run test:unit`
+3. AleCore Cloud: `npm run verify`
 4. HumanALE root: `npm test`
 5. HumanALE root: `npm run build`
 6. HumanALE root: `npm run verify`
@@ -254,4 +254,4 @@ As of 2026-09-26, Phase 11G is the single integration candidate targeting `main`
 
 Verified direct ancestry in this branch includes HumanALE/NARA phases #35-#40, #42-#47, #51, and #55-#58. PR #41 was an alternate Phase 8 implementation and is superseded by the consolidated cognition, persistent safe memory, BrainState, and Data Spine implementation. Cloud Auto Repair (#53) and parallel agent/CI tooling (#54) are also consolidated into this branch.
 
-Before earlier phase PRs are closed, this consolidated head must pass both the NARA Cloud verification workflow and the repository-wide main-target verification workflow.
+Before earlier phase PRs are closed, this consolidated head must pass both the AleCore Cloud verification workflow and the repository-wide main-target verification workflow.

@@ -1,8 +1,8 @@
-# NARA Cloud Phase 11E — Encrypted USB Backup
+# AleCore Cloud Phase 11E — Encrypted USB Backup
 
 ## Status
 
-This source checkpoint adds an encrypted NARA Memory backup artifact intended to be saved to removable media such as a USB drive.
+This source checkpoint adds an encrypted AleCore Memory backup artifact intended to be saved to removable media such as a USB drive.
 
 The server does **not** accept arbitrary filesystem paths and does **not** write directly to a mounted USB device. Instead, the authenticated Owner requests an encrypted `.nara` backup file and chooses where to save it on the client device.
 
@@ -43,7 +43,7 @@ The backup envelope uses:
 - per-backup salt: 32 random bytes
 - per-backup IV: 12 random bytes
 - GCM authentication tag: 16 bytes
-- AAD binds the NARA backup format/version/kind/algorithm/KDF
+- AAD binds the legacy backup format/version/kind/algorithm/KDF
 
 scrypt parameters:
 
