@@ -6,6 +6,7 @@ import {bootstrapNaraConnections,recordNaraProviderStatus,recordNaraAgentHubStat
 import {OpenAIBridge} from '../desktop/openai-api.mjs';
 import {GeminiBridge} from '../desktop/gemini.mjs';
 import {CopilotBridge} from '../desktop/copilot.mjs';
+import {AleCoreLocalBridge} from '../desktop/alecore-local.mjs';
 import {createOrchestrator} from '../nara-core/brain/index.js';
 import {normalizeProviderStatus} from '../nara-core/brain/provider-state.js';
 
@@ -61,6 +62,23 @@ test('actual API bridge configuration checks never make a request or prove authe
   }finally{
     names.forEach((name,i)=>previous[i]===undefined?delete process.env[name]:process.env[name]=previous[i]);
   }
+});
+
+test('AleCore Local startup probe reports only an installed loopback model as ready',async()=>{
+  const nara=naraFixture();
+  const bridge=new AleCoreLocalBridge({
+    model:'qwen3.5:2b',
+    fetchImpl:async url=>{
+      assert.equal(url,'http://127.0.0.1:11434/api/tags');
+      return {ok:true,status:200,json:async()=>({models:[{name:'qwen3.5:2b'}]})};
+    }
+  });
+  const result=await bootstrapNaraConnections({bridges:{'alecore-local':bridge},agentHub:hub(),nara});
+  assert.equal(result.providers['alecore-local'].configured,true);
+  assert.equal(result.providers['alecore-local'].ready,false);
+  assert.equal(result.providers['alecore-local'].verified,false);
+  assert.equal(result.providers['alecore-local'].mode,'alecore-local');
+  nara.stop();
 });
 
 test('Copilot --version proves installation only and bootstrap never invokes login or prompts',async()=>{
