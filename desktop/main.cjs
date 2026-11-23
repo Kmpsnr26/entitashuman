@@ -8,7 +8,7 @@ const {randomUUID}=require('node:crypto');
 const {spawn}=require('node:child_process');
 
 let voiceRequests;
-let win,panelWin,cloudLoginWin,aleNetworkWin,aleNetworkStudio,createAleStudioServer,server,origin,bridges,cloudMemory,agentHub,aleAgentCoordinator,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,aleVoice,humanaleRuntime,ownerStore,ownerGate,systemObserver,dataFlowMeter,experienceStore,experienceSaveTimer,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer,aleVisualTestRunning=false,aleSkillCache={at:0,agents:[]};
+let win,panelWin,cloudLoginWin,aleNetworkWin,aleNetworkStudio,createAleStudioServer,server,origin,bridges,cloudMemory,agentHub,aleAgentCoordinator,terminalManager,terminalPolicy,indonesianStt,indonesianTts,ale,aleVoice,humanaleRuntime,ownerStore,ownerGate,systemObserver,dataFlowMeter,experienceStore,experienceSaveTimer,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer,aleVisualTestRunning=false,aleSkillCache={at:0,agents:[]};
 let cloudAllowedOrigins=new Set();
 let announceAleEvent=()=>{};
 let networkStudioStopPromise=null,networkStudioOpenPromise=null,networkStudioQuitReady=false,ciSmokeOwnerPassword='';
@@ -36,9 +36,9 @@ app.on('before-quit',event=>{
  try{stopSystemObserver?.();}catch{}
  try{if(dataFlowTimer)clearInterval(dataFlowTimer);}catch{}
  try{if(experienceSaveTimer)clearTimeout(experienceSaveTimer);}catch{}
- try{if(experienceStore&&nara?.experience)experienceStore.saveSync(ale.experience.snapshot());}catch{}
+ try{if(experienceStore&&ale?.experience)experienceStore.saveSync(ale.experience.snapshot());}catch{}
  try{humanaleRuntime?.stop();}catch{}
- try{nara?.stop();}catch{}
+ try{ale?.stop();}catch{}
 });
 
 function statePath(){return path.join(app.getPath('userData'),'window-state.json');}
@@ -102,7 +102,7 @@ function openAleNetworkWindow(){
    studio=createAleStudioServer({
     host:'127.0.0.1',
     port:0,
-    nara,
+    ale,
     embedded:true,
     creatorAuth:{required:true,credentialStore:ownerStore},
     voiceBackend:{
@@ -319,14 +319,14 @@ else{
  app.whenReady().then(async()=>{
   const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{AleCloudContextClient,normalizeOrigin},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./alecore-ai-cloud-context.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
   const [{createOrchestrator,createExperienceModel,getHumanALETestScenario,listHumanALETestScenarios,createSkillSnapshot},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createAleAgentCoordinator},{createHumanALEOwnerGate,isOwnerTargetUnlocked,authorizedDisplayMediaTarget},{createAleStudioServer:studioServerFactory},{bootstrapAleConnections,recordAleProviderStatus,recordAleAgentHubStatus}]=await Promise.all([
-   import('../ALECORE-AI/brain/index.js'),
-   import('../ALECORE-AI/voice/index.js'),
-   import('../ALECORE-AI/persistence/experience-store.mjs'),
-   import('../ALECORE-AI/security/owner-store.mjs'),
+   import('../alecore-ai/brain/index.js'),
+   import('../alecore-ai/voice/index.js'),
+   import('../alecore-ai/persistence/experience-store.mjs'),
+   import('../alecore-ai/security/owner-store.mjs'),
    import('./humanale-runtime-host.mjs'),
    import('./alecore-ai-agent-coordinator.mjs'),
    import('./humanale-owner-gate.mjs'),
-   import('../ALECORE-AI/studio/server.mjs'),
+   import('../alecore-ai/studio/server.mjs'),
    import('./startup-connections.mjs')
   ]);
   createAleStudioServer=studioServerFactory;
@@ -336,7 +336,7 @@ else{
   experienceStore=createExperienceStore({filePath:path.join(app.getPath('userData'),'alecore-ai-experience.json')});
   const ownerStorePath=ciSmoke
    ?path.join(app.getPath('userData'),'alecore-ai-owner.json')
-   :(process.env.ALECORE_AI_OWNER_STORE||path.join(homedir(),'.nara','owner.json'));
+   :(process.env.ALECORE_AI_OWNER_STORE||path.join(homedir(),'.ale','owner.json'));
   ownerStore=createOwnerStore({filePath:ownerStorePath});
   const bootstrapOwnerPassword=String(process.env.ALECORE_AI_CREATOR_PASSWORD||'');
   if(!ownerStore.configured()&&bootstrapOwnerPassword){
@@ -355,7 +355,7 @@ else{
   }catch(error){
    console.error('[AleCore AI EXPERIENCE RESTORE]',error.message);
   }
-  nara=createOrchestrator({deviceProfile:systemObserver.deviceProfile(),experience});
+  ale=createOrchestrator({deviceProfile:systemObserver.deviceProfile(),experience});
   ale.start();
   if(restoredExperience){
    try{ale.dispatch('experience.restored',{
@@ -372,8 +372,8 @@ else{
   dataFlowTimer.unref?.();
   bridges={chatgpt:new ChatGPTBridge(),copilot:new CopilotBridge(),openai:new OpenAIBridge(),grok:new GrokBridge(),gemini:new GeminiBridge(),claude:new ClaudeBridge(),deepseek:new DeepSeekBridge(),askcodi:new AskCodiBridge()};
   try{
-   const cloudOrigin=normalizeOrigin(process.env.ALECORE_AI_CLOUD_ORIGIN||'');
-   const authOrigin=normalizeOrigin(process.env.ALECORE_AI_AUTH_ORIGIN||cloudOrigin);
+   const cloudOrigin=normalizeOrigin(process.env.ALECORE_AI_CLOUD_ORIGIN||process.env.NARA_CLOUD_ORIGIN||'');
+   const authOrigin=normalizeOrigin(process.env.ALECORE_AI_AUTH_ORIGIN||process.env.NARA_AUTH_ORIGIN||cloudOrigin);
    if(!cloudOrigin&&authOrigin)throw new Error('ALECORE_AI_AUTH_ORIGIN membutuhkan ALECORE_AI_CLOUD_ORIGIN.');
    cloudAllowedOrigins=new Set([cloudOrigin,authOrigin].filter(Boolean));
    cloudMemory=new AleCloudContextClient({
@@ -387,9 +387,9 @@ else{
    cloudMemory=new AleCloudContextClient({origin:''});
   }
   agentHub=new DeveloperAgentHub();
-  aleAgentCoordinator=createAleAgentCoordinator({nara,agentHub}).bind();
+  aleAgentCoordinator=createAleAgentCoordinator({ale,agentHub}).bind();
   const savedProjectRoot=await readProjectRoot();if(savedProjectRoot)agentHub.setProjectRoot(savedProjectRoot);
-  void bootstrapAleConnections({bridges,agentHub,nara}).catch(()=>{
+  void bootstrapAleConnections({bridges,agentHub,ale}).catch(()=>{
    try{ale.dispatch('startup.connections',{pending:false},{source:'startup-connections'});}catch{}
   });
   terminalPolicy=policyModule;
@@ -472,7 +472,7 @@ else{
    experienceSaveTimer.unref?.();
   };
   humanaleRuntime=createHumanALERuntimeHost({
-   nara,
+   ale,
    voiceFeedback:aleVoice,
    dataFlowMeter,
    getTargets:()=>[win,panelWin].filter(target=>target&&ownerGate?.isUnlocked(String(target.webContents.id))),
@@ -618,9 +618,9 @@ else{
    const selected=pickProvider(provider);
    try{
     const raw=await bridges[selected].status();
-    return recordAleProviderStatus({nara,id:selected,raw,busy:bridges[selected].pending===true});
+    return recordAleProviderStatus({ale,id:selected,raw,busy:bridges[selected].pending===true});
    }catch{
-    return recordAleProviderStatus({nara,id:selected,statusError:'STATUS_FAILED'});
+    return recordAleProviderStatus({ale,id:selected,statusError:'STATUS_FAILED'});
    }
   });
   ipcMain.handle('dudidam:ask',async(e,value)=>{
@@ -639,25 +639,25 @@ else{
     const result=await bridges[provider].ask(payload);
     const usableResponse=!result?.error&&typeof result?.text==='string'&&Boolean(result.text.trim());
     if(!usableResponse){
-     recordAleProviderStatus({nara,id:provider,requestFailed:true});
+     recordAleProviderStatus({ale,id:provider,requestFailed:true});
      ale.dispatch('reason.complete',{source:'chat'});
      ale.dispatch('error.detected',{message:'Permintaan provider belum berhasil.',source:'chat'});
      return {error:'Provider belum memberikan balasan teks yang dapat digunakan.'};
     }else{
-     recordAleProviderStatus({nara,id:provider,raw:{configured:true},requestSucceeded:true});
+     recordAleProviderStatus({ale,id:provider,raw:{configured:true},requestSucceeded:true});
      ale.dispatch('reason.complete',{source:'chat'});
     }
     dataFlowMeter?.recordOut(result);
     return result;
    }catch(error){
-    recordAleProviderStatus({nara,id:provider,requestFailed:true});
+    recordAleProviderStatus({ale,id:provider,requestFailed:true});
     ale.dispatch('reason.complete',{source:'chat'});
     ale.dispatch('error.detected',{message:'Permintaan provider belum berhasil.',source:'chat'});
     return {error:error.message};
    }
   });
-  ipcMain.handle('dudidam:login',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};recordAleProviderStatus({nara,id:'chatgpt',clearEvidence:true});try{return await bridges.chatgpt.login();}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:login-copilot',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};recordAleProviderStatus({nara,id:'copilot',clearEvidence:true});try{return await bridges.copilot.login();}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:login',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};recordAleProviderStatus({ale,id:'chatgpt',clearEvidence:true});try{return await bridges.chatgpt.login();}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:login-copilot',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};recordAleProviderStatus({ale,id:'copilot',clearEvidence:true});try{return await bridges.copilot.login();}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:stt-status',async e=>{if(!ownerTrusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianStt.status();});
   ipcMain.handle('dudidam:transcribe',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await indonesianStt.transcribe(value);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:tts-status',async e=>{if(!ownerTrusted(e))return {configured:false,error:'Akses ditolak.'};return await indonesianTts.status();});
@@ -665,7 +665,7 @@ else{
   ipcMain.handle('dudidam:synthesize',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await voiceRequests.synthesize(ownerActor(e),value);}catch(error){return {error:error.message};}});
   ipcMain.on('dudidam:panel-open',(e,view)=>{if(ownerTrusted(e))openPanel(view);});
   ipcMain.on('dudidam:panel-close',e=>{if(trusted(e))panelWin?.hide();});
-  ipcMain.handle('dudidam:agents',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{const status=await agentHub.status();recordAleAgentHubStatus({nara,hub:status,pending:agentHub.pending});return status;}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:agents',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{const status=await agentHub.status();recordAleAgentHubStatus({ale,hub:status,pending:agentHub.pending});return status;}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:project-root-choose',async e=>{
    if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    const result=await dialog.showOpenDialog(panelWin?.isVisible()?panelWin:win,{title:'Pilih folder checkout proyek HumanALE god egine',properties:['openDirectory']});
@@ -673,7 +673,7 @@ else{
    const selected=path.resolve(result.filePaths[0]);
    agentHub.setProjectRoot(selected);terminalManager?.setWorkspace(selected);
    try{await writeFile(projectRootPath(),selected,'utf8');}catch(error){return {error:'Folder terpilih, tetapi pengaturan tidak dapat disimpan: '+error.message};}
-   const status=await agentHub.status();recordAleAgentHubStatus({nara,hub:status,pending:agentHub.pending});
+   const status=await agentHub.status();recordAleAgentHubStatus({ale,hub:status,pending:agentHub.pending});
    return {ok:true,...status};
   });
   ipcMain.handle('dudidam:agent-run',async(e,value)=>{
@@ -843,7 +843,7 @@ else{
    const networkOpenDeadline=Date.now()+5000;
    while(!aleNetworkWin&&Date.now()<networkOpenDeadline)await new Promise(resolve=>setTimeout(resolve,50));
    if(!aleNetworkWin||!aleNetworkStudio)throw new Error('AleCore AI Network window/server tidak terbuka dari tombol owner-gated.');
-   if(aleNetworkStudio.nara!==nara||aleNetworkStudio.ownerStore!==ownerStore)throw new Error('AleCore AI Network tidak memakai runtime/Owner Store desktop yang sama.');
+   if(aleNetworkStudio.ale!==ale||aleNetworkStudio.ownerStore!==ownerStore)throw new Error('AleCore AI Network tidak memakai runtime/Owner Store desktop yang sama.');
    const networkCreatorLogin=await aleNetworkWin.webContents.executeJavaScript(`
     fetch('/api/creator/login',{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',body:JSON.stringify({username:'ci-owner',password:${JSON.stringify(ciSmokeOwnerPassword)}})}).then(response=>response.ok)
    `);

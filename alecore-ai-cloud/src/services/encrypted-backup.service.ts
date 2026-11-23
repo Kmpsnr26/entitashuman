@@ -258,11 +258,12 @@ function isEnvelope(
       Partial<EncryptedBackupEnvelope>;
 
   return (
-    (envelope.format === "ALECORE_AI_ENCRYPTED_BACKUP" && envelope.kind === "alecore-ai-memory") ||
-    (envelope.format === LEGACY_FORMAT && envelope.kind === LEGACY_MEMORY_KIND) &&
+    (
+      (envelope.format === "ALECORE_AI_ENCRYPTED_BACKUP" && envelope.kind === "alecore-ai-memory") ||
+      (envelope.format === LEGACY_FORMAT && envelope.kind === LEGACY_MEMORY_KIND)
+    ) &&
     envelope.version ===
       1 &&
-    true &&
     envelope.algorithm ===
       "aes-256-gcm" &&
     envelope.kdf ===

@@ -181,7 +181,7 @@ function loginPage(
 
   <form
     method="POST"
-    action="/ownernara/login"
+    action="/owner-alecore-ai/login"
   >
     <input
       type="hidden"
@@ -281,7 +281,7 @@ function loginRedirect(
   returnTo: string
 ): string {
   const loginUrl = new URL(
-    "/ownernara/login",
+    "/owner-alecore-ai/login",
     env.PUBLIC_AUTH_ORIGIN
   );
 
@@ -304,7 +304,7 @@ app.get(
 );
 
 app.get(
-  "/ownernara/authorize",
+  "/owner-alecore-ai/authorize",
   async (req, res, next) => {
     try {
       setNoStore(res);
@@ -338,7 +338,7 @@ app.get(
 
       const ticket = await issueTicket(
         owner.id,
-        "nara",
+        "alecore-ai",
         returnTo
       );
 
@@ -347,7 +347,7 @@ app.get(
         eventType: "SSO_TICKET_ISSUED",
         request: req,
         metadata: {
-          audience: "nara"
+          audience: "alecore-ai"
         }
       });
 
@@ -370,7 +370,7 @@ app.get(
 );
 
 app.get(
-  "/ownernara/login",
+  "/owner-alecore-ai/login",
   async (req, res, next) => {
     try {
       setNoStore(res);
@@ -390,7 +390,7 @@ app.get(
         if (owner?.is_active) {
           const authorize =
             new URL(
-              "/ownernara/authorize",
+              "/owner-alecore-ai/authorize",
               env.PUBLIC_AUTH_ORIGIN
             );
 
@@ -432,7 +432,7 @@ app.get(
 );
 
 app.post(
-  "/ownernara/login",
+  "/owner-alecore-ai/login",
   loginLimiter,
   async (req, res, next) => {
     try {
@@ -553,7 +553,7 @@ app.post(
       const ticket =
         await issueTicket(
           owner.id,
-          "nara",
+          "alecore-ai",
           returnTo
         );
 
@@ -576,7 +576,7 @@ app.post(
 );
 
 app.get(
-  "/ownernara/session",
+  "/owner-alecore-ai/session",
   async (req, res, next) => {
     try {
       setNoStore(res);
@@ -621,7 +621,7 @@ app.get(
 );
 
 app.post(
-  "/ownernara/logout",
+  "/owner-alecore-ai/logout",
   async (req, res, next) => {
     try {
       setNoStore(res);

@@ -13,12 +13,12 @@ export const ALECORE_AI_AGENT_HANDLER_TIMEOUTS=Object.freeze({
 });
 
 export class AleAgentCoordinator{
-  constructor({nara,agentHub}={}){
-    if(!nara?.registerAutopilotHandler||!nara?.queueAutopilotTask||!nara?.runAutopilotOnce){
+  constructor({ale,agentHub}={}){
+    if(!ale?.registerAutopilotHandler||!ale?.queueAutopilotTask||!ale?.runAutopilotOnce){
       throw new Error('AleCore AI Agent Coordinator membutuhkan AleCore AI V2+.');
     }
     if(!agentHub?.run)throw new Error('AleCore AI Agent Coordinator membutuhkan HumanALE Agent Hub.');
-    this.nara=nara;
+    this.ale=ale;
     this.agentHub=agentHub;
     this.pending=new Map();
     this.sequence=0;

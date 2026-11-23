@@ -1,7 +1,7 @@
 import { pool } from "./pool.js";
 
 const migration = `
-DO $
+DO $alecore_ai_migration$
 BEGIN
   IF to_regclass('public.nara_memory') IS NOT NULL
      AND to_regclass('public.alecore_ai_memory') IS NULL THEN
@@ -11,8 +11,13 @@ BEGIN
      AND to_regclass('public.alecore_ai_app_sessions') IS NULL THEN
     ALTER TABLE public.nara_app_sessions RENAME TO alecore_ai_app_sessions;
   END IF;
+  IF to_regclass('public.alecore_ai_memory') IS NOT NULL
+     AND EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.alecore_ai_memory'::regclass AND conname = 'nara_memory_type_check')
+     AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.alecore_ai_memory'::regclass AND conname = 'alecore_ai_memory_type_check') THEN
+    ALTER TABLE public.alecore_ai_memory RENAME CONSTRAINT nara_memory_type_check TO alecore_ai_memory_type_check;
+  END IF;
 END
-$;
+$alecore_ai_migration$;
 
 CREATE TABLE IF NOT EXISTS owner_users (
   id UUID PRIMARY KEY,

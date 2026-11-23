@@ -227,7 +227,7 @@ app.get(
       const userId =
         await consumeTicket(
           code,
-          "nara",
+          "alecore-ai",
           callbackUrl()
         );
 
@@ -301,7 +301,7 @@ app.get(
 
         return res.redirect(
           303,
-          `${env.PUBLIC_AUTH_ORIGIN}/ownernara/login?return_to=${encodeURIComponent(callbackUrl())}`
+          `${env.PUBLIC_AUTH_ORIGIN}/owner-alecore-ai/login?return_to=${encodeURIComponent(callbackUrl())}`
         );
       }
 

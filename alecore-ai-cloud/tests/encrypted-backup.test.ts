@@ -1,4 +1,5 @@
 import test from "node:test";
+import { createCipheriv, scrypt } from "node:crypto";
 import assert from "node:assert/strict";
 
 import type {
@@ -413,5 +414,57 @@ test(
         return true;
       }
     );
+  }
+);
+
+test(
+  "legacy encrypted Ale memory backups remain readable",
+  async () => {
+    const original = snapshot();
+    const legacySnapshot = {
+      ...original,
+      kind: "nara-memory"
+    };
+    const passphraseValue = passphrase;
+    const salt = Buffer.alloc(32, 1);
+    const iv = Buffer.alloc(12, 2);
+    const key = await new Promise<Buffer>((resolve, reject) => {
+      scrypt(
+        passphraseValue,
+        salt,
+        32,
+        { N: 32_768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 },
+        (error, derived) => error ? reject(error) : resolve(Buffer.from(derived))
+      );
+    });
+    try {
+      const cipher = createCipheriv("aes-256-gcm", key, iv);
+      cipher.setAAD(Buffer.from(
+        "NARA_ENCRYPTED_BACKUP|1|nara-memory|aes-256-gcm|scrypt",
+        "utf8"
+      ));
+      const ciphertext = Buffer.concat([
+        cipher.update(Buffer.from(JSON.stringify(legacySnapshot), "utf8")),
+        cipher.final()
+      ]);
+      const envelope = {
+        format: "NARA_ENCRYPTED_BACKUP",
+        version: 1,
+        kind: "nara-memory",
+        algorithm: "aes-256-gcm",
+        kdf: "scrypt",
+        kdfParams: { N: 32_768, r: 8, p: 1 },
+        createdAt: original.exportedAt,
+        salt: salt.toString("base64"),
+        iv: iv.toString("base64"),
+        tag: cipher.getAuthTag().toString("base64"),
+        ciphertext: ciphertext.toString("base64")
+      };
+      const restored = await decryptMemoryBackup(envelope, passphraseValue);
+      assert.equal(restored.kind, "alecore-ai-memory");
+      assert.equal(restored.memories[0]!.content, original.memories[0]!.content);
+    } finally {
+      key.fill(0);
+    }
   }
 );

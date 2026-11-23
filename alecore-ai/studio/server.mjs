@@ -346,7 +346,7 @@ export function createAleStudioServer({
   host='127.0.0.1',
   port=4178,
   creatorAuth:creatorOptions={},
-  ale:providedNara=null,
+  ale:providedAle=null,
   embedded=false,
   voiceBackend=null
 }={}){
@@ -380,8 +380,8 @@ export function createAleStudioServer({
   });
   const creatorRequired=creatorOptions.required===false?false:(creator.configured||creatorOptions.required===true);
   const creatorMisconfigured=Boolean(ownerStoreError)||(creatorRequired&&!creator.configured);
-  const nara=providedNara||createOrchestrator();
-  const ownsNara=!providedNara;
+  const ale=providedAle||createOrchestrator();
+  const ownsAle=!providedAle;
   const telemetry=createStudioTelemetry();
   const skills=createSkillRegistry();
   const clients=new Set();
@@ -407,7 +407,7 @@ export function createAleStudioServer({
     broadcast('telemetry',projectTelemetry(telemetry.snapshot()));
     broadcast('skills',projectSkills(skills.snapshot()));
   });
-  if(ownsNara)ale.start();
+  if(ownsAle)ale.start();
 
   server=http.createServer(async(req,res)=>{
     try{
@@ -630,7 +630,7 @@ export function createAleStudioServer({
   });
 
   return {
-    nara,
+    ale,
     telemetry,
     skills,
     creator,
@@ -647,7 +647,7 @@ export function createAleStudioServer({
     async stop(){
       if(voiceBackend)await Promise.allSettled([...voiceActors.keys()].map(actor=>voiceBackend.stop(actor)));voiceActors.clear();
       stateOff();eventOff();
-      if(ownsNara&&ale.running)ale.stop();
+      if(ownsAle&&ale.running)ale.stop();
       for(const res of [...clients])res.end();
       clients.clear();
       if(server.listening)await new Promise(resolve=>server.close(resolve));
@@ -662,7 +662,7 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===normalize(process.argv[1]))
     port:Number(process.env.ALECORE_AI_STUDIO_PORT)||4178,
     creatorAuth:{
       required:true,
-      ownerStorePath:process.env.ALECORE_AI_OWNER_STORE||join(homedir(),'.nara','owner.json')
+      ownerStorePath:process.env.ALECORE_AI_OWNER_STORE||join(homedir(),'.alecore-ai','owner.json')
     }
   });
   const address=await studio.start();
