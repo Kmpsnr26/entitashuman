@@ -16,6 +16,7 @@ import {isExplicitProjectWorkRequest} from '../public/work-intent.js';
 import {IndonesianStt} from '../desktop/indonesian-stt.mjs';
 import {IndonesianTts} from '../desktop/indonesian-tts.mjs';
 import {HUMANALE_CORE_PROMPT,reasoningGuidance,humanaleSystemPrompt} from '../desktop/humanale-brain.mjs';
+import {captureScreenshotEvidence} from '../scripts/android/runtime-smoke.mjs';
 test('commands do not mistake normal conversation for gestures',()=>{assert.equal(parseCommand('Tolong menggelengkan kepala'),'shake');assert.equal(parseCommand('Coba berkedip!'),'blink');assert.equal(parseCommand('Jelaskan mengapa manusia berkedip'),null);});
 
 test('HumanALE god egine Brain Core uses bounded adaptive logical reasoning',()=>{
@@ -613,4 +614,32 @@ test('private source security scan stays least-privilege and blocks new findings
  assert.match(security,/--metrics=off/);
  assert.match(security,/Upload full security report/);
  assert.doesNotMatch(security,/security-events: write|contents: write|pull-requests: write|issues: write/);
+});
+
+
+test('Android screenshot evidence timeout is recorded without failing the functional smoke',async t=>{
+ const directory=await mkdtemp(join(tmpdir(),'humanale-android-evidence-'));
+ t.after(()=>rm(directory,{recursive:true,force:true}));
+ const report={evidenceWarnings:[]};
+ const cdp={async call(method,params,timeoutMs){
+  assert.equal(method,'Page.captureScreenshot');
+  assert.deepEqual(params,{format:'png'});
+  assert.equal(timeoutMs,5000);
+  throw new Error('CDP Page.captureScreenshot timed out');
+ }};
+ const captured=await captureScreenshotEvidence(cdp,directory,'settings',report);
+ assert.equal(captured,false);
+ assert.deepEqual(report.evidenceWarnings,[{name:'settings',error:'CDP Page.captureScreenshot timed out'}]);
+});
+
+test('Android screenshot evidence is saved when CDP capture succeeds',async t=>{
+ const directory=await mkdtemp(join(tmpdir(),'humanale-android-evidence-'));
+ t.after(()=>rm(directory,{recursive:true,force:true}));
+ const report={evidenceWarnings:[]};
+ const bytes=Buffer.from('png-evidence');
+ const cdp={async call(){return {data:bytes.toString('base64')};}};
+ const captured=await captureScreenshotEvidence(cdp,directory,'loaded',report);
+ assert.equal(captured,true);
+ assert.deepEqual(await readFile(join(directory,'loaded.png')),bytes);
+ assert.deepEqual(report.evidenceWarnings,[]);
 });
