@@ -93,6 +93,26 @@ jobs:
       - name: Install locked NARA Cloud dependencies
         run: npm ci
 
+      - name: Verify staging template against runtime configuration
+        run: node --import tsx ops/tests/staging-template.test.mjs
+
+      - name: Verify operations script failure boundaries
+        run: bash ops/tests/operations.test.sh
+
+      - name: Verify PostgreSQL backup and disposable recovery
+        run: |
+          test_password_file="$RUNNER_TEMP/nara-ops-test.pgpass"
+          trap 'rm -f -- "$test_password_file"' EXIT
+          umask 077
+          printf '127.0.0.1:5432:*:nara:test-password\n' > "$test_password_file"
+          docker run --rm --network host --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -v "$test_password_file:/run/pgpass:ro" \
+            -w /workspace/nara-cloud \
+            -e CI=true -e PGHOST=127.0.0.1 -e PGPORT=5432 -e PGUSER=nara \
+            -e PGPASSFILE=/run/pgpass \
+            postgres:17 bash ops/tests/postgres-roundtrip.test.sh
+
       - name: Record resolved dependency versions
         run: npm ls --depth=0
 
