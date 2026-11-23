@@ -306,10 +306,13 @@ test('NARA Core GoalManager rejects completion without verified evidence',()=>{
   const goals=createGoalManager();
   goals.create({id:'evidence-goal',successCriteria:['deliverable exists','verification passed']});
   goals.activate('evidence-goal');
-  assert.throws(()=>goals.complete('evidence-goal'),/bukti terverifikasi/);
+  goals.attachTask('evidence-goal','evidence-task');
+  assert.throws(()=>goals.complete('evidence-goal'),/task terkait|bukti terverifikasi/);
   goals.recordEvidence('evidence-goal',{criterion:'deliverable exists',evidence:'artifact-123',verified:true});
   assert.throws(()=>goals.complete('evidence-goal'),/bukti terverifikasi/);
   goals.recordEvidence('evidence-goal',{criterion:'verification passed',evidence:'test-run-456',verified:true});
+  assert.throws(()=>goals.complete('evidence-goal'),/seluruh task terkait harus selesai/);
+  goals.reconcileTasks([{id:'evidence-task',status:'complete'}]);
   assert.equal(goals.complete('evidence-goal').status,'complete');
 });
 
