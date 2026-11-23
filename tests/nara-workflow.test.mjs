@@ -171,7 +171,7 @@ test('workflow allows only one active step at a time even when multiple steps ar
  let workflow=nara.startWorkflowStep('a');
  assert.equal(workflow.workflow.steps.a.status,'running');
  assert.equal(workflow.workflow.steps.b.status,'ready');
- assert.throws(()=>nara.startWorkflowStep('b'),/Hanya satu step workflow AleCore AI boleh aktif/);
+ assert.throws(()=>nara.startWorkflowStep('b'),/Hanya satu step workflow AleCore AI boleh aktif pada satu waktu/);
 });
 
 
