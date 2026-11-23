@@ -5,6 +5,7 @@ import {
   createAutopilot,
   createCapabilityBroker,
   createExperienceModel,
+  createGoalManager,
   createRecoveryEngine,
   createTaskScheduler,
   createWatchdog
@@ -259,4 +260,64 @@ test('autopilot retry reuses its request ID and rolls back before retrying',asyn
   assert.ok(rollbackIndex>=0);
   assert.ok(retryIndex>rollbackIndex);
   assert.deepEqual(calls.filter(call=>call[0]==='rollback').map(call=>call[2]),[1]);
+});
+
+
+test('NARA Core dispatcher serializes concurrent task waiters and preserves each result',async()=>{
+  const {autopilot,scheduler}=createAutopilotFixture();
+  const firstStarted=deferred(),releaseFirst=deferred();
+  autopilot.registerHandler('test.concurrent',async({task})=>{
+    if(task.id==='concurrent-a'){firstStarted.resolve();await releaseFirst.promise;}
+    return {taskId:task.id};
+  });
+  autopilot.enqueue({id:'concurrent-a',handler:'test.concurrent',priority:90});
+  autopilot.enqueue({id:'concurrent-b',handler:'test.concurrent',priority:80});
+  const first=autopilot.runTask('concurrent-a');
+  await firstStarted.promise;
+  const second=autopilot.runTask('concurrent-b');
+  releaseFirst.resolve();
+  const [a,b]=await Promise.all([first,second]);
+  assert.equal(a.ok,true);assert.equal(b.ok,true);
+  assert.equal(a.result.taskId,'concurrent-a');assert.equal(b.result.taskId,'concurrent-b');
+  assert.equal(scheduler.get('concurrent-a').status,'complete');
+  assert.equal(scheduler.get('concurrent-b').status,'complete');
+});
+
+test('NARA Core timeout aborts the handler and releases dispatcher capacity',async()=>{
+  const {autopilot,scheduler}=createAutopilotFixture();
+  let signalSeen=false;
+  autopilot.registerHandler('test.timeout',async({signal})=>new Promise((resolve)=>{
+    signal.addEventListener('abort',()=>{signalSeen=true;resolve('aborted');},{once:true});
+  }),{timeoutMs:1000});
+  autopilot.registerHandler('test.after-timeout',async()=>({ok:true}));
+  autopilot.enqueue({id:'timeout-task',handler:'test.timeout'});
+  autopilot.enqueue({id:'after-timeout-task',handler:'test.after-timeout'});
+  const result=await autopilot.runTask('timeout-task');
+  assert.equal(result.ok,false);
+  assert.equal(result.error,'Autopilot task timeout.');
+  assert.equal(signalSeen,true);
+  assert.equal(scheduler.get('timeout-task').status,'failed');
+  assert.equal(scheduler.snapshot().running,0);
+  const next=await autopilot.runTask('after-timeout-task');
+  assert.equal(next.ok,true);
+});
+
+test('NARA Core GoalManager rejects completion without verified evidence',()=>{
+  const goals=createGoalManager();
+  goals.create({id:'evidence-goal',successCriteria:['deliverable exists','verification passed']});
+  goals.activate('evidence-goal');
+  assert.throws(()=>goals.complete('evidence-goal'),/bukti terverifikasi/);
+  goals.recordEvidence('evidence-goal',{criterion:'deliverable exists',evidence:'artifact-123',verified:true});
+  assert.throws(()=>goals.complete('evidence-goal'),/bukti terverifikasi/);
+  goals.recordEvidence('evidence-goal',{criterion:'verification passed',evidence:'test-run-456',verified:true});
+  assert.equal(goals.complete('evidence-goal').status,'complete');
+});
+
+test('NARA Core recovery refuses retry without idempotency or confirmed compensation',()=>{
+  const recovery=createRecoveryEngine({maxRetries:2});
+  assert.equal(recovery.decide({attempt:1,errorCategory:'runtime'}).action,'escalate');
+  assert.equal(recovery.decide({attempt:1,errorCategory:'runtime'}).reason,
+    'unsafe-retry-requires-idempotency-or-confirmed-compensation');
+  assert.equal(recovery.decide({attempt:1,errorCategory:'runtime',idempotent:true}).action,'retry');
+  assert.equal(recovery.decide({attempt:1,errorCategory:'runtime',compensationConfirmed:true}).action,'retry');
 });
