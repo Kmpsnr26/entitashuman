@@ -558,6 +558,65 @@ async function refreshConversationTeam(){
  await Promise.allSettled(jobs);
  renderConversationTeam();
 }
+async function runConversationTeamDiagnostic(){
+ const button=$('#conversationTeamTest');
+ if(!desktop||panelOnly||!button)return;
+ if(conversationTeamRunState==='running')return;
+ let result=null;
+ button.disabled=true;
+ try{
+  const status=await desktop.agents();
+  latestAgentStatus=status;
+  if(status?.error)throw new Error(status.error);
+  const executors=(status.agents||[]).filter(agent=>
+   ['codex','github-copilot','cursor','claude'].includes(agent.id)&&agent.canRun===true
+  );
+  renderConversationTeam();
+  if(executors.length<2){
+   throw new Error('Uji kolaborasi independen memerlukan minimal dua executor lokal yang terpasang dan sudah login. Terdeteksi '+executors.length+'. Periksa Codex, Copilot CLI, Cursor, atau Claude Code di Kelola agent.');
+  }
+  setConversationTeamRunState('running');
+  const prompt=[
+   'UJI KOLABORASI LOKAL HUMANALE — READ ONLY.',
+   'Planner: susun rencana pemeriksaan arsitektur singkat dan kriteria PASS.',
+   'Specialist bila tersedia: audit risiko dan kasus uji secara read-only.',
+   'Worker: lakukan analisis dan sintesis temuan tanpa mengubah file.',
+   'Reviewer: periksa kualitas hasil dan akhiri tepat dengan VERDICT: PASS atau VERDICT: NEEDS_FIX.',
+   'Jangan mengedit, membuat, menghapus file, menjalankan perintah tulis, mengubah Git, membaca rahasia, atau melakukan jaringan selain kebutuhan executor yang telah dikonfigurasi.',
+   'Tugas: buktikan bahwa setiap peran mendapatkan hasil dari executor lokal yang terdeteksi dan bahwa urutan kolaborasi berfungsi.'
+  ].join(' ');
+  const payload=await createAgentTaskPayload({
+   id:'humanale-orchestrator',
+   prompt,
+   mode:'analyze',
+   prepareMemory:prepareEffectiveMemoryContext
+  });
+  result=await desktop.runAgent(payload);
+  if(result?.error)throw new Error(result.error);
+  const stages=Array.isArray(result?.stages)?result.stages:[];
+  const planner=stages.find(stage=>stage.role==='planner');
+  const worker=stages.find(stage=>stage.role==='worker');
+  const reviewers=stages.filter(stage=>stage.role==='reviewer');
+  const reviewer=reviewers.at(-1);
+  if(!planner||!worker||!reviewer)throw new Error('Pipeline tidak menghasilkan tahap Planner, Worker, dan Reviewer yang lengkap.');
+  if(!planner.agent||!worker.agent||!reviewer.agent)throw new Error('Salah satu tahap belum melaporkan executor yang menjalankannya.');
+  if(worker.agent===reviewer.agent)throw new Error('Reviewer memakai executor yang sama dengan Worker. Uji memerlukan review independen.');
+  if(!/\\bVERDICT\\s*:\\s*PASS\\b/i.test(String(reviewer.text||''))){
+   throw new Error('Reviewer lokal belum memberikan VERDICT: PASS. Baca temuan Reviewer pada rincian Alur Kerja.');
+  }
+  const specialist=stages.filter(stage=>stage.role==='specialist');
+  if(executors.length>=4&&!specialist.length)throw new Error('Ada empat executor siap, tetapi tahap Specialist tidak dijalankan.');
+  setConversationTeamRunState('complete',result);
+  const summary='Uji kolaborasi lokal PASS · Planner '+planner.agent+' · Worker '+worker.agent+' · Reviewer '+reviewer.agent+(specialist.length?' · Specialist '+specialist.map(item=>item.agent).join(', '):'');
+  message(summary,'assistant',false);
+  await refreshConversationTeam();
+ }catch(error){
+  setConversationTeamRunState('failed',result,error?.message||'Uji kolaborasi lokal gagal.');
+  message('Uji kolaborasi lokal belum lulus: '+(error?.message||'hasil tidak dapat diverifikasi.'),'assistant',false);
+ }finally{
+  button.disabled=false;
+ }
+}
 async function runHumanALEVisualTest(scenario){
  if(!desktop?.naraTestScenario)return {error:'Controlled Test Lab hanya tersedia pada HumanALE Desktop.',scenario,trace:[]};
  if(panelOnly){
@@ -1359,6 +1418,7 @@ $('#conversationTeamToggle')?.addEventListener('click',()=>{
 });
 $('#conversationOpenAgentHub')?.addEventListener('click',async()=>{showDialog('#agentDialog');await loadAgents();});
 $('#conversationTeamRefresh')?.addEventListener('click',async()=>{const button=$('#conversationTeamRefresh');button.disabled=true;try{await refreshConversationTeam();}finally{button.disabled=false;}});
+$('#conversationTeamTest')?.addEventListener('click',runConversationTeamDiagnostic);
 $('#agentRefresh').onclick=loadAgents;
 $('#projectPick').onclick=chooseProjectFolder;
 $('#agentSelect').onchange=()=>{selectedDeveloperAgentId=$('#agentSelect').value;syncAgentMode();};
