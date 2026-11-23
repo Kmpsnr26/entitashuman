@@ -69,14 +69,14 @@ test('desktop drag validates Electron coordinates before moving the window',asyn
   readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8'),
   readFile(new URL('../desktop/window-position.cjs',import.meta.url),'utf8')
  ]);
- assert.match(desktop,/toElectronCoordinate/);
- assert.match(desktop,/const targetX=toElectronCoordinate\\(next\\?\\.x\\),targetY=toElectronCoordinate\\(next\\?\\.y\\)/);
- assert.match(desktop,/if\\(targetX===null\\|\\|targetY===null/);
- assert.match(desktop,/win\\.setPosition\\(targetX,targetY\\)/);
- assert.match(desktop,/HUMANALE WINDOW MOVE/);
- assert.match(position,/Number\\.isFinite/);
- assert.match(position,/MIN_ELECTRON_COORDINATE/);
- assert.doesNotMatch(desktop,/win\\.setPosition\\(next\\.x,next\\.y\\)/);
+ assert.ok(desktop.includes('toElectronCoordinate'));
+ assert.ok(desktop.includes('const targetX=toElectronCoordinate(next?.x),targetY=toElectronCoordinate(next?.y)'));
+ assert.ok(desktop.includes('if(targetX===null||targetY===null'));
+ assert.ok(desktop.includes('win.setPosition(targetX,targetY)'));
+ assert.ok(desktop.includes('HUMANALE WINDOW MOVE'));
+ assert.ok(position.includes('Number.isFinite'));
+ assert.ok(position.includes('MIN_ELECTRON_COORDINATE'));
+ assert.ok(!desktop.includes('win.setPosition(next.x,next.y)'));
 });
 test('compact window, automatic transparent hit testing and media permission checks stay wired',async()=>{const [desktop,preload,app,css,html]=await Promise.all([readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8'),readFile(new URL('../desktop/preload.cjs',import.meta.url),'utf8'),readFile(new URL('../public/app.js',import.meta.url),'utf8'),readFile(new URL('../public/style.css',import.meta.url),'utf8'),readFile(new URL('../public/index.html',import.meta.url),'utf8')]);assert.match(desktop,/width=Math\.min\(420/);assert.match(desktop,/height=Math\.min\(480/);assert.match(desktop,/setPermissionCheckHandler/);assert.match(desktop,/requestingOrigin===origin/);assert.doesNotMatch(desktop,/requestingOrigin\.startsWith\(origin\)/);assert.match(desktop,/passthroughLocked/);assert.match(preload,/passthroughLock/);assert.match(app,/pointInAvatarFace/);assert.match(app,/document\.addEventListener\('mousemove',syncPassthrough/);assert.match(css,/--avatar-size:420px/);assert.match(css,/#avatarArea\{width:min\(var\(--avatar-size\)/);assert.match(css,/dialog\{width:min\(330px/);assert.match(html,/Tembus klik penuh/);});
 test('detached panel does not duplicate the heavy avatar evolution renderer',async()=>{
