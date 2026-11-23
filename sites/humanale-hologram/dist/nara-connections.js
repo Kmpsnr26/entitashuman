@@ -23,7 +23,7 @@
       intervalMs=15000,
       onStatus=null
     }={}){
-      if(!runtime?.dispatch)throw new Error('Runtime NARA diperlukan untuk monitor koneksi.');
+      if(!runtime?.dispatch)throw new Error('AleCore AI runtime diperlukan untuk monitor koneksi.');
       this.runtime=runtime;
       this.endpoint=String(endpoint||'/api/status');
       this.fetchImpl=fetchImpl||global.fetch?.bind(global)||null;

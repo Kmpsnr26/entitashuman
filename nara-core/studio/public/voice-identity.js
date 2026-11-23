@@ -7,7 +7,7 @@ export function listAleCoreVoices(){
 }
 export function chooseAleCoreVoice(){return listAleCoreVoices()[0]||null;}
 export function populateAleCoreVoiceSelect(select){
- if(!select)return 0;select.replaceChildren();const option=document.createElement('option');option.value='auto';option.textContent='HumanALE · Indonesia';select.append(option);select.value='auto';select.disabled=true;return listAleCoreVoices().length;
+ if(!select)return 0;select.replaceChildren();const option=document.createElement('option');option.value='auto';option.textContent='AleCore AI · Indonesia';select.append(option);select.value='auto';select.disabled=true;return listAleCoreVoices().length;
 }
 export function broadcastVoiceSpeaking(active){
  const detail={active:Boolean(active)};

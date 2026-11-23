@@ -110,7 +110,7 @@ export function createUiSoundEngine({enabled=()=>true}={}){
     },{passive:true});
   }
 
-  window.addEventListener('nara:voice-speaking',event=>{
+  window.addEventListener('alecore:voice-speaking',event=>{
     ducked=Boolean(event.detail?.active);
     refresh();
   });

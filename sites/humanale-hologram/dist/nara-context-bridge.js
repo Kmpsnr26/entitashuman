@@ -16,8 +16,8 @@
 
   class HumanALEContextBridge{
     constructor({runtime,memory,storage=null,onState=null,now=null,maxEntries=6,maxChars=1600}={}){
-      if(!runtime?.dispatch)throw new Error('Runtime NARA diperlukan untuk Context Bridge.');
-      if(!memory?.context)throw new Error('NARA Memory diperlukan untuk Context Bridge.');
+      if(!runtime?.dispatch)throw new Error('AleCore AI runtime diperlukan untuk Context Bridge.');
+      if(!memory?.context)throw new Error('AleCore AI Memory diperlukan untuk Context Bridge.');
       this.runtime=runtime;
       this.memory=memory;
       this.storage=storageOrNull(storage);

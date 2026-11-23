@@ -1685,7 +1685,7 @@ test('Revision R7 adds selectable AleCore AI voice identity and local UI sound e
     assert.match(uiSound,new RegExp("name==='"+cue+"'"));
   }
   assert.match(uiSound,/ducked\?\.28:1/);
-  assert.match(uiSound,/nara:voice-speaking/);
+  assert.match(uiSound,/alecore:voice-speaking/);
 
   assert.match(entry,/studioVoice\(\)\.speak/);
   assert.match(nodeVoice,/studioVoice\(\)\.speak/);
