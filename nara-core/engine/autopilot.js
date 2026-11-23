@@ -42,16 +42,24 @@ export class NaraAutopilot{
     while(true){
       const current=this.scheduler.get(id);
       if(!current)return {ok:false,reason:'task-not-found'};
-      // Explicitly requeued failed work is a new attempt. Do not let the
-      // terminal failure cached for the previous attempt mask the queued task.
+      // Terminal scheduler state is authoritative. A cancellation after a
+      // requeue must not return the cached failure from the previous attempt.
+      if(current.status==='complete'){
+        const prior=this.outcomes.get(id);
+        return prior?.ok?prior:{ok:true,task:current,result:current.result};
+      }
+      if(['failed','cancelled'].includes(current.status)){
+        if(current.status==='cancelled')this.outcomes.delete(id);
+        const prior=this.outcomes.get(id);
+        return prior&&!prior.ok?prior:{ok:false,reason:current.lastError||current.status,task:current};
+      }
+      // Explicitly requeued failed work is a new attempt.
       if(current.status==='queued'){
         const prior=this.outcomes.get(id);
         if(prior&&!prior.ok)this.outcomes.delete(id);
       }
       const prior=this.outcomes.get(id);
       if(prior)return prior;
-      if(current.status==='complete')return {ok:true,task:current,result:current.result};
-      if(['failed','cancelled'].includes(current.status))return {ok:false,reason:current.lastError||current.status,task:current};
       const registered=this.handlers.get(current.handler);
       if(!registered){const task=this.scheduler.fail(id,'handler-not-registered');return {ok:false,reason:'handler-not-registered',task};}
       const required=this.requiredCapability(current,registered);
@@ -154,9 +162,11 @@ export class NaraAutopilot{
     }
   }
   cancel(taskId,reason='Task dibatalkan oleh pemanggil.'){
-    const task=this.scheduler.get(taskId);if(!task)return null;
-    if(task.status==='running'&&this.activeTaskId===String(taskId)&&this.activeController)this.activeController.abort(new Error(String(reason)));
-    return this.scheduler.cancel(taskId);
+    const id=String(taskId||''),task=this.scheduler.get(id);if(!task)return null;
+    if(task.status==='running'&&this.activeTaskId===id&&this.activeController)this.activeController.abort(new Error(String(reason)));
+    const cancelled=this.scheduler.cancel(id);
+    if(cancelled?.status==='cancelled')this.outcomes.delete(id);
+    return cancelled;
   }
   snapshot(){return {version:1,running:this.running,handlers:[...this.handlers.keys()],scheduler:this.scheduler.snapshot(),
     watchdog:this.watchdog.snapshot(),experience:this.experience.snapshot()};}
