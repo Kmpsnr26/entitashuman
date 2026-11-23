@@ -345,3 +345,30 @@ test('NARA Core cancellation aborts only the targeted running handler',async()=>
   assert.equal(abortObserved,true);
   assert.equal(scheduler.snapshot().running,0);
 });
+
+
+test('Coordinator forwards NARA cancellation to the Agent Hub executor',async()=>{
+  const nara=createOrchestrator();nara.start();
+  const started=deferred();let receivedSignal=null;
+  try{
+    const coordinator=createNaraAgentCoordinator({
+      nara,
+      agentHub:{run({signal}){
+        receivedSignal=signal;
+        return new Promise((resolve,reject)=>{
+          signal.addEventListener('abort',()=>reject(new Error('Agent Hub aborted by NARA')), {once:true});
+          started.resolve(signal);
+        });
+      }}
+    });
+    const pending=coordinator.run({id:'codex',prompt:'cancel this task',mode:'analyze'});
+    const signal=await started.promise;
+    const running=nara.snapshot().engine.autopilot.scheduler.tasks.find(task=>task.status==='running');
+    assert.ok(running);
+    nara.autopilot.cancel(running.id,'test cancellation');
+    const result=await pending;
+    assert.equal(receivedSignal,signal);
+    assert.equal(signal.aborted,true);
+    assert.match(result.error,/Agent Hub aborted by NARA|test cancellation/);
+  }finally{nara.stop();}
+});
