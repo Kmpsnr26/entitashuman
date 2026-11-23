@@ -702,7 +702,7 @@ function setPersona(provider=aiProvider){
  const persona=provider==='copilot'?'copilot':provider==='chatgpt'?'chatgpt':'dudidam';
  document.body.dataset.persona=persona;avatar.persona=persona;
  if(persona==='copilot')avatar.setAccent?.('cyan');else if(persona==='chatgpt')avatar.setAccent?.('cyan');
- $('#personaBadge').textContent=persona==='copilot'?'HUMANALE GOD ENGINE · GITHUB COPILOT':persona==='chatgpt'?'HUMANALE GOD ENGINE · CHATGPT':'HUMANALE GOD ENGINE · '+provider.toUpperCase();
+ $('#personaBadge').textContent=provider==='alecore-local'?'ALECORE AI · MODEL LOKAL':persona==='copilot'?'HUMANALE GOD ENGINE · GITHUB COPILOT':persona==='chatgpt'?'HUMANALE GOD ENGINE · CHATGPT':'HUMANALE GOD ENGINE · '+provider.toUpperCase();
  if(panelOnly)panelChannel?.postMessage({type:'persona',provider});
 }
 function getIndonesianVoices(){
