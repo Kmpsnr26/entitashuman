@@ -8,10 +8,14 @@
 
 ## Safety adjustments
 
-- Read-only planning/review agents use explicit OpenCode V2 permission rules to deny `edit`, `shell`, and `external_directory`; the old `read_only: true` metadata is not relied on as an access-control boundary.
-- The primary orchestrator asks before shell commands and denies destructive Git reset/clean operations; rollback instructions require a reviewed revert and human approval.
+- Nine read-only planning, review, image, and vision profiles explicitly deny `edit`, `shell`, and `external_directory`; the old `read_only: true` metadata is not relied on as an access-control boundary.
+- The other 18 profiles require approval (`ask`) before `shell`, `edit`, or access to an external directory. The GitHub specialist also asks before GitHub MCP actions; the MCP specialist asks before MCP-server tool actions.
+- The primary orchestrator asks before shell commands, edits, and external-directory access, and denies destructive Git reset/clean operations; rollback instructions require a reviewed revert and human approval.
+- The security auditor is strictly read-only and cannot run shell scanners itself; request a separately approved CI/security scan through the orchestrator.
 - The duplicated JSON `type` key in the MCP specialist example was removed. Workstation-specific local paths were replaced with placeholders.
 - The two previous NVIDIA Ultra model references were moved to the currently listed free OpenCode Lightning model; three vision-agent references use the currently listed OpenCode Super VL free model. This is a free-first fallback, not a runtime connection test.
+
+The permission policy follows the OpenCode V2 ordered-rule model documented at https://opencode.ai/docs/permissions/. HumanALE/NARA must still enforce its own authorization boundary outside OpenCode.
 
 ## Quarantined source fragment
 
