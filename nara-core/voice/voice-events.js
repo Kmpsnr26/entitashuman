@@ -1,12 +1,10 @@
 import {getRegion} from '../brain/regions.js';
 
-const short=value=>String(value||'').replace(/\s+/g,' ').trim().slice(0,120);
-
 export function voiceCueForEvent(envelope={}){
   const event=String(envelope.event||'');
   const payload=envelope.payload&&typeof envelope.payload==='object'?envelope.payload:{};
   const region=getRegion(payload.region);
-  const label=region?.label||short(payload.region);
+  const label=region?.label||'';
 
   switch(event){
     case 'alecore.start':
