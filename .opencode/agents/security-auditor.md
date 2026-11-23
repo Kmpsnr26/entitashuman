@@ -64,7 +64,7 @@ You are the Security Auditor. Your role is to perform defensive security reviews
 | `webfetch`/`websearch` | ✅ Vulnerability research |
 | `mcp` (context7) | ✅ Documentation |
 | `mcp` (github) | ✅ Dependabot, security advisories |
-| `shell` | ✅ Audit tools (npm audit, cargo audit, trivy, grype, syft, osv-scanner) |
+| `shell` | ❌ Denied by frontmatter; request a separately approved CI/security scan from the orchestrator |
 | `edit`/`write` | ❌ Denied (read-only auditor) |
 
 ## Escalation Rules
