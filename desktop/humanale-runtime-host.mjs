@@ -51,7 +51,7 @@ function deriveBodyState(core={}){
 
 export class HumanALERuntimeHost{
   constructor({
-    nara,
+    ale,
     voiceFeedback=null,
     dataFlowMeter=null,
     getTargets=()=>[],
@@ -59,8 +59,8 @@ export class HumanALERuntimeHost{
     rendererEvents=DEFAULT_RENDERER_EVENTS,
     onExperienceDirty=()=>{}
   }={}){
-    if(!nara?.snapshot||!nara?.dispatch||!nara?.bus)throw new Error('HumanALE Runtime Host membutuhkan AleCore AI Orchestrator.');
-    this.nara=nara;
+    if(!ale?.snapshot||!ale?.dispatch||!ale?.bus)throw new Error('HumanALE Runtime Host membutuhkan AleCore AI Orchestrator.');
+    this.ale=ale;
     this.voiceFeedback=voiceFeedback;
     this.dataFlowMeter=dataFlowMeter;
     this.getTargets=typeof getTargets==='function'?getTargets:()=>[];
