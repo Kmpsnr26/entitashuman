@@ -1,4 +1,4 @@
-import {VOICE_PROFILES,voiceProfilePatch,populateNaraVoiceSelect} from './voice-identity.js';
+import {VOICE_PROFILES,voiceProfilePatch,populateAleCoreVoiceSelect} from './voice-identity.js';
 
 const STORAGE_KEY='nara.visual.settings.v1';
 
@@ -157,7 +157,7 @@ export function createCustomSettingsPanel({
       if(output)output.textContent=formatValue(key,settings[key]);
     }
     applyCss(settings);
-    if(voiceSelect)populateNaraVoiceSelect(voiceSelect,settings.voiceURI);
+    if(voiceSelect)populateAleCoreVoiceSelect(voiceSelect,settings.voiceURI);
   }
 
   function emit({persist=true}={}){
@@ -220,7 +220,7 @@ export function createCustomSettingsPanel({
   });
 
   if('speechSynthesis' in window){
-    const refreshVoices=()=>populateNaraVoiceSelect(voiceSelect,settings.voiceURI);
+    const refreshVoices=()=>populateAleCoreVoiceSelect(voiceSelect,settings.voiceURI);
     window.speechSynthesis.addEventListener?.('voiceschanged',refreshVoices);
     refreshVoices();
   }

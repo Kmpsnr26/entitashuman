@@ -1670,7 +1670,11 @@ test('Revision R7 adds selectable AleCore AI voice identity and local UI sound e
 
   assert.match(identity,/HUMANALE_VOICE/);
   assert.match(identity,/globalThis\.window\?\.speechSynthesis/);
+  assert.match(identity,/alecore:voice-speaking/);
   assert.match(identity,/nara:voice-speaking/);
+  assert.match(identity,/listAleCoreVoices/);
+  assert.match(identity,/chooseAleCoreVoice/);
+  assert.match(identity,/populateAleCoreVoiceSelect/);
 
   assert.match(app,/createUiSoundEngine/);
   assert.match(app,/uiSound\.setProfile\(customSettings\.getSettings\(\)\)/);
