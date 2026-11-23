@@ -456,7 +456,7 @@ async function refreshNaraSkillSnapshot(force=false){
  }
  return latestNaraSkillSnapshot;
 }
-const conversationTeamAgentIds=['humanale-orchestrator','codex','github-copilot','cursor','claude','continue','cody'];
+const conversationTeamAgentIds=['humanale-orchestrator','codex','github-copilot','cursor','claude'];
 const conversationTeamSkillIds=['reasoning','planner','program','bug-hunter','safety','terminal','github','memory'];
 function teamAgentStateLabel(agent){
  if(agent?.canRun===true)return {state:'ready',label:'siap'};
@@ -535,7 +535,7 @@ function renderConversationTeam(){
   if(conversationTeamRunError)note.textContent='Pekerjaan belum selesai: '+conversationTeamRunError;
   else if(structuredReady.length<2)note.textContent='Mode Kerja kolaboratif memerlukan minimal dua executor lokal berbeda agar Worker dapat diperiksa Reviewer independen.';
   else if(latestAgentStatus?.workReadiness?.error)note.textContent='Mode Kerja menunggu kesiapan folder proyek: '+latestAgentStatus.workReadiness.error;
-  else note.textContent='NARA memilih Planner, Worker, Reviewer, dan skill sesuai tugas. Status hanya menampilkan koneksi yang benar-benar terdeteksi.';
+  else note.textContent='Semua executor terverifikasi bekerja berurutan: Planner, Specialist bila tersedia, Worker, lalu Reviewer. Skill tidak menambah izin sistem.';
  }
  renderConversationWorkflow();
 }
@@ -551,6 +551,7 @@ function setConversationTeamRunState(state,result=null,error=''){
 }
 async function refreshConversationTeam(){
  if(!desktop||panelOnly)return;
+ renderConversationTeam();
  const jobs=[];
  if(typeof desktop.agents==='function')jobs.push(desktop.agents().then(data=>{if(data&&!data.error)latestAgentStatus=data;}).catch(()=>{}));
  if(typeof desktop.naraSkillSnapshot==='function')jobs.push(refreshNaraSkillSnapshot(false).catch(()=>{}));
