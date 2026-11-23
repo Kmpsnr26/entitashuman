@@ -32,7 +32,7 @@ test('structured HumanALE orchestrator keeps planning, work and review bounded',
   readFile(new URL('../public/index.html',import.meta.url),'utf8')
  ]);
  assert.match(hub,/id:'humanale-orchestrator'/);
- assert.match(hub,/async runStructured\(prompt,mode\)/);
+ assert.match(hub,/async runStructured\(prompt,mode,preferredWorker/);
  assert.match(hub,/Planner HumanALE/);
  assert.match(hub,/Worker HumanALE/);
  assert.match(hub,/Reviewer HumanALE/);
@@ -44,7 +44,7 @@ test('structured HumanALE orchestrator keeps planning, work and review bounded',
  assert.match(hub,/runDirect\(planner,planPrompt,'analyze'\)/);
  assert.match(hub,/runDirect\(worker,workPrompt,mode\)/);
  assert.match(hub,/runDirect\(reviewer,reviewPrompt,'analyze'\)/);
- assert.match(hub,/selectStructuredRoles\(available\)/);
+ assert.match(hub,/selectStructuredRoles\(available,preferredWorker\)/);
  assert.match(hub,/DEGRADED SINGLE-EXECUTOR/);
  assert.match(hub,/INDEPENDENT REVIEW/);
  assert.match(hub,/runProcess\(executable,\['--version'\]/);
