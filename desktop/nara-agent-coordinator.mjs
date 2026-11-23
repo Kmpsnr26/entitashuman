@@ -95,9 +95,8 @@ export class NaraAgentCoordinator{
       }
       const outputSummary=safeText(result?.text||result?.summary||result?.output||'',500);
       if(!outputSummary)throw new Error('Agent Hub mengembalikan hasil kosong; NARA tidak dapat memverifikasi Goal.');
-      const reviewerText=Array.isArray(result?.stages)
-        ? result.stages.filter(stage=>stage?.role==='reviewer').map(stage=>String(stage.text||'')).join('\n')
-        : '';
+      const reviewerStages=Array.isArray(result?.stages)?result.stages.filter(stage=>stage?.role==='reviewer'):[];
+      const reviewerText=String(reviewerStages.at(-1)?.text||'');
       const reviewerPassed=result?.verification?.status==='passed'||new RegExp('\\bVERDICT\\s*:\\s*PASS\\b','i').test(reviewerText);
       if(meta.mode==='work'&&!reviewerPassed){
         const error=new Error('Mode Kerja belum lolos verifikasi reviewer independen. NARA menolak menyelesaikan Goal tanpa VERDICT: PASS.');
