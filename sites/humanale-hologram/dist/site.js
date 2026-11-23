@@ -1,4 +1,4 @@
-// Use the NARA face engine in procedural-only mode. No PNG/JPG face map is loaded.
+// Use the AleCore AI face engine in procedural-only mode. No PNG/JPG face map is loaded.
 const canvas = document.querySelector('#avatar');
 const avatar = new window.NeuralAvatar(canvas);
 // The Site stage stays dark even when the visitor's OS theme is light.
@@ -25,10 +25,13 @@ const speakNaraCue=cue=>{
   utterance.onend=utterance.onerror=()=>{if(generation===naraVoiceGeneration){avatar.setSpeaking(false);runtime.dispatch('speech.stop',{source:'nara-site'});}};
   window.speechSynthesis.speak(utterance);
 };
-const runtime=window.HumanALENaraRuntime.create({
+const Runtime=window.AleCoreAIRuntime||window.HumanALENaraRuntime;
+if(!Runtime?.create)throw new Error('AleCore AI runtime tidak tersedia.');
+const runtime=Runtime.create({
   regions:avatar.neuralCore.regions,
   onVoice:cue=>{showState(cue.text.toUpperCase(),2200);speakNaraCue(cue);}
 });
+window.AleCoreAI=runtime;
 window.humanALENara=runtime;
 
 const regionMeta=Object.fromEntries((avatar.neuralCore.regions||[]).map(region=>[region.id,region]));
@@ -52,7 +55,7 @@ const updateInspector=(snapshot=latestBrainState)=>{
   if(inspectActivity)inspectActivity.textContent=Math.round((Number(region.activity)||0)*100)+'%';
   if(inspectEvent)inspectEvent.textContent=String(region.lastEvent||'—');
   if(inspectUpdated)inspectUpdated.textContent=region.updatedAt?new Date(region.updatedAt).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'—';
-  if(inspectMessage)inspectMessage.textContent=String(region.message||'Region siap menerima aktivitas NARA.');
+  if(inspectMessage)inspectMessage.textContent=String(region.message||'Region siap menerima aktivitas AleCore AI.');
   for(const button of connectionButtons){
     const item=latestBrainState?.regions?.[button.dataset.region]||{};
     const status=String(item.status||'idle');
@@ -69,7 +72,7 @@ runtime.state.subscribe(snapshot=>{
 
 avatar.onBrainRegionSelect=region=>{
   runtime.dispatch('brain.region.select',{region});
-  showState('NARA · '+region.replaceAll('_',' '),0);
+  showState('AleCore AI · '+region.replaceAll('_',' '),0);
 };
 for(const button of connectionButtons)button.addEventListener('click',()=>{
   const region=button.dataset.region;
@@ -141,7 +144,7 @@ const renderMemory=state=>{
   for(const entry of entries){
     const item=document.createElement('article');item.className='memory-item';
     const top=document.createElement('div');top.className='memory-item-top';
-    const title=document.createElement('strong');title.textContent=entry.title||'Memori NARA';
+    const title=document.createElement('strong');title.textContent=entry.title||'Memori AleCore AI';
     const type=document.createElement('span');type.textContent=entry.type;
     top.append(title,type);
     const summary=document.createElement('p');summary.textContent=entry.summary||'';
@@ -199,7 +202,7 @@ memoryList?.addEventListener('click',event=>{
 });
 memoryClear?.addEventListener('click',()=>{
   if(!memory.snapshot().count)return;
-  if(!window.confirm('Hapus seluruh memori lokal NARA di browser ini?'))return;
+  if(!window.confirm('Hapus seluruh memori lokal AleCore AI di browser ini?'))return;
   memory.clear();currentMemoryResults=null;renderMemory(memory.snapshot());showState('MEMORY · DIKOSONGKAN');
 });
 
@@ -312,7 +315,7 @@ sensorCameraButton?.addEventListener('click',async()=>{
     if(sensors.cameraActive)sensors.stopCamera();else await sensors.startCamera();
   }catch(error){showState('KAMERA · '+String(error?.message||'GAGAL').toUpperCase(),2600);}
 });
-sensorStopButton?.addEventListener('click',async()=>{await sensors.stopAll();showState('SENSOR NARA BERHENTI');});
+sensorStopButton?.addEventListener('click',async()=>{await sensors.stopAll();showState('SENSOR ALECORE AI BERHENTI');});
 
 const unlockNaraVoice=()=>{naraVoiceUnlocked=true;};
 window.addEventListener('pointerdown',unlockNaraVoice,{once:true});
@@ -322,7 +325,7 @@ showState('WAJAH PROCEDURAL SIAP');
 dataSpine.start();
 cognition.start();
 memory.start();
-runtime.start();
+if(typeof runtime.startAleCore==='function')runtime.startAleCore();else runtime.start();
 connections.start();
 
 document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
@@ -345,7 +348,7 @@ const zoom = document.querySelector('#zoom');
 avatar.onZoom = value => {
   zoom.value = String(value);
   document.querySelector('#zoom-value').textContent = value.toFixed(1) + '× · ' +
-    (value < 1.5 ? 'wajah' : value < 2.15 ? 'rongga kepala' : value < 2.75 ? 'otak 3D' : value < 3.3 ? 'NARA neural' : 'node / modul');
+    (value < 1.5 ? 'wajah' : value < 2.15 ? 'rongga kepala' : value < 2.75 ? 'otak 3D' : value < 3.3 ? 'AleCore AI neural' : 'node / modul');
 };
 zoom.addEventListener('input', event => avatar.setZoom(event.target.value));
 
@@ -414,6 +417,6 @@ window.addEventListener('pagehide',()=>{
   connections.stop();
   memory.stop();
   cognition.stop();
-  runtime.stop();
+  if(typeof runtime.stopAleCore==='function')runtime.stopAleCore();else runtime.stop();
   dataSpine.stop();
 },{once:true});

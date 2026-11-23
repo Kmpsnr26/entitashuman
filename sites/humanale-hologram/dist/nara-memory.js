@@ -22,7 +22,7 @@
 
   class HumanALEMemory{
     constructor({runtime,storage=null,key=STORAGE_KEY,maxEntries=80,onState=null,onError=null,now=null}={}){
-      if(!runtime?.dispatch||!runtime?.bus?.onAny)throw new Error('Runtime NARA diperlukan untuk Memory.');
+      if(!runtime?.dispatch||!runtime?.bus?.onAny)throw new Error('AleCore AI runtime diperlukan untuk Memory.');
       this.runtime=runtime;
       this.storage=storage||defaultStorage();
       this.key=String(key||STORAGE_KEY);
@@ -50,7 +50,7 @@
       const updatedAt=Number(value.updatedAt)||createdAt;
       const id=safeText(value.id,64)||('mem-'+createdAt+'-'+(++this.sequence));
       const source=safeText(value.source,48)||'site';
-      return {id,type,title:title||summary.slice(0,80)||'Memori NARA',summary,tags,source,createdAt,updatedAt};
+      return {id,type,title:title||summary.slice(0,80)||'Memori AleCore AI',summary,tags,source,createdAt,updatedAt};
     }
 
     load(){
@@ -174,7 +174,7 @@
       if(event==='work.start'){
         this.pendingTask={
           id:safeText(payload.id,64),
-          label:safeText(payload.label,120)||'Pekerjaan NARA',
+          label:safeText(payload.label,120)||'Pekerjaan AleCore AI',
           startedAt:Number(envelope.timestamp)||this.now()
         };
       }else if(event==='work.complete'&&this.pendingTask){
@@ -182,7 +182,7 @@
         this.remember({
           type:'task',
           title:task.label,
-          summary:'Pekerjaan selesai dan terverifikasi sebagai aktivitas NARA.',
+          summary:'Pekerjaan selesai dan terverifikasi sebagai aktivitas AleCore AI.',
           tags:['task','complete'],
           source:'auto-task'
         });
