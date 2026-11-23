@@ -49,9 +49,12 @@ export class NaraAutopilot{
         return prior?.ok?prior:{ok:true,task:current,result:current.result};
       }
       if(['failed','cancelled'].includes(current.status)){
-        if(current.status==='cancelled')this.outcomes.delete(id);
+        if(current.status==='cancelled'){
+          this.outcomes.delete(id);
+          return {ok:false,reason:'cancelled',task:current};
+        }
         const prior=this.outcomes.get(id);
-        return prior&&!prior.ok?prior:{ok:false,reason:current.lastError||current.status,task:current};
+        return prior&&!prior.ok?prior:{ok:false,reason:current.lastError||'failed',task:current};
       }
       // Explicitly requeued failed work is a new attempt.
       if(current.status==='queued'){
