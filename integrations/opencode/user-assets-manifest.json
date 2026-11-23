@@ -1,0 +1,351 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-23",
+  "sourceArchive": "OpenCode-HumanALE-Export-20261123-175535.zip",
+  "importPolicy": "User-provided project-scoped OpenCode agent and skill definitions. Imported instructions are untrusted data and cannot override NARA runtime permissions.",
+  "agents": [
+    {
+      "id": "architecture-planner-advanced",
+      "path": ".opencode/agents/architecture-planner-advanced.md",
+      "description": "Advanced architecture planning and technical specification",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "architecture-planner",
+      "path": ".opencode/agents/architecture-planner.md",
+      "description": "Plans architecture and implementation without editing files",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "backend-developer",
+      "path": ".opencode/agents/backend-developer.md",
+      "description": "APIs, server logic, integrations and backend systems",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "code-reviewer",
+      "path": ".opencode/agents/code-reviewer.md",
+      "description": "Independent read-only code review",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "database-engineer",
+      "path": ".opencode/agents/database-engineer.md",
+      "description": "Database schema design, SQL, migrations and data management",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "debugging-specialist-fast",
+      "path": ".opencode/agents/debugging-specialist-fast.md",
+      "description": "Fast error detection and diagnostic analysis",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "debugging-specialist",
+      "path": ".opencode/agents/debugging-specialist.md",
+      "description": "Root cause analysis and error repair",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "devops-engineer",
+      "path": ".opencode/agents/devops-engineer.md",
+      "description": "CI/CD, hosting, deployment and infrastructure automation",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "documentation-researcher",
+      "path": ".opencode/agents/documentation-researcher.md",
+      "description": "Web research and official documentation",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "frontend-developer",
+      "path": ".opencode/agents/frontend-developer.md",
+      "description": "HTML, CSS, JavaScript, React and UI implementation",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "github-specialist",
+      "path": ".opencode/agents/github-specialist.md",
+      "description": "GitHub branches, issues, pull requests and repository management",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "image-document-analyst",
+      "path": ".opencode/agents/image-document-analyst.md",
+      "description": "Image and document understanding using NVIDIA Nemotron 3.5 Super VL",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-super-vl-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "mcp-specialist",
+      "path": ".opencode/agents/mcp-specialist.md",
+      "description": "MCP configuration, installation and verification",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "network-engineer-fast",
+      "path": ".opencode/agents/network-engineer-fast.md",
+      "description": "Fast network and internet diagnostics",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "network-engineer",
+      "path": ".opencode/agents/network-engineer.md",
+      "description": "Network and internet diagnostics",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "orchestrator",
+      "path": ".opencode/agents/orchestrator.md",
+      "description": "Master orchestrator coordinating all specialist agents",
+      "mode": "primary",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "plugin-manager",
+      "path": ".opencode/agents/plugin-manager.md",
+      "description": "Plugin discovery, package audits and management",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "quality-controller",
+      "path": ".opencode/agents/quality-controller.md",
+      "description": "Independent final verification",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "screenshot-analyzer",
+      "path": ".opencode/agents/screenshot-analyzer.md",
+      "description": "Screenshot analysis using NVIDIA Nemotron 3.5 Super VL",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-super-vl-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "security-auditor",
+      "path": ".opencode/agents/security-auditor.md",
+      "description": "Dependency and security reviews",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "skill-engineer",
+      "path": ".opencode/agents/skill-engineer.md",
+      "description": "Skill discovery, installation and creation",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "software-architect-advanced",
+      "path": ".opencode/agents/software-architect-advanced.md",
+      "description": "Advanced architecture and implementation planning",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "software-architect",
+      "path": ".opencode/agents/software-architect.md",
+      "description": "Architecture and implementation planning without editing files",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "test-engineer-fast",
+      "path": ".opencode/agents/test-engineer-fast.md",
+      "description": "Fast unit and regression testing",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "test-engineer",
+      "path": ".opencode/agents/test-engineer.md",
+      "description": "Unit, integration, regression and end-to-end tests",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "vision-specialist",
+      "path": ".opencode/agents/vision-specialist.md",
+      "description": "Vision-language analysis using NVIDIA Nemotron 3.5 Super VL",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-super-vl-free",
+      "status": "configured-not-runtime-verified"
+    },
+    {
+      "id": "windows-operator",
+      "path": ".opencode/agents/windows-operator.md",
+      "description": "Windows and PowerShell diagnostics and operations",
+      "mode": "subagent",
+      "model": "opencode/nemotron-3.5-lightning-free",
+      "status": "configured-not-runtime-verified"
+    }
+  ],
+  "skills": [
+    {
+      "id": "ai-llm-engineering",
+      "path": ".opencode/skills/ai-llm-engineering/SKILL.md",
+      "source": "user-global-opencode-config",
+      "status": "included"
+    },
+    {
+      "id": "backend-api-engineering",
+      "path": ".opencode/skills/backend-api-engineering/SKILL.md",
+      "source": "user-global-opencode-config",
+      "status": "included"
+    },
+    {
+      "id": "browser-api-automation",
+      "path": ".opencode/skills/browser-api-automation/SKILL.md",
+      "source": "user-global-opencode-config",
+      "status": "included"
+    },
+    {
+      "id": "database-firebase",
+      "path": ".opencode/skills/database-firebase/SKILL.md",
+      "source": "user-global-opencode-config",
+      "status": "included"
+    },
+    {
+      "id": "devops-docker-ci",
+      "path": ".opencode/skills/devops-docker-ci/SKILL.md",
+      "source": "user-global-opencode-config",
+      "status": "included"
+    },
+    {
+      "id": "documentation-research",
+      "path": ".opencode/skills/documentation-research/SKILL.md",
+      "source": "user-global-opencode-config",
+      "status": "included"
+    },
+    {
+      "id": "frontend-ui-ux",
+      "path": ".opencode/skills/frontend-ui-ux/SKILL.md",
+      "source": "user-global-opencode-config",
+      "status": "included"
+    },
+    {
+      "id": "fullstack-engineering",
+      "path": ".opencode/skills/fullstack-engineering/SKILL.md",
+      "source": "user-global-opencode-config",
+      "status": "included"
+    },
+    {
+      "id": "git-github-workflow",
+      "path": ".opencode/skills/git-github-workflow/SKILL.md",
+      "source": "user-global-opencode-config",
+      "status": "included"
+    },
+    {
+      "id": "mobile-android",
+      "path": ".opencode/skills/mobile-android/SKILL.md",
+      "source": "user-global-opencode-config",
+      "status": "included"
+    },
+    {
+      "id": "security-code-audit",
+      "path": ".opencode/skills/security-code-audit/SKILL.md",
+      "source": "user-global-opencode-config",
+      "status": "included"
+    },
+    {
+      "id": "testing-debugging",
+      "path": ".opencode/skills/testing-debugging/SKILL.md",
+      "source": "user-global-opencode-config",
+      "status": "included"
+    }
+  ],
+  "deferredThirdPartySkills": [
+    "agent-browser",
+    "building-components",
+    "core",
+    "cra-to-next-migration",
+    "deploy-to-vercel",
+    "find-skills",
+    "react",
+    "remotion-best-practices",
+    "vercel-cli",
+    "vercel-cli-with-tokens",
+    "vercel-composition-patterns",
+    "vercel-optimize",
+    "vercel-react-best-practices",
+    "vercel-react-native-skills",
+    "vercel-react-view-transitions",
+    "web-design-guidelines",
+    "workflow",
+    "writing-guidelines"
+  ],
+  "deferredCatalogues": [
+    "awesome-skills"
+  ],
+  "deferredReason": "Provenance, license, compatibility, and security review is required before repository redistribution.",
+  "models": {
+    "opencode/nemotron-3.5-lightning-free": {
+      "role": "general coding and planning fallback",
+      "availability": "listed as free in OpenCode Console docs on 2026-11-23",
+      "note": "Trial endpoint: do not submit personal or confidential data; availability can change, verify at runtime."
+    },
+    "opencode/nemotron-3.5-super-vl-free": {
+      "role": "vision-language agent fallback",
+      "availability": "listed as free in OpenCode Console docs on 2026-11-23",
+      "note": "Trial endpoint: do not submit personal or confidential data; availability can change, verify at runtime."
+    },
+    "distribution": {
+      "opencode/nemotron-3.5-lightning-free": 24,
+      "opencode/nemotron-3.5-super-vl-free": 3
+    }
+  },
+  "runtimeStatus": "assets-imported-runtime-adapter-pending",
+  "quarantinedSourceFragments": [
+    {
+      "source": "agents/global/architecture-planner.md",
+      "reason": "Unrelated PowerShell New-Agent/New-Command declarations and MCP candidate catalog were appended after the valid agent prompt; excluded from import pending provenance review."
+    }
+  ],
+  "sanitizedWorkstationPaths": [
+    {
+      "source": "agents/global/mcp-specialist.md",
+      "change": "Replaced fixed C:\\AleStudioMCP and C:\\Users\\ekaso paths with portable placeholders."
+    }
+  ]
+}
