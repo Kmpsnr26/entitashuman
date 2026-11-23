@@ -3,7 +3,7 @@ const safeText=(value,max=200)=>String(value??'').replace(/[\r\n\t]+/g,' ').trim
 const clamp01=value=>Math.max(0,Math.min(1,Number(value)||0));
 
 export class NaraGoalManager{
-  constructor({limit=100}={}){this.limit=Math.max(5,Math.min(1000,Number(limit)||100));this.goals=new Map();this.sequence=0;}
+  constructor({limit=100}={}){this.limit=Math.max(5,Math.min(1000,Number(limit)||100));this.goals=new Map();this.taskStatuses=new Map();this.sequence=0;}
   create({id='',label='NARA goal',priority=50,parentId='',dependencies=[],successCriteria=[]}={}){
     const goalId=safeText(id||('goal-'+(++this.sequence)),80);
     if(!SAFE_ID.test(goalId))throw new Error('Goal ID NARA tidak valid.');
@@ -29,6 +29,7 @@ export class NaraGoalManager{
   criteriaSatisfied(item){return item.successCriteria.every(criterion=>item.evidence.some(entry=>entry.criterion===criterion&&entry.verified===true&&entry.summary));}
   recordEvidence(id,{criterion,evidence,verified=false,source=''}={}){
     const item=this.goals.get(String(id||''));if(!item)throw new Error('Goal NARA tidak ditemukan.');
+    if(['complete','failed','cancelled'].includes(item.status))throw new Error('Goal terminal tidak dapat menerima bukti baru.');
     const key=safeText(criterion,180);if(!item.successCriteria.includes(key))throw new Error('Kriteria keberhasilan tidak terdaftar pada Goal.');
     const summary=safeText(typeof evidence==='string'?evidence:evidence?.summary,500);
     if(!summary)throw new Error('Bukti Goal wajib memiliki ringkasan.');
@@ -45,11 +46,14 @@ export class NaraGoalManager{
   }
   attachTask(goalId,taskId){
     const item=this.goals.get(String(goalId||''));if(!item)throw new Error('Goal NARA tidak ditemukan.');
+    if(item.status==='complete')throw new Error('Goal yang selesai tidak dapat menerima task baru.');
     const id=safeText(taskId,80);if(!SAFE_ID.test(id))throw new Error('Task ID untuk goal tidak valid.');
     if(!item.taskIds.includes(id))item.taskIds.push(id);item.updatedAt=Date.now();return this.get(item.id);
   }
   reconcileTasks(tasks=[]){
-    const byId=new Map((Array.isArray(tasks)?tasks:[]).map(task=>[String(task?.id||''),task]));const changes=[];
+    const byId=new Map((Array.isArray(tasks)?tasks:[]).map(task=>[String(task?.id||''),task]));
+    for(const [id,task] of byId)this.taskStatuses.set(id,String(task?.status||''));
+    const changes=[];
     for(const item of this.goals.values()){
       if(!item.taskIds.length||['complete','failed','cancelled'].includes(item.status))continue;
       const linked=item.taskIds.map(id=>byId.get(id)).filter(Boolean);if(!linked.length)continue;
@@ -70,6 +74,8 @@ export class NaraGoalManager{
   }
   complete(id){
     const item=this.goals.get(String(id||''));if(!item)throw new Error('Goal NARA tidak ditemukan.');
+    if(['failed','cancelled'].includes(item.status))throw new Error('Goal terminal gagal/batal tidak dapat diselesaikan.');
+    if(item.taskIds.some(taskId=>this.taskStatuses.get(taskId)!=='complete'))throw new Error('Goal NARA belum dapat diselesaikan: seluruh task terkait harus selesai.');
     if(!this.criteriaSatisfied(item))throw new Error('Goal NARA belum dapat diselesaikan: bukti terverifikasi untuk seluruh success criteria belum tersedia.');
     item.status='complete';item.progress=1;item.completedAt=Date.now();item.updatedAt=item.completedAt;item.lastError='';return this.get(item.id);
   }
