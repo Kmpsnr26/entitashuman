@@ -8,6 +8,7 @@ import {
  issueRecovered,
  managedCiSource,
  routeFallbackCandidates,
+ routeWithoutCopilotToken,
  selectLatestFailedRuns
 } from './helpers/cloud-auto-repair-logic.mjs';
 
@@ -230,4 +231,28 @@ test('stale CI retirement identifies only managed non-default source branches',(
  assert.match(workflow,/if \(error\.status !== 404\) throw error;/);
  assert.match(workflow,/run\.head_sha !== source\.headSha/);
  assert.match(workflow,/state_reason: 'not_planned'/);
+});
+
+
+test('missing Copilot token preserves existing assignments and fallback PRs',()=>{
+ const blocks=extractBlocks('no-token-routing');
+ assert.equal(blocks.length,1);
+ assert.equal(normalizeSource(blocks[0]),normalizeSource(routeWithoutCopilotToken.toString()));
+
+ assert.equal(routeWithoutCopilotToken({alreadyAssigned:true,hasOpenFallback:false}),'delegated');
+ assert.equal(routeWithoutCopilotToken({alreadyAssigned:false,hasOpenFallback:true}),'fallback');
+ assert.equal(routeWithoutCopilotToken({alreadyAssigned:false,hasOpenFallback:false}),'queued');
+
+ const delegateStart=workflow.indexOf("if (!tokenConfigured) {");
+ const activeAssignment=workflow.indexOf("if (alreadyAssigned)",delegateStart);
+ const existingFallback=workflow.indexOf("if (hasOpenFallback)",delegateStart);
+ const noTokenRoute=workflow.indexOf("routeWithoutCopilotToken({alreadyAssigned,hasOpenFallback})",delegateStart);
+ const assignApi=workflow.indexOf("'POST /repos/{owner}/{repo}/issues/{issue_number}/assignees'",delegateStart);
+ assert.ok(delegateStart>=0);
+ assert.ok(activeAssignment>delegateStart);
+ assert.ok(existingFallback>activeAssignment);
+ assert.ok(noTokenRoute>existingFallback);
+ assert.ok(assignApi>noTokenRoute);
+ assert.match(workflow,/queued_issues', JSON\.stringify\(\[\.\.\.queued, \.\.\.route\.queued\]\)/);
+ assert.doesNotMatch(workflow,/if \(process\.env\.COPILOT_TOKEN_CONFIGURED !== 'true'\)[\s\S]{0,500}return;/);
 });
