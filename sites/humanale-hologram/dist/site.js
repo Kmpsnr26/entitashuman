@@ -29,7 +29,7 @@ const runtime=window.HumanALEAleRuntime.create({
   regions:avatar.neuralCore.regions,
   onVoice:cue=>{showState(cue.text.toUpperCase(),2200);speakAleCue(cue);}
 });
-window.humanALENara=runtime;
+window.humanALEAle=runtime;
 
 const regionMeta=Object.fromEntries((avatar.neuralCore.regions||[]).map(region=>[region.id,region]));
 const inspectName=document.querySelector('#inspectName');
