@@ -40,6 +40,7 @@ test(
   () => {
     assert.match(migration, /ALTER TABLE public\.nara_memory RENAME TO alecore_ai_memory/);
     assert.match(migration, /ALTER TABLE public\.nara_app_sessions RENAME TO alecore_ai_app_sessions/);
+    assert.match(migration, /IF to_regclass\('public\.alecore_ai_memory'\) IS NOT NULL THEN/);
   }
 );
 

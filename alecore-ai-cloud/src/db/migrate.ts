@@ -11,10 +11,19 @@ BEGIN
      AND to_regclass('public.alecore_ai_app_sessions') IS NULL THEN
     ALTER TABLE public.nara_app_sessions RENAME TO alecore_ai_app_sessions;
   END IF;
-  IF to_regclass('public.alecore_ai_memory') IS NOT NULL
-     AND EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.alecore_ai_memory'::regclass AND conname = 'nara_memory_type_check')
-     AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.alecore_ai_memory'::regclass AND conname = 'alecore_ai_memory_type_check') THEN
-    ALTER TABLE public.alecore_ai_memory RENAME CONSTRAINT nara_memory_type_check TO alecore_ai_memory_type_check;
+  IF to_regclass('public.alecore_ai_memory') IS NOT NULL THEN
+    IF EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conrelid = to_regclass('public.alecore_ai_memory')
+        AND conname = 'nara_memory_type_check'
+    ) AND NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conrelid = to_regclass('public.alecore_ai_memory')
+        AND conname = 'alecore_ai_memory_type_check'
+    ) THEN
+      ALTER TABLE public.alecore_ai_memory
+        RENAME CONSTRAINT nara_memory_type_check TO alecore_ai_memory_type_check;
+    END IF;
   END IF;
 END
 $alecore_ai_migration$;
