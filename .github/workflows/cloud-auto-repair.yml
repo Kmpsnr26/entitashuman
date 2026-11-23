@@ -59,7 +59,11 @@ jobs:
               },
               'automation:queued': {
                 color: 'fbca04',
-                description: 'Queued for cloud repair'
+                description: 'Waiting for an eligible executor or manual handling'
+              },
+              'automation:deferred': {
+                color: 'cfd3d7',
+                description: 'Cloud agent is intentionally deferred; no paid cloud executor was invoked'
               },
               'automation:delegated': {
                 color: '0e8a16',
@@ -223,6 +227,7 @@ jobs:
               await removeLabel(issue.number, 'ai-fix-needed');
               await removeLabel(issue.number, 'automation:fallback');
               await removeLabel(issue.number, 'automation:delegated');
+              await removeLabel(issue.number, 'automation:deferred');
               await closeFallbackPullRequest(issue.number);
             }
 
@@ -302,6 +307,7 @@ jobs:
               await removeLabel(issue.number, 'automation:queued');
               await removeLabel(issue.number, 'automation:fallback');
               await removeLabel(issue.number, 'automation:delegated');
+              await removeLabel(issue.number, 'automation:deferred');
               await removeLabel(issue.number, 'ai-fix-needed');
               return true;
             }
@@ -637,13 +643,11 @@ jobs:
             }
 
             if (process.env.COPILOT_TOKEN_CONFIGURED !== 'true') {
-              core.info('COPILOT_ASSIGN_TOKEN is not configured; retaining or routing the issue queue.');
-              const route = routeFallbackCandidates(
-                candidates,
-                await actionsCanCreatePullRequests()
+              core.notice(
+                'Copilot Cloud Agent is intentionally deferred. No cloud agent was invoked; eligible issues remain queued for an available local executor or manual handling.'
               );
-              core.setOutput('fallback_issues', JSON.stringify(route.fallback));
-              core.setOutput('queued_issues', JSON.stringify(route.queued));
+              core.setOutput('fallback_issues', '[]');
+              core.setOutput('queued_issues', JSON.stringify(candidates));
               core.setOutput('delegated_issues', '[]');
               return;
             }
@@ -764,15 +768,18 @@ jobs:
               await add(candidate.issue_number, ['automation:delegated']);
               await remove(candidate.issue_number, 'automation:fallback');
               await remove(candidate.issue_number, 'automation:queued');
+              await remove(candidate.issue_number, 'automation:deferred');
             }
 
             for (const candidate of fallback) {
               await add(candidate.issue_number, ['automation:fallback', 'ai-fix-needed']);
               await remove(candidate.issue_number, 'automation:delegated');
+              await remove(candidate.issue_number, 'automation:queued');
+              await remove(candidate.issue_number, 'automation:deferred');
             }
 
             for (const candidate of queued) {
-              await add(candidate.issue_number, ['automation:queued', 'ai-fix-needed']);
+              await add(candidate.issue_number, ['automation:queued', 'automation:deferred', 'ai-fix-needed']);
               await remove(candidate.issue_number, 'automation:fallback');
               await remove(candidate.issue_number, 'automation:delegated');
             }
