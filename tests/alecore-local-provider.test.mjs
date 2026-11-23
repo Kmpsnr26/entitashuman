@@ -80,11 +80,12 @@ test('AleCore Local sends bounded chat history and a single non-streaming local 
   assert.equal(sent.model, 'qwen3.5:2b');
   assert.equal(sent.stream, false);
   assert.equal(sent.options.num_ctx, 4096);
-  assert.deepEqual(sent.messages.slice(-3), [
-    { role: 'system', content: sent.messages[0].content },
-    { role: 'user', content: 'Apa kabar?' },
-    { role: 'assistant', content: 'Baik.' }
-  ].length === 0 ? [] : sent.messages.slice(-3));
+  assert.equal(sent.messages.length, 4);
+  assert.equal(sent.messages[0].role, 'system');
+  assert.equal(sent.messages[1].role, 'user');
+  assert.equal(sent.messages[1].content, 'Apa kabar?');
+  assert.equal(sent.messages[2].role, 'assistant');
+  assert.equal(sent.messages[2].content, 'Baik.');
   assert.equal(sent.messages.at(-1).role, 'user');
   assert.equal(sent.messages.at(-1).content, 'Halo');
 });
