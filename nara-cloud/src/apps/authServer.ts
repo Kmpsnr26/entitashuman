@@ -1,7 +1,7 @@
 import express from "express";
 import { bodyParserError } from "../middleware/bodyParserError.js";
 import { isTrustedRequestOrigin } from "../security/origin.js";
-import helmet from "helmet";
+import { pageHelmet } from "../security/page-helmet.js";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 
@@ -46,7 +46,7 @@ if (isProduction) {
 
 app.disable("x-powered-by");
 
-app.use(helmet());
+app.use(pageHelmet(isProduction, env.PUBLIC_NARA_ORIGIN));
 
 app.use(
   express.urlencoded({

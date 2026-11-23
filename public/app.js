@@ -1,3 +1,4 @@
+import {setupAndroidLive} from './android-live.js';
 import {HumanALEAvatar} from './humanale-avatar.js';
 import {createAvatarStudioController} from './avatar-studio.js';
 import {createHumanALEVisualStudio} from './humanale-visual-studio.js';
@@ -11,6 +12,7 @@ import {emotionFromText,emotions} from './avatar-emotion.js';
 import {createRobotVoicePlayer,HUMANALE_VOICE} from './robot-voice.js';
 const $=s=>document.querySelector(s),desktop=window.dudidamDesktop,params=new URLSearchParams(location.search),popup=params.get('popup')==='1',panelOnly=Boolean(desktop&&params.has('panel')),avatar=new HumanALEAvatar($('#avatar'),{popup,panelOnly});
 const panelChannel=desktop?new BroadcastChannel('dudidam-avatar-panel'):null;
+const androidLiveAvailable=setupAndroidLive();
 const androidVoice=window.Capacitor?.getPlatform?.()==='android'?(window.Capacitor.Plugins?.HumanALEVoice||null):null;
 const robotVoicePlayer=createRobotVoicePlayer();
 let androidVoiceStop=Promise.resolve();
@@ -823,7 +825,7 @@ async function startSystemAudio(){if(audioMode==='system'){stopReactiveAudio();r
 async function playMusic(file){if(!file)return;stopReactiveAudio();const player=$('#musicPlayer');try{musicUrl=URL.createObjectURL(file);player.src=musicUrl;player.hidden=false;await audioReactor.useElement(player);await player.play();updateAudioUi('music','Musik bereaksi');}catch{stopReactiveAudio();toast('File audio tidak dapat diputar. Pilih MP3, WAV, atau format yang didukung.');}}
 function message(text,role='assistant',say=true,broadcast=true){const a=document.createElement('article');a.className='message '+role;const b=document.createElement('b');b.textContent=role==='assistant'?'HUMANALE GOD ENGINE':'KAMU';const p=document.createElement('p');p.textContent=text;a.append(b,p);$('#messages').append(a);$('#messages').scrollTop=$('#messages').scrollHeight;if(role==='assistant'){$('#bubble').textContent=text;$('#bubble').hidden=!panelOnly&&$('#chatDialog').open;clearTimeout(bubbleTimer);bubbleTimer=setTimeout(()=>$('#bubble').hidden=true,15000);if(emotionChoice==='auto')applyEmotion(emotionFromText(text),broadcast);if(say)speak(text);}if(broadcast)panelChannel?.postMessage({type:'message',text,role});}
 async function submit(text,image){text=text.trim();if(!text||busy)return;message(text,'user',false);const cmd=!image&&parseCommand(text);if(cmd){let answer='';if(['blink','nod','shake'].includes(cmd)){avatar.trigger(cmd);answer={blink:'Saya berkedip.',nod:'Baik, saya mengangguk.',shake:'Saya menggelengkan kepala.'}[cmd];}if(cmd==='stop'){stopSpeech();stopListening();answer='Baik. Suara dihentikan.';}if(cmd==='hello'){avatar.trigger('nod');answer='Halo, saya HumanALE god egine. Saya mendengarkan.';}if(cmd==='help')answer='Klik kanan atau tekan H untuk kontrol, Enter untuk percakapan. B berkedip, N mengangguk, G menggeleng, M mikrofon, R tengahkan. Tombol 1 sampai 5 mengganti gaya biner dan neural. Ukuran avatar dapat diatur dari kontrol. Seret wajah untuk memindahkan.';if(cmd==='time')answer='Sekarang pukul '+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})+'.';if(cmd==='date')answer='Hari ini '+new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'.';if(cmd==='pet'){document.querySelectorAll('dialog[open]').forEach(d=>d.close());answer='Panel disembunyikan.';}message(answer,'assistant',cmd!=='stop');return;}
- if(!desktop){message('Login Sites hanya mengenali akun. Untuk percakapan model gunakan HumanALE god egine Desktop.','assistant',false);return;}
+ if(!desktop){message(androidLiveAvailable?'Untuk percakapan AI streaming, tekan Buka NARA Live lalu masuk ke server NARA Cloud. Perintah avatar lokal tetap tersedia.':'Login Sites hanya mengenali akun. Untuk percakapan model gunakan HumanALE god egine Desktop.','assistant',false);return;}
  if(!image&&isExplicitProjectWorkRequest(text)){
   busy=true;stopSpeech();$('#send').disabled=true;$('#look').disabled=true;state('Memeriksa executor CLI…');$('#liveText').textContent='Memeriksa kesiapan Mode Kerja dan koneksi agent…';
   let workSucceeded=false;setEvolutionVisual('start');

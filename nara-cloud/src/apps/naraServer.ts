@@ -1,6 +1,6 @@
 import express from "express";
 import { bodyParserError } from "../middleware/bodyParserError.js";
-import helmet from "helmet";
+import { pageHelmet } from "../security/page-helmet.js";
 
 import {
   env,
@@ -62,6 +62,12 @@ import {
   humanaleRouter
 } from "../routes/humanale.routes.js";
 
+import {
+  mobileConsoleHtml,
+  mobileConsoleCss,
+  mobileConsoleScript
+} from "../web/mobile-console.js";
+
 const app = express();
 
 if (isProduction) {
@@ -70,7 +76,7 @@ if (isProduction) {
 
 app.disable("x-powered-by");
 
-app.use(helmet());
+app.use(pageHelmet(isProduction));
 
 app.use(
   express.json({
@@ -133,17 +139,6 @@ function setNoStore(
     "Referrer-Policy",
     "no-referrer"
   );
-}
-
-function escapeHtml(
-  input: string
-): string {
-  return input
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }
 
 function regenerateSession(
@@ -308,43 +303,28 @@ app.get(
       return res
         .status(200)
         .type("html")
-        .send(`
-<!doctype html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8">
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1"
-  >
-  <meta
-    name="robots"
-    content="noindex,nofollow,noarchive"
-  >
-  <title>NARA</title>
-</head>
-<body>
-  <h1>NARA ONLINE</h1>
-
-  <p>
-    Owner:
-    ${escapeHtml(owner.display_name)}
-  </p>
-
-  <p>
-    Authentication berhasil.
-  </p>
-
-  <p>
-    AI, Avatar, Memory dan Google Drive
-    akan dipasang pada layer ini.
-  </p>
-</body>
-</html>
-`);
+        .send(mobileConsoleHtml);
     } catch (error) {
       next(error);
     }
+  }
+);
+
+app.get(
+  "/mobile-console.js",
+  requirePageAuth,
+  (_req, res) => {
+    setNoStore(res);
+    res.type("application/javascript").send(mobileConsoleScript());
+  }
+);
+
+app.get(
+  "/mobile-console.css",
+  requirePageAuth,
+  (_req, res) => {
+    setNoStore(res);
+    res.type("text/css").send(mobileConsoleCss);
   }
 );
 

@@ -132,8 +132,12 @@ test(
 
     assert.match(
       nara,
-      /escapeHtml/
+      /send\(mobileConsoleHtml\)/
     );
+
+    const mobileConsole = await read("src/web/mobile-console.ts");
+    assert.match(mobileConsole, /element\("owner"\)\.textContent/);
+    assert.doesNotMatch(mobileConsole, /innerHTML/);
   }
 );
 

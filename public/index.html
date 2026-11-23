@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#030706"><meta name="description" content="HumanALE god egine: entitas AI holografik procedural dengan asisten desktop interaktif."><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none'"><title>HumanALE god egine · Floating Binary Human</title><link rel="icon" href="/favicon.svg"><script src="/surface.js"></script><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/conversation-stage.css"><link rel="stylesheet" href="/audio.css"></head>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#030706"><meta name="description" content="HumanALE god egine: entitas AI holografik procedural dengan asisten desktop interaktif."><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-src 'none'"><title>HumanALE god egine · Floating Binary Human</title><link rel="icon" href="/favicon.svg"><script src="/surface.js"></script><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/conversation-stage.css"><link rel="stylesheet" href="/audio.css"><link rel="stylesheet" href="/android-live.css"></head>
 <body><section id="ownerGate" class="owner-gate" hidden aria-modal="true" role="dialog" aria-labelledby="ownerGateTitle">
  <form id="ownerGateForm" class="owner-gate__card" autocomplete="off">
   <small>NARA / CREATOR AUTHORITY</small>
@@ -110,4 +110,19 @@
 <p id="terminalCliStatus" class="terminal-cli-status">Mendeteksi CLI…</p>
 <p class="fine">Terminal manual menerima input langsung. Perintah yang dibuat otomatis lewat <code>/run</code> melewati CommandPolicyEngine: SAFE berjalan, CONFIRM meminta persetujuan, BLOCK ditolak. Ctrl+C tetap menjadi interrupt; copy/paste menggunakan Ctrl+Shift+C / Ctrl+Shift+V.</p>
 </dialog>
+<button id="androidLiveOpen" type="button" hidden>Buka NARA Live</button>
+<dialog id="androidLiveDialog" aria-labelledby="androidLiveTitle">
+<h2 id="androidLiveTitle">NARA Live</h2>
+<p>Buka Studio lokal atau percakapan AI dari server NARA Anda. Server harus sedang berjalan.</p>
+<form id="androidLiveForm">
+<label for="androidLiveUrl">Alamat server NARA</label>
+<input id="androidLiveUrl" type="url" value="http://127.0.0.1:4178" maxlength="2048" required autocomplete="off" spellcheck="false">
+<p class="fine">Studio di Termux: http://127.0.0.1:4178. Untuk server online, gunakan alamat HTTPS Anda.</p>
+<details><summary>Alamat login Owner terpisah</summary>
+<label for="androidLiveAuth">Alamat server login (opsional)</label>
+<input id="androidLiveAuth" type="url" maxlength="2048" placeholder="http://127.0.0.1:4100" autocomplete="off" spellcheck="false">
+<p class="fine">Isi untuk NARA Cloud jika halaman login berada di server lain. Login Studio lokal tidak memerlukannya.</p></details>
+<div class="live-actions"><button id="androidLiveConnect" type="submit">Buka runtime</button><button id="androidLiveClose" type="button">Kembali</button></div>
+<p id="androidLiveStatus" role="status" aria-live="polite">Belum tersambung ke server.</p>
+</form></dialog>
 <div id="toast" role="status" hidden></div><script src="/humanale/face-rig.js"></script><script src="/humanale/neural-core.js"></script><script src="/humanale/nara-memory.js"></script><script src="/humanale/nara-context-bridge.js"></script><script src="/humanale/avatar.js"></script><script src="/terminal-ui.js"></script><script type="module" src="/app.js"></script></body></html>

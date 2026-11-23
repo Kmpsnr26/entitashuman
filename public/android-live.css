@@ -1,0 +1,13 @@
+#androidLiveOpen{position:fixed;z-index:90;top:max(12px,env(safe-area-inset-top));right:12px;border:1px solid #59dcd1;background:#052724;color:#d3fff8;border-radius:24px;padding:12px 18px;font-weight:700;box-shadow:0 4px 24px #0008}
+#androidLiveOpen[hidden]{display:none}
+#androidLiveDialog{width:min(92vw,460px);box-sizing:border-box;color:#e6fff7;background:#071b20;border:1px solid #256267;border-radius:20px;padding:24px;max-height:88dvh;overflow:auto}
+#androidLiveDialog::backdrop{background:#000b}
+#androidLiveDialog h2{font-size:24px;margin:0 0 14px}
+#androidLiveDialog p{line-height:1.55}
+#androidLiveDialog label{display:block;margin:18px 0 8px;font-size:14px}
+#androidLiveDialog input{width:100%;box-sizing:border-box;color:#e6fff7;background:#041115;border:1px solid #31616b;border-radius:9px;padding:12px;font-size:16px}
+#androidLiveDialog .live-actions{display:flex;gap:12px;margin-top:20px;flex-wrap:wrap}
+#androidLiveDialog button{padding:11px 16px;border-radius:10px;border:1px solid #529a9c;background:#073a3b;color:#eefff9;font:inherit}
+#androidLiveDialog #androidLiveConnect{background:#74e2ce;color:#052524;font-weight:700}
+#androidLiveDialog button:disabled{opacity:.5}
+#androidLiveStatus{min-height:2.8em;font-size:14px;color:#b5ddd8}

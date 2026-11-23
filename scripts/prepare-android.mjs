@@ -1,6 +1,7 @@
 import {readFile,writeFile} from 'node:fs/promises';
 import {androidVersionFromPackageVersion} from './android-version.mjs';
 import {prepareAndroidVoice} from './android/prepare-voice.mjs';
+import {prepareAndroidRuntime} from './android/prepare-runtime.mjs';
 
 const manifestPath='android/app/src/main/AndroidManifest.xml';
 const buildGradlePath='android/app/build.gradle';
@@ -47,4 +48,5 @@ buildGradle=buildGradle
 await writeFile(manifestPath,manifest);
 await writeFile(buildGradlePath,buildGradle);
 await prepareAndroidVoice();
+await prepareAndroidRuntime();
 console.log(`Android project prepared for HumanALE ${versionName} (${versionCode}) with camera/microphone/network access.`);
