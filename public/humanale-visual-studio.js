@@ -162,10 +162,10 @@ export function createHumanALEVisualStudio({
   setText(root,'visualStudioState',current.runtime.state.toUpperCase());
   setText(root,'visualStudioRenderer',current.runtime.rendererMode.toUpperCase());
   setText(root,'visualStudioActivity',percent(current.runtime.activity));
-  setText(root,'visualStudioController',current.runtime.controlledBy);
+  setText(root,'visualStudioController',current.runtime.controlledBy==='NARA_CORE'?'AleCore AI':current.runtime.controlledBy);
   setText(root,'visualStudioReason',current.runtime.reason);
   setText(root,'visualStudioLifecycle',current.nara.lifecycle.toUpperCase());
-  setText(root,'visualStudioRegion',current.nara.selectedRegion);
+  setText(root,'visualStudioRegion',current.nara.selectedRegion==='NARA_CORE'?'AleCore AI':current.nara.selectedRegion);
   setText(root,'visualStudioTask',current.nara.currentTask);
   setText(root,'visualStudioEvent',current.nara.lastEvent);
   setText(root,'visualStudioHearing',current.sensors.hearing?'ON · '+percent(current.sensors.hearingEnergy):'OFF');
@@ -315,8 +315,8 @@ export function createHumanALEVisualStudio({
   const snapshot=safeSnapshot(liveSnapshot());
   const badConnections=snapshot.connections.filter(item=>['error','bug'].includes(item.status));
   const checks=[
-   {name:'NARA authority',status:snapshot.runtime.controlledBy==='NARA_CORE'?'PASS':'FAIL',detail:snapshot.runtime.controlledBy},
-   {name:'NARA lifecycle',status:snapshot.nara.lifecycle==='active'?'PASS':'WARN',detail:snapshot.nara.lifecycle},
+   {name:'AleCore AI authority',status:snapshot.runtime.controlledBy==='NARA_CORE'?'PASS':'FAIL',detail:snapshot.runtime.controlledBy==='NARA_CORE'?'AleCore AI':snapshot.runtime.controlledBy},
+   {name:'AleCore AI lifecycle',status:snapshot.nara.lifecycle==='active'?'PASS':'WARN',detail:snapshot.nara.lifecycle},
    {name:'Renderer telemetry',status:snapshot.performance.fps>0&&snapshot.performance.points>0?'PASS':'WARN',detail:snapshot.performance.fps+' FPS / '+snapshot.performance.points+' points'},
    {name:'Runtime errors',status:snapshot.health.errorCount===0?'PASS':'FAIL',detail:snapshot.health.errorCount+' active'},
    {name:'Connection errors',status:badConnections.length===0?'PASS':'WARN',detail:badConnections.length?badConnections.map(item=>item.id).join(', '):'none'},
@@ -450,7 +450,7 @@ export function createHumanALEVisualStudio({
    const buttons=[...(root.querySelectorAll?.('[data-nara-test]')||[])];
    const baselineFps=current.performance.fps;
    testRunning=true;buttons.forEach(item=>item.disabled=true);
-   setText(root,'visualStudioTestStatus','RUNNING · '+scenario.toUpperCase()+' · NARA Core mengendalikan transisi…');
+   setText(root,'visualStudioTestStatus','RUNNING · '+scenario.toUpperCase()+' · AleCore AI mengendalikan transisi…');
    try{
     const result=await onTestScenario(scenario);
     render(liveSnapshot());

@@ -309,7 +309,7 @@ export function buildCreatorRegionMetadata({
       discovery:'disabled'
     },
     server:{
-      service:'NARA Core Live Studio',
+      service:'AleCore AI Live Studio',
       health:'online',
       mode:'local-studio',
       secrets:'redacted'
@@ -367,7 +367,7 @@ export function createNaraStudioServer({
         ownerStore=candidate;
       }
     }catch(error){
-      ownerStoreError=String(error?.message||'Owner store NARA gagal dimuat.');
+      ownerStoreError=String(error?.message||'AleCore AI owner store gagal dimuat.');
     }
   }
 
@@ -598,8 +598,8 @@ export function createNaraStudioServer({
         const event=String(data.event||'');
         if(embedded&&event!=='brain.region.select')return json(res,403,{ok:false,error:'Only region selection is enabled in embedded Studio.'});
         if(!allow.has(event))return json(res,403,embedded
-          ?{ok:false,error:'Event tidak diizinkan dari NARA Studio.'}
-          :{ok:false,error:'Event tidak diizinkan dari NARA Studio.',event});
+          ?{ok:false,error:'Event tidak diizinkan dari AleCore AI Studio.'}
+          :{ok:false,error:'Event tidak diizinkan dari AleCore AI Studio.',event});
         if(embedded&&!Object.hasOwn(NARA_REGIONS,String(data.payload?.region||''))){
           return json(res,400,{ok:false,error:'Region AleCore AI tidak valid.'});
         }
