@@ -1056,7 +1056,7 @@ test(
       backup.headers.get(
         "content-disposition"
       ) ?? "",
-      /alecore-ai-memory-backup-.*\.alecore-ai/
+      /alecore-ai-memory-backup-.*\.alecoreai/
     );
 
     const envelope =
