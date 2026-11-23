@@ -669,6 +669,12 @@ jobs:
                 const alreadyAssigned = (issue.data.assignees || []).some((assignee) =>
                   assignee.login.startsWith('copilot-swe-agent')
                 );
+                // A known active Copilot assignment must not be downgraded if a
+                // later fallback lookup fails. Preserve it before any extra API call.
+                if (alreadyAssigned) {
+                  delegated.push(candidate);
+                  continue;
+                }
                 const existingFallbackPulls = await github.rest.pulls.list({
                   owner,
                   repo,
@@ -685,10 +691,6 @@ jobs:
                   continue;
                 }
 
-                if (alreadyAssigned) {
-                  delegated.push(candidate);
-                  continue;
-                }
                 if (hasOpenFallback) {
                   existingFallbackCandidates.push(candidate);
                   continue;
