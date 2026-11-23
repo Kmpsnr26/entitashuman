@@ -3,6 +3,7 @@ const http=require('node:http');
 const {readFile,writeFile}=require('node:fs/promises');
 const {mkdtempSync,existsSync}=require('node:fs');
 const path=require('node:path');
+const {toElectronCoordinate}=require('./window-position.cjs');
 const {tmpdir,homedir}=require('node:os');
 const {randomUUID}=require('node:crypto');
 const {spawn}=require('node:child_process');
@@ -741,7 +742,18 @@ else{
   ipcMain.on('dudidam:passthrough-lock',(e,value)=>{if(trusted(e))setPassthroughLock(value);});
   ipcMain.on('dudidam:avatar-viewport',(e,value)=>{if(trusted(e))resizeForAvatar(value?.size);});
   ipcMain.on('dudidam:panel-viewport',(e,value)=>{if(e.sender===win?.webContents&&trusted(e))resizeForPanel(value?.zoom,Boolean(value?.open));});
-  ipcMain.on('dudidam:move',(e,d)=>{if(!trusted(e)||passthrough||!Number.isFinite(d?.dx)||!Number.isFinite(d?.dy))return;const [x,y]=win.getPosition(),[currentWidth,currentHeight]=win.getSize();const next=safePosition({x:x+Math.max(-100,Math.min(100,d.dx)),y:y+Math.max(-100,Math.min(100,d.dy))},currentWidth,currentHeight);const targetX=Math.round(Number(next.x)),targetY=Math.round(Number(next.y));if(!Number.isSafeInteger(targetX)||!Number.isSafeInteger(targetY))return;win.setPosition(targetX,targetY,false);});
+  ipcMain.on('dudidam:move',(e,d)=>{
+   if(!trusted(e)||passthrough||!win||win.isDestroyed()||!Number.isFinite(d?.dx)||!Number.isFinite(d?.dy))return;
+   try{
+    const [x,y]=win.getPosition(),[currentWidth,currentHeight]=win.getSize();
+    const next=safePosition({x:x+Math.max(-100,Math.min(100,d.dx)),y:y+Math.max(-100,Math.min(100,d.dy))},currentWidth,currentHeight);
+    const targetX=toElectronCoordinate(next?.x),targetY=toElectronCoordinate(next?.y);
+    if(targetX===null||targetY===null|| (targetX===x&&targetY===y))return;
+    win.setPosition(targetX,targetY);
+   }catch(error){
+    console.warn('[HUMANALE WINDOW MOVE] Position update ignored:',error?.message||'Invalid window position.');
+   }
+  });
 
   win.webContents.setWindowOpenHandler(({url})=>{try{if(new URL(url).origin==='https://chatgpt.com')shell.openExternal(url);}catch{}return {action:'deny'};});
   win.webContents.on('will-navigate',(e,url)=>{if(!url.startsWith(origin+'/'))e.preventDefault();});
