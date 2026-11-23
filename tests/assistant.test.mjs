@@ -229,7 +229,8 @@ test('Codex agent requires login, parses JSON events and uses bounded work timeo
  assert.equal(agentTimeoutMs('work',{}),600000);
  assert.equal(agentTimeoutMs('work',{HUMANALE_AGENT_TIMEOUT_MS:'1000'}),30000);
  assert.equal(agentTimeoutMs('work',{DUDIDAM_AGENT_TIMEOUT_MS:'1000'}),30000);
- assert.equal(agentTimeoutMs('work',{DUDIDAM_AGENT_TIMEOUT_MS:'9999999'}),900000);
+ assert.equal(agentTimeoutMs('work',{DUDIDAM_AGENT_TIMEOUT_MS:'9999999'}),600000);
+ assert.equal(agentTimeoutMs('analyze',{DUDIDAM_AGENT_TIMEOUT_MS:'9999999'}),300000);
  const hub=await readFile(new URL('../desktop/agent-hub.mjs',import.meta.url),'utf8');
  assert.match(hub,/codexLoginStatus/);
  assert.match(hub,/\['login','status'\]/);
