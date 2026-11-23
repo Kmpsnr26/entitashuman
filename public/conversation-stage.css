@@ -37,3 +37,5 @@
 .stage-surface #chatDialog .conversation-team-note{font-size:9px;color:#7895a0}
 .stage-surface #chatDialog .conversation-team-controls button{color:#c5e0e5;background:#8ee1f40d;border-color:#8ee1f42e}
 @media(max-width:600px) and (orientation:portrait){.stage-surface #chatDialog .conversation-team-details{max-height:96px}}
+
+.stage-surface #chatDialog #conversationTeamTest{border-color:#8ee1f46b;color:#d8f6fb;background:#8ee1f410}
