@@ -56,13 +56,14 @@ export function createNodeInspector({
     currentMetadata=metadata;
     currentId=metadata.id;
     title.textContent=metadata.label;
-    subtitle.textContent=metadata.id+' · '+metadata.group;
+    const displayId=metadata.id==='NARA_CORE'?'AleCore AI':metadata.id;
+    subtitle.textContent=displayId+' · '+metadata.group;
     status.textContent=metadata.status;
     status.dataset.state=metadata.status;
 
     const fragments=[];
     fragments.push(section('NEURAL IDENTITY',[
-      row('REGION',metadata.id),
+      row('REGION',displayId),
       row('GROUP',metadata.group),
       row('STATUS',metadata.status,metadata.status),
       row('LAST EVENT',metadata.lastEvent||'none')

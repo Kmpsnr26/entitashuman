@@ -8,7 +8,7 @@ export const NARA_REGION_STATUS=Object.freeze([
 ]);
 
 const definitions=[
-  ['NARA_CORE','NARA Core','core',position(0,0.08,0.18),['REASONER','PLANNER','MEMORY','AGENT_MANAGER','SAFETY','FOLLOW_UP']],
+  ['NARA_CORE','AleCore AI','core',position(0,0.08,0.18),['REASONER','PLANNER','MEMORY','AGENT_MANAGER','SAFETY','FOLLOW_UP']],
   ['REASONER','Reasoner','cognitive',position(-0.34,0.02,0.10),['NARA_CORE','BUG_HUNTER','MEMORY']],
   ['PLANNER','Planner','cognitive',position(0.34,0.02,0.10),['NARA_CORE','AGENT_MANAGER','FOLLOW_UP']],
   ['MEMORY','Memory','cognitive',position(-0.42,-0.18,0.02),['NARA_CORE','REASONER','DRIVE']],

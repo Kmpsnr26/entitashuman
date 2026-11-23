@@ -1232,7 +1232,7 @@ test('Stage 6 spoken summary is bounded operational metadata only',async()=>{
     group:'cognitive',
     status:'active',
     lastEvent:'memory.read',
-    neighbors:[{id:'NARA_CORE',label:'NARA Core'},{id:'DRIVE',label:'Drive'}],
+    neighbors:[{id:'NARA_CORE',label:'AleCore AI'},{id:'DRIVE',label:'Drive'}],
     runtime:{lifecycle:'active',activeRegions:4,totalEvents:19,eventsPerSecond:1.2},
     network:{scope:'loopback',address:'127.0.0.1',port:4178},
     server:{health:'online',secrets:'DO_NOT_SPEAK_SERVER_SECRET'},
