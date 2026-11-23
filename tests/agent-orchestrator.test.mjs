@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {classifyTaskDifficulty,reviewVerdict,selectStructuredRoles} from '../desktop/agent-hub.mjs';
+import {classifyTaskDifficulty,reviewVerdict,selectStructuredRoles,requireIndependentWorkReview} from '../desktop/agent-hub.mjs';
 
 test('structured HumanALE orchestrator classifies difficult work and review verdicts',()=>{
  assert.equal(classifyTaskDifficulty('halo'),'low');
@@ -23,6 +23,32 @@ test('structured HumanALE orchestrator classifies difficult work and review verd
  assert.equal(single.degraded,true);
  assert.equal(single.worker,single.reviewer);
  assert.equal(selectStructuredRoles([]),null);
+});
+
+test('directly selected work executors cannot bypass the final independent Reviewer',()=>{
+ const accepted={id:'codex',mode:'work',verification:{status:'passed'},stages:[
+  {role:'planner',text:'Plan ready'},
+  {role:'worker',text:'Changed one file'},
+  {role:'reviewer',text:'Final checks complete. VERDICT: PASS'}
+ ]};
+ assert.equal(requireIndependentWorkReview(accepted),accepted);
+ assert.throws(
+  ()=>requireIndependentWorkReview({
+   id:'codex',mode:'work',verification:{status:'passed'},
+   maintenance:{changedFiles:1},text:'Worker completed'
+  }),
+  error=>error.code==='AGENT_WORK_REVIEW_REQUIRED'
+ );
+ assert.throws(
+  ()=>requireIndependentWorkReview({
+   verification:{status:'passed'},
+   stages:[
+    {role:'reviewer',text:'VERDICT: PASS'},
+    {role:'reviewer',text:'VERDICT: NEEDS_FIX'}
+   ]
+  }),
+  error=>error.code==='AGENT_WORK_REVIEW_REQUIRED'
+ );
 });
 
 test('structured HumanALE orchestrator keeps planning, work and review bounded',async()=>{
@@ -55,6 +81,8 @@ test('structured HumanALE orchestrator keeps planning, work and review bounded',
  assert.match(hub,/memoryContextBlock\(memoryContext\)/);
  assert.match(hub,/id==='humanale-orchestrator'/);
  assert.match(hub,/await this\.runStructured\(prompt,mode\)/);
+ assert.match(hub,/if\(mode==='work'\)requireIndependentWorkReview\(result\)/);
+ assert.match(hub,/requireIndependentWorkReview\(await this\.runStructured\(task,'work'\)\)/);
  assert.match(app,/\['humanale-orchestrator','github-copilot','codex','cursor','claude'\]\.includes\(id\)/);
  assert.match(html,/Planner → Worker → Reviewer/);
 });
