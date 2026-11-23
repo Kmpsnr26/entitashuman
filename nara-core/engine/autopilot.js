@@ -53,6 +53,7 @@ export class NaraAutopilot{
         this.pump();
         return {ok:false,reason:this.capabilities.authorize(required).reason,task:current};
       }
+      if(current.status==='running'&&!this.pumpPromise)return {ok:false,reason:'task-already-running',task:current};
       if(!this.pumpPromise)this.pump();
       if(this.pumpPromise)await this.pumpPromise;
       const result=this.outcomes.get(id);
