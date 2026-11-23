@@ -485,7 +485,7 @@ function renderConversationWorkflow(){
    const row=document.createElement('div');
    row.className='conversation-workflow-stage';
    const role=document.createElement('strong');
-   role.textContent=({planner:'PLANNER',worker:'WORKER',repair:'REPAIR',reviewer:'REVIEWER'}[stage.role]||String(stage.role||'AGENT').toUpperCase());
+   role.textContent=({planner:'PLANNER',specialist:'SPECIALIST',worker:'WORKER',repair:'REPAIR',reviewer:'REVIEWER'}[stage.role]||String(stage.role||'AGENT').toUpperCase());
    const detail=document.createElement('div');
    const agent=document.createElement('span');
    agent.textContent=String(stage.agent||'Executor');
