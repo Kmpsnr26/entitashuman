@@ -134,17 +134,14 @@ export function reviewVerdict(text=''){
  return 'unknown';
 }
 
-export function selectStructuredRoles(available=[]){
+export function selectStructuredRoles(available=[],preferredWorker=''){
  const allowed=new Set(['codex','github-copilot','cursor','claude']);
  const list=[...new Set((Array.isArray(available)?available:[]).filter(id=>allowed.has(id)))];
  if(!list.length)return null;
- const planner=list.includes('codex')?'codex':list[0];
- const worker=list.includes('github-copilot')&&planner!=='github-copilot'
-  ?'github-copilot'
-  :(list.find(id=>id!==planner)||planner);
- const reviewer=list.includes('codex')&&worker!=='codex'
-  ?'codex'
-  :(list.find(id=>id!==worker)||worker);
+ const worker=list.includes(preferredWorker)?preferredWorker:(list.includes('github-copilot')?'github-copilot':list[0]);
+ const others=list.filter(id=>id!==worker);
+ const planner=others[0]||worker;
+ const reviewer=others[1]||others[0]||worker;
  return {planner,worker,reviewer,degraded:reviewer===worker,executors:list};
 }
 function maintenanceChangeSetError(report){
@@ -359,14 +356,15 @@ export class DeveloperAgentHub{
   }
   return directResult;
  }
- async runStructured(prompt,mode){
+ async runStructured(prompt,mode,preferredWorker=''){
   if(mode==='work'&&!await this.projectRootReady())throw new Error('Folder proyek belum dipilih atau bukan checkout Git.');
   const available=await this.availableStructuredExecutors();
   if(!available.length)throw new Error('HumanALE Orchestrator memerlukan minimal satu executor lokal yang siap: Codex, GitHub Copilot, Cursor, atau Claude Code.');
   const difficulty=classifyTaskDifficulty(prompt);
-  const roles=selectStructuredRoles(available);
+  const roles=selectStructuredRoles(available,preferredWorker);
   if(!roles)throw new Error('HumanALE Orchestrator tidak menemukan executor terverifikasi.');
   const {planner,worker,reviewer,degraded}=roles;
+  if(mode==='work'&&reviewer===worker)throw new Error('Mode Kerja memerlukan executor reviewer independen yang berbeda dari Worker. Hubungkan minimal dua executor sebelum menjalankan perubahan.');
   const planPrompt='Kamu adalah Planner HumanALE. Analisis tugas berikut secara read-only. Pecah menjadi langkah berurutan, dependensi, file/area yang mungkin terdampak, risiko, dan kriteria selesai. Jangan edit file. Jangan menjalankan publish/push/merge. Tugas: '+prompt;
   const plan=await this.runDirect(planner,planPrompt,'analyze');
   const workPrompt='Kamu adalah Worker HumanALE. Ikuti rencana Planner berikut dan fokus menyelesaikan tugas pengguna. Jika mode ini read-only, berikan implementasi/rencana konkret tanpa edit. Jika mode kerja, edit hanya yang perlu, jalankan test relevan, dan jangan push/merge/publish. TASK:\n'+prompt+'\n\nPLAN:\n'+plan.text;
@@ -509,7 +507,9 @@ export class DeveloperAgentHub{
 
    const result=id==='humanale-orchestrator'
     ?await this.runStructured(prompt,mode)
-    :await this.runDirect(id,prompt,mode);
+    :mode==='work'
+     ?await this.runStructured(prompt,mode,id)
+     :await this.runDirect(id,prompt,mode);
 
    if(transaction){
     const finalInspection=await transaction.inspect();
