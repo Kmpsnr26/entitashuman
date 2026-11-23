@@ -4,6 +4,7 @@ import { humanaleSystemPrompt } from './humanale-brain.mjs';
 export const ALECORE_LOCAL_ORIGIN = 'http://127.0.0.1:11434';
 export const DEFAULT_ALECORE_LOCAL_MODEL = 'qwen3.5:2b';
 export const ALECORE_LOCAL_CONTEXT_TOKENS = 4096;
+export const ALECORE_LOCAL_MAX_HISTORY_CHARS = 6000;
 const STATUS_TIMEOUT_MS = 2500;
 const REQUEST_TIMEOUT_MS = 120000;
 
@@ -17,6 +18,21 @@ function resolveModel(value) {
 export function parseAleCoreLocalResponse(payload) {
   const text = payload?.message?.content;
   return typeof text === 'string' ? text.trim() : '';
+}
+
+function boundedHistory(history, maxChars = ALECORE_LOCAL_MAX_HISTORY_CHARS) {
+  const selected = [];
+  let remaining = maxChars;
+  for (let index = history.length - 1; index >= 0 && remaining > 0; index -= 1) {
+    const entry = history[index];
+    if (!entry || !['user', 'assistant'].includes(entry.role) || typeof entry.content !== 'string') continue;
+    const content = entry.content.length > remaining
+      ? entry.content.slice(-remaining)
+      : entry.content;
+    selected.unshift({ role: entry.role, content });
+    remaining -= content.length;
+  }
+  return selected;
 }
 
 export class AleCoreLocalBridge {
@@ -90,7 +106,7 @@ export class AleCoreLocalBridge {
       );
       const messages = [
         { role: 'system', content: instructions },
-        ...data.history,
+        ...boundedHistory(data.history),
         {
           role: 'user',
           content: data.message,
