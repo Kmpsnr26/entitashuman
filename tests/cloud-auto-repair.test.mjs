@@ -18,15 +18,22 @@ const workflow=await readFile(
 );
 
 function extractBlocks(name){
- const escaped=name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
- const pattern=new RegExp(
-  `// cloud-auto-repair-test:start ${escaped}\\r?\\n([\s\S]*?)`+
-  `// cloud-auto-repair-test:end ${escaped}`,
-  'g'
- );
- return [...workflow.matchAll(pattern)].map((match)=>match[1].trim());
+ const startMarker='// cloud-auto-repair-test:start '+name;
+ const endMarker='// cloud-auto-repair-test:end '+name;
+ const blocks=[];
+ let cursor=0;
+ while(true){
+  const marker=workflow.indexOf(startMarker,cursor);
+  if(marker<0)break;
+  const lineBreak=workflow.indexOf('\n',marker);
+  if(lineBreak<0)break;
+  const end=workflow.indexOf(endMarker,lineBreak+1);
+  if(end<0)break;
+  blocks.push(workflow.slice(lineBreak+1,end).trim());
+  cursor=end+endMarker.length;
+ }
+ return blocks;
 }
-
 function normalizeSource(source){
  const lines=source.trim().split(/\r?\n/);
  const indents=lines.slice(1)
