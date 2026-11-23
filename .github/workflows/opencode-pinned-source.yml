@@ -1,0 +1,44 @@
+name: OpenCode pinned source verification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".gitmodules"
+      - "vendor/opencode"
+      - "docs/opencode-integration.md"
+      - "scripts/opencode/verify-pinned-source.mjs"
+      - ".github/workflows/opencode-pinned-source.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".gitmodules"
+      - "vendor/opencode"
+      - "docs/opencode-integration.md"
+      - "scripts/opencode/verify-pinned-source.mjs"
+      - ".github/workflows/opencode-pinned-source.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opencode-pinned-source-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify pinned upstream source
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout HumanALE
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 1
+
+      - name: Initialize the pinned OpenCode submodule
+        run: git -c protocol.version=2 submodule update --init --depth=1 --filter=blob:none -- vendor/opencode
+
+      - name: Verify upstream identity, commit, SDK and CLI versions
+        run: node scripts/opencode/verify-pinned-source.mjs
