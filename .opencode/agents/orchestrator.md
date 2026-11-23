@@ -17,6 +17,8 @@ permissions:
     effect: deny
   - action: external_directory
     resource: "*"
+    effect: ask  - action: edit
+    resource: "*"
     effect: ask
 ---
 
