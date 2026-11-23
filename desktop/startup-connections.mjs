@@ -1,6 +1,6 @@
 import {normalizeProviderStatus,normalizeStartupConnections} from '../nara-core/brain/provider-state.js';
 
-export const AUTO_PROVIDER_IDS=Object.freeze(['chatgpt','copilot','openai','gemini']);
+export const AUTO_PROVIDER_IDS=Object.freeze(['alecore-local','chatgpt','copilot','openai','gemini']);
 export const STARTUP_STATUS_TIMEOUT_MS=15000;
 const providerSessions=new WeakMap();
 const codexStatusError=(agent,fallback='')=>fallback||
