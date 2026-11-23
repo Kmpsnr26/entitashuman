@@ -278,6 +278,21 @@ test(
     );
 
     assert.match(
+      main,
+      /AleCoreCloudContextClient/
+    );
+
+    assert.match(
+      main,
+      /cloudMemory=new AleCoreCloudContextClient\(\{origin:''\}\)/
+    );
+
+    assert.doesNotMatch(
+      main,
+      /cloudMemory=new NaraCloudContextClient/
+    );
+
+    assert.match(
       cloudEnv,
       /ALECORE_CLOUD_ORIGIN/
     );

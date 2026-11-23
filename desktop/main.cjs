@@ -387,7 +387,7 @@ else{
   }catch(error){
    console.error('[ALECORE CLOUD BRIDGE CONFIG]',error.message);
    cloudAllowedOrigins=new Set();
-   cloudMemory=new NaraCloudContextClient({origin:''});
+   cloudMemory=new AleCoreCloudContextClient({origin:''});
   }
   agentHub=new DeveloperAgentHub();
   naraAgentCoordinator=createAleCoreAgentCoordinator({nara,agentHub}).bind();
