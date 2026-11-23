@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {createOrchestrator} from '../nara-core/brain/orchestrator.js';
-import {createNaraAgentCoordinator} from '../desktop/nara-agent-coordinator.mjs';
+import {createNaraAgentCoordinator,NARA_AGENT_HANDLER_TIMEOUTS} from '../desktop/nara-agent-coordinator.mjs';
 
 test('write refusal with zero changes blocks work instead of claiming completion or retrying',async()=>{
   let calls=0;const nara=createOrchestrator();nara.start();
@@ -181,4 +181,22 @@ test('V3.2 successful bounded retry clears transient recovery warning',async()=>
   assert.equal(snapshot.regions.ERROR_MONITOR.lastEvent,'autopilot.task.recovered');
   assert.notEqual(snapshot.engine.metacognition.recommendation,'recover');
   nara.stop();
+});
+
+
+test('NARA work handler deadline covers the complete sequential repair and final review pipeline',()=>{
+  const registrations=new Map();
+  const nara={
+    registerAutopilotHandler(id,handler,options){registrations.set(id,{handler,options});},
+    queueAutopilotTask(){},
+    runAutopilotOnce(){}
+  };
+  const coordinator=createNaraAgentCoordinator({nara,agentHub:{run:async()=>({text:'unused'})}});
+  coordinator.bind();
+
+  assert.equal(NARA_AGENT_HANDLER_TIMEOUTS.analyzeMs,15*60*1000);
+  assert.equal(NARA_AGENT_HANDLER_TIMEOUTS.workMs,35*60*1000);
+  assert.equal(registrations.get('humanale.agent.analyze').options.timeoutMs,15*60*1000);
+  assert.equal(registrations.get('humanale.agent.work').options.timeoutMs,35*60*1000);
+  assert.equal(registrations.get('humanale.agent.work').options.idempotent,false);
 });
