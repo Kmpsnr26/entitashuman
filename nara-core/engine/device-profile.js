@@ -6,7 +6,7 @@ export const ALECORE_AI_IDENTITY=Object.freeze({
   name:'AleCore AI',
   role:'owner-assistant',
   identityVersion:2,
-  voiceCharacter:'alecore-deep',
+  voiceCharacter:'adult-robot-id',
   voicePersistent:true,
   creatorAuthority:'owner-only',
   integrationMode:'permissioned-adaptive',
