@@ -617,6 +617,7 @@ jobs:
           script: |
             const candidates = JSON.parse(process.env.CANDIDATES || '[]');
             const fallback = [];
+            const existingFallback = [];
             const delegated = [];
             const queued = [];
             const tokenConfigured = process.env.COPILOT_TOKEN_CONFIGURED === 'true';
@@ -679,7 +680,7 @@ jobs:
                 if (!tokenConfigured) {
                   const route = routeWithoutCopilotToken({alreadyAssigned,hasOpenFallback});
                   if (route === 'delegated') delegated.push(candidate);
-                  else if (route === 'fallback') fallback.push(candidate);
+                  else if (route === 'fallback') existingFallback.push(candidate);
                   else queued.push(candidate);
                   continue;
                 }
@@ -689,7 +690,7 @@ jobs:
                   continue;
                 }
                 if (hasOpenFallback) {
-                  fallback.push(candidate);
+                  existingFallback.push(candidate);
                   continue;
                 }
 
@@ -737,7 +738,7 @@ jobs:
               fallback,
               fallback.length > 0 && await actionsCanCreatePullRequests()
             );
-            core.setOutput('fallback_issues', JSON.stringify(route.fallback));
+            core.setOutput('fallback_issues', JSON.stringify([...existingFallback, ...route.fallback]));
             core.setOutput('queued_issues', JSON.stringify([...queued, ...route.queued]));
             core.setOutput('delegated_issues', JSON.stringify(delegated));
 
