@@ -209,6 +209,13 @@ test('Copilot Cloud Agent is explicitly deferred when no token is configured',()
  assert.match(workflow,/if \(route === 'delegated'\) delegated\.push\(candidate\)/);
  assert.match(workflow,/else queued\.push\(candidate\)/);
  assert.doesNotMatch(workflow,/if \(process\.env\.COPILOT_TOKEN_CONFIGURED !== 'true'\)[\\s\\S]{0,500}return;/);
+ assert.match(workflow,/if \(!tokenConfigured\) queued\.push\(candidate\);\\s*else fallback\.push\(candidate\);/);
+ const lookupCatch=workflow.slice(
+  workflow.indexOf("const issue = await github.rest.issues.get"),
+  workflow.indexOf("const route = routeFallbackCandidates")
+ );
+ assert.match(lookupCatch,/if \(!tokenConfigured\) queued\.push\(candidate\)/);
+ assert.match(lookupCatch,/else fallback\.push\(candidate\)/);
 });
 
 test('stale CI retirement identifies only managed non-default source branches',()=>{
