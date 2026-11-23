@@ -477,11 +477,14 @@ export class DeveloperAgentHub{
   if(this.maintenanceTransaction?.processTerminationUnconfirmed)throw maintenanceProcessRecoveryError();
   if(this.pending)throw new Error('Tunggu agent sebelumnya selesai.');
   const id=String(value?.id||''),mode=value?.mode==='work'?'work':'analyze';
+  const externalSignal=value?.signal||null;
   let prompt=String(value?.prompt||'').trim();
   if(!prompt||prompt.length>4000)throw new Error('Prompt agent harus berisi 1–4000 karakter.');
+  if(externalSignal?.aborted)throw Object.assign(new Error('Agent Hub task aborted.'),{code:'ABORTED'});
 
   this.pending=true;
   let transaction=null;
+  this.maintenanceSignal=externalSignal;
   try{
    if(mode==='work'){
     assertMaintenanceTaskAllowed(prompt,{mode});
@@ -489,7 +492,10 @@ export class DeveloperAgentHub{
     if(!await this.projectRootReady())throw new Error('AI maintenance memerlukan checkout Git proyek yang dipilih secara eksplisit.');
     transaction=await beginMaintenanceTransaction(cwd);
     this.maintenanceTransaction=transaction;
-    this.maintenanceAbortController=new AbortController();this.maintenanceSignal=this.maintenanceAbortController.signal;
+    this.maintenanceAbortController=new AbortController();
+    this.maintenanceSignal=externalSignal
+     ?AbortSignal.any([externalSignal,this.maintenanceAbortController.signal])
+     :this.maintenanceAbortController.signal;
    }
 
    if(mode==='work'&&value?.memoryContext!=null){
