@@ -195,6 +195,16 @@ test('Actions PR creation disabled leaves candidates queued and skips fallback j
  assert.match(workflow,/if: needs\.triage\.outputs\.fallback_issues != '\[\]'/);
 });
 
+test('Copilot Cloud Agent is explicitly deferred when no token is configured',()=>{
+ assert.match(workflow,/COPILOT_TOKEN_CONFIGURED: \$\{\{ secrets\.COPILOT_ASSIGN_TOKEN != '' \}\}/);
+ assert.match(workflow,/Copilot Cloud Agent is intentionally deferred/);
+ assert.match(workflow,/core\.setOutput\('queued_issues', JSON\.stringify\(candidates\)\)/);
+ assert.match(workflow,/'automation:deferred': \{/);
+ assert.match(workflow,/Cloud agent is intentionally deferred/);
+ assert.match(workflow,/automation:deferred', 'ai-fix-needed'/);
+ assert.match(workflow,/await remove\(candidate\.issue_number, 'automation:deferred'\)/);
+});
+
 test('stale CI retirement identifies only managed non-default source branches',()=>{
  const blocks=extractBlocks('managed-ci-source');
  assert.equal(blocks.length,1);
