@@ -95,8 +95,16 @@ export class NaraAgentCoordinator{
       }
       const outputSummary=safeText(result?.text||result?.summary||result?.output||'',500);
       if(!outputSummary)throw new Error('Agent Hub mengembalikan hasil kosong; NARA tidak dapat memverifikasi Goal.');
+      const reviewerText=Array.isArray(result?.stages)
+        ? result.stages.filter(stage=>stage?.role==='reviewer').map(stage=>String(stage.text||'')).join('\\n')
+        : '';
+      const reviewerPassed=result?.verification?.status==='passed'||/\\bVERDICT\\s*:\\s*PASS\\b/i.test(reviewerText);
+      if(meta.mode==='work'&&!reviewerPassed){
+        const error=new Error('Mode Kerja belum lolos verifikasi reviewer independen. NARA menolak menyelesaikan Goal tanpa VERDICT: PASS.');
+        error.code='AGENT_WORK_REVIEW_REQUIRED';error.category='verification';throw error;
+      }
       const verificationSummary=meta.mode==='work'
-        ? 'Output Agent Hub valid dan perubahan berkas terdeteksi: '+Number(result?.maintenance?.changedFiles||0)+' file.'
+        ? 'Reviewer independen memberikan VERDICT: PASS dan perubahan berkas terdeteksi: '+Number(result?.maintenance?.changedFiles||0)+' file.'
         : 'Output analisis Agent Hub tersedia dan tidak mengandung status error.';
       this.nara.recordGoalEvidence(task.goalId,{
         criterion:'Agent Hub menyelesaikan task',
