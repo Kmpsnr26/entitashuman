@@ -116,7 +116,7 @@ function safePreview(
     )
   ) {
     throw new Error(
-      "Preview NARA Cloud tidak valid."
+      "Preview AleCore Cloud tidak valid."
     );
   }
 
@@ -168,7 +168,7 @@ export class NaraCloudContextClient {
         "function"
     ) {
       throw new Error(
-        "fetchImpl wajib tersedia untuk NARA Cloud."
+        "fetchImpl wajib tersedia untuk AleCore Cloud."
       );
     }
 
@@ -540,6 +540,8 @@ export class NaraCloudContextClient {
     };
   }
 }
+
+export const AleCoreCloudContextClient = NaraCloudContextClient;
 
 export {
   normalizeOrigin

@@ -277,12 +277,12 @@ function updateDesktopMemoryContextUi(){
  if(cloudLogin)cloudLogin.hidden=!cloudMemoryState.configured||cloudMemoryState.authenticated;
  if(cloudStatus&&!cloudStatus.hidden){
   cloudStatus.textContent=cloudMemoryState.available
-   ?'NARA Cloud terhubung'+(cloudMemoryState.displayName?' · '+cloudMemoryState.displayName:'')+'.'
+   ?'AleCore Cloud terhubung'+(cloudMemoryState.displayName?' · '+cloudMemoryState.displayName:'')+'.'
    :cloudMemoryState.loginRequired
-    ?'NARA Cloud perlu login Owner.'
+    ?'AleCore Cloud perlu login Owner.'
     :cloudMemoryState.error
-     ?'NARA Cloud belum tersedia · '+cloudMemoryState.error
-     :'NARA Cloud belum terhubung.';
+     ?'AleCore Cloud belum tersedia · '+cloudMemoryState.error
+     :'AleCore Cloud belum terhubung.';
  }
 }
 async function prepareDesktopMemoryContext(task,target='reasoner'){
@@ -311,22 +311,22 @@ async function prepareCloudMemoryContext(target='reasoner'){
  if(mode==='off')return null;
  if(!cloudMemoryState.available)await refreshCloudMemoryStatus();
  if(!cloudMemoryState.available){
-  toast(cloudMemoryState.loginRequired?'Login NARA Cloud diperlukan.':'NARA Cloud belum tersedia.');
+  toast(cloudMemoryState.loginRequired?'Login AleCore Cloud diperlukan.':'AleCore Cloud belum tersedia.');
   return null;
  }
  const first=await desktop.cloudContext({target,mode,approved:false});
- if(first?.error){toast('NARA Cloud: '+first.error);await refreshCloudMemoryStatus();return null;}
+ if(first?.error){toast('AleCore Cloud: '+first.error);await refreshCloudMemoryStatus();return null;}
  if(first?.context)return first.context;
  const preview=first?.preview;
  if(!preview)return null;
  const excerpt=preview.text.length>900?preview.text.slice(0,899)+'…':preview.text;
  const approved=window.confirm(
-  'NARA Cloud menemukan '+preview.count+' memori ('+preview.chars+' karakter).\n\n'+
+  'AleCore Cloud menemukan '+preview.count+' memori ('+preview.chars+' karakter).\n\n'+
   excerpt+'\n\nGunakan context cloud ini untuk '+target+'?'
  );
  if(!approved){toast('Memory context cloud tidak digunakan.');return null;}
  const confirmed=await desktop.cloudContext({target,mode,approved:true,entryIds:preview.entryIds});
- if(confirmed?.error){toast('NARA Cloud: '+confirmed.error);return null;}
+ if(confirmed?.error){toast('AleCore Cloud: '+confirmed.error);return null;}
  return confirmed?.context||null;
 }
 async function prepareEffectiveMemoryContext(task,target='reasoner'){
@@ -1248,16 +1248,16 @@ $('#memoryContextSource')?.addEventListener('change',async()=>{
  const source=setMemorySource($('#memoryContextSource').value);
  if(source==='cloud')await refreshCloudMemoryStatus();
  updateDesktopMemoryContextUi();
- toast('Sumber memory: '+(source==='cloud'?'NARA Cloud':'Lokal')+'.');
+ toast('Sumber memory: '+(source==='cloud'?'AleCore Cloud':'Lokal')+'.');
 });
 $('#cloudMemoryLogin')?.addEventListener('click',async()=>{
  const result=await desktop?.cloudLogin?.();
- if(result?.error){toast('NARA Cloud: '+result.error);return;}
- toast('Window login NARA Cloud dibuka.');
+ if(result?.error){toast('AleCore Cloud: '+result.error);return;}
+ toast('Window login AleCore Cloud dibuka.');
 });
 $('#cloudMemoryRefresh')?.addEventListener('click',async()=>{
  await refreshCloudMemoryStatus();
- toast(cloudMemoryState.available?'NARA Cloud terhubung.':'Status NARA Cloud diperbarui.');
+ toast(cloudMemoryState.available?'AleCore Cloud terhubung.':'Status AleCore Cloud diperbarui.');
 });
 $('#chatForm').onsubmit=e=>{e.preventDefault();const text=$('#prompt').value.trim();if(text&&!busy){$('#prompt').value='';submit(text);}};let composing=false;$('#prompt').oncompositionstart=()=>{composing=true;};$('#prompt').oncompositionend=()=>{composing=false;};$('#prompt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!composing){e.preventDefault();$('#chatForm').requestSubmit();}};$('#clear').onclick=()=>{if(busy)return;history=[];$('#messages').replaceChildren();$('#bubble').hidden=true;stopSpeech();};$('#conversationSettings').onclick=()=>showDialog('#controls');
 $('#chatDialog').addEventListener('close',()=>{stopCamera();setPassthrough(true);syncPanelViewportFromDialogs();if(document.documentElement.classList.contains('stage-surface')&&!document.hidden&&!transitioning())requestAnimationFrame(()=>{if(!$('#chatDialog').open&&!transitioning())$('#chatDialog').show();});});

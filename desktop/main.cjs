@@ -317,7 +317,7 @@ if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
-  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{NaraCloudContextClient,normalizeOrigin},{resolveAleCoreCloudOrigins},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./alecore-cloud-env.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
+  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{AleCoreCloudContextClient,normalizeOrigin},{resolveAleCoreCloudOrigins},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./alecore-cloud-env.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
   const [{createOrchestrator,createExperienceModel,getHumanALETestScenario,listHumanALETestScenarios,createSkillSnapshot},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createAleCoreAgentCoordinator},{createHumanALEOwnerGate,isOwnerTargetUnlocked,authorizedDisplayMediaTarget},{createNaraStudioServer:studioServerFactory},{bootstrapNaraConnections,recordNaraProviderStatus,recordNaraAgentHubStatus}]=await Promise.all([
    import('../nara-core/brain/index.js'),
    import('../nara-core/voice/index.js'),
@@ -377,13 +377,13 @@ else{
    const authOrigin=normalizeOrigin(configuredOrigins.authOrigin||cloudOrigin);
    if(!cloudOrigin&&authOrigin)throw new Error('ALECORE_AUTH_ORIGIN membutuhkan ALECORE_CLOUD_ORIGIN.');
    cloudAllowedOrigins=new Set([cloudOrigin,authOrigin].filter(Boolean));
-   cloudMemory=new NaraCloudContextClient({
+   cloudMemory=new AleCoreCloudContextClient({
     origin:cloudOrigin,
     fetchImpl:(input,init)=>session.defaultSession.fetch(input,init),
     validateMemoryContext
    });
   }catch(error){
-   console.error('[NARA CLOUD BRIDGE CONFIG]',error.message);
+   console.error('[ALECORE CLOUD BRIDGE CONFIG]',error.message);
    cloudAllowedOrigins=new Set();
    cloudMemory=new NaraCloudContextClient({origin:''});
   }

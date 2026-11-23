@@ -1,4 +1,4 @@
-# NARA Cloud
+# AleCore Cloud
 
 Server-side identity, SSO session, one-time ticket, PostgreSQL and future AI/Memory backend for HumanALE/NARA.
 

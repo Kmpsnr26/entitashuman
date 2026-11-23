@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {resolveAleCoreCloudOrigins} from '../desktop/alecore-cloud-env.mjs';
 
 import {
+  AleCoreCloudContextClient,
   NaraCloudContextClient,
   normalizeOrigin
 } from '../desktop/nara-cloud-context.mjs';
@@ -56,6 +57,11 @@ test('AleCore Cloud environment names take precedence and legacy NARA names rema
  });
 });
 
+test('AleCore Cloud client is the canonical facade with the NARA class retained as an alias',()=>{
+ assert.strictEqual(AleCoreCloudContextClient,NaraCloudContextClient);
+ assert.equal(typeof new AleCoreCloudContextClient({origin:''}).configured,'function');
+});
+
 test('NARA Cloud origin accepts HTTPS and loopback only',()=>{
  assert.equal(normalizeOrigin(origin),origin);
  assert.equal(normalizeOrigin('http://127.0.0.1:4200'),'http://127.0.0.1:4200');
@@ -101,7 +107,7 @@ test('desktop NARA Cloud bridge gets CSRF from Owner session and preserves previ
   return new Response('{}',{status:404});
  };
 
- const client=new NaraCloudContextClient({
+ const client=new AleCoreCloudContextClient({
   origin,
   fetchImpl:fakeFetch,
   validateMemoryContext
