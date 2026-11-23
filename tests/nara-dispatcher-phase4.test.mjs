@@ -370,6 +370,9 @@ test('Coordinator forwards NARA cancellation to the Agent Hub executor',async()=
     assert.equal(receivedSignal,signal);
     assert.equal(signal.aborted,true);
     assert.match(result.error,/Agent Hub aborted by NARA|test cancellation/);
+    assert.equal(result.reason,'cancelled');
+    assert.equal(result.decision?.action,'stop');
+    assert.equal(nara.snapshot().engine.autopilot.scheduler.tasks.find(task=>task.id===running.id)?.status,'cancelled');
   }finally{nara.stop();}
 });
 
