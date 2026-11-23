@@ -18,7 +18,7 @@ const protectedAreas=[
  '.github/workflows/**',
  'desktop/agent-maintenance-policy.mjs',
  'desktop/agent-maintenance-guard.mjs',
- 'nara-core/permissions/**'
+ 'ALECORE-AI/permissions/**'
 ];
 
 test('maintenance environment strips credential-bearing variables but preserves ordinary runtime values',()=>{
@@ -31,13 +31,13 @@ test('maintenance environment strips credential-bearing variables but preserves 
   DATABASE_URL:'postgres://owner:secret@localhost/db',
   SSH_AUTH_SOCK:'pipe',
   GITHUB_COPILOT_CLI_PATH:'C:\\Tools\\copilot.exe',
-  NARA_STUDIO_PORT:'4178'
+  ALECORE_AI_STUDIO_PORT:'4178'
  });
  assert.equal(result.env.PATH,'C:\\Windows');
  assert.equal(result.env.USERPROFILE,'C:\\Users\\owner');
  assert.equal(result.removed.includes('USERPROFILE'),false);
  assert.equal(result.env.GITHUB_COPILOT_CLI_PATH,'C:\\Tools\\copilot.exe');
- assert.equal(result.env.NARA_STUDIO_PORT,'4178');
+ assert.equal(result.env.ALECORE_AI_STUDIO_PORT,'4178');
  assert.equal(result.env.NO_COLOR,'1');
  for(const key of [
   'OPENAI_API_KEY','GITHUB_TOKEN','AUTH_SESSION_SECRET',
@@ -51,7 +51,7 @@ test('maintenance environment strips credential-bearing variables but preserves 
 test('maintenance environment strips credential references with prefixes suffixes and mixed case',()=>{
  const sensitiveKeys=[
   'TOKEN','TOKEN_','EXAMPLE_TOKEN_FILE','AZURE_FEDERATED_TOKEN_FILE',
-  'NARA_ACCESS_TOKEN_FILE_PATH_V2','EXAMPLE_SECRET_PATH','AWS_SECRET_ACCESS_KEY_FILE',
+  'ALECORE_AI_ACCESS_TOKEN_FILE_PATH_V2','EXAMPLE_SECRET_PATH','AWS_SECRET_ACCESS_KEY_FILE',
   'PASSWORD_FILE','DB_PASSWD_PATH','SERVICE_PWD_FILE',
   'OPENAI_API_KEY_PATH','PROVIDER_APIKEY_FILE',
   'AUTHORIZATION_FILE','COOKIE_JAR_PATH',
@@ -74,7 +74,7 @@ test('maintenance environment strips credential references with prefixes suffixe
   MY_TOKENIZER_MODEL_PATH:'/models/tokenizer',
   MY_SECRETARY_NAME:'assistant',
   GITHUB_COPILOT_CLI_PATH:'/tools/copilot',
-  NARA_STUDIO_PORT:'4178'
+  ALECORE_AI_STUDIO_PORT:'4178'
  };
  const input=Object.freeze({
   ...benignValues,
@@ -125,7 +125,7 @@ test('maintenance environment strips suffixed credential names without removing 
  ];
  const baseEnv={
   PATH:'/usr/bin',
-  NARA_STUDIO_PORT:'4178',
+  ALECORE_AI_STUDIO_PORT:'4178',
   TOKENIZER_MODEL:'local',
   GITHUB_COPILOT_CLI_PATH:'/usr/bin/copilot',
   ...Object.fromEntries(sensitiveKeys.map(key=>[key,'sensitive-test-value']))
@@ -135,7 +135,7 @@ test('maintenance environment strips suffixed credential names without removing 
   assert.equal(Object.hasOwn(result.env,key),false,key);
  }
  assert.deepEqual(result.removed,[...sensitiveKeys].sort());
- for(const key of ['PATH','NARA_STUDIO_PORT','TOKENIZER_MODEL','GITHUB_COPILOT_CLI_PATH']){
+ for(const key of ['PATH','ALECORE_AI_STUDIO_PORT','TOKENIZER_MODEL','GITHUB_COPILOT_CLI_PATH']){
   assert.equal(result.env[key],baseEnv[key],key);
  }
  assert.equal(baseEnv.GITHUB_TOKEN_FILE,'sensitive-test-value');
@@ -151,10 +151,10 @@ test('repo path normalization is fail-closed for traversal absolute paths and ru
 
 test('protected path matcher handles root and recursive glob patterns case-insensitively',()=>{
  assert.equal(isMaintenanceProtectedPath('.env.production',protectedAreas),true);
- assert.equal(isMaintenanceProtectedPath('nara-cloud/.env.local',protectedAreas),true);
+ assert.equal(isMaintenanceProtectedPath('alecore-ai-cloud/.env.local',protectedAreas),true);
  assert.equal(isMaintenanceProtectedPath('.github/workflows/release.yml',protectedAreas),true);
  assert.equal(isMaintenanceProtectedPath('DESKTOP/agent-maintenance-policy.mjs',protectedAreas),true);
- assert.equal(isMaintenanceProtectedPath('nara-core/permissions/index.js',protectedAreas),true);
+ assert.equal(isMaintenanceProtectedPath('ALECORE-AI/permissions/index.js',protectedAreas),true);
  assert.equal(isMaintenanceProtectedPath('public/avatar.js',protectedAreas),false);
 });
 
@@ -320,7 +320,7 @@ test('small unprotected source patch is allowed',()=>{
 test('secret-file boundary blocks real secret files while allowing templates',()=>{
  const denied=[
   '.env',
-  'nara-cloud/.env.local',
+  'alecore-ai-cloud/.env.local',
   '.env.staging',
   'apps/web/.env.development',
   'keys/release-signing.pfx',

@@ -1,0 +1,195 @@
+name: AleCore AI Cloud Verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_evidence:
+        description: "Store live browser evidence as an Actions artifact"
+        required: false
+        default: false
+        type: boolean
+
+  push:
+    branches: [main]
+    paths:
+      - "alecore-ai-cloud/**"
+      - "desktop/**"
+      - "public/**"
+      - "tests/**"
+      - "alecore-ai/studio/**"
+      - "scripts/alecore-ai-neural-live-smoke.cjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".env.example"
+      - ".github/workflows/alecore-ai-cloud-verify.yml"
+
+  pull_request:
+    paths:
+      - "alecore-ai-cloud/**"
+      - "desktop/**"
+      - "public/**"
+      - "tests/**"
+      - "alecore-ai/studio/**"
+      - "scripts/alecore-ai-neural-live-smoke.cjs"
+      - "scripts/alecore-ai-neural-gpu-acceptance.ps1"
+      - "alecore-ai-neural-gpu-acceptance.bat"
+      - "package.json"
+      - "package-lock.json"
+      - ".env.example"
+      - ".github/workflows/alecore-ai-cloud-verify.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alecore-ai-final-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  alecore-ai-cloud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: nara
+          POSTGRES_PASSWORD: test-password
+          POSTGRES_DB: nara
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nara -d nara"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://nara:test-password@127.0.0.1:5432/nara
+      BIND_HOST: 127.0.0.1
+      AUTH_PORT: 4100
+      ALECORE_AI_PORT: 4200
+      PUBLIC_AUTH_ORIGIN: http://127.0.0.1:4100
+      PUBLIC_ALECORE_AI_ORIGIN: http://127.0.0.1:4200
+      AUTH_SESSION_SECRET: test-auth-session-secret-2026-at-least-32-characters
+      ALECORE_AI_SESSION_SECRET: test-alecore-ai-session-secret-2026-at-least-32-characters
+      TICKET_PEPPER: test-ticket-pepper-secret-2026-at-least-32-characters
+
+    defaults:
+      run:
+        working-directory: alecore-ai-cloud
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Setup Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+
+      - name: Install locked AleCore AI Cloud dependencies
+        run: npm ci
+
+      - name: Record resolved dependency versions
+        run: npm ls --depth=0
+
+      - name: Apply PostgreSQL migrations
+        run: npm run db:migrate
+
+      - name: Verify database-backed security flows
+        run: npm run test:db
+
+      - name: Run live AleCore AI Owner SSO and runtime E2E
+        run: npm run test:e2e
+
+      - name: Verify TypeScript and unit security tests
+        run: npm run verify
+
+      - name: Audit high severity dependencies
+        run: npm audit --audit-level=high
+
+  humanale-root:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Setup Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install HumanALE dependencies
+        run: npm ci
+
+      - name: Validate physical GPU acceptance wrappers
+        shell: pwsh
+        run: |
+          $source = Get-Content scripts/alecore-ai-neural-gpu-acceptance.ps1 -Raw
+          [scriptblock]::Create($source) | Out-Null
+          if (-not (Test-Path alecore-ai-neural-gpu-acceptance.bat)) { throw "BAT wrapper missing" }
+          if (-not (Select-String -Path alecore-ai-neural-gpu-acceptance.bat -Pattern "alecore-ai-neural-gpu-acceptance.ps1" -Quiet)) { throw "BAT wrapper target missing" }
+
+      - name: Verify HumanALE tests and web build
+        run: npm run verify
+
+      - name: Smoke interactive Windows terminal
+        run: npm run smoke:terminal
+
+      - name: Audit high severity dependencies
+        run: npm audit --audit-level=high
+
+
+  neural-live-browser:
+    name: Neural Space realtime WebGL
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      ALECORE_AI_GPU_MODE: "software"
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      ELECTRON_ENABLE_LOGGING: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Setup Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install HumanALE dependencies
+        run: npm ci
+
+      - name: Download Electron binary
+        run: ./node_modules/.bin/install-electron --no
+
+      - name: Configure Electron SUID sandbox
+        run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+          stat -c '%U %G %a %n' node_modules/electron/dist/chrome-sandbox
+
+      - name: Verify Xvfb
+        run: command -v xvfb-run
+
+      - name: Run realtime Electron WebGL smoke
+        run: xvfb-run -a --server-args="-screen 0 1440x960x24" npm run smoke:neural-live
+
+      - name: Upload live browser evidence
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.upload_evidence }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: alecore-ai-neural-live-browser
+          path: |
+            artifacts/alecore-ai-neural-live.png
+            artifacts/alecore-ai-neural-live-report.json
+          if-no-files-found: warn
+          retention-days: 7

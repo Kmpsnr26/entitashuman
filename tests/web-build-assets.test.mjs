@@ -34,7 +34,7 @@ test('fresh web build packages every HTML script and its local module dependenci
       pending.push(resolve(dirname(path),match[1]));
     }
   }
-  for(const file of ['nara-memory.js','nara-context-bridge.js']){
+  for(const file of ['alecore-ai-memory.js','alecore-ai-context-bridge.js']){
     assert.ok(visited.has(join(client,'humanale',file)),`${file} must be loaded by the packaged HTML`);
     assert.equal(await readFile(join(client,'humanale',file),'utf8'),await readFile(join(root,'sites/humanale-hologram/dist',file),'utf8'));
   }

@@ -8,22 +8,22 @@ let nonce=0;
 
 async function createRuntime(){
   delete globalThis.NeuralCore;
-  delete globalThis.HumanALENaraRuntime;
+  delete globalThis.HumanALEAleRuntime;
   await import('../sites/humanale-hologram/dist/neural-core.js?phase8='+ ++nonce);
-  await import('../sites/humanale-hologram/dist/nara-runtime.js?phase8='+ ++nonce);
+  await import('../sites/humanale-hologram/dist/alecore-ai-runtime.js?phase8='+ ++nonce);
   const graph=globalThis.NeuralCore.create();
-  const runtime=globalThis.HumanALENaraRuntime.create({regions:graph.regions});
+  const runtime=globalThis.HumanALEAleRuntime.create({regions:graph.regions});
   runtime.start();
   return {graph,runtime};
 }
 
 async function loadCognition(){
   delete globalThis.HumanALECognition;
-  await import('../sites/humanale-hologram/dist/nara-cognition.js?phase8='+ ++nonce);
+  await import('../sites/humanale-hologram/dist/alecore-ai-cognition.js?phase8='+ ++nonce);
   return globalThis.HumanALECognition;
 }
 
-test('cognitive lifecycle events activate the expected NARA regions',async()=>{
+test('cognitive lifecycle events activate the expected AleCore AI regions',async()=>{
   const {runtime}=await createRuntime();
 
   runtime.dispatch('reason.start',{label:'Analisis permintaan'});
@@ -90,21 +90,21 @@ test('cognitive ledger stores only sanitized operational metadata',async()=>{
   assert.ok(states.length>0);
 });
 
-test('desktop real AI and coordinated agent paths emit NARA cognitive lifecycle events without copying prompts into labels',async()=>{
+test('desktop real AI and coordinated agent paths emit AleCore AI cognitive lifecycle events without copying prompts into labels',async()=>{
   const [main,coordinator]=await Promise.all([
     read('desktop/main.cjs'),
-    read('desktop/nara-agent-coordinator.mjs')
+    read('desktop/alecore-ai-agent-coordinator.mjs')
   ]);
-  assert.match(main,/nara\.dispatch\('observe\.start'/);
-  assert.match(main,/nara\.dispatch\('observe\.complete'/);
-  assert.match(main,/nara\.dispatch\('reason\.start'/);
-  assert.match(main,/nara\.dispatch\('reason\.complete'/);
+  assert.match(main,/ale\.dispatch\('observe\.start'/);
+  assert.match(main,/ale\.dispatch\('observe\.complete'/);
+  assert.match(main,/ale\.dispatch\('reason\.start'/);
+  assert.match(main,/ale\.dispatch\('reason\.complete'/);
   for(const event of [
     'plan.start','plan.complete','agent.start','agent.complete','agent.failed',
     'work.failed','program.start','program.complete','verify.start','verify.complete'
-  ])assert.match(coordinator,new RegExp("this\\.nara\\.dispatch\\('"+event.replace('.','\\.')+"'"));
+  ])assert.match(coordinator,new RegExp("this\\.ale\\.dispatch\\('"+event.replace('.','\\.')+"'"));
   assert.match(coordinator,/const label='Agent '\+meta\.id\+' · '/);
-  assert.match(main,/naraAgentCoordinator\.run\(\{\.\.\.value,memoryContext\}\)/);
+  assert.match(main,/aleAgentCoordinator\.run\(\{\.\.\.value,memoryContext\}\)/);
   assert.doesNotMatch(main,/reason\.start'\s*,\s*\{label\s*:\s*String\(value\?\.prompt/);
   assert.doesNotMatch(coordinator,/label\s*:\s*meta\.prompt/);
 });
@@ -113,9 +113,9 @@ test('canonical site loads cognition module and renders only stage/task/status m
   const [html,site,cognition]=await Promise.all([
     read('sites/humanale-hologram/dist/index.html'),
     read('sites/humanale-hologram/dist/site.js'),
-    read('sites/humanale-hologram/dist/nara-cognition.js')
+    read('sites/humanale-hologram/dist/alecore-ai-cognition.js')
   ]);
-  assert.match(html,/\.\/nara-cognition\.js/);
+  assert.match(html,/\.\/alecore-ai-cognition\.js/);
   assert.match(html,/id="cognitionStage"/);
   assert.match(html,/id="cognitionTask"/);
   assert.match(html,/id="cognitionTimeline"/);
@@ -130,7 +130,7 @@ test('canonical site loads cognition module and renders only stage/task/status m
 });
 
 test('Data Spine routes cognition events to bounded safe lanes',async()=>{
-  const spine=await read('sites/humanale-hologram/dist/nara-data-spine.js');
+  const spine=await read('sites/humanale-hologram/dist/alecore-ai-data-spine.js');
   for(const event of [
     'observe.start','reason.start','plan.start','agent.start',
     'program.start','memory.read','verify.start'
@@ -140,7 +140,7 @@ test('Data Spine routes cognition events to bounded safe lanes',async()=>{
 });
 
 test('core BrainState mirrors the browser cognitive event model',async()=>{
-  const {createBrainState}=await import('../nara-core/brain/brain-state.js?phase8='+ ++nonce);
+  const {createBrainState}=await import('../alecore-ai/brain/brain-state.js?phase8='+ ++nonce);
   const state=createBrainState();
   state.applyEvent({id:1,event:'reason.start',timestamp:1,payload:{label:'Analisis'}});
   state.applyEvent({id:2,event:'plan.start',timestamp:2,payload:{label:'Rencana'}});

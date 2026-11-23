@@ -5,18 +5,18 @@ import {readFile} from 'node:fs/promises';
 const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');
 
-test('canonical site exposes explicit opt-in NARA sensor controls',async()=>{
+test('canonical site exposes explicit opt-in AleCore AI sensor controls',async()=>{
   const [html,site,sensors]=await Promise.all([
     read('sites/humanale-hologram/dist/index.html'),
     read('sites/humanale-hologram/dist/site.js'),
-    read('sites/humanale-hologram/dist/nara-sensors.js')
+    read('sites/humanale-hologram/dist/alecore-ai-sensors.js')
   ]);
   assert.match(html,/id="sensorMic"/);
   assert.match(html,/id="sensorCamera"/);
   assert.match(html,/id="sensorStop"/);
   assert.match(html,/id="cameraPreview"/);
   assert.match(html,/LOKAL · OPT-IN/);
-  assert.match(html,/\.\/nara-sensors\.js/);
+  assert.match(html,/\.\/alecore-ai-sensors\.js/);
   assert.match(site,/sensorMicButton\?\.addEventListener\('click'/);
   assert.match(site,/sensorCameraButton\?\.addEventListener\('click'/);
   assert.match(site,/sensors\.startMicrophone\(\)/);
@@ -27,7 +27,7 @@ test('canonical site exposes explicit opt-in NARA sensor controls',async()=>{
 
 test('sensor router microphone emits bounded audio telemetry only after explicit start and cleans tracks',async()=>{
   delete globalThis.HumanALESensors;
-  await import('../sites/humanale-hologram/dist/nara-sensors.js?sensor-test='+Date.now());
+  await import('../sites/humanale-hologram/dist/alecore-ai-sensors.js?sensor-test='+Date.now());
   const dispatched=[];
   const runtime={dispatch:(event,payload={})=>{dispatched.push({event,payload});return{event,payload};}};
   let constraints=null,rafCallback=null,cancelled=null,trackStopped=false,sourceDisconnected=false,contextClosed=false;
@@ -75,7 +75,7 @@ test('sensor router microphone emits bounded audio telemetry only after explicit
 
 test('sensor router camera computes local motion state, never uploads frames, and stops on request',async()=>{
   delete globalThis.HumanALESensors;
-  await import('../sites/humanale-hologram/dist/nara-sensors.js?camera-test='+Date.now());
+  await import('../sites/humanale-hologram/dist/alecore-ai-sensors.js?camera-test='+Date.now());
   const dispatched=[];
   const runtime={dispatch:(event,payload={})=>{dispatched.push({event,payload});return{event,payload};}};
   let constraints=null,trackStopped=false,intervalCallback=null,intervalCleared=null,paused=false;
@@ -123,7 +123,7 @@ test('sensor router camera computes local motion state, never uploads frames, an
     globalThis.setInterval=oldSetInterval;
     globalThis.clearInterval=oldClearInterval;
   }
-  const sensors=await read('sites/humanale-hologram/dist/nara-sensors.js');
+  const sensors=await read('sites/humanale-hologram/dist/alecore-ai-sensors.js');
   assert.doesNotMatch(sensors,/fetch\s*\(|WebSocket|XMLHttpRequest|sendBeacon|FormData/);
 });
 

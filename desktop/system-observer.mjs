@@ -33,7 +33,7 @@ function ownInterfaces(){
   return rows.slice(0,16);
 }
 
-export class NaraSystemObserver{
+export class AleSystemObserver{
   constructor({intervalMs=5000}={}){
     this.intervalMs=Math.max(1000,Math.min(60000,Number(intervalMs)||5000));
     this.timer=null;
@@ -88,7 +88,7 @@ export class NaraSystemObserver{
   }
 }
 
-export class NaraDataFlowMeter{
+export class AleDataFlowMeter{
   constructor(){
     this.inBytes=0;
     this.outBytes=0;
@@ -137,5 +137,5 @@ export class NaraDataFlowMeter{
   }
 }
 
-export function createSystemObserver(options){return new NaraSystemObserver(options);}
-export function createDataFlowMeter(){return new NaraDataFlowMeter();}
+export function createSystemObserver(options){return new AleSystemObserver(options);}
+export function createDataFlowMeter(){return new AleDataFlowMeter();}

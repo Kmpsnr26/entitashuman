@@ -1,5 +1,5 @@
 {
-  "name": "humanale-god-egine",
+  "name": "humanale-alecore-ai",
   "private": true,
   "version": "2.5.0",
   "type": "module",
@@ -12,10 +12,10 @@
     "package:desktop": "install-electron --no && node package-desktop.mjs",
     "package:installer": "npx --yes electron-builder@26.16.1 --win nsis --x64 --publish never",
     "smoke:terminal": "node scripts/terminal-smoke.mjs",
-    "nara:studio": "node nara-core/studio/server.mjs",
-    "test:nara": "node --test tests/nara-core.test.mjs tests/nara-studio.test.mjs tests/nara-voice.test.mjs",
-    "smoke:neural-live": "electron scripts/nara-neural-live-smoke.cjs",
-    "smoke:neural-gpu": "electron scripts/nara-neural-live-smoke.cjs"
+    "smoke:neural-live": "electron scripts/alecore-ai-neural-live-smoke.cjs",
+    "smoke:neural-gpu": "electron scripts/alecore-ai-neural-live-smoke.cjs",
+    "alecore-ai:studio": "node alecore-ai/studio/server.mjs",
+    "test:alecore-ai": "node --test tests/alecore-ai-core.test.mjs tests/alecore-ai-studio.test.mjs tests/alecore-ai-voice.test.mjs"
   },
   "devDependencies": {
     "electron": "44.11.5"

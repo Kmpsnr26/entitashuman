@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 
 const read=path=>readFile(new URL('../'+path,import.meta.url),'utf8');
 
-test('main HumanALE renderer uses the exact procedural NARA avatar engine from the HumanALE Site',async()=>{
+test('main HumanALE renderer uses the exact procedural AleCore AI avatar engine from the HumanALE Site',async()=>{
   const [app,adapter,avatar,index]=await Promise.all([
     read('public/app.js'),
     read('public/humanale-avatar.js'),
@@ -21,7 +21,7 @@ test('main HumanALE renderer uses the exact procedural NARA avatar engine from t
   assert.doesNotMatch(avatar,/loadReference|referencePromise|referencePoints|referenceSrc|new Image/);
   assert.match(avatar,/setBackdrop\(grid\)/);
   assert.match(avatar,/Math\.PI\/6/);
-  assert.match(index,/Wajah holografik NARA dari karakter biner yang bergerak/);
+  assert.match(index,/Wajah holografik AleCore AI dari karakter biner yang bergerak/);
   for(const script of ['face-rig.js','neural-core.js','avatar.js'])assert.match(index,new RegExp('/humanale/'+script.replace('.', '\\.')));
 });
 

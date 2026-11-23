@@ -1,4 +1,4 @@
-import {normalizeProviderStatus,normalizeStartupConnections} from '../nara-core/brain/provider-state.js';
+import {normalizeProviderStatus,normalizeStartupConnections} from '../alecore-ai/brain/provider-state.js';
 
 export const AUTO_PROVIDER_IDS=Object.freeze(['chatgpt','copilot','openai','gemini']);
 export const STARTUP_STATUS_TIMEOUT_MS=15000;
@@ -6,29 +6,29 @@ const providerSessions=new WeakMap();
 const codexStatusError=(agent,fallback='')=>fallback||
   (/^CODEX_PROBE_/.test(agent?.errorCode||'')?(agent.errorCode==='CODEX_PROBE_TIMEOUT'?'STATUS_TIMEOUT':'STATUS_FAILED'):'');
 
-export function recordNaraAgentHubStatus({nara,hub={},pending=false,now=()=>Date.now(),statusError=''}={}){
+export function recordAleAgentHubStatus({ale,hub={},pending=false,now=()=>Date.now(),statusError=''}={}){
   const codex=Array.isArray(hub.agents)?hub.agents.find(agent=>agent?.id==='codex'):null;
   const verified=codex?.executable===true&&codex?.state==='configured'&&codex?.canRun===true;
   const provider=normalizeProviderStatus({id:'codex',attached:codex?.executable===true,
     configured:verified,verified,busy:pending,evidence:'login-status',statusError:codexStatusError(codex,statusError)});
-  safeDispatch(nara,'provider.status',provider);
+  safeDispatch(ale,'provider.status',provider);
   const authenticatedExecutors=[];
   if(provider.ready)authenticatedExecutors.push('codex');
-  if(nara&&providerSessions.get(nara)?.get('copilot')?.ready)authenticatedExecutors.push('github-copilot');
+  if(ale&&providerSessions.get(ale)?.get('copilot')?.ready)authenticatedExecutors.push('github-copilot');
   const startupConnections=normalizeStartupConnections({pending:false,checkedAt:now(),
     projectRootReady:hub.workReady??hub.projectRootReady,authenticatedExecutors});
-  safeDispatch(nara,'startup.connections',startupConnections);
+  safeDispatch(ale,'startup.connections',startupConnections);
   return {provider,startupConnections};
 }
 
-function safeDispatch(nara,event,payload){
-  try{nara?.dispatch?.(event,payload,{source:'startup-connections'});}catch{}
+function safeDispatch(ale,event,payload){
+  try{ale?.dispatch?.(event,payload,{source:'startup-connections'});}catch{}
 }
 
-export function recordNaraProviderStatus({nara,id,raw={},busy=false,statusError='',requestSucceeded=false,requestFailed=false,clearEvidence=false}={}){
+export function recordAleProviderStatus({ale,id,raw={},busy=false,statusError='',requestSucceeded=false,requestFailed=false,clearEvidence=false}={}){
   if(!normalizeProviderStatus({id}))return null;
-  const canStore=nara!==null&&['object','function'].includes(typeof nara);
-  const session=canStore?providerSessions.get(nara)||new Map():new Map();
+  const canStore=ale!==null&&['object','function'].includes(typeof ale);
+  const session=canStore?providerSessions.get(ale)||new Map():new Map();
   const previous=session.get(id);
   const suppliedConfiguration=typeof raw?.configured==='boolean';
   const configured=requestSucceeded||
@@ -50,8 +50,8 @@ export function recordNaraProviderStatus({nara,id,raw={},busy=false,statusError=
       id==='chatgpt'?'login-status':'none'
   });
   session.set(id,state);
-  if(canStore)providerSessions.set(nara,session);
-  safeDispatch(nara,'provider.status',state);
+  if(canStore)providerSessions.set(ale,session);
+  safeDispatch(ale,'provider.status',state);
   return state;
 }
 
@@ -65,7 +65,7 @@ async function boundedStatus(read,timeoutMs){
   }finally{clearTimeout(timer);}
 }
 
-export async function bootstrapNaraConnections({bridges={},agentHub=null,nara=null,
+export async function bootstrapAleConnections({bridges={},agentHub=null,ale=null,
   timeoutMs=STARTUP_STATUS_TIMEOUT_MS,now=()=>Date.now()}={}){
   if(!Number.isInteger(timeoutMs)||timeoutMs<1||timeoutMs>STARTUP_STATUS_TIMEOUT_MS){
     throw new TypeError('Startup status timeout must be between 1 and 15000 milliseconds.');
@@ -75,7 +75,7 @@ export async function bootstrapNaraConnections({bridges={},agentHub=null,nara=nu
       const bridge=bridges[id];
       const result=typeof bridge?.status==='function'
         ?await boundedStatus(()=>bridge.status(),timeoutMs):{statusError:'BRIDGE_MISSING'};
-      const state=recordNaraProviderStatus({nara,id,raw:result.raw,
+      const state=recordAleProviderStatus({ale,id,raw:result.raw,
         busy:bridge?.pending===true,statusError:result.statusError});
       return [id,state];
     })),
@@ -90,7 +90,7 @@ export async function bootstrapNaraConnections({bridges={},agentHub=null,nara=nu
     verified:codexVerified,busy:agentHub?.pending===true,
     evidence:'login-status',statusError:codexStatusError(codex,hubResult.statusError)
   });
-  safeDispatch(nara,'provider.status',providers.codex);
+  safeDispatch(ale,'provider.status',providers.codex);
   const authenticatedExecutors=[];
   if(providers.codex.ready)authenticatedExecutors.push('codex');
   if(providers.copilot.ready)authenticatedExecutors.push('github-copilot');
@@ -98,6 +98,6 @@ export async function bootstrapNaraConnections({bridges={},agentHub=null,nara=nu
     pending:false,checkedAt:now(),projectRootReady:hub.workReady??hub.projectRootReady,
     authenticatedExecutors
   });
-  safeDispatch(nara,'startup.connections',startupConnections);
+  safeDispatch(ale,'startup.connections',startupConnections);
   return Object.freeze({providers:Object.freeze(providers),startupConnections});
 }

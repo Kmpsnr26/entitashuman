@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {request} from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {runInNewContext} from 'node:vm';
-import {createNaraStudioServer} from '../nara-core/studio/server.mjs';
-import {createStudioVoice,voiceProfilePatch} from '../nara-core/studio/public/voice-identity.js';
-import {sanitizeVisualSettings} from '../nara-core/studio/public/custom-settings.js';
+import {createAleStudioServer} from '../alecore-ai/studio/server.mjs';
+import {createStudioVoice,voiceProfilePatch} from '../alecore-ai/studio/public/voice-identity.js';
+import {sanitizeVisualSettings} from '../alecore-ai/studio/public/custom-settings.js';
 import {HUMANALE_VOICE} from '../public/robot-voice.js';
 
 test('legacy Studio voice preferences migrate to the one adult character',()=>{
@@ -27,7 +27,7 @@ test('all app provider and avatar calls use adult PCM irrespective of supplied l
 
 test('Studio PCM endpoints require a session and same origin, and normalize source once',async t=>{
  const calls=[],stops=[];
- const studio=createNaraStudioServer({host:'127.0.0.1',port:0,creatorAuth:{username:'creator',password:'FixtureSecret123!',required:true},voiceBackend:{synthesize:async(actor,value)=>{calls.push({actor,value});return{audio:Buffer.alloc(100).toString('base64'),mime:'audio/wav',voiceGender:'male'};},stop:async actor=>stops.push(actor)}});
+ const studio=createAleStudioServer({host:'127.0.0.1',port:0,creatorAuth:{username:'creator',password:'FixtureSecret123!',required:true},voiceBackend:{synthesize:async(actor,value)=>{calls.push({actor,value});return{audio:Buffer.alloc(100).toString('base64'),mime:'audio/wav',voiceGender:'male'};},stop:async actor=>stops.push(actor)}});
  const address=await studio.start();t.after(()=>studio.stop());const base='http://127.0.0.1:'+address.port;
  const post=(path,data,overrides={})=>{
   const headers={'content-type':'application/json',origin:base,...overrides};
@@ -71,7 +71,7 @@ test('Studio PCM endpoints require a session and same origin, and normalize sour
 });
 
 test('standalone optional authentication never opens PCM endpoints to anonymous clients',async t=>{
- let called=false;const studio=createNaraStudioServer({host:'127.0.0.1',port:0,creatorAuth:{required:false},voiceBackend:{synthesize:()=>{called=true;},stop(){}}});
+ let called=false;const studio=createAleStudioServer({host:'127.0.0.1',port:0,creatorAuth:{required:false},voiceBackend:{synthesize:()=>{called=true;},stop(){}}});
  const address=await studio.start();t.after(()=>studio.stop());const base='http://127.0.0.1:'+address.port;
  const response=await fetch(base+'/api/voice/synthesize',{method:'POST',headers:{'content-type':'application/json',origin:base},body:JSON.stringify({text:'Halo'})});assert.equal(response.status,401);assert.equal(called,false);
 });

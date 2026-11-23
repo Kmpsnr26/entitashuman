@@ -110,7 +110,7 @@ test('Agent Hub trusted maintenance entrypoint requires external active transact
 });
 
 
-test('structured executor stage timeouts stay inside NARA sequential pipeline budget',()=>{
+test('structured executor stage timeouts stay inside AleCore AI sequential pipeline budget',()=>{
  assert.equal(agentTimeoutMs('analyze',{}),120000);
  assert.equal(agentTimeoutMs('work',{}),600000);
  assert.equal(agentTimeoutMs('analyze',{HUMANALE_AGENT_TIMEOUT_MS:'900000'}),300000);

@@ -8,23 +8,23 @@ let nonce=0;
 
 async function createRuntime(){
   delete globalThis.NeuralCore;
-  delete globalThis.HumanALENaraRuntime;
+  delete globalThis.HumanALEAleRuntime;
   await import('../sites/humanale-hologram/dist/neural-core.js?phase7='+ ++nonce);
-  await import('../sites/humanale-hologram/dist/nara-runtime.js?phase7='+ ++nonce);
+  await import('../sites/humanale-hologram/dist/alecore-ai-runtime.js?phase7='+ ++nonce);
   const graph=globalThis.NeuralCore.create();
-  const runtime=globalThis.HumanALENaraRuntime.create({regions:graph.regions});
+  const runtime=globalThis.HumanALEAleRuntime.create({regions:graph.regions});
   return {graph,runtime};
 }
 
 async function loadDataSpine(){
   delete globalThis.HumanALEDataSpine;
-  await import('../sites/humanale-hologram/dist/nara-data-spine.js?phase7='+ ++nonce);
+  await import('../sites/humanale-hologram/dist/alecore-ai-data-spine.js?phase7='+ ++nonce);
   return globalThis.HumanALEDataSpine;
 }
 
 async function loadConnections(){
   delete globalThis.HumanALEConnections;
-  await import('../sites/humanale-hologram/dist/nara-connections.js?phase7='+ ++nonce);
+  await import('../sites/humanale-hologram/dist/alecore-ai-connections.js?phase7='+ ++nonce);
   return globalThis.HumanALEConnections;
 }
 
@@ -163,11 +163,11 @@ test('canonical site wires Data Spine live connections and inspector without pri
     read('sites/humanale-hologram/dist/index.html'),
     read('sites/humanale-hologram/dist/site.js'),
     read('sites/humanale-hologram/dist/avatar.js'),
-    read('sites/humanale-hologram/dist/nara-data-spine.js'),
-    read('sites/humanale-hologram/dist/nara-connections.js')
+    read('sites/humanale-hologram/dist/alecore-ai-data-spine.js'),
+    read('sites/humanale-hologram/dist/alecore-ai-connections.js')
   ]);
-  assert.match(html,/\.\/nara-data-spine\.js/);
-  assert.match(html,/\.\/nara-connections\.js/);
+  assert.match(html,/\.\/alecore-ai-data-spine\.js/);
+  assert.match(html,/\.\/alecore-ai-connections\.js/);
   assert.match(html,/id="connectionGrid"/);
   assert.match(html,/id="regionInspector"/);
   assert.match(site,/HumanALEDataSpine\.create/);
@@ -185,7 +185,7 @@ test('canonical site wires Data Spine live connections and inspector without pri
 });
 
 test('core BrainState preserves connected status on visual selection and supports ONLINE events',async()=>{
-  const {createBrainState}=await import('../nara-core/brain/brain-state.js?phase7='+ ++nonce);
+  const {createBrainState}=await import('../alecore-ai/brain/brain-state.js?phase7='+ ++nonce);
   const state=createBrainState();
   state.applyEvent({id:1,event:'github.connected',timestamp:1,payload:{}});
   state.applyEvent({id:2,event:'brain.region.select',timestamp:2,payload:{region:'GITHUB'}});

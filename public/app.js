@@ -25,9 +25,9 @@ const avatarStudio=createAvatarStudioController({
  onOpen:()=>showDialog('#avatarStudio'),
  onToast:text=>toast(text)
 });
-const naraDispatch=(event,payload={})=>{if(!desktop?.naraDispatch||panelOnly)return Promise.resolve(null);return desktop.naraDispatch(event,payload).catch(()=>null);};
+const aleDispatch=(event,payload={})=>{if(!desktop?.aleDispatch||panelOnly)return Promise.resolve(null);return desktop.aleDispatch(event,payload).catch(()=>null);};
 const desktopMemoryRuntime=Object.freeze({
- dispatch:(event,payload={})=>{naraDispatch(event,payload);return{event,payload};},
+ dispatch:(event,payload={})=>{aleDispatch(event,payload);return{event,payload};},
  bus:Object.freeze({onAny:()=>()=>{}})
 });
 const desktopMemory=desktop&&window.HumanALEMemory?.create
@@ -36,7 +36,7 @@ const desktopMemory=desktop&&window.HumanALEMemory?.create
 const desktopContextBridge=desktop&&desktopMemory&&window.HumanALEContextBridge?.create
  ?window.HumanALEContextBridge.create({runtime:desktopMemoryRuntime,memory:desktopMemory,storage:localStorage,maxEntries:6,maxChars:1600})
  :null;
-const MEMORY_SOURCE_KEY='humanale.nara.context-source.v1';
+const MEMORY_SOURCE_KEY='humanale.ale.context-source.v1';
 let ownerState=Object.freeze({configured:false,unlocked:!desktop,username:null,sessionExpiresAt:0});
 let ownerRetryTimer=null,ownerSubmitting=false;
 let cloudMemoryState=Object.freeze({configured:false,authenticated:false,available:false});
@@ -59,7 +59,7 @@ function applyOwnerState(next={}){
  const confirmRow=$('#ownerConfirmRow'),confirm=$('#ownerConfirmPassword');
  const submit=$('#ownerSubmit'),status=$('#ownerGateStatus');
  const security=$('#ownerSecurity'),identity=$('#ownerSecurityIdentity');
- const networkButton=$('#naraNetworkOpen');
+ const networkButton=$('#aleNetworkOpen');
  if(networkButton)networkButton.hidden=!desktop||!ownerState.unlocked;
  if(!desktop){
   if(gate)gate.hidden=true;
@@ -82,7 +82,7 @@ function applyOwnerState(next={}){
  if(hint)hint.textContent=ownerState.configured
   ?'Unlock sesi HumanALE dengan identitas Creator perangkat ini.'
   :'Buat identitas Creator pertama. Password disimpan sebagai verifier scrypt di main process, bukan di browser.';
- if(submit)submit.textContent=ownerState.configured?'UNLOCK NARA':'PROVISION & UNLOCK';
+ if(submit)submit.textContent=ownerState.configured?'UNLOCK AleCore AI':'PROVISION & UNLOCK';
  clearInterval(ownerRetryTimer);ownerRetryTimer=null;
  if(submit)submit.disabled=ownerSubmitting||ownerState.errorCode==='owner_store_unavailable'||ownerState.retryAfterMs>0;
  if(status)status.textContent=ownerState.error||'';
@@ -173,15 +173,15 @@ $('#ownerLogout')?.addEventListener('click',async()=>{
  await refreshOwnerState();
 });
 
-$('#naraNetworkOpen')?.addEventListener('click',async()=>{
- const button=$('#naraNetworkOpen');
- if(!desktop?.openNaraNetwork||!ownerState.unlocked)return;
+$('#aleNetworkOpen')?.addEventListener('click',async()=>{
+ const button=$('#aleNetworkOpen');
+ if(!desktop?.openAleNetwork||!ownerState.unlocked)return;
  if(button)button.disabled=true;
  try{
-  const result=await desktop.openNaraNetwork();
-  if(!result?.ok)toast(result?.error||'NARA Core Network Studio gagal dibuka.');
+  const result=await desktop.openAleNetwork();
+  if(!result?.ok)toast(result?.error||'AleCore AI Network Studio gagal dibuka.');
  }catch{
-  toast('NARA Core Network Studio gagal dibuka.');
+  toast('AleCore AI Network Studio gagal dibuka.');
  }finally{
   if(button)button.disabled=false;
  }
@@ -247,7 +247,7 @@ async function refreshCloudMemoryStatus(){
   });
  }catch{
   cloudMemoryChecked=true;
-  cloudMemoryState=Object.freeze({configured:true,authenticated:false,available:false,error:'NARA_CLOUD_UNREACHABLE'});
+  cloudMemoryState=Object.freeze({configured:true,authenticated:false,available:false,error:'ALECORE_AI_CLOUD_UNREACHABLE'});
  }
  updateDesktopMemoryContextUi();
  return cloudMemoryState;
@@ -270,32 +270,32 @@ function updateDesktopMemoryContextUi(){
  if(source==='cloud'&&cloudMemoryChecked&&!cloudMemoryState.configured)source=setMemorySource('local');
  if(sourceSelect&&sourceSelect.value!==source)sourceSelect.value=source;
  const modeLabel=snapshot.mode==='off'?'OFF':snapshot.mode==='auto-safe'?'AUTO-SAFE':'TANYA DULU';
- const sourceLabel=source==='cloud'?'NARA CLOUD':'LOKAL';
+ const sourceLabel=source==='cloud'?'AleCore AI Cloud':'LOKAL';
  status.textContent='Memory context · '+modeLabel+' · sumber '+sourceLabel+' · '+memoryState.count+' memori lokal tersedia.';
  if(cloudActions)cloudActions.hidden=!cloudMemoryChecked||!cloudMemoryState.configured;
  if(cloudStatus)cloudStatus.hidden=!cloudMemoryChecked||!cloudMemoryState.configured;
  if(cloudLogin)cloudLogin.hidden=!cloudMemoryState.configured||cloudMemoryState.authenticated;
  if(cloudStatus&&!cloudStatus.hidden){
   cloudStatus.textContent=cloudMemoryState.available
-   ?'NARA Cloud terhubung'+(cloudMemoryState.displayName?' · '+cloudMemoryState.displayName:'')+'.'
+   ?'AleCore AI Cloud terhubung'+(cloudMemoryState.displayName?' · '+cloudMemoryState.displayName:'')+'.'
    :cloudMemoryState.loginRequired
-    ?'NARA Cloud perlu login Owner.'
+    ?'AleCore AI Cloud perlu login Owner.'
     :cloudMemoryState.error
-     ?'NARA Cloud belum tersedia · '+cloudMemoryState.error
-     :'NARA Cloud belum terhubung.';
+     ?'AleCore AI Cloud belum tersedia · '+cloudMemoryState.error
+     :'AleCore AI Cloud belum terhubung.';
  }
 }
 async function prepareDesktopMemoryContext(task,target='reasoner'){
  if(!desktopContextBridge||!desktopMemory)return null;
  desktopMemory.load?.();
- const storedMode=localStorage.getItem(window.HumanALEContextBridge?.key||'humanale.nara.context-mode.v1');
+ const storedMode=localStorage.getItem(window.HumanALEContextBridge?.key||'humanale.ale.context-mode.v1');
  if(storedMode&&storedMode!==desktopContextBridge.snapshot().mode)desktopContextBridge.setMode(storedMode);
  const preview=desktopContextBridge.prepare(String(task||''),{target});
  if(!preview||preview.blocked||!preview.count){updateDesktopMemoryContextUi();return null;}
  if(preview.requiresApproval){
   const excerpt=preview.text.length>900?preview.text.slice(0,899)+'…':preview.text;
   const approved=window.confirm(
-   'NARA menemukan '+preview.count+' memori lokal relevan ('+preview.chars+' karakter).\n\n'+
+   'AleCore AI menemukan '+preview.count+' memori lokal relevan ('+preview.chars+' karakter).\n\n'+
    excerpt+'\n\nGunakan context lokal ini untuk '+target+'?'
   );
   if(!approved){desktopContextBridge.reject(preview.id);updateDesktopMemoryContextUi();toast('Memory context lokal tidak digunakan.');return null;}
@@ -311,28 +311,28 @@ async function prepareCloudMemoryContext(target='reasoner'){
  if(mode==='off')return null;
  if(!cloudMemoryState.available)await refreshCloudMemoryStatus();
  if(!cloudMemoryState.available){
-  toast(cloudMemoryState.loginRequired?'Login NARA Cloud diperlukan.':'NARA Cloud belum tersedia.');
+  toast(cloudMemoryState.loginRequired?'Login AleCore AI Cloud diperlukan.':'AleCore AI Cloud belum tersedia.');
   return null;
  }
  const first=await desktop.cloudContext({target,mode,approved:false});
- if(first?.error){toast('NARA Cloud: '+first.error);await refreshCloudMemoryStatus();return null;}
+ if(first?.error){toast('AleCore AI Cloud: '+first.error);await refreshCloudMemoryStatus();return null;}
  if(first?.context)return first.context;
  const preview=first?.preview;
  if(!preview)return null;
  const excerpt=preview.text.length>900?preview.text.slice(0,899)+'…':preview.text;
  const approved=window.confirm(
-  'NARA Cloud menemukan '+preview.count+' memori ('+preview.chars+' karakter).\n\n'+
+  'AleCore AI Cloud menemukan '+preview.count+' memori ('+preview.chars+' karakter).\n\n'+
   excerpt+'\n\nGunakan context cloud ini untuk '+target+'?'
  );
  if(!approved){toast('Memory context cloud tidak digunakan.');return null;}
  const confirmed=await desktop.cloudContext({target,mode,approved:true,entryIds:preview.entryIds});
- if(confirmed?.error){toast('NARA Cloud: '+confirmed.error);return null;}
+ if(confirmed?.error){toast('AleCore AI Cloud: '+confirmed.error);return null;}
  return confirmed?.context||null;
 }
 async function prepareEffectiveMemoryContext(task,target='reasoner'){
  if(!desktopContextBridge||!desktopMemory)return null;
  desktopMemory.load?.();
- const storedMode=localStorage.getItem(window.HumanALEContextBridge?.key||'humanale.nara.context-mode.v1');
+ const storedMode=localStorage.getItem(window.HumanALEContextBridge?.key||'humanale.ale.context-mode.v1');
  if(storedMode&&storedMode!==desktopContextBridge.snapshot().mode)desktopContextBridge.setMode(storedMode);
  if(desktopContextBridge.snapshot().mode==='off')return null;
  if(selectedMemorySource()==='cloud')return prepareCloudMemoryContext(target);
@@ -382,34 +382,34 @@ const apiProviders=['copilot','openai','grok','gemini','claude','deepseek','askc
 const SUMMON_DURATION_MS=4200;
 const DISMISS_DURATION_MS=3000;
 const DEFAULT_AVATAR_SIZE=420;
-let panelZoomFactor=1,latestNaraBrainState=null,latestNaraSkillSnapshot=null,latestHumanALERuntime=null,selectedBrainRegion='NARA_CORE',humanaleVisualFrame={fps:0,points:0},lastVisualStudioBroadcast=0,humanaleVisualEvents=[],lastHumanaleVisualEventId=null;
+let panelZoomFactor=1,latestAleBrainState=null,latestAleSkillSnapshot=null,latestHumanALERuntime=null,selectedBrainRegion='ALECORE_AI',humanaleVisualFrame={fps:0,points:0},lastVisualStudioBroadcast=0,humanaleVisualEvents=[],lastHumanaleVisualEventId=null;
 let aiReady=false,savedProvider=desktop?localStorage.getItem('dudidam-provider'):'',aiProvider=apiProviders.includes(savedProvider)?savedProvider:'chatgpt',busy=false,voice=true,selectedVoiceURI='',listening=false,recognition,cameraStream,cameraPending=false,history=[],toastTimer,bubbleTimer,speechTimer,drag,offset={x:0,y:0},ttsActive=false,ttsEnergy=0,audioEnergy=0,audioMode='',musicUrl='',wakeRecognition,wakeListening=false,wakeEnabled=desktop?localStorage.getItem('dudidam-wake-enabled')==='true':false,wakeRestartTimer,wakeHealthVerified=false,wakeRetryBlocked=false,wakeNetworkFailures=0,summoning=false,dismissing=false,transitionSerial=0,hold5Timer,hold5Fired=false;
 let wakeStartGeneration=0;
 let micProbeGeneration=0,micChecking=false;
 let remoteSpeechEnergy=0;
 let localRecorder,localStream,localChunks=[],localTimer,localCaptureGeneration=0;
 let onlineSpeech,onlineSpeechUrl,speechGeneration=0,localTtsConfigured=false,localTtsRejected=false;
-let activeSpeechSource='',naraVoiceQueue=[],naraVoiceActive=false,naraVoiceDrainTimer,lastNaraSpeechSent=0;
-let naraVisualTestActive=false,visualTestRequestSequence=0;
+let activeSpeechSource='',aleVoiceQueue=[],aleVoiceActive=false,aleVoiceDrainTimer,lastAleSpeechSent=0;
+let aleVisualTestActive=false,visualTestRequestSequence=0;
 const pendingVisualTests=new Map();
 const voiceStyle=HUMANALE_VOICE.style;
 localStorage.setItem('dudidam-voice-style',voiceStyle);
 localStorage.removeItem('dudidam-voice-uri');
 let emotionChoice=desktop?localStorage.getItem('dudidam-emotion')||'auto':'auto',lastBandsSent=0;
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-let naraAudioBands={low:0,mid:0,high:0},lastNaraAudioSent=0,lastNaraHearingActive=null;
+let aleAudioBands={low:0,mid:0,high:0},lastAleAudioSent=0,lastAleHearingActive=null;
 function humanaleVisualStudioSnapshot(){
- const snapshot=latestNaraBrainState||{};
- const policy=snapshot.humanale||avatar.naraPolicy||{};
+ const snapshot=latestAleBrainState||{};
+ const policy=snapshot.humanale||avatar.alePolicy||{};
  const hearing=snapshot.sensory?.hearing||{},vision=snapshot.sensory?.vision||{},speech=snapshot.sensory?.speech||{};
  const regions=Object.values(snapshot.regions||{});
  const errorRegions=regions.filter(region=>['error','bug'].includes(region?.status)).map(region=>region.id);
  const connectionIds=['GITHUB','COPILOT','DRIVE','OWNER_EMAIL','WEB','TEAM','ONLINE','TERMINAL','MEMORY'];
- const skillSnapshot=latestNaraSkillSnapshot||{};
+ const skillSnapshot=latestAleSkillSnapshot||{};
  return {
   timestamp:Date.now(),
-  runtime:{state:policy.state||avatar.state||'idle',rendererMode:policy.rendererMode||avatar.renderPolicy||'eco',activity:Number(policy.activity)||0,controlledBy:policy.controlledBy||'NARA_CORE',reason:policy.reason||'nara.idle'},
-  nara:{lifecycle:snapshot.lifecycle||'idle',selectedRegion:snapshot.selectedRegion||selectedBrainRegion,currentTask:snapshot.currentTask?.label||'',lastEvent:snapshot.lastEvent?.event||''},
+  runtime:{state:policy.state||avatar.state||'idle',rendererMode:policy.rendererMode||avatar.renderPolicy||'eco',activity:Number(policy.activity)||0,controlledBy:policy.controlledBy||'ALECORE_AI',reason:policy.reason||'ale.idle'},
+  ale:{lifecycle:snapshot.lifecycle||'idle',selectedRegion:snapshot.selectedRegion||selectedBrainRegion,currentTask:snapshot.currentTask?.label||'',lastEvent:snapshot.lastEvent?.event||''},
   sensors:{hearing:Boolean(hearing.active),hearingEnergy:Number(hearing.energy)||0,vision:Boolean(vision.active),visionActivity:Number(vision.activity)||0,speech:Boolean(speech.active),speechEnergy:Number(speech.energy)||0},
   performance:{fps:Number(humanaleVisualFrame.fps)||Math.round(Number(avatar.fps)||0),points:Number(humanaleVisualFrame.points)||avatar.facePoints?.length||0,material:avatar.mode||'mixed',zoom:Number(avatar.zoomTarget||avatar.zoom)||1,renderTarget:policy.rendererMode||avatar.renderPolicy||'eco'},
   health:{status:errorRegions.length?'attention':'ready',errorCount:errorRegions.length,errorRegions},
@@ -427,12 +427,12 @@ const humanaleVisualStudio=createHumanALEVisualStudio({
  channel:panelChannel,
  isPanel:panelOnly,
  getSnapshot:humanaleVisualStudioSnapshot,
- onOpen:()=>{showDialog('#humanaleVisualStudio');if(!panelOnly)refreshNaraSkillSnapshot(false);},
+ onOpen:()=>{showDialog('#humanaleVisualStudio');if(!panelOnly)refreshAleSkillSnapshot(false);},
  onOpenAvatarStudio:()=>showDialog('#avatarStudio'),
  onSceneChange:(name,value)=>applyHumanALEVisualScene(name,value),
  onRegionSelect:region=>selectHumanALEVisualRegion(region),
  onTestScenario:scenario=>runHumanALEVisualTest(scenario),
- onRefresh:force=>refreshNaraSkillSnapshot(force),
+ onRefresh:force=>refreshAleSkillSnapshot(force),
  onToast:text=>toast(text)
 });
 avatar.onFrame=frame=>{
@@ -444,19 +444,19 @@ avatar.onFrame=frame=>{
  humanaleVisualStudio.render(humanaleVisualStudioSnapshot());
  panelChannel?.postMessage(humanaleVisualStudio.syncPayload());
 };
-async function refreshNaraSkillSnapshot(force=false){
- if(panelOnly||!desktop?.naraSkillSnapshot)return latestNaraSkillSnapshot;
- const result=await desktop.naraSkillSnapshot(Boolean(force));
+async function refreshAleSkillSnapshot(force=false){
+ if(panelOnly||!desktop?.aleSkillSnapshot)return latestAleSkillSnapshot;
+ const result=await desktop.aleSkillSnapshot(Boolean(force));
  if(result?.skills){
-  latestNaraSkillSnapshot=result.skills;
+  latestAleSkillSnapshot=result.skills;
   const payload=humanaleVisualStudio.syncPayload();
   humanaleVisualStudio.render(payload.snapshot);
   panelChannel?.postMessage(payload);
  }
- return latestNaraSkillSnapshot;
+ return latestAleSkillSnapshot;
 }
 async function runHumanALEVisualTest(scenario){
- if(!desktop?.naraTestScenario)return {error:'Controlled Test Lab hanya tersedia pada HumanALE Desktop.',scenario,trace:[]};
+ if(!desktop?.aleTestScenario)return {error:'Controlled Test Lab hanya tersedia pada HumanALE Desktop.',scenario,trace:[]};
  if(panelOnly){
   if(!panelChannel)return {error:'Avatar runtime tidak tersambung.',scenario,trace:[]};
   const requestId='visual-test-'+Date.now()+'-'+(++visualTestRequestSequence);
@@ -466,23 +466,23 @@ async function runHumanALEVisualTest(scenario){
    panelChannel.postMessage({type:'humanale-visual-studio-test',requestId,scenario});
   });
  }
- if(naraVisualTestActive)return {error:'Test HumanALE lain masih berjalan.',scenario,trace:[]};
- if(naraSpeechBusy()&&activeSpeechSource!=='nara')return {error:'Controlled test menunggu aktivitas suara selesai.',scenario,trace:[]};
- naraVisualTestActive=true;
- clearTimeout(naraVoiceDrainTimer);
+ if(aleVisualTestActive)return {error:'Test HumanALE lain masih berjalan.',scenario,trace:[]};
+ if(aleSpeechBusy()&&activeSpeechSource!=='ale')return {error:'Controlled test menunggu aktivitas suara selesai.',scenario,trace:[]};
+ aleVisualTestActive=true;
+ clearTimeout(aleVoiceDrainTimer);
  try{
-  // The avatar owns queued narration. Cancel only automatic NARA audio, including
+  // The avatar owns queued narration. Cancel only automatic AleCore AI audio, including
   // synthesis that has not started playback, before the main-process idle check.
-  if(activeSpeechSource==='nara'){
+  if(activeSpeechSource==='ale'){
    stopSpeech(false);
-   await naraDispatch('speech.stop');
+   await aleDispatch('speech.stop');
   }
-  const result=await desktop.naraTestScenario(scenario);
-  if(result?.finalState)syncNaraBrainState(result.finalState);
+  const result=await desktop.aleTestScenario(scenario);
+  if(result?.finalState)syncAleBrainState(result.finalState);
   return result||{error:'Controlled Test Lab tidak mengembalikan hasil.',scenario,trace:[]};
  }finally{
-  naraVisualTestActive=false;
-  scheduleNaraVoiceDrain();
+  aleVisualTestActive=false;
+  scheduleAleVoiceDrain();
  }
 }
 function handleHumanALEVisualTestMessage(data){
@@ -512,13 +512,13 @@ function applyHumanALEVisualScene(name,value){
 }
 function selectHumanALEVisualRegion(region){
  if(panelOnly){panelChannel?.postMessage({type:'humanale-visual-studio-region',region});return;}
- if(!latestNaraBrainState?.regions?.[region])return;
- naraDispatch('brain.region.select',{region}).then(result=>{if(result?.state)syncNaraBrainState(result.state);});
+ if(!latestAleBrainState?.regions?.[region])return;
+ aleDispatch('brain.region.select',{region}).then(result=>{if(result?.state)syncAleBrainState(result.state);});
 }
 function syncHumanALERuntime(runtime){
  if(!runtime||typeof runtime!=='object')return;
  latestHumanALERuntime=runtime;
- if(runtime.core&&runtime.core!==latestNaraBrainState)syncNaraBrainState(runtime.core);
+ if(runtime.core&&runtime.core!==latestAleBrainState)syncAleBrainState(runtime.core);
  if(panelOnly)return;
  const body=runtime.humanale?.body;
  if(!body)return;
@@ -536,14 +536,14 @@ function syncHumanALERuntime(runtime){
  if(body.speech?.active)avatar.setSpeechEnergy?.(Math.max(.2,Number(body.speech?.energy)||.35));
 }
 
-function syncNaraHearing(){
- if(panelOnly||!desktop?.naraDispatch)return;
- const now=performance.now();if(now-lastNaraAudioSent<100)return;lastNaraAudioSent=now;
- naraDispatch('audio.energy',{energy:audioEnergy,low:naraAudioBands.low,mid:naraAudioBands.mid,high:naraAudioBands.high});
+function syncAleHearing(){
+ if(panelOnly||!desktop?.aleDispatch)return;
+ const now=performance.now();if(now-lastAleAudioSent<100)return;lastAleAudioSent=now;
+ aleDispatch('audio.energy',{energy:audioEnergy,low:aleAudioBands.low,mid:aleAudioBands.mid,high:aleAudioBands.high});
 }
-const audioReactor=new AudioReactor(level=>{audioEnergy=level;syncFaceAudio();syncNaraHearing();},bands=>{
- naraAudioBands={low:Number(bands.low)||0,mid:Number(bands.mid)||0,high:Number(bands.high)||0};
- avatar.setEarSpectrum(bands);syncNaraHearing();
+const audioReactor=new AudioReactor(level=>{audioEnergy=level;syncFaceAudio();syncAleHearing();},bands=>{
+ aleAudioBands={low:Number(bands.low)||0,mid:Number(bands.mid)||0,high:Number(bands.high)||0};
+ avatar.setEarSpectrum(bands);syncAleHearing();
  if(panelOnly&&(Math.max(bands.low,bands.mid,bands.high)===0||performance.now()-lastBandsSent>80)){panelChannel?.postMessage({type:'ear-spectrum',bands});lastBandsSent=performance.now();}
 });
 if(desktop){document.body.classList.add('desktop');$('.desktop-actions').hidden=false;$('#providerRow').hidden=false;$('#provider').value=aiProvider;$('#popup').hidden=true;if(panelOnly)document.body.classList.add('detached-panel');updateDesktopMemoryContextUi();}else $('#systemAudio').hidden=true;
@@ -587,40 +587,40 @@ applyPanelTransparency(desktop?localStorage.getItem('dudidam-panel-transparency'
 function toast(text){$('#toast').textContent=text;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,6000);}
 function brainZoomLabel(value=1){
  const zoom=Number(value)||1;
- return zoom.toFixed(1)+'× · '+(zoom<1.5?'wajah':zoom<2.15?'rongga kepala':zoom<2.75?'otak 3D':zoom<3.3?'NARA neural':'node / modul');
+ return zoom.toFixed(1)+'× · '+(zoom<1.5?'wajah':zoom<2.15?'rongga kepala':zoom<2.75?'otak 3D':zoom<3.3?'AleCore AI neural':'node / modul');
 }
 function updateBrainNodeInfo(regionId=selectedBrainRegion){
  const panel=$('#brainNodeInfo');if(!panel)return;
- const region=latestNaraBrainState?.regions?.[regionId];
+ const region=latestAleBrainState?.regions?.[regionId];
  if(!region){panel.hidden=true;return;}
  selectedBrainRegion=regionId;
  const graphRegion=avatar.neuralCore?.regions?.find(item=>item.id===regionId);
  $('#brainNodeName').textContent=graphRegion?.label||regionId.replaceAll('_',' ');
  $('#brainNodeState').textContent=String(region.status||'idle').toUpperCase();
- $('#brainNodeMessage').textContent=String(region.message||region.lastEvent||'Region siap menerima aktivitas NARA.');
+ $('#brainNodeMessage').textContent=String(region.message||region.lastEvent||'Region siap menerima aktivitas AleCore AI.');
  panel.hidden=Math.max(avatar.zoom||1,avatar.zoomTarget||1)<2.2;
 }
-function naraHumanALEPolicy(){
- const policy=latestNaraBrainState?.humanale;
- return desktop&&policy?.controlledBy==='NARA_CORE'?policy:null;
+function aleHumanALEPolicy(){
+ const policy=latestAleBrainState?.humanale;
+ return desktop&&policy?.controlledBy==='ALECORE_AI'?policy:null;
 }
-function applyNaraHumanALEPolicy(policy=naraHumanALEPolicy()){
+function applyAleHumanALEPolicy(policy=aleHumanALEPolicy()){
  if(!policy)return null;
- const applied=avatar.applyNaraPolicy?.(policy)||policy;
+ const applied=avatar.applyAlePolicy?.(policy)||policy;
  const next=applied.state||'idle';
  const label=next==='idle'?'Ready':next==='listening'?'Listening':next==='thinking'?'Thinking':next==='speaking'?'Speaking':next==='processing'?'Processing':'Attention';
  assistantPopup.setStatus(next,label);
  return applied;
 }
-function syncNaraBrainState(snapshot){
+function syncAleBrainState(snapshot){
  if(!snapshot||typeof snapshot!=='object')return;
- latestNaraBrainState=snapshot;selectedBrainRegion=snapshot.selectedRegion||selectedBrainRegion;
+ latestAleBrainState=snapshot;selectedBrainRegion=snapshot.selectedRegion||selectedBrainRegion;
  const event=snapshot.lastEvent;
  if(event?.id&&event.id!==lastHumanaleVisualEventId){
   lastHumanaleVisualEventId=event.id;
   humanaleVisualEvents=[...humanaleVisualEvents,{event:event.event,timestamp:event.timestamp,state:snapshot.humanale?.state||'',region:snapshot.selectedRegion||''}].slice(-24);
  }
- avatar.setBrainState?.(snapshot);applyNaraHumanALEPolicy(snapshot.humanale);updateBrainNodeInfo(selectedBrainRegion);humanaleVisualStudio.render(humanaleVisualStudioSnapshot());
+ avatar.setBrainState?.(snapshot);applyAleHumanALEPolicy(snapshot.humanale);updateBrainNodeInfo(selectedBrainRegion);humanaleVisualStudio.render(humanaleVisualStudioSnapshot());
 }
 function applyBrainZoom(value,forward=true){
  const zoom=Math.max(1,Math.min(3.8,Number(value)||1));
@@ -634,7 +634,7 @@ function applyBrainZoom(value,forward=true){
 avatar.onZoom=value=>{const slider=$('#brainZoom'),output=$('#brainZoomValue');if(slider)slider.value=String(value);if(output)output.textContent=brainZoomLabel(value);if(value<2.2)$('#brainNodeInfo').hidden=true;else updateBrainNodeInfo(selectedBrainRegion);};
 avatar.onBrainRegionSelect=region=>{
  selectedBrainRegion=region;updateBrainNodeInfo(region);
- naraDispatch('brain.region.select',{region}).then(result=>{if(result?.state)syncNaraBrainState(result.state);});
+ aleDispatch('brain.region.select',{region}).then(result=>{if(result?.state)syncAleBrainState(result.state);});
 };
 function resolveAvatarState(text=''){
  const label=String(text||'').toLowerCase();
@@ -646,8 +646,8 @@ function resolveAvatarState(text=''){
  return 'idle';
 }
 function syncAvatarPresentation(text=''){
- const policy=naraHumanALEPolicy();
- if(policy){applyNaraHumanALEPolicy(policy);return;}
+ const policy=aleHumanALEPolicy();
+ if(policy){applyAleHumanALEPolicy(policy);return;}
  const next=resolveAvatarState(text);
  avatar.setState?.(next);
  const label=next==='idle'?'Ready':next==='listening'?'Listening':next==='thinking'?'Thinking':next==='speaking'?'Speaking':next==='processing'?'Processing':'Attention';
@@ -657,12 +657,12 @@ function state(text=''){
  $('#state').textContent=text;
  $('#state').hidden=!text;
  $('#conversationState').textContent=text||'Siap';
- if(!naraHumanALEPolicy())avatar.thinking=busy;
+ if(!aleHumanALEPolicy())avatar.thinking=busy;
  syncAvatarPresentation(text);
 }
 const chatMicIcon='<svg class="mic-icon" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14.5a3.25 3.25 0 0 0 3.25-3.25V6.25a3.25 3.25 0 1 0-6.5 0v5A3.25 3.25 0 0 0 12 14.5Zm-5.5-3.25a5.5 5.5 0 0 0 11 0M12 16.75V21m-3 0h6"/></svg>';
 const setChatMicLabel=label=>{$('#chatMic').innerHTML=chatMicIcon+'<span>'+label+'</span>';};
-function syncListeningVisual(){const active=Boolean(listening||wakeListening||micChecking||audioMode);if(desktop?.naraDispatch&&active!==lastNaraHearingActive){lastNaraHearingActive=active;naraDispatch(active?'hearing.start':'hearing.stop').then(result=>{if(result?.state)syncNaraBrainState(result.state);}).catch(()=>{});}if(!naraHumanALEPolicy())avatar.setListening?.(active);syncAvatarPresentation($('#state')?.textContent||'');$('#mic').setAttribute('aria-busy',String(micChecking));$('#chatMic').setAttribute('aria-busy',String(micChecking));if(micChecking)setChatMicLabel('Memeriksa mikrofon');else if(!listening&&$('#chatMic').textContent.includes('Memeriksa'))setChatMicLabel('Dikte suara');}
+function syncListeningVisual(){const active=Boolean(listening||wakeListening||micChecking||audioMode);if(desktop?.aleDispatch&&active!==lastAleHearingActive){lastAleHearingActive=active;aleDispatch(active?'hearing.start':'hearing.stop').then(result=>{if(result?.state)syncAleBrainState(result.state);}).catch(()=>{});}if(!aleHumanALEPolicy())avatar.setListening?.(active);syncAvatarPresentation($('#state')?.textContent||'');$('#mic').setAttribute('aria-busy',String(micChecking));$('#chatMic').setAttribute('aria-busy',String(micChecking));if(micChecking)setChatMicLabel('Memeriksa mikrofon');else if(!listening&&$('#chatMic').textContent.includes('Memeriksa'))setChatMicLabel('Dikte suara');}
 function applyEmotion(value,forward=true){
  const emotion=emotions.includes(value)?value:'neutral';
  avatar.setEmotion(emotion);
@@ -723,34 +723,34 @@ function refreshIndonesianVoices(){
  if(desktop?.ttsStatus)desktop.ttsStatus().then(result=>{localTtsConfigured=Boolean(result.configured);localTtsRejected=!localTtsConfigured;if(status)status.textContent=localTtsConfigured?'Suara lokal HumanALE god egine siap. Setiap balasan teks akan otomatis dibacakan.':voices.length?voices.length+' voice Bahasa Indonesia lokal tersedia.':'Voice Indonesia belum tersedia. Pasang paket suara Windows atau model Piper Indonesia.';}).catch(()=>{localTtsConfigured=false;localTtsRejected=true;});
  if(androidVoice)androidVoice.status().then(result=>{localTtsConfigured=Boolean(result.configured);localTtsRejected=!localTtsConfigured;if(status)status.textContent=result.configured?'Suara Indonesia perangkat siap · '+result.engine+'.':result.reason==='initializing'?'Menyiapkan mesin suara Android…':'Pasang data suara Bahasa Indonesia di pengaturan Text-to-speech Android.';}).catch(error=>{localTtsConfigured=false;localTtsRejected=true;if(status)status.textContent=error.message||'Mesin suara Android tidak dapat diakses.';});
 }
-function scheduleNaraVoiceDrain(delay=220){clearTimeout(naraVoiceDrainTimer);if(naraVoiceQueue.length)naraVoiceDrainTimer=setTimeout(drainNaraVoiceQueue,delay);}
-function finishSpeechSource(){const source=activeSpeechSource;activeSpeechSource='';if(source==='nara')naraVoiceActive=false;scheduleNaraVoiceDrain();}
+function scheduleAleVoiceDrain(delay=220){clearTimeout(aleVoiceDrainTimer);if(aleVoiceQueue.length)aleVoiceDrainTimer=setTimeout(drainAleVoiceQueue,delay);}
+function finishSpeechSource(){const source=activeSpeechSource;activeSpeechSource='';if(source==='ale')aleVoiceActive=false;scheduleAleVoiceDrain();}
 function stopSpeech(resumeWake=true){
  const hadSpeech=Boolean(ttsActive||onlineSpeech||window.speechSynthesis?.speaking||activeSpeechSource);
  speechGeneration++;clearTimeout(speechTimer);window.speechSynthesis?.cancel();onlineSpeech?.pause();onlineSpeech=null;
  robotVoicePlayer.stop();if(androidVoice)androidVoiceStop=androidVoice.stop().catch(()=>{});
  if(desktop?.stopTts)desktopVoiceStop=desktop.stopTts().catch(()=>{});
  if(onlineSpeechUrl){URL.revokeObjectURL(onlineSpeechUrl);onlineSpeechUrl=null;}
- ttsActive=false;ttsEnergy=0;syncFaceAudio();if(hadSpeech)naraDispatch('speech.stop');
+ ttsActive=false;ttsEnergy=0;syncFaceAudio();if(hadSpeech)aleDispatch('speech.stop');
  if(panelOnly&&hadSpeech)panelChannel?.postMessage({type:'speech-busy',busy:false});
  finishSpeechSource();if(!busy&&!listening&&!audioMode)state();if(resumeWake)resumeWakeSoon();
 }
-function naraSpeechBusy(){return Boolean(remoteSpeechBusy||ttsActive||onlineSpeech||window.speechSynthesis?.speaking||activeSpeechSource||busy||listening||micChecking);}
-function enqueueNaraVoice(cue){
+function aleSpeechBusy(){return Boolean(remoteSpeechBusy||ttsActive||onlineSpeech||window.speechSynthesis?.speaking||activeSpeechSource||busy||listening||micChecking);}
+function enqueueAleVoice(cue){
  if(panelOnly||!voice||!cue?.text)return;
  const item={text:String(cue.text).slice(0,240),style:voiceStyle,key:String(cue.key||cue.event||cue.text),priority:cue.priority==='high'?'high':cue.priority==='low'?'low':'normal'};
- if(naraVoiceQueue.some(entry=>entry.key===item.key))return;
- if(item.priority==='high')naraVoiceQueue.unshift(item);else naraVoiceQueue.push(item);
- if(naraVoiceQueue.length>6)naraVoiceQueue.pop();
- scheduleNaraVoiceDrain(80);
+ if(aleVoiceQueue.some(entry=>entry.key===item.key))return;
+ if(item.priority==='high')aleVoiceQueue.unshift(item);else aleVoiceQueue.push(item);
+ if(aleVoiceQueue.length>6)aleVoiceQueue.pop();
+ scheduleAleVoiceDrain(80);
 }
-function drainNaraVoiceQueue(){
- clearTimeout(naraVoiceDrainTimer);
- if(!naraVoiceQueue.length||panelOnly||!voice)return;
- if(naraVisualTestActive)return;
- if(naraVoiceActive||naraSpeechBusy()){scheduleNaraVoiceDrain(350);return;}
- const cue=naraVoiceQueue.shift();naraVoiceActive=true;
- if(!speak(cue.text,{style:cue.style,source:'nara',interrupt:false})){naraVoiceActive=false;scheduleNaraVoiceDrain(120);}
+function drainAleVoiceQueue(){
+ clearTimeout(aleVoiceDrainTimer);
+ if(!aleVoiceQueue.length||panelOnly||!voice)return;
+ if(aleVisualTestActive)return;
+ if(aleVoiceActive||aleSpeechBusy()){scheduleAleVoiceDrain(350);return;}
+ const cue=aleVoiceQueue.shift();aleVoiceActive=true;
+ if(!speak(cue.text,{style:cue.style,source:'ale',interrupt:false})){aleVoiceActive=false;scheduleAleVoiceDrain(120);}
 }
 async function speakLocal(text,style=voiceStyle){
  const generation=speechGeneration;
@@ -767,8 +767,8 @@ async function speakLocal(text,style=voiceStyle){
   if(typeof result.audio!=='string'||result.audio.length>20000000)throw new Error('Audio suara tidak valid.');
   const bytes=Uint8Array.from(atob(result.audio),character=>character.charCodeAt(0));
   await robotVoicePlayer.play(bytes,{style,
-   onstart:()=>{ttsActive=true;ttsEnergy=.55;syncFaceAudio();naraDispatch('speech.start',{energy:ttsEnergy,source:activeSpeechSource||'tts'});avatar.trigger('nod');state('Berbicara · '+(style==='natural'?'Indonesia':style==='adult-robot'?(result.voiceGender==='male'?'Laki-laki tegas':'Suara berat'):'Robot Indonesia'));setMicStatus('Memutar suara · '+(result.engine||'lokal'));if($('#voiceStatus'))$('#voiceStatus').textContent='Suara Indonesia aktif · '+(result.engine||'lokal');},
-   onenergy:energy=>{ttsEnergy=energy;syncFaceAudio();const now=performance.now();if(now-lastNaraSpeechSent>140){lastNaraSpeechSent=now;naraDispatch('speech.energy',{energy:ttsEnergy,source:activeSpeechSource||'tts'});}},
+   onstart:()=>{ttsActive=true;ttsEnergy=.55;syncFaceAudio();aleDispatch('speech.start',{energy:ttsEnergy,source:activeSpeechSource||'tts'});avatar.trigger('nod');state('Berbicara · '+(style==='natural'?'Indonesia':style==='adult-robot'?(result.voiceGender==='male'?'Laki-laki tegas':'Suara berat'):'Robot Indonesia'));setMicStatus('Memutar suara · '+(result.engine||'lokal'));if($('#voiceStatus'))$('#voiceStatus').textContent='Suara Indonesia aktif · '+(result.engine||'lokal');},
+   onenergy:energy=>{ttsEnergy=energy;syncFaceAudio();const now=performance.now();if(now-lastAleSpeechSent>140){lastAleSpeechSent=now;aleDispatch('speech.energy',{energy:ttsEnergy,source:activeSpeechSource||'tts'});}},
    onend:()=>{setMicStatus('Suara selesai.');stopSpeech();}
   });
  }catch(error){
@@ -790,8 +790,8 @@ function speakNativeIndonesian(text,style=voiceStyle,allowLocalRetry=false){
  if(!chosen)return false;
  const u=new SpeechSynthesisUtterance(text);
  u.lang=HUMANALE_VOICE.language;u.rate=HUMANALE_VOICE.rate;u.pitch=HUMANALE_VOICE.pitch;u.voice=chosen;
- u.onstart=()=>{if(generation!==speechGeneration)return;ttsActive=true;ttsEnergy=.7;syncFaceAudio();naraDispatch('speech.start',{energy:ttsEnergy,source:activeSpeechSource||'tts'});avatar.trigger('nod');state('Berbicara · '+(chosen?.name||'Bahasa Indonesia'));setMicStatus('Suara cadangan perangkat · gema tidak tersedia');};
- u.onboundary=e=>{if(generation!==speechGeneration)return;const ch=text.charCodeAt(Math.min(text.length-1,e.charIndex||0))||80;ttsEnergy=.35+(ch%61)/100;syncFaceAudio();const now=performance.now();if(now-lastNaraSpeechSent>140){lastNaraSpeechSent=now;naraDispatch('speech.energy',{energy:ttsEnergy,source:activeSpeechSource||'tts'});}};
+ u.onstart=()=>{if(generation!==speechGeneration)return;ttsActive=true;ttsEnergy=.7;syncFaceAudio();aleDispatch('speech.start',{energy:ttsEnergy,source:activeSpeechSource||'tts'});avatar.trigger('nod');state('Berbicara · '+(chosen?.name||'Bahasa Indonesia'));setMicStatus('Suara cadangan perangkat · gema tidak tersedia');};
+ u.onboundary=e=>{if(generation!==speechGeneration)return;const ch=text.charCodeAt(Math.min(text.length-1,e.charIndex||0))||80;ttsEnergy=.35+(ch%61)/100;syncFaceAudio();const now=performance.now();if(now-lastAleSpeechSent>140){lastAleSpeechSent=now;aleDispatch('speech.energy',{energy:ttsEnergy,source:activeSpeechSource||'tts'});}};
  u.onend=()=>{if(generation===speechGeneration)stopSpeech();};
  u.onerror=event=>{if(generation!==speechGeneration)return;clearTimeout(speechTimer);ttsActive=false;ttsEnergy=0;syncFaceAudio();if(allowLocalRetry&&(desktop?.synthesize||androidVoice)){speakLocal(text,style);return;}setMicStatus('Voice perangkat gagal: '+(event.error||'unknown')+'. Ketuk Uji suara.');stopSpeech();};
  speechSynthesis.speak(u);speechTimer=setTimeout(stopSpeech,90000);
@@ -800,21 +800,21 @@ function speakNativeIndonesian(text,style=voiceStyle,allowLocalRetry=false){
 function speak(text,{source='assistant',interrupt=true}={}){
  const style=voiceStyle;
  if(interrupt)stopSpeech(false);
- if(!voice){if(source==='nara')naraVoiceActive=false;resumeWakeSoon();scheduleNaraVoiceDrain();return false;}
+ if(!voice){if(source==='ale')aleVoiceActive=false;resumeWakeSoon();scheduleAleVoiceDrain();return false;}
  robotVoicePlayer.unlock().catch(()=>{});
  stopListening(false);suspendWakeListening('ALE · wake mic dijeda saat berbicara');activeSpeechSource=source;
  if(panelOnly)panelChannel?.postMessage({type:'speech-busy',busy:true});
- if(source==='nara'&&!localTtsRejected&&desktop?.synthesize){speakLocal(text,style);return true;}
+ if(source==='ale'&&!localTtsRejected&&desktop?.synthesize){speakLocal(text,style);return true;}
  if(androidVoice){speakLocal(text,style);return true;}
  if(style!=='natural'&&desktop?.synthesize){speakLocal(text,style);return true;}
  if(selectedVoiceURI&&speakNativeIndonesian(text,style,true))return true;
  if(localTtsConfigured&&desktop?.synthesize){speakLocal(text,style);return true;}
  if(speakNativeIndonesian(text,style))return true;
  if(desktop?.synthesize){speakLocal(text,style);return true;}
- activeSpeechSource='';if(source==='nara')naraVoiceActive=false;
+ activeSpeechSource='';if(source==='ale')aleVoiceActive=false;
  if(panelOnly)panelChannel?.postMessage({type:'speech-busy',busy:false});
  setMicStatus('Voice Bahasa Indonesia belum tersedia. Balasan tampil sebagai teks.');
- resumeWakeSoon();scheduleNaraVoiceDrain();return false;
+ resumeWakeSoon();scheduleAleVoiceDrain();return false;
 }
 function updateAudioUi(mode='',label='Tidak aktif'){audioMode=mode;syncListeningVisual();$('#audioStatus').textContent=label;$('#audioMic').setAttribute('aria-pressed',String(mode==='microphone'));$('#systemAudio').setAttribute('aria-pressed',String(mode==='system'));$('#stopAudio').disabled=!mode;if(!busy&&!ttsActive)state(mode?'Audio aktif':'');}
 function stopReactiveAudio(){audioReactor.stop();audioEnergy=0;syncFaceAudio();const player=$('#musicPlayer');player.pause();if(musicUrl){URL.revokeObjectURL(musicUrl);musicUrl='';player.removeAttribute('src');player.load();}player.hidden=true;$('#musicFile').value='';updateAudioUi();}
@@ -1198,15 +1198,15 @@ async function toggleMic(options={}){
  current.onend=()=>{if(recognition===current)stopListening();};
  try{current.start();}catch{stopListening();const message='Pengenal ucapan gagal dimulai. Gunakan runtime dikte lokal atau teks.';setMicStatus(message);toast(message);resumeWakeSoon();}
 }
-function stopCamera(){cameraStream?.getTracks().forEach(t=>t.stop());cameraStream=null;$('#cameraVideo').srcObject=null;$('#cameraPreview').hidden=true;$('#camera').setAttribute('aria-pressed','false');naraDispatch('vision.stop');}
-async function toggleCamera(){if(cameraPending)return;if(cameraStream){stopCamera();return;}cameraPending=true;$('#camera').disabled=true;try{cameraStream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480}},audio:false});if(document.hidden){stopCamera();return;}$('#cameraVideo').srcObject=cameraStream;await $('#cameraVideo').play();$('#cameraPreview').hidden=false;$('#camera').setAttribute('aria-pressed','true');naraDispatch('vision.frame',{activity:1,frameId:'camera-live'});}catch{stopCamera();toast('Kamera tidak tersedia atau izin ditolak.');}finally{cameraPending=false;$('#camera').disabled=false;}}
+function stopCamera(){cameraStream?.getTracks().forEach(t=>t.stop());cameraStream=null;$('#cameraVideo').srcObject=null;$('#cameraPreview').hidden=true;$('#camera').setAttribute('aria-pressed','false');aleDispatch('vision.stop');}
+async function toggleCamera(){if(cameraPending)return;if(cameraStream){stopCamera();return;}cameraPending=true;$('#camera').disabled=true;try{cameraStream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480}},audio:false});if(document.hidden){stopCamera();return;}$('#cameraVideo').srcObject=cameraStream;await $('#cameraVideo').play();$('#cameraPreview').hidden=false;$('#camera').setAttribute('aria-pressed','true');aleDispatch('vision.frame',{activity:1,frameId:'camera-live'});}catch{stopCamera();toast('Kamera tidak tersedia atau izin ditolak.');}finally{cameraPending=false;$('#camera').disabled=false;}}
 $('#look').onclick=()=>{if(['copilot','grok','claude','deepseek','askcodi'].includes(aiProvider)){toast('Foto belum diaktifkan untuk provider ini. Pilih ChatGPT, OpenAI API, atau Gemini untuk menjelaskan foto.');return;}if(!aiReady){toast('Provider AI yang dipilih belum terhubung.');return;}const v=$('#cameraVideo');if(!v.videoWidth)return;const c=document.createElement('canvas');c.width=640;c.height=Math.round(640*v.videoHeight/v.videoWidth);c.getContext('2d').drawImage(v,0,0,c.width,c.height);submit('Jelaskan foto kamera ini dalam bahasa Indonesia.',c.toDataURL('image/jpeg',.75));};
 function setMode(mode){avatar.activateAllEffects?.(false);avatar.setMaterial?.(mode);document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===mode)));if(panelOnly)panelChannel?.postMessage({type:'mode',mode});}
 function center(){offset={x:0,y:0};$('#avatarArea').style.translate='0px 0px';desktop?.center();}
 const area=$('#avatarArea');
 area.onpointerdown=e=>{if(transitioning()||e.button!==0)return;area.setPointerCapture(e.pointerId);drag={x:e.screenX,y:e.screenY,ox:offset.x,oy:offset.y,moved:false,lastX:e.screenX,lastY:e.screenY};};
 area.onpointermove=e=>{const r=area.getBoundingClientRect(),pointer={x:Math.max(-1,Math.min(1,(e.clientX-r.left)/r.width*2-1)),y:Math.max(-1,Math.min(1,(e.clientY-r.top)/r.height*2-1))};avatar.pointer=pointer;avatar.pointerActive=true;avatar.gazePointer=pointer;avatar.gazeActive=true;if(drag){if(Math.hypot(e.screenX-drag.x,e.screenY-drag.y)>4)drag.moved=true;if(drag.moved){if(desktop){desktop.move({dx:e.screenX-drag.lastX,dy:e.screenY-drag.lastY});}else{offset={x:Math.max(-innerWidth*.35,Math.min(innerWidth*.35,drag.ox+e.screenX-drag.x)),y:Math.max(-innerHeight*.35,Math.min(innerHeight*.35,drag.oy+e.screenY-drag.y))};area.style.translate=offset.x+'px '+offset.y+'px';}drag.lastX=e.screenX;drag.lastY=e.screenY;}}};
-area.onpointerup=e=>{if(drag&&!drag.moved){const region=avatar.pickBrainRegion?.(e.clientX,e.clientY);if(region){avatar.selectBrainRegion?.(region);toast('NARA · '+region.replaceAll('_',' '));}else avatar.trigger('blink');}drag=null;if(area.hasPointerCapture(e.pointerId))area.releasePointerCapture(e.pointerId);};area.onpointercancel=()=>drag=null;area.onpointerleave=()=>{if(!drag){avatar.pointerActive=false;avatar.pointer={x:0,y:0};if(!desktop){avatar.gazeActive=false;avatar.gazePointer={x:0,y:0};}}};area.onwheel=e=>{e.preventDefault();const current=Number(avatar.zoomTarget)||1;applyBrainZoom(current*Math.exp(-Math.max(-120,Math.min(120,e.deltaY))*.0018));};area.oncontextmenu=e=>{e.preventDefault();showDialog('#controls');};area.ondblclick=()=>showDialog('#controls');
+area.onpointerup=e=>{if(drag&&!drag.moved){const region=avatar.pickBrainRegion?.(e.clientX,e.clientY);if(region){avatar.selectBrainRegion?.(region);toast('AleCore AI · '+region.replaceAll('_',' '));}else avatar.trigger('blink');}drag=null;if(area.hasPointerCapture(e.pointerId))area.releasePointerCapture(e.pointerId);};area.onpointercancel=()=>drag=null;area.onpointerleave=()=>{if(!drag){avatar.pointerActive=false;avatar.pointer={x:0,y:0};if(!desktop){avatar.gazeActive=false;avatar.gazePointer={x:0,y:0};}}};area.onwheel=e=>{e.preventDefault();const current=Number(avatar.zoomTarget)||1;applyBrainZoom(current*Math.exp(-Math.max(-120,Math.min(120,e.deltaY))*.0018));};area.oncontextmenu=e=>{e.preventDefault();showDialog('#controls');};area.ondblclick=()=>showDialog('#controls');
 $('#reveal').onclick=()=>showDialog('#controls');$('#chat').onclick=()=>showDialog('#chatDialog');document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>panelOnly?desktop.closePanel():b.closest('dialog').close());document.querySelectorAll('[data-action]').forEach(b=>b.onclick=()=>{avatar.trigger(b.dataset.action);if(panelOnly)panelChannel?.postMessage({type:'action',action:b.dataset.action});});document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
 $('#avatarSize').oninput=e=>applyAvatarSize(e.target.value);
 $('#brainZoom').oninput=e=>applyBrainZoom(e.target.value);
@@ -1218,7 +1218,7 @@ $('#animate').checked=avatar.animate;
 $('#animate').onchange=e=>{avatar.animate=e.target.checked;if(panelOnly)panelChannel?.postMessage({type:'setting',name:'animate',value:avatar.animate});};
 $('#color').onchange=e=>{avatar.setAccent?.(e.target.value);if(panelOnly)panelChannel?.postMessage({type:'setting',name:'color',value:e.target.value});};
 $('#environment').onchange=e=>{avatar.setEnvironment(e.target.value);if(panelOnly)panelChannel?.postMessage({type:'setting',name:'environment',value:e.target.value});};
-$('#speakSetting').onchange=e=>{voice=e.target.checked;if(!voice){naraVoiceQueue=[];stopSpeech();}};
+$('#speakSetting').onchange=e=>{voice=e.target.checked;if(!voice){aleVoiceQueue=[];stopSpeech();}};
 $('#voiceTest')?.addEventListener('click',()=>{voice=true;$('#speakSetting').checked=true;speak('Saya HumanALE. Suara saya kini lebih berat, tegas, dan jelas. Saya berbicara perlahan, agar setiap kata mudah dipahami.',{source:'test'});});
 $('#voiceSelect').disabled=true;
 $('#voiceStyle').value=voiceStyle;
@@ -1248,16 +1248,16 @@ $('#memoryContextSource')?.addEventListener('change',async()=>{
  const source=setMemorySource($('#memoryContextSource').value);
  if(source==='cloud')await refreshCloudMemoryStatus();
  updateDesktopMemoryContextUi();
- toast('Sumber memory: '+(source==='cloud'?'NARA Cloud':'Lokal')+'.');
+ toast('Sumber memory: '+(source==='cloud'?'AleCore AI Cloud':'Lokal')+'.');
 });
 $('#cloudMemoryLogin')?.addEventListener('click',async()=>{
  const result=await desktop?.cloudLogin?.();
- if(result?.error){toast('NARA Cloud: '+result.error);return;}
- toast('Window login NARA Cloud dibuka.');
+ if(result?.error){toast('AleCore AI Cloud: '+result.error);return;}
+ toast('Window login AleCore AI Cloud dibuka.');
 });
 $('#cloudMemoryRefresh')?.addEventListener('click',async()=>{
  await refreshCloudMemoryStatus();
- toast(cloudMemoryState.available?'NARA Cloud terhubung.':'Status NARA Cloud diperbarui.');
+ toast(cloudMemoryState.available?'AleCore AI Cloud terhubung.':'Status AleCore AI Cloud diperbarui.');
 });
 $('#chatForm').onsubmit=e=>{e.preventDefault();const text=$('#prompt').value.trim();if(text&&!busy){$('#prompt').value='';submit(text);}};let composing=false;$('#prompt').oncompositionstart=()=>{composing=true;};$('#prompt').oncompositionend=()=>{composing=false;};$('#prompt').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing&&!composing){e.preventDefault();$('#chatForm').requestSubmit();}};$('#clear').onclick=()=>{if(busy)return;history=[];$('#messages').replaceChildren();$('#bubble').hidden=true;stopSpeech();};$('#conversationSettings').onclick=()=>showDialog('#controls');
 $('#chatDialog').addEventListener('close',()=>{stopCamera();setPassthrough(true);syncPanelViewportFromDialogs();if(document.documentElement.classList.contains('stage-surface')&&!document.hidden&&!transitioning())requestAnimationFrame(()=>{if(!$('#chatDialog').open&&!transitioning())$('#chatDialog').show();});});
@@ -1284,7 +1284,7 @@ if(panelChannel)panelChannel.onmessage=event=>{
  if(humanaleVisualStudio.handleMessage(data))return;
  if(avatarStudio.handleMessage(data))return;
  if(data.type==='message'){message(String(data.text||''),data.role==='user'?'user':'assistant',false,false);return;}
- if(data.type==='speech-busy'&&!panelOnly){remoteSpeechBusy=Boolean(data.busy);if(!remoteSpeechBusy)scheduleNaraVoiceDrain();return;}
+ if(data.type==='speech-busy'&&!panelOnly){remoteSpeechBusy=Boolean(data.busy);if(!remoteSpeechBusy)scheduleAleVoiceDrain();return;}
  if(data.type==='history'){history=Array.isArray(data.history)?data.history.slice(-10):[];return;}
  if(data.type==='persona'&&!panelOnly){aiProvider=data.provider;setPersona(aiProvider);$('#provider').value=aiProvider;return;}
  if(data.type==='speech-level'&&!panelOnly){remoteSpeechEnergy=Number(data.level)||0;syncFaceAudio();return;}
@@ -1292,7 +1292,7 @@ if(panelChannel)panelChannel.onmessage=event=>{
  if(data.type==='emotion-choice'&&!panelOnly){emotionChoice=data.value==='auto'||emotions.includes(data.value)?data.value:'auto';$('#emotion').value=emotionChoice;return;}
  if(data.type==='evolution'&&!panelOnly){setEvolutionVisual(data.mode==='complete'?'complete':data.mode==='start'?'start':'stop');return;}
  if(data.type==='wake-status'&&panelOnly){wakeEnabled=Boolean(data.enabled);setWakeStatus(String(data.text||''),Boolean(data.active));return;}
- if(data.type==='panel-ready'&&!panelOnly){setWakeStatus($('#wakeIndicator').textContent,$('#wakeIndicator').dataset.active==='true');setPersona(aiProvider);panelChannel?.postMessage({type:'setting',name:'brainZoom',value:avatar.zoomTarget||1});panelChannel?.postMessage(avatarStudio.syncPayload());refreshNaraSkillSnapshot(false).catch(()=>{}).finally(()=>panelChannel?.postMessage(humanaleVisualStudio.syncPayload()));return;}
+ if(data.type==='panel-ready'&&!panelOnly){setWakeStatus($('#wakeIndicator').textContent,$('#wakeIndicator').dataset.active==='true');setPersona(aiProvider);panelChannel?.postMessage({type:'setting',name:'brainZoom',value:avatar.zoomTarget||1});panelChannel?.postMessage(avatarStudio.syncPayload());refreshAleSkillSnapshot(false).catch(()=>{}).finally(()=>panelChannel?.postMessage(humanaleVisualStudio.syncPayload()));return;}
  if(panelOnly)return;
  if(data.type==='avatar-size'){applyAvatarSize(data.size);return;}
  if(data.type==='mode'){setMode(data.mode);return;}
@@ -1312,12 +1312,12 @@ if(!panelOnly){
  desktop?.onShow?.(showAle);
  desktop?.onSummon?.(()=>summonAle('global-hotkey'));
  desktop?.onDismiss?.(reason=>dismissAle(reason));
- desktop?.onNaraVoice?.(cue=>enqueueNaraVoice(cue));
- desktop?.onNaraState?.(snapshot=>syncNaraBrainState(snapshot));
- if(desktop?.naraSkillSnapshot)refreshNaraSkillSnapshot(false).catch(()=>{});
+ desktop?.onAleVoice?.(cue=>enqueueAleVoice(cue));
+ desktop?.onAleState?.(snapshot=>syncAleBrainState(snapshot));
+ if(desktop?.aleSkillSnapshot)refreshAleSkillSnapshot(false).catch(()=>{});
  desktop?.onRuntimeState?.(runtime=>syncHumanALERuntime(runtime));
- if(desktop?.naraSnapshot)desktop.naraSnapshot().then(result=>{
-  if(result?.state)syncNaraBrainState(result.state);
+ if(desktop?.aleSnapshot)desktop.aleSnapshot().then(result=>{
+  if(result?.state)syncAleBrainState(result.state);
   if(result?.runtime)syncHumanALERuntime(result.runtime);
  }).catch(()=>{});
  if(desktop?.runtimeSnapshot)desktop.runtimeSnapshot().then(result=>{
@@ -1342,7 +1342,7 @@ window.dudidamAvatar=Object.freeze({
  triggerAvatarGlitch:()=>avatar.triggerGlitch?.(),
  getAvatarStudioProfile:()=>avatar.getStudioProfile?.()||null,
  getAvatarStudioMaterial:()=>avatar.mode||'mixed',
- getNaraHumanALEPolicy:()=>avatar.naraPolicy?{...avatar.naraPolicy}:null,
+ getAleHumanALEPolicy:()=>avatar.alePolicy?{...avatar.alePolicy}:null,
  showAssistantPopup:()=>assistantPopup.show(),
  hideAssistantPopup:()=>assistantPopup.hide(),
  toggleAssistantPopup:()=>assistantPopup.toggleVisibility()

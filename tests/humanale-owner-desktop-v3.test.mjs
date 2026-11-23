@@ -10,22 +10,22 @@ import {
 const root=new URL('../',import.meta.url);
 const read=path=>readFile(new URL(path,root),'utf8');
 
-test('V3.5 desktop shares the persistent NARA Owner Store and gates unified runtime',async()=>{
+test('V3.5 desktop shares the persistent AleCore AI Owner Store and gates unified runtime',async()=>{
   const [main,preload,runtimeHost]=await Promise.all([
     read('desktop/main.cjs'),
     read('desktop/preload.cjs'),
     read('desktop/humanale-runtime-host.mjs')
   ]);
 
-  assert.match(main,/NARA_OWNER_STORE\|\|path\.join\(homedir\(\),'\.nara','owner\.json'\)/);
+  assert.match(main,/ALECORE_AI_OWNER_STORE\|\|path\.join\(homedir\(\),'\.ale','owner\.json'\)/);
   assert.match(main,/createOwnerStore/);
   assert.match(main,/createHumanALEOwnerGate/);
-  assert.match(main,/delete process\.env\.NARA_CREATOR_PASSWORD/);
+  assert.match(main,/delete process\.env\.ALECORE_AI_CREATOR_PASSWORD/);
   assert.match(main,/const ownerTrusted=e=>trusted\(e\)&&ownerGate\?\.isUnlocked/);
   assert.match(main,/isTrustedEvent:ownerTrusted/);
   assert.match(main,/getTargets:\(\)=>\[win,panelWin\]\.filter\(target=>target&&ownerGate\?\.isUnlocked/);
   assert.match(main,/randomUUID\(\)/);
-  assert.doesNotMatch(main,/CI-[A-Za-z0-9_-]{12,}-Nara!/);
+  assert.doesNotMatch(main,/CI-[A-Za-z0-9_-]{12,}-AleCore AI!/);
 
   for(const api of [
     'ownerStatus','ownerProvision','ownerLogin','ownerLogout','ownerChangeLogin','onOwnerState'

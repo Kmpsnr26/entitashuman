@@ -1,29 +1,29 @@
 (function exposeNeuralCore(global) {
   // A deterministic, connected 3D graph. This is an artistic data visualization
-  // of HumanALE/NARA runtime state, not an anatomical scan or medical dataset.
+  // of HumanALE/AleCore AI runtime state, not an anatomical scan or medical dataset.
   const REGION_DEFINITIONS = [
-    ['NARA_CORE','NARA Core','core',0,0.08,0.18,['REASONER','PLANNER','MEMORY','AGENT_MANAGER','SAFETY','FOLLOW_UP']],
-    ['REASONER','Reasoner','cognitive',-0.34,0.02,0.10,['NARA_CORE','BUG_HUNTER','MEMORY']],
-    ['PLANNER','Planner','cognitive',0.34,0.02,0.10,['NARA_CORE','AGENT_MANAGER','FOLLOW_UP']],
-    ['MEMORY','Memory','cognitive',-0.42,-0.18,0.02,['NARA_CORE','REASONER','DRIVE']],
+    ['ALECORE_AI','AleCore AI','core',0,0.08,0.18,['REASONER','PLANNER','MEMORY','AGENT_MANAGER','SAFETY','FOLLOW_UP']],
+    ['REASONER','Reasoner','cognitive',-0.34,0.02,0.10,['ALECORE_AI','BUG_HUNTER','MEMORY']],
+    ['PLANNER','Planner','cognitive',0.34,0.02,0.10,['ALECORE_AI','AGENT_MANAGER','FOLLOW_UP']],
+    ['MEMORY','Memory','cognitive',-0.42,-0.18,0.02,['ALECORE_AI','REASONER','DRIVE']],
     ['BUG_HUNTER','Bug Hunter','cognitive',-0.18,-0.28,0.16,['REASONER','ERROR_MONITOR','PROGRAM','REPORTING']],
-    ['AGENT_MANAGER','Agent Manager','cognitive',0.18,-0.28,0.16,['NARA_CORE','TOOLS','PROGRAM','TEAM']],
+    ['AGENT_MANAGER','Agent Manager','cognitive',0.18,-0.28,0.16,['ALECORE_AI','TOOLS','PROGRAM','TEAM']],
     ['TOOLS','Tools','execution',0.46,-0.16,0.02,['AGENT_MANAGER','TERMINAL','WEB','DRIVE']],
     ['TERMINAL','Terminal','execution',0.54,-0.38,-0.02,['TOOLS','PROGRAM','ERROR_MONITOR']],
     ['PROGRAM','Program','execution',0.24,-0.48,0.04,['TERMINAL','BUG_HUNTER','FOLLOW_UP','REPORTING']],
     ['ERROR_MONITOR','Error Monitor','execution',-0.12,-0.50,0.02,['BUG_HUNTER','TERMINAL','REPORTING']],
     ['GITHUB','GitHub','connection',-0.60,0.16,-0.04,['PR','SYNC','COPILOT','TEAM']],
     ['COPILOT','Copilot','connection',-0.58,-0.06,-0.05,['GITHUB','AGENT_MANAGER','PROGRAM']],
-    ['WEB','Web','connection',0.60,0.18,-0.05,['TOOLS','ONLINE','NARA_CORE']],
+    ['WEB','Web','connection',0.60,0.18,-0.05,['TOOLS','ONLINE','ALECORE_AI']],
     ['TEAM','Team','connection',-0.52,0.38,-0.10,['GITHUB','PR','AGENT_MANAGER']],
     ['PR','Pull Request','connection',-0.30,0.46,-0.12,['GITHUB','TEAM','REPORTING']],
     ['SYNC','Synchronization','connection',0,0.50,-0.13,['GITHUB','DRIVE','MEMORY','ONLINE']],
-    ['ONLINE','Online','connection',0.30,0.46,-0.12,['WEB','SYNC','NARA_CORE']],
-    ['OWNER_EMAIL','Email Pemilik','connection',0.56,0.38,-0.10,['FOLLOW_UP','REPORTING','NARA_CORE']],
+    ['ONLINE','Online','connection',0.30,0.46,-0.12,['WEB','SYNC','ALECORE_AI']],
+    ['OWNER_EMAIL','Email Pemilik','connection',0.56,0.38,-0.10,['FOLLOW_UP','REPORTING','ALECORE_AI']],
     ['DRIVE','Drive','connection',0.62,-0.04,-0.06,['MEMORY','SYNC','TOOLS','REPORTING']],
     ['REPORTING','Laporan','workflow',-0.34,-0.46,-0.04,['BUG_HUNTER','PROGRAM','FOLLOW_UP','OWNER_EMAIL']],
-    ['FOLLOW_UP','Tindak Lanjut','workflow',0,-0.38,0.24,['NARA_CORE','PLANNER','PROGRAM','REPORTING','OWNER_EMAIL']],
-    ['SAFETY','Safety','safety',0,0.28,-0.20,['NARA_CORE','TOOLS','TERMINAL','GITHUB','OWNER_EMAIL']]
+    ['FOLLOW_UP','Tindak Lanjut','workflow',0,-0.38,0.24,['ALECORE_AI','PLANNER','PROGRAM','REPORTING','OWNER_EMAIL']],
+    ['SAFETY','Safety','safety',0,0.28,-0.20,['ALECORE_AI','TOOLS','TERMINAL','GITHUB','OWNER_EMAIL']]
   ];
 
   const toBrainSpace = (x, y, z) => ({
@@ -59,7 +59,7 @@
     }));
     const regionIndex = Object.fromEntries(regions.map((region,index)=>[region.id,index]));
 
-    // Give every visible cortical point a semantic NARA owner. The geometry stays
+    // Give every visible cortical point a semantic AleCore AI owner. The geometry stays
     // deterministic; only its runtime meaning changes.
     for (let i = 0; i < brainCount; i++) {
       const node = nodes[i];
@@ -95,7 +95,7 @@
     }
 
     // Semantic links are separate from the dense artistic cortex links. They are
-    // used by the renderer for meaningful NARA region-to-region traffic.
+    // used by the renderer for meaningful AleCore AI region-to-region traffic.
     const semanticLinks = [], semanticSeen = new Set();
     for (const region of regions) for (const targetId of region.connections) {
       if (!(targetId in regionIndex)) continue;
@@ -121,7 +121,7 @@
     // Nine visible data-spine lanes mirror the real Phase 7 routing engine.
     // The lane identity is stable so runtime packets can target the matching path.
     const spineLanes = [
-      {id:'CORE',region:'NARA_CORE',label:'NARA CORE'},
+      {id:'CORE',region:'ALECORE_AI',label:'AleCore AI'},
       {id:'MEMORY',region:'MEMORY',label:'MEMORY'},
       {id:'TERMINAL',region:'TERMINAL',label:'TERMINAL'},
       {id:'GITHUB',region:'GITHUB',label:'GITHUB'},

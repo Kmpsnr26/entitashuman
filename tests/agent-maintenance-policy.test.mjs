@@ -24,8 +24,8 @@ test('AI maintenance policy is repair-only and denies all owner/release authorit
  assert.ok(snapshot.protectedAreas.includes('desktop/agent-maintenance-transaction.mjs'));
  assert.ok(snapshot.protectedAreas.includes('desktop/agent-autopilot-*.mjs'));
  assert.ok(snapshot.protectedAreas.includes('desktop/agent-trusted-*-broker.mjs'));
- assert.ok(snapshot.protectedAreas.includes('nara-cloud/src/services/owner.service.ts'));
- assert.ok(snapshot.protectedAreas.includes('nara-core/permissions/**'));
+ assert.ok(snapshot.protectedAreas.includes('alecore-ai-cloud/src/services/owner.service.ts'));
+ assert.ok(snapshot.protectedAreas.includes('alecore-ai/permissions/**'));
  assert.ok(AI_MAINTENANCE_READ_DENIED_AREAS.includes('**/*.pfx'));
  assert.ok(AI_MAINTENANCE_PROTECTED_AREAS.includes('.github/workflows/**'));
  assert.ok(AI_MAINTENANCE_PROTECTED_AREAS.includes('package.json'));

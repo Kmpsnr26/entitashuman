@@ -7,18 +7,18 @@ const read=path=>readFile(new URL(path,root),'utf8');
 
 async function createSiteRuntime(){
   delete globalThis.NeuralCore;
-  delete globalThis.HumanALENaraRuntime;
+  delete globalThis.HumanALEAleRuntime;
   await import('../sites/humanale-hologram/dist/neural-core.js?site-runtime-test='+Date.now());
-  await import('../sites/humanale-hologram/dist/nara-runtime.js?site-runtime-test='+Date.now());
+  await import('../sites/humanale-hologram/dist/alecore-ai-runtime.js?site-runtime-test='+Date.now());
   const graph=globalThis.NeuralCore.create();
   const cues=[];
-  const runtime=globalThis.HumanALENaraRuntime.create({regions:graph.regions,onVoice:cue=>cues.push(cue)});
+  const runtime=globalThis.HumanALEAleRuntime.create({regions:graph.regions,onVoice:cue=>cues.push(cue)});
   return {graph,runtime,cues};
 }
 
-test('canonical HumanALE site loads browser-safe NARA runtime before avatar application',async()=>{
+test('canonical HumanALE site loads browser-safe AleCore AI runtime before avatar application',async()=>{
   const html=await read('sites/humanale-hologram/dist/index.html');
-  const runtimeIndex=html.indexOf('./nara-runtime.js');
+  const runtimeIndex=html.indexOf('./alecore-ai-runtime.js');
   const avatarIndex=html.indexOf('./avatar.js');
   const siteIndex=html.indexOf('./site.js');
   assert.ok(runtimeIndex>0);
@@ -26,15 +26,15 @@ test('canonical HumanALE site loads browser-safe NARA runtime before avatar appl
   assert.ok(avatarIndex<siteIndex);
 });
 
-test('site NARA runtime preserves core BrainState and EventBus behavior',async()=>{
+test('site AleCore AI runtime preserves core BrainState and EventBus behavior',async()=>{
   const {graph,runtime,cues}=await createSiteRuntime();
   assert.equal(graph.regions.length,22);
 
   runtime.start();
   let state=runtime.snapshot();
   assert.equal(state.lifecycle,'active');
-  assert.equal(state.regions.NARA_CORE.status,'active');
-  assert.equal(cues.at(-1).text,'NARA aktif. Sistem HumanALE siap.');
+  assert.equal(state.regions.ALECORE_AI.status,'active');
+  assert.equal(cues.at(-1).text,'AleCore AI aktif. Sistem HumanALE siap.');
 
   runtime.dispatch('brain.region.select',{region:'MEMORY'});
   state=runtime.snapshot();
@@ -58,27 +58,27 @@ test('site NARA runtime preserves core BrainState and EventBus behavior',async()
 });
 
 test('site runtime remains visual/browser-only and carries no secrets or privileged transport',async()=>{
-  const runtime=await read('sites/humanale-hologram/dist/nara-runtime.js');
+  const runtime=await read('sites/humanale-hologram/dist/alecore-ai-runtime.js');
   assert.doesNotMatch(runtime,/OPENAI_API_KEY|GITHUB_TOKEN|process\.env|private[_-]?key/i);
   assert.doesNotMatch(runtime,/fetch\s*\(|WebSocket|child_process|node-pty|ipcRenderer|shell\.openExternal/);
   assert.match(runtime,/historyLimit=250/);
   assert.match(runtime,/style:'adult-robot'/);
 });
 
-test('canonical site wires real NARA state into the existing avatar instead of replacing the face',async()=>{
+test('canonical site wires real AleCore AI state into the existing avatar instead of replacing the face',async()=>{
   const [site,avatar,index]=await Promise.all([
     read('sites/humanale-hologram/dist/site.js'),
     read('sites/humanale-hologram/dist/avatar.js'),
     read('sites/humanale-hologram/dist/index.html')
   ]);
-  assert.match(site,/HumanALENaraRuntime\.create/);
+  assert.match(site,/HumanALEAleRuntime\.create/);
   assert.match(site,/runtime\.state\.subscribe\(snapshot=>\{/);
   assert.match(site,/avatar\.setBrainState\?\.\(snapshot\)/);
   assert.match(site,/avatar\.onBrainRegionSelect=region=>/);
   assert.match(site,/runtime\.dispatch\('brain\.region\.select'/);
-  assert.match(site,/window\.humanALENara=runtime/);
-  assert.match(site,/naraVoiceUnlocked=false/);
-  assert.match(site,/pointerdown',unlockNaraVoice/);
+  assert.match(site,/window\.humanALEAle=runtime/);
+  assert.match(site,/aleVoiceUnlocked=false/);
+  assert.match(site,/pointerdown',unlockAleVoice/);
   assert.match(site,/runtime\.dispatch\('speech\.start'/);
   assert.match(site,/runtime\.dispatch\('speech\.stop'/);
   assert.match(avatar,/buildFallback\(\)/);
@@ -87,7 +87,7 @@ test('canonical site wires real NARA state into the existing avatar instead of r
   assert.doesNotMatch(site,/referenceSrc\s*:|reference-face\.png/);
 });
 
-test('site runtime supports the important connection and workflow events copied from NARA core',async()=>{
+test('site runtime supports the important connection and workflow events copied from AleCore AI',async()=>{
   const {runtime}=await createSiteRuntime();
   runtime.dispatch('copilot.connected');
   runtime.dispatch('drive.connected');

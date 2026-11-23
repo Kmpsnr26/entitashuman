@@ -91,7 +91,7 @@ export function evaluateHumanALEFinalReadiness(value={}){
 export function assertHumanALEIntegrationUnlocked(value={}){
   const result=evaluateHumanALEFinalReadiness(value);
   if(!result.integrationUnlocked){
-    const error=new Error('HumanALE belum FINAL_READY. Integrasi Nara Core tetap dikunci.');
+    const error=new Error('HumanALE belum FINAL_READY. Integrasi AleCore AI tetap dikunci.');
     error.code='HUMANALE_INTEGRATION_LOCKED';
     error.readiness=result;
     throw error;

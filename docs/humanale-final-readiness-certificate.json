@@ -12,7 +12,7 @@
   "creatorApproval": {
     "approved": false,
     "by": "",
-    "note": "Final HumanALE↔Nara Core integration remains locked pending technical readiness and explicit creator approval.",
+    "note": "Final HumanALE↔AleCore AI integration remains locked pending technical readiness and explicit creator approval.",
     "timestamp": 0
   },
   "gates": [
@@ -21,7 +21,7 @@
       "status": "pass",
       "required": true,
       "source": "github-actions",
-      "note": "HumanALE root tests/build, packaged desktop smoke, NARA Cloud Verify and CodeQL are green on the release-candidate line.",
+      "note": "HumanALE root tests/build, packaged desktop smoke, AleCore AI Cloud Verify and CodeQL are green on the release-candidate line.",
       "timestamp": 1790465100000
     },
     {

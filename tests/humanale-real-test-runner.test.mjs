@@ -16,7 +16,7 @@ test('Windows real-test runner remains operator-driven and fail-closed',async()=
   assert.match(ps1,/display-scaling/);
   assert.match(ps1,/panel-interaction/);
   assert.match(ps1,/desktop-install/);
-  assert.doesNotMatch(ps1,/NARA.*dispatch|naraDispatch|integrationUnlocked/);
+  assert.doesNotMatch(ps1,/AleCore AI.*dispatch|aleDispatch|integrationUnlocked/);
   assert.match(doc,/FINAL REAL-TEST PREFLIGHT/);
   assert.match(doc,/100%/);
   assert.match(doc,/125%/);
