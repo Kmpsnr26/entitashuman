@@ -257,7 +257,11 @@ test('missing Copilot token preserves existing assignments and fallback PRs',()=
  assert.ok(activeAssignment>noTokenRoute);
  assert.ok(existingFallback>activeAssignment);
  assert.ok(assignApi>existingFallback);
- assert.match(workflow,/fallback_issues', JSON\.stringify\(\[\.\.\.existingFallback, \.\.\.route\.fallback\]\)/);
+ assert.match(workflow,/fallback_issues', JSON\.stringify\(\[\.\.\.existingFallbackCandidates, \.\.\.route\.fallback\]\)/);
+ assert.match(workflow,/existingFallbackCandidates\.push\(candidate\)/);
+ assert.match(workflow,/const existingFallbackPulls = await github\.rest\.pulls\.list/);
+ assert.match(workflow,/existingFallbackPulls\.data\.length > 0/);
+ assert.doesNotMatch(workflow,/const existingFallback =/);
  assert.match(workflow,/queued_issues', JSON\.stringify\(\[\.\.\.queued, \.\.\.route\.queued\]\)/);
  assert.doesNotMatch(workflow,/if \(process\.env\.COPILOT_TOKEN_CONFIGURED !== 'true'\)[\s\S]{0,500}return;/);
 });
