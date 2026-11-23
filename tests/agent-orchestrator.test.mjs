@@ -10,11 +10,14 @@ test('structured HumanALE orchestrator classifies difficult work and review verd
  assert.equal(reviewVerdict('Masih ada regression.\nVERDICT: NEEDS_FIX'),'needs_fix');
  assert.equal(reviewVerdict('belum ada keputusan'),'unknown');
  const two=selectStructuredRoles(['codex','github-copilot']);
- assert.deepEqual(two,{planner:'codex',worker:'github-copilot',reviewer:'codex',degraded:false,executors:['codex','github-copilot']});
+ assert.deepEqual(two,{planner:'codex',worker:'github-copilot',reviewer:'codex',specialists:[],degraded:false,executors:['codex','github-copilot']});
  const alternate=selectStructuredRoles(['github-copilot','cursor']);
  assert.equal(alternate.worker,'cursor');
  assert.equal(alternate.reviewer,'github-copilot');
  assert.equal(alternate.degraded,false);
+ const fullTeam=selectStructuredRoles(['codex','github-copilot','cursor','claude']);
+ assert.deepEqual(fullTeam.specialists,['claude']);
+ assert.equal(new Set([fullTeam.planner,fullTeam.worker,fullTeam.reviewer,...fullTeam.specialists]).size,4);
  const explicit=selectStructuredRoles(['codex','github-copilot','cursor'],'cursor');
  assert.equal(explicit.worker,'cursor');
  assert.notEqual(explicit.reviewer,'cursor');
@@ -115,6 +118,7 @@ test('structured HumanALE roles receive canonical NARA skill assignments',async(
  assert.deepEqual(plan.planner.map(skill=>skill.id),['reasoning','planner','memory']);
  assert.deepEqual(plan.worker.map(skill=>skill.id),['program','terminal','github','safety']);
  assert.deepEqual(plan.repair.map(skill=>skill.id),['program','terminal','safety','bug-hunter']);
+ assert.deepEqual(plan.specialist.map(skill=>skill.id),['bug-hunter','reasoning','safety','reporting']);
  assert.deepEqual(plan.reviewer.map(skill=>skill.id),['bug-hunter','reasoning','safety','reporting']);
  const registry=await readFile(new URL('../nara-core/brain/skill-registry.js',import.meta.url),'utf8');
  for(const skills of Object.values(plan)){
@@ -132,4 +136,7 @@ test('structured HumanALE roles receive canonical NARA skill assignments',async(
  assert.match(hub,/skills:skillPlan\.worker/);
  assert.match(hub,/skills:skillPlan\.reviewer/);
  assert.match(hub,/skillPlan,text:summary/);
+ assert.ok(hub.includes('for(const specialist of roles.specialists||[])'));
+ assert.ok(hub.includes("role:'specialist'"));
+ assert.ok(hub.includes('skills:skillPlan.specialist'));
 });
