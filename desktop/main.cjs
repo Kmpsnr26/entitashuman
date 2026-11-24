@@ -980,7 +980,7 @@ else{
       console.error('[TERMINAL SHUTDOWN]',error?.message||'Terminal sessions did not stop.');
       if(win&&!win.isDestroyed()){
        win.show();win.focus();
-       void dialog.showMessageBox(win,{type:'error',title:'Terminal belum berhenti',message:'AleCore AI belum dapat ditutup karena ada proses terminal yang belum mengonfirmasi penghentian.',detail:String(error?.message||error)+'\\nPeriksa terminal yang masih aktif, lalu coba tutup aplikasi kembali.',buttons:['Mengerti'],defaultId:0}).catch(()=>{});
+       void dialog.showMessageBox(win,{type:'error',title:'Terminal belum berhenti',message:'AleCore AI belum dapat ditutup karena ada proses terminal yang belum mengonfirmasi penghentian.',detail:String(error?.message||error)+'\nPeriksa terminal yang masih aktif, lalu coba tutup aplikasi kembali.',buttons:['Mengerti'],defaultId:0}).catch(()=>{});
       }
      });
     }
