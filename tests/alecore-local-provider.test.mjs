@@ -6,6 +6,7 @@ import {
   DEFAULT_ALECORE_LOCAL_MODEL,
   parseAleCoreLocalResponse
 } from '../desktop/alecore-local.mjs';
+import {selectDefaultConversationProvider} from '../public/provider-selection.js';
 
 function response(payload, status = 200) {
   return {
@@ -136,4 +137,25 @@ test('Ollama response parser returns only assistant text', () => {
   assert.equal(parseAleCoreLocalResponse({ message: { content: '  Jawaban  ' } }), 'Jawaban');
   assert.equal(parseAleCoreLocalResponse({ message: { content: '' } }), '');
   assert.equal(parseAleCoreLocalResponse({ response: 'not a chat message' }), '');
+});
+
+test('conversation provider selection keeps AleCore Local desktop-only and preserves valid desktop choice', () => {
+  const providers = ['chatgpt', 'alecore-local', 'copilot'];
+
+  assert.equal(
+    selectDefaultConversationProvider({ desktop: false, savedProvider: 'alecore-local', providers }),
+    'chatgpt'
+  );
+  assert.equal(
+    selectDefaultConversationProvider({ desktop: true, savedProvider: '', providers }),
+    'alecore-local'
+  );
+  assert.equal(
+    selectDefaultConversationProvider({ desktop: true, savedProvider: 'chatgpt', providers }),
+    'chatgpt'
+  );
+  assert.equal(
+    selectDefaultConversationProvider({ desktop: true, savedProvider: 'unknown', providers }),
+    'alecore-local'
+  );
 });
