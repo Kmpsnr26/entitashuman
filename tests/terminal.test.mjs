@@ -101,7 +101,7 @@ test('terminal renderer and preload keep Node APIs behind bounded IPC',async()=>
  assert.match(ui,/\/run/);
  assert.match(ui,/terminalExecute/);
  assert.doesNotMatch(ui,/needsConfirmation|command,true/);
- assert.match(main,/terminalShutdownPromise=terminalManager\.killAll\(\)/);
+ assert.match(main,/terminalShutdownPromise=terminalManager\.shutdown\(\)/);
  assert.match(main,/await terminalManager\.kill\(value\?\.sessionId\)/);
  assert.match(main,/Terminal belum berhenti/);
  assert.doesNotMatch(main,/terminalManager\?\.killAll\?\.\(\)/);
@@ -122,7 +122,7 @@ test('terminal startup is restricted to detected CLI profiles and cannot accept 
  assert.match(manager,/replacingSessionId:key/);
  assert.match(manager,/async kill\(/);
  assert.match(manager,/session\.killRequested/);
- assert.match(manager,/async killAll\(/);
+ assert.match(manager,/async killAll\(/);\n assert.match(manager,/async shutdown\(/);\n assert.match(manager,/waitForPendingCreates\(/);
  assert.match(manager,/async resolveProfile\(profile\)/);
  assert.match(manager,/if\(profile\)terminal\.write\(executableLine/);
  assert.doesNotMatch(manager,/options\.startupCommand/);
@@ -319,4 +319,59 @@ test('TerminalManager restart reuses its existing slot when all 12 sessions are 
  terminals.forEach(terminal=>terminal.exit({exitCode:0}));
  await closing;
  assert.equal(manager.list().length,0);
+});
+
+
+test('TerminalManager shutdown waits for a pending create and blocks new sessions',async()=>{
+ const {manager,terminals}=createFakeTerminalManager();
+ let releasePty;
+ manager.ptyLoader=()=>new Promise(resolvePromise=>{
+  releasePty=()=>resolvePromise({spawn:()=>{
+   const terminal=new FakeTerminal();
+   terminals.push(terminal);
+   return terminal;
+  }});
+ });
+ const creating=manager.create({shell:'auto'});
+ await delay(15);
+ assert.equal(typeof releasePty,'function');
+ const shutting=manager.shutdown({timeoutMs:200});
+ let settled=false;
+ shutting.then(()=>{settled=true;});
+ await delay(10);
+ assert.equal(settled,false);
+ assert.equal(manager.closing,true);
+ await assert.rejects(manager.create({shell:'auto'}),/proses shutdown/);
+ releasePty();
+ const created=await creating;
+ assert.ok(created.id);
+ await delay(10);
+ assert.equal(terminals.length,1);
+ assert.equal(terminals[0].killCalls,1);
+ terminals[0].exit({exitCode:0});
+ const result=await shutting;
+ assert.equal(result.closed,1);
+ assert.equal(manager.list().length,0);
+ assert.equal(manager.closing,true);
+});
+
+test('TerminalManager reopens create gate after shutdown timeout and permits safe retry',async()=>{
+ const {manager,terminals}=createFakeTerminalManager({stopTimeoutMs:20});
+ const first=await manager.create({shell:'auto'});
+ await assert.rejects(manager.shutdown(),/Gagal menghentikan 1 sesi terminal/);
+ assert.equal(manager.closing,false);
+ assert.equal(manager.list().length,1);
+ assert.equal(terminals[0].killCalls,1);
+ const second=await manager.create({shell:'auto'});
+ assert.ok(second.id);
+ const retry=manager.shutdown({timeoutMs:200});
+ await delay(10);
+ assert.equal(terminals[0].killCalls,1);
+ assert.equal(terminals[1].killCalls,1);
+ terminals[0].exit({exitCode:0});
+ terminals[1].exit({exitCode:0});
+ const result=await retry;
+ assert.equal(result.closed,2);
+ assert.equal(manager.list().length,0);
+ assert.equal(manager.closing,true);
 });
