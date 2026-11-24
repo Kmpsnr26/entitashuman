@@ -122,7 +122,9 @@ test('terminal startup is restricted to detected CLI profiles and cannot accept 
  assert.match(manager,/replacingSessionId:key/);
  assert.match(manager,/async kill\(/);
  assert.match(manager,/session\.killRequested/);
- assert.match(manager,/async killAll\(/);\n assert.match(manager,/async shutdown\(/);\n assert.match(manager,/waitForPendingCreates\(/);
+ assert.match(manager,/async killAll\(/);
+ assert.match(manager,/async shutdown\(/);
+ assert.match(manager,/waitForPendingCreates\(/);
  assert.match(manager,/async resolveProfile\(profile\)/);
  assert.match(manager,/if\(profile\)terminal\.write\(executableLine/);
  assert.doesNotMatch(manager,/options\.startupCommand/);
