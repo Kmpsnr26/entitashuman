@@ -100,7 +100,7 @@ test('terminal renderer and preload keep Node APIs behind bounded IPC',async()=>
  assert.match(ui,/\/run/);
  assert.match(ui,/terminalExecute/);
  assert.doesNotMatch(ui,/needsConfirmation|command,true/);
- assert.match(main,/terminalManager\?\.killAll/);
+ assert.match(main,/terminalShutdownPromise=terminalManager\.killAll\(\)/);\n assert.match(main,/await terminalManager\.kill\(value\?\.sessionId\)/);\n assert.match(main,/Terminal belum berhenti/);\n assert.doesNotMatch(main,/terminalManager\?\.killAll\?\.\(\)/);
  assert.match(pkg,/"node-pty": "1\.1\.0"/);
  assert.match(pkg,/"@xterm\/xterm": "6\.0\.0"/);
  assert.match(portable,/node-pty/);
@@ -113,7 +113,7 @@ test('terminal startup is restricted to detected CLI profiles and cannot accept 
   readFile(new URL('../public/terminal-ui.js',import.meta.url),'utf8')
  ]);
  assert.match(manager,/MAX_TERMINAL_SESSIONS=12/);
- assert.match(manager,/this\.sessions\.size>=MAX_TERMINAL_SESSIONS/);
+ assert.match(manager,/runningCount>=MAX_TERMINAL_SESSIONS/);\n assert.match(manager,/async kill\(/);\n assert.match(manager,/session\.killRequested/);\n assert.match(manager,/async killAll\(/);
  assert.match(manager,/async resolveProfile\(profile\)/);
  assert.match(manager,/if\(profile\)terminal\.write\(executableLine/);
  assert.doesNotMatch(manager,/options\.startupCommand/);
@@ -122,7 +122,7 @@ test('terminal startup is restricted to detected CLI profiles and cannot accept 
  assert.match(manager,/Set-Location -LiteralPath/);
  assert.match(manager,/\.humanale','cli-hub\.json/);
  assert.match(manager,/\.dudiddam','cli-hub\.json/);
- assert.match(ui,/terminalRecent/);
+ assert.match(ui,/terminalRecent/);\n assert.match(ui,/Terminal belum dapat ditutup/);
  assert.match(ui,/terminalList/);
 });
 
@@ -141,7 +141,7 @@ test('TerminalManager detects actual available shells and developer CLIs without
   assert.ok(['READY','NOT INSTALLED','DISABLED'].includes(detection.registry[id].state));
   assert.equal(Boolean(detection.registry[id].path),detection.registry[id].state==='READY');
  }
- manager.killAll();
+ await manager.killAll();
 });
 
 test('TerminalManager resolves fallback shell paths without executing Windows binaries',async()=>{
