@@ -132,7 +132,7 @@ export class TerminalManager{
     session.resolveExit(session.exitEvent);
     try{this.onExit(id,session.exitCode);}catch(error){console.warn('[TERMINAL EXIT CALLBACK]',error?.message||'Exit callback failed.');}
    });
-   if(profile)terminal.write(executableLine(shell.id,profile.executable)+'\\r');
+   if(profile)terminal.write(executableLine(shell.id,profile.executable)+'\r');
    if(replacingStoppedSession&&this.sessions.get(replacementKey)===replacingSession){
     this.sessions.delete(replacementKey);
    }
