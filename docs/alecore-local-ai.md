@@ -12,7 +12,7 @@ AleCore AI contributes its own assistant identity, system instructions, reasonin
 
 1. Install the official native Windows version of Ollama using [Ollama's Windows instructions](https://github.com/ollama/ollama/blob/main/docs/windows.mdx). The official app runs in the background and provides the local API.
 2. Extract the AleCore AI portable package to a folder you control. It includes `Setup-AleCore-Local.ps1`.
-3. Open PowerShell in that folder and run `./Setup-AleCore-Local.ps1`.
+3. Open PowerShell in that folder and run `.\Setup-AleCore-Local.ps1`.
 4. On the current development PC, the helper selects `D:\AleCoreAI\Models` when D: is available. Otherwise it uses an already configured `OLLAMA_MODELS` folder or the user's Ollama model folder. It creates the target directory but does not move, delete, or overwrite existing files.
 5. On its first run, the helper sets the user-scoped `OLLAMA_MODELS` variable and asks you to quit Ollama from the system-tray icon and start it again. Run the helper once more after restarting Ollama. It then checks the local server, downloads `qwen3.5:2b` if missing, and verifies the model.
 6. Start AleCore AI Desktop, select **AleCore Local**, and press **Periksa lagi**. The status should show that Ollama and the configured model are available.
