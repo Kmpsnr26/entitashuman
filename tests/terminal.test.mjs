@@ -100,7 +100,10 @@ test('terminal renderer and preload keep Node APIs behind bounded IPC',async()=>
  assert.match(ui,/\/run/);
  assert.match(ui,/terminalExecute/);
  assert.doesNotMatch(ui,/needsConfirmation|command,true/);
- assert.match(main,/terminalShutdownPromise=terminalManager\.killAll\(\)/);\n assert.match(main,/await terminalManager\.kill\(value\?\.sessionId\)/);\n assert.match(main,/Terminal belum berhenti/);\n assert.doesNotMatch(main,/terminalManager\?\.killAll\?\.\(\)/);
+ assert.match(main,/terminalShutdownPromise=terminalManager\.killAll\(\)/);
+ assert.match(main,/await terminalManager\.kill\(value\?\.sessionId\)/);
+ assert.match(main,/Terminal belum berhenti/);
+ assert.doesNotMatch(main,/terminalManager\?\.killAll\?\.\(\)/);
  assert.match(pkg,/"node-pty": "1\.1\.0"/);
  assert.match(pkg,/"@xterm\/xterm": "6\.0\.0"/);
  assert.match(portable,/node-pty/);
