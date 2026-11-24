@@ -117,7 +117,9 @@ test('terminal startup is restricted to detected CLI profiles and cannot accept 
   readFile(new URL('../public/terminal-ui.js',import.meta.url),'utf8')
  ]);
  assert.match(manager,/MAX_TERMINAL_SESSIONS=12/);
- assert.match(manager,/this\.sessions\.size>=MAX_TERMINAL_SESSIONS/);
+ assert.match(manager,/this\.sessions\.size\+this\.pendingCreates-\(replacingStoppedSession\?1:0\)>=MAX_TERMINAL_SESSIONS/);
+ assert.match(manager,/this\.pendingCreates\+=1/);
+ assert.match(manager,/replacingSessionId:key/);
  assert.match(manager,/async kill\(/);
  assert.match(manager,/session\.killRequested/);
  assert.match(manager,/async killAll\(/);
@@ -276,4 +278,45 @@ test('TerminalManager killAll waits for every session and reports completed clea
  assert.equal(manager.list().length,0);
  assert.equal(first.status,'running');
  assert.equal(second.status,'running');
+});
+
+
+test('TerminalManager reserves its 12-session limit across concurrent creates',async()=>{
+ const {manager,terminals}=createFakeTerminalManager();
+ const requests=Array.from({length:13},()=>manager.create({shell:'auto'}));
+ const results=await Promise.allSettled(requests);
+ const fulfilled=results.filter(result=>result.status==='fulfilled');
+ const rejected=results.filter(result=>result.status==='rejected');
+ assert.equal(fulfilled.length,12);
+ assert.equal(rejected.length,1);
+ assert.match(rejected[0].reason.message,/Batas 12 sesi terminal/);
+ assert.equal(manager.pendingCreates,0);
+ assert.equal(manager.list().length,12);
+ const closing=manager.killAll();
+ await delay(10);
+ terminals.forEach(terminal=>terminal.exit({exitCode:0}));
+ await closing;
+ assert.equal(manager.list().length,0);
+});
+
+test('TerminalManager restart reuses its existing slot when all 12 sessions are retained',async()=>{
+ const {manager,terminals}=createFakeTerminalManager();
+ const sessions=[];
+ for(let i=0;i<12;i++)sessions.push(await manager.create({shell:'auto'}));
+ assert.equal(manager.list().length,12);
+ const restart=manager.restart(sessions[0].id);
+ await delay(10);
+ assert.equal(terminals.length,12);
+ assert.equal(terminals[0].killCalls,1);
+ terminals[0].exit({exitCode:0});
+ const replacement=await restart;
+ assert.notEqual(replacement.id,sessions[0].id);
+ assert.equal(manager.list().length,12);
+ assert.equal(manager.list().some(item=>item.id===sessions[0].id),false);
+ assert.equal(manager.list().some(item=>item.id===replacement.id),true);
+ const closing=manager.killAll();
+ await delay(10);
+ terminals.forEach(terminal=>terminal.exit({exitCode:0}));
+ await closing;
+ assert.equal(manager.list().length,0);
 });
