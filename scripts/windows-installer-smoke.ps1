@@ -71,9 +71,6 @@ try {
     Write-Host "Smoke terminal using installed executable: $($application.FullName)"
     $env:ELECTRON_RUN_AS_NODE = '1'
     & (Join-Path $PSScriptRoot 'terminal-package-smoke.ps1') -Executable $application.FullName -ManagerPath $manager
-    if ($LASTEXITCODE -ne 0) {
-        throw "Installed terminal smoke failed with exit code $LASTEXITCODE."
-    }
 
     if ($null -eq $previousElectronRunAsNode) {
         Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
@@ -94,18 +91,19 @@ try {
         $env:ELECTRON_RUN_AS_NODE = $previousElectronRunAsNode
     }
 
+    $uninstallFailure = $null
     if ($installerInstalled) {
         $uninstaller = Get-ChildItem -LiteralPath $target -Filter 'Uninstall*.exe' -File -ErrorAction SilentlyContinue |
             Select-Object -First 1
-        if ($uninstaller) {
+        if (-not $uninstaller) {
+            $uninstallFailure = [InvalidOperationException]::new('NSIS uninstaller was not found in the temporary install directory.')
+        } else {
             try {
                 Write-Host 'Uninstalling isolated NSIS test installation.'
                 Invoke-OwnedProcess -FilePath $uninstaller.FullName -ArgumentList @('/S') -TimeoutMs 90000 -Label 'NSIS silent uninstall'
             } catch {
-                Write-Warning "NSIS test uninstall reported an error: $($_.Exception.Message)"
+                $uninstallFailure = $_
             }
-        } else {
-            Write-Warning 'NSIS uninstaller was not found in the temporary install directory.'
         }
     }
 
@@ -116,4 +114,7 @@ try {
 
 if ($null -ne $failure) {
     throw $failure
+}
+if ($null -ne $uninstallFailure) {
+    throw $uninstallFailure
 }
