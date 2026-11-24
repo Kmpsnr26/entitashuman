@@ -24,7 +24,7 @@ on:
         default: false
         type: boolean
   pull_request:
-    branches: [main]
+    branches: [main, "codex/release-followup-*"]
     paths:
       - "public/**"
       - "sites/humanale-hologram/dist/**"

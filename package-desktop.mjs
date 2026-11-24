@@ -39,6 +39,7 @@ for(const parts of runtimeModules){
  await cp(source,target,{recursive:true});
 }
 await cp('Setup-suara-Indonesia.ps1',path.join(output,'Setup-suara-Indonesia.ps1'));
+await cp(path.join('scripts','Setup-AleCore-Local.ps1'),path.join(output,'Setup-AleCore-Local.ps1'));
 
 await rename(path.join(output,'electron.exe'),path.join(output,'HumanALE-God-Engine.exe'));
 console.log(`Built portable Windows app: ${outputName}/HumanALE-God-Engine.exe`);

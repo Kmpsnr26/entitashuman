@@ -20,6 +20,8 @@ npmRebuild: false
 extraResources:
   - from: Setup-suara-Indonesia.ps1
     to: Setup-suara-Indonesia.ps1
+  - from: scripts/Setup-AleCore-Local.ps1
+    to: Setup-AleCore-Local.ps1
 win:
   target:
     - target: nsis

@@ -3,6 +3,37 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {classifyCommand,redactSecrets,shouldPersistHistory} from '../desktop/terminal-policy.mjs';
 import {TerminalManager} from '../desktop/terminal-manager.mjs';
+import {setTimeout as delay} from 'node:timers/promises';
+
+
+class FakeTerminal {
+ constructor(){this.killCalls=0;this.exitListener=null;this.dataListener=null;}
+ onData(listener){this.dataListener=listener;}
+ onExit(listener){this.exitListener=listener;}
+ write(value){this.lastWrite=value;}
+ resize(cols,rows){this.lastSize={cols,rows};}
+ kill(){this.killCalls+=1;}
+ data(value){this.dataListener?.(value);}
+ exit({exitCode=0,signal=null}={}){this.exitListener?.({exitCode,signal});}
+}
+
+function createFakeTerminalManager({stopTimeoutMs=100,failSpawnAt=0,onData=()=>{}}={}){
+ const failedSpawns=new Set(Array.isArray(failSpawnAt)?failSpawnAt:[failSpawnAt]);
+ const terminals=[];
+ let spawnCount=0;
+ const manager=new TerminalManager({
+  workspace:process.cwd(),
+  onData,
+  commandLocator:async command=>command==='pwsh.exe'?'C:\\Fake\\pwsh.exe':null,
+  stopTimeoutMs,
+  ptyLoader:async()=>({spawn:()=>{
+   spawnCount+=1;
+   if(failedSpawns.has(spawnCount))throw new Error('simulated PTY spawn failure');
+   const terminal=new FakeTerminal();terminals.push(terminal);return terminal;
+  }})
+ });
+ return {manager,terminals,get spawnCount(){return spawnCount;}};
+}
 
 test('terminal policy separates SAFE CONFIRM and BLOCK commands',()=>{
  assert.equal(classifyCommand('git status').category,'SAFE');
@@ -72,7 +103,10 @@ test('terminal renderer and preload keep Node APIs behind bounded IPC',async()=>
  assert.match(ui,/\/run/);
  assert.match(ui,/terminalExecute/);
  assert.doesNotMatch(ui,/needsConfirmation|command,true/);
- assert.match(main,/terminalManager\?\.killAll/);
+ assert.match(main,/terminalShutdownPromise=terminalManager\.shutdown\(\)/);
+ assert.match(main,/await terminalManager\.kill\(value\?\.sessionId\)/);
+ assert.match(main,/Terminal belum berhenti/);
+ assert.doesNotMatch(main,/terminalManager\?\.killAll\?\.\(\)/);
  assert.match(pkg,/"node-pty": "1\.1\.0"/);
  assert.match(pkg,/"@xterm\/xterm": "6\.0\.0"/);
  assert.match(portable,/node-pty/);
@@ -85,7 +119,14 @@ test('terminal startup is restricted to detected CLI profiles and cannot accept 
   readFile(new URL('../public/terminal-ui.js',import.meta.url),'utf8')
  ]);
  assert.match(manager,/MAX_TERMINAL_SESSIONS=12/);
- assert.match(manager,/this\.sessions\.size>=MAX_TERMINAL_SESSIONS/);
+ assert.match(manager,/this\.sessions\.size\+this\.pendingCreates-\(replacingStoppedSession\?1:0\)>=MAX_TERMINAL_SESSIONS/);
+ assert.match(manager,/this\.pendingCreates\+=1/);
+ assert.match(manager,/replacingSessionId:key/);
+ assert.match(manager,/async kill\(/);
+ assert.match(manager,/session\.killRequested/);
+ assert.match(manager,/async killAll\(/);
+ assert.match(manager,/async shutdown\(/);
+ assert.match(manager,/waitForPendingCreates\(timeoutMs=this.stopTimeoutMs\)/);
  assert.match(manager,/async resolveProfile\(profile\)/);
  assert.match(manager,/if\(profile\)terminal\.write\(executableLine/);
  assert.doesNotMatch(manager,/options\.startupCommand/);
@@ -95,6 +136,7 @@ test('terminal startup is restricted to detected CLI profiles and cannot accept 
  assert.match(manager,/\.humanale','cli-hub\.json/);
  assert.match(manager,/\.dudiddam','cli-hub\.json/);
  assert.match(ui,/terminalRecent/);
+ assert.match(ui,/Terminal belum dapat ditutup/);
  assert.match(ui,/terminalList/);
 });
 
@@ -113,7 +155,7 @@ test('TerminalManager detects actual available shells and developer CLIs without
   assert.ok(['READY','NOT INSTALLED','DISABLED'].includes(detection.registry[id].state));
   assert.equal(Boolean(detection.registry[id].path),detection.registry[id].state==='READY');
  }
- manager.killAll();
+ await manager.killAll();
 });
 
 test('TerminalManager resolves fallback shell paths without executing Windows binaries',async()=>{
@@ -138,4 +180,242 @@ test('TerminalManager prefers PowerShell 7 and reports no supported shell when d
  const missing=new TerminalManager({commandLocator:async()=>null});
  await assert.rejects(missing.resolveShell(),/No supported Windows shell detected/);
  await assert.rejects(missing.resolveShell('cmd'),/No supported Windows shell detected/);
+});
+
+
+test('TerminalManager kill is idempotent and waits for the native exit event',async()=>{
+ const {manager,terminals}=createFakeTerminalManager();
+ const session=await manager.create({shell:'auto'});
+ const terminal=terminals[0];
+ const first=manager.kill(session.id);
+ const second=manager.kill(session.id);
+ let settled=false;
+ first.then(()=>{settled=true;});
+ await delay(15);
+ assert.equal(terminal.killCalls,1);
+ assert.equal(manager.list().length,1);
+ assert.equal(settled,false);
+ terminal.exit({exitCode:0});
+ const [a,b]=await Promise.all([first,second]);
+ assert.equal(a.ok,true);
+ assert.equal(b.ok,true);
+ assert.equal(manager.list().length,0);
+});
+
+test('TerminalManager stop timeout keeps the session and never repeats native kill',async()=>{
+ const {manager,terminals}=createFakeTerminalManager({stopTimeoutMs:20});
+ const session=await manager.create({shell:'auto'});
+ const terminal=terminals[0];
+ await assert.rejects(manager.kill(session.id),/belum mengonfirmasi proses berhenti/);
+ assert.equal(terminal.killCalls,1);
+ assert.equal(manager.list().length,1);
+ assert.equal(manager.list()[0].status,'running');
+ const retry=manager.kill(session.id,{timeoutMs:200});
+ await delay(5);
+ assert.equal(terminal.killCalls,1);
+ terminal.exit({exitCode:0});
+ await retry;
+ assert.equal(manager.list().length,0);
+});
+
+test('TerminalManager restart waits for exit before creating a replacement session',async()=>{
+ const {manager,terminals}=createFakeTerminalManager();
+ const session=await manager.create({shell:'auto'});
+ const firstTerminal=terminals[0];
+ const restart=manager.restart(session.id);
+ await delay(15);
+ assert.equal(terminals.length,1);
+ assert.equal(firstTerminal.killCalls,1);
+ firstTerminal.exit({exitCode:0});
+ const replacement=await restart;
+ assert.notEqual(replacement.id,session.id);
+ assert.equal(replacement.status,'running');
+ assert.equal(terminals.length,2);
+ assert.deepEqual(manager.list().map(item=>item.id),[replacement.id]);
+});
+
+test('TerminalManager concurrent restarts share one replacement operation',async()=>{
+ const {manager,terminals}=createFakeTerminalManager();
+ const session=await manager.create({shell:'auto'});
+ const first=manager.restart(session.id);
+ const second=manager.restart(session.id);
+ await delay(15);
+ assert.equal(terminals.length,1);
+ terminals[0].exit({exitCode:0});
+ const [a,b]=await Promise.all([first,second]);
+ assert.equal(a.id,b.id);
+ assert.equal(terminals.length,2);
+ assert.deepEqual(manager.list().map(item=>item.id),[a.id]);
+});
+
+test('TerminalManager restart preserves the stopped session when replacement spawn fails',async()=>{
+ const {manager,terminals}=createFakeTerminalManager({failSpawnAt:[2,3]});
+ const session=await manager.create({shell:'auto'});
+ const restart=manager.restart(session.id);
+ await delay(10);
+ terminals[0].exit({exitCode:0});
+ await assert.rejects(restart,/simulated PTY spawn failure/);
+ assert.equal(manager.list().length,1);
+ assert.equal(manager.list()[0].id,session.id);
+ assert.equal(manager.list()[0].status,'stopped');
+ const replacement=await manager.restart(session.id);
+ assert.equal(replacement.status,'running');
+ assert.equal(manager.list().length,1);
+});
+
+test('TerminalManager killAll waits for every session and reports completed cleanup',async()=>{
+ const {manager,terminals}=createFakeTerminalManager();
+ const first=await manager.create({shell:'auto'});
+ const second=await manager.create({shell:'auto'});
+ const closing=manager.killAll();
+ let settled=false;
+ closing.then(()=>{settled=true;});
+ await delay(15);
+ assert.equal(terminals[0].killCalls,1);
+ assert.equal(terminals[1].killCalls,1);
+ terminals[0].exit({exitCode:0});
+ await delay(10);
+ assert.equal(settled,false);
+ terminals[1].exit({exitCode:0});
+ const result=await closing;
+ assert.deepEqual(result,{ok:true,closed:2});
+ assert.equal(manager.list().length,0);
+ assert.equal(first.status,'running');
+ assert.equal(second.status,'running');
+});
+
+
+test('TerminalManager reserves its 12-session limit across concurrent creates',async()=>{
+ const {manager,terminals}=createFakeTerminalManager();
+ const requests=Array.from({length:13},()=>manager.create({shell:'auto'}));
+ const results=await Promise.allSettled(requests);
+ const fulfilled=results.filter(result=>result.status==='fulfilled');
+ const rejected=results.filter(result=>result.status==='rejected');
+ assert.equal(fulfilled.length,12);
+ assert.equal(rejected.length,1);
+ assert.match(rejected[0].reason.message,/Batas 12 sesi terminal/);
+ assert.equal(manager.pendingCreates,0);
+ assert.equal(manager.list().length,12);
+ const closing=manager.killAll();
+ await delay(10);
+ terminals.forEach(terminal=>terminal.exit({exitCode:0}));
+ await closing;
+ assert.equal(manager.list().length,0);
+});
+
+test('TerminalManager restart reuses its existing slot when all 12 sessions are retained',async()=>{
+ const {manager,terminals}=createFakeTerminalManager();
+ const sessions=[];
+ for(let i=0;i<12;i++)sessions.push(await manager.create({shell:'auto'}));
+ assert.equal(manager.list().length,12);
+ const restart=manager.restart(sessions[0].id);
+ await delay(10);
+ assert.equal(terminals.length,12);
+ assert.equal(terminals[0].killCalls,1);
+ terminals[0].exit({exitCode:0});
+ const replacement=await restart;
+ assert.notEqual(replacement.id,sessions[0].id);
+ assert.equal(manager.list().length,12);
+ assert.equal(manager.list().some(item=>item.id===sessions[0].id),false);
+ assert.equal(manager.list().some(item=>item.id===replacement.id),true);
+ const closing=manager.killAll();
+ await delay(10);
+ terminals.forEach(terminal=>terminal.exit({exitCode:0}));
+ await closing;
+ assert.equal(manager.list().length,0);
+});
+
+
+test('TerminalManager shutdown waits for a pending create and blocks new sessions',async()=>{
+ const {manager,terminals}=createFakeTerminalManager();
+ let releasePty;
+ manager.ptyLoader=()=>new Promise(resolvePromise=>{
+  releasePty=()=>resolvePromise({spawn:()=>{
+   const terminal=new FakeTerminal();
+   terminals.push(terminal);
+   return terminal;
+  }});
+ });
+ const creating=manager.create({shell:'auto'});
+ await delay(15);
+ assert.equal(typeof releasePty,'function');
+ const shutting=manager.shutdown({timeoutMs:200});
+ let settled=false;
+ shutting.then(()=>{settled=true;});
+ await delay(10);
+ assert.equal(settled,false);
+ assert.equal(manager.closing,true);
+ await assert.rejects(manager.create({shell:'auto'}),/proses shutdown/);
+ releasePty();
+ const created=await creating;
+ assert.ok(created.id);
+ await delay(10);
+ assert.equal(terminals.length,1);
+ assert.equal(terminals[0].killCalls,1);
+ terminals[0].exit({exitCode:0});
+ const result=await shutting;
+ assert.equal(result.closed,1);
+ assert.equal(manager.list().length,0);
+ assert.equal(manager.closing,true);
+});
+
+test('TerminalManager reopens create gate after shutdown timeout and permits safe retry',async()=>{
+ const {manager,terminals}=createFakeTerminalManager({stopTimeoutMs:20});
+ const first=await manager.create({shell:'auto'});
+ await assert.rejects(manager.shutdown(),/Gagal menghentikan 1 sesi terminal/);
+ assert.equal(manager.closing,false);
+ assert.equal(manager.list().length,1);
+ assert.equal(terminals[0].killCalls,1);
+ const second=await manager.create({shell:'auto'});
+ assert.ok(second.id);
+ const retry=manager.shutdown({timeoutMs:200});
+ await delay(10);
+ assert.equal(terminals[0].killCalls,1);
+ assert.equal(terminals[1].killCalls,1);
+ terminals[0].exit({exitCode:0});
+ terminals[1].exit({exitCode:0});
+ const result=await retry;
+ assert.equal(result.closed,2);
+ assert.equal(manager.list().length,0);
+ assert.equal(manager.closing,true);
+});
+
+
+test('TerminalManager shutdown timeout restores the create gate while in-flight PTY creation completes',async()=>{
+ const {manager,terminals}=createFakeTerminalManager();
+ let releasePty;
+ manager.ptyLoader=()=>new Promise(resolvePromise=>{
+  releasePty=()=>resolvePromise({spawn:()=>{
+   const terminal=new FakeTerminal();
+   terminals.push(terminal);
+   return terminal;
+  }});
+ });
+ const creating=manager.create({shell:'auto'});
+ for(let attempt=0;attempt<20&&!releasePty;attempt++)await delay(5);
+ assert.equal(typeof releasePty,'function');
+ await assert.rejects(manager.shutdown({timeoutMs:30}),/Pembuatan terminal belum selesai/);
+ assert.equal(manager.closing,false);
+ releasePty();
+ const created=await creating;
+ assert.ok(created.id);
+ assert.equal(manager.list().length,1);
+ const closing=manager.shutdown({timeoutMs:200});
+ await delay(10);
+ terminals[0].exit({exitCode:0});
+ await closing;
+ assert.equal(manager.list().length,0);
+ assert.equal(manager.closing,true);
+});
+
+test('TerminalManager contains exceptions from terminal data callbacks',async()=>{
+ const {manager,terminals}=createFakeTerminalManager({
+  onData:()=>{throw new Error('simulated renderer callback failure');}
+ });
+ const session=await manager.create({shell:'auto'});
+ assert.doesNotThrow(()=>terminals[0].data('bounded terminal output'));
+ assert.match(manager.getRecentOutput(session.id),/bounded terminal output/);
+ const closing=manager.kill(session.id);
+ terminals[0].exit({exitCode:0});
+ await closing;
 });

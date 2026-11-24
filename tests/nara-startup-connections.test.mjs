@@ -6,6 +6,7 @@ import {bootstrapNaraConnections,recordNaraProviderStatus,recordNaraAgentHubStat
 import {OpenAIBridge} from '../desktop/openai-api.mjs';
 import {GeminiBridge} from '../desktop/gemini.mjs';
 import {CopilotBridge} from '../desktop/copilot.mjs';
+import {AleCoreLocalBridge} from '../desktop/alecore-local.mjs';
 import {createOrchestrator} from '../nara-core/brain/index.js';
 import {normalizeProviderStatus} from '../nara-core/brain/provider-state.js';
 
@@ -61,6 +62,23 @@ test('actual API bridge configuration checks never make a request or prove authe
   }finally{
     names.forEach((name,i)=>previous[i]===undefined?delete process.env[name]:process.env[name]=previous[i]);
   }
+});
+
+test('AleCore Local startup probe reports an installed loopback model as configured but not request-verified',async()=>{
+  const nara=naraFixture();
+  const bridge=new AleCoreLocalBridge({
+    model:'qwen3.5:2b',
+    fetchImpl:async url=>{
+      assert.equal(url,'http://127.0.0.1:11434/api/tags');
+      return {ok:true,status:200,json:async()=>({models:[{name:'qwen3.5:2b'}]})};
+    }
+  });
+  const result=await bootstrapNaraConnections({bridges:{'alecore-local':bridge},agentHub:hub(),nara});
+  assert.equal(result.providers['alecore-local'].configured,true);
+  assert.equal(result.providers['alecore-local'].ready,false);
+  assert.equal(result.providers['alecore-local'].verified,false);
+  assert.equal(result.providers['alecore-local'].mode,'alecore-local');
+  nara.stop();
 });
 
 test('Copilot --version proves installation only and bootstrap never invokes login or prompts',async()=>{
@@ -223,6 +241,23 @@ test('desktop status UI distinguishes unknown checks, local login and historical
   assert.equal(context.aiReady,true);
 });
 
+test('production owner-gated IPC routes AleCore Local status and conversation to its loopback bridge',async()=>{
+  const fx=await providerIpcFixture();
+  const status=await fx.handlers.get('dudidam:status')({},'alecore-local');
+  assert.equal(status.configured,true);
+  assert.equal(status.runtimeAvailable,true);
+  assert.equal(status.modelAvailable,true);
+  assert.equal(status.model,'qwen3.5:2b');
+  const answer=await fx.handlers.get('dudidam:ask')({},{
+    provider:'alecore-local',message:'Halo AleCore'
+  });
+  assert.equal(answer.text,'usable response');
+  const state=fx.nara.snapshot().providers['alecore-local'];
+  assert.equal(state.ready,true);
+  assert.equal(state.evidence,'successful-request');
+  fx.nara.stop();
+});
+
 async function providerIpcFixture(){
   const main=await readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8');
   const source=main.slice(main.indexOf('  const pickProvider='),main.indexOf("  ipcMain.handle('dudidam:stt-status'"));
@@ -234,7 +269,12 @@ async function providerIpcFixture(){
     ask:async()=>{askCalls++;if(response instanceof Error)throw response;return response;},
     login:async()=>{loginCalls++;return {ok:true};}
   };
-  const context={nara,bridges:{openai:bridge,gemini:bridge,copilot:bridge,chatgpt:bridge},
+  const localBridge={
+    status:async()=>{statusCalls++;return {configured,runtimeAvailable:true,modelAvailable:configured,model:'qwen3.5:2b'};},
+    ask:async()=>{askCalls++;if(response instanceof Error)throw response;return response;},
+    pending:false
+  };
+  const context={nara,bridges:{'alecore-local':localBridge,openai:bridge,gemini:bridge,copilot:bridge,chatgpt:bridge},
     ipcMain:{handle:(name,handler)=>handlers.set(name,handler)},
     ownerTrusted:()=>allowed,recordNaraProviderStatus,
     validateMemoryContext:()=>null,dataFlowMeter:{recordIn(){},recordOut(){}}

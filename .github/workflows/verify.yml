@@ -129,15 +129,14 @@ jobs:
           CSC_LINK: ${{ runner.temp }}/humanale-signing.pfx
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
         run: npm run package:installer
-      - name: Smoke installer Windows terminal in packaged Electron
-        timeout-minutes: 2
+      - name: Install NSIS package and smoke installed application
+        timeout-minutes: 8
         shell: pwsh
-        env:
-          ELECTRON_RUN_AS_NODE: "1"
         run: |
-          $exe = Get-ChildItem 'release\win-unpacked' -Filter '*.exe' | Where-Object { $_.Name -notlike '*crashpad*' } | Select-Object -First 1
-          if (-not $exe) { throw 'Installer runtime executable is missing.' }
-          ./scripts/terminal-package-smoke.ps1 -Executable $exe.FullName -ManagerPath './release/win-unpacked/resources/app/desktop/terminal-manager.mjs'
+          $installer = Get-ChildItem 'release' -Filter 'HumanALE-God-Engine-Setup-*-x64.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'NSIS installer artifact is missing.' }
+          $installRoot = Join-Path $env:RUNNER_TEMP 'alecore-nsis-install-smoke'
+          ./scripts/windows-installer-smoke.ps1 -InstallerPath $installer.FullName -InstallRoot $installRoot
       - name: Prepare and validate release files
         shell: pwsh
         run: |

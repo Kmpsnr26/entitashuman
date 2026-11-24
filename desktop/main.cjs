@@ -318,7 +318,7 @@ if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
-  const [{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{AleCoreCloudContextClient,normalizeOrigin},{resolveAleCoreCloudOrigins},{resolveAleCoreCreatorCredentials},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./alecore-cloud-env.mjs'),import('../nara-core/studio/creator-env.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
+  const [{AleCoreLocalBridge},{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{AleCoreCloudContextClient,normalizeOrigin},{resolveAleCoreCloudOrigins},{resolveAleCoreCreatorCredentials},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./alecore-local.mjs'),import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./alecore-cloud-env.mjs'),import('../nara-core/studio/creator-env.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
   const [{createOrchestrator,createExperienceModel,getHumanALETestScenario,listHumanALETestScenarios,createSkillSnapshot},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createAleCoreAgentCoordinator},{createHumanALEOwnerGate,isOwnerTargetUnlocked,authorizedDisplayMediaTarget},{createNaraStudioServer:studioServerFactory},{bootstrapNaraConnections,recordNaraProviderStatus,recordNaraAgentHubStatus}]=await Promise.all([
    import('../nara-core/brain/index.js'),
    import('../nara-core/voice/index.js'),
@@ -373,7 +373,7 @@ else{
     try{nara.dispatch('dataflow.sample',dataFlowMeter.snapshot(),{source:'dataflow-meter'});}catch{}
   },2000);
   dataFlowTimer.unref?.();
-  bridges={chatgpt:new ChatGPTBridge(),copilot:new CopilotBridge(),openai:new OpenAIBridge(),grok:new GrokBridge(),gemini:new GeminiBridge(),claude:new ClaudeBridge(),deepseek:new DeepSeekBridge(),askcodi:new AskCodiBridge()};
+  bridges={'alecore-local':new AleCoreLocalBridge(),chatgpt:new ChatGPTBridge(),copilot:new CopilotBridge(),openai:new OpenAIBridge(),grok:new GrokBridge(),gemini:new GeminiBridge(),claude:new ClaudeBridge(),deepseek:new DeepSeekBridge(),askcodi:new AskCodiBridge()};
   try{
    const configuredOrigins=resolveAleCoreCloudOrigins(process.env);
    const cloudOrigin=normalizeOrigin(configuredOrigins.cloudOrigin);
@@ -616,13 +616,14 @@ else{
    try{return await cloudMemory.context(value);}catch(error){return {error:error.message};}
   });
 
-  const pickProvider=value=>['copilot','openai','grok','gemini','claude','deepseek','askcodi'].includes(value)?value:'chatgpt';
+  const pickProvider=value=>['alecore-local','copilot','openai','grok','gemini','claude','deepseek','askcodi'].includes(value)?value:'chatgpt';
   ipcMain.handle('dudidam:status',async(e,provider)=>{
    if(!ownerTrusted(e))return {error:'Akses ditolak.'};
    const selected=pickProvider(provider);
    try{
     const raw=await bridges[selected].status();
-    return recordNaraProviderStatus({nara,id:selected,raw,busy:bridges[selected].pending===true});
+    const state=recordNaraProviderStatus({nara,id:selected,raw,busy:bridges[selected].pending===true});
+    return selected==='alecore-local'?{...state,runtimeAvailable:raw.runtimeAvailable===true,modelAvailable:raw.modelAvailable===true,model:raw.model}:state;
    }catch{
     return recordNaraProviderStatus({nara,id:selected,statusError:'STATUS_FAILED'});
    }
@@ -705,7 +706,7 @@ else{
   });
   ipcMain.handle('dudidam:terminal-write',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.write(value?.sessionId,value?.data);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:terminal-resize',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.resize(value?.sessionId,value?.cols,value?.rows);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-kill',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.kill(value?.sessionId);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-kill',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.kill(value?.sessionId);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:terminal-restart',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.restart(value?.sessionId);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:terminal-clear',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.clear(value?.sessionId);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:terminal-list',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};return {sessions:terminalManager.list()};});
@@ -965,5 +966,26 @@ else{
   console.log('HumanALE god egine desktop ready: transparent=true; frame=false; alwaysOnTop=true; tray=true; systemAudio=loopback');
  }).catch(error=>{console.error('HumanALE god egine startup failed:',error);app.exit(1);});
  app.on('window-all-closed',()=>{});
-  app.on('before-quit',()=>{quitting=true;globalShortcut.unregisterAll();clearTimeout(saveTimer);clearInterval(pointerTimer);clearInterval(backdropTimer);Object.values(bridges||{}).forEach(item=>item?.stop());agentHub?.stop();terminalManager?.killAll?.();indonesianStt?.stop();indonesianTts?.stop();panelWin?.destroy();server?.close();tray?.destroy();});
+  let terminalShutdownReady=false,terminalShutdownPromise=null;
+  app.on('before-quit',event=>{
+   if(terminalManager&&!terminalShutdownReady){
+    event.preventDefault();
+    if(!terminalShutdownPromise){
+     terminalShutdownPromise=terminalManager.shutdown().then(()=>{
+      terminalShutdownReady=true;
+      terminalShutdownPromise=null;
+      app.quit();
+     }).catch(error=>{
+      terminalShutdownPromise=null;
+      console.error('[TERMINAL SHUTDOWN]',error?.message||'Terminal sessions did not stop.');
+      if(win&&!win.isDestroyed()){
+       win.show();win.focus();
+       void dialog.showMessageBox(win,{type:'error',title:'Terminal belum berhenti',message:'AleCore AI belum dapat ditutup karena ada proses terminal yang belum mengonfirmasi penghentian.',detail:String(error?.message||error)+'\nPeriksa terminal yang masih aktif, lalu coba tutup aplikasi kembali.',buttons:['Mengerti'],defaultId:0}).catch(()=>{});
+      }
+     });
+    }
+    return;
+   }
+   quitting=true;globalShortcut.unregisterAll();clearTimeout(saveTimer);clearInterval(pointerTimer);clearInterval(backdropTimer);Object.values(bridges||{}).forEach(item=>item?.stop());agentHub?.stop();indonesianStt?.stop();indonesianTts?.stop();panelWin?.destroy();server?.close();tray?.destroy();
+  });
 }

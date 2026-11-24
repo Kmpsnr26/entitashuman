@@ -5,6 +5,7 @@ import {DudidamPopup} from './dudidam-popup.js';
 import {parseCommand} from './commands.js';
 import {AudioReactor} from './audio-reactor.js';
 import {containsAleWakeWord,HOLD_TO_SUMMON_MS} from './wake-utils.js';
+import {selectDefaultConversationProvider} from './provider-selection.js';
 import {isExplicitProjectWorkRequest} from './work-intent.js';
 import {WORK_AGENT_IDS,workReadinessError,selectWorkAgent,createAgentTaskPayload,hasAppliedWorkChanges} from './agent-task.js';
 import {emotionFromText,emotions} from './avatar-emotion.js';
@@ -378,12 +379,12 @@ themeObserver.observe(document.body,{attributes:true,attributeFilter:['class','d
 applyVisualTheme('auto');
 if(panelOnly)assistantPopup.hide();else assistantPopup.show();
 if(panelOnly)avatar.setPaused?.(true);
-const apiProviders=['copilot','openai','grok','gemini','claude','deepseek','askcodi'];
+const apiProviders=['alecore-local','copilot','openai','grok','gemini','claude','deepseek','askcodi'];
 const SUMMON_DURATION_MS=4200;
 const DISMISS_DURATION_MS=3000;
 const DEFAULT_AVATAR_SIZE=420;
 let panelZoomFactor=1,latestNaraBrainState=null,latestNaraSkillSnapshot=null,latestHumanALERuntime=null,selectedBrainRegion='NARA_CORE',humanaleVisualFrame={fps:0,points:0},lastVisualStudioBroadcast=0,humanaleVisualEvents=[],lastHumanaleVisualEventId=null;
-let aiReady=false,savedProvider=desktop?localStorage.getItem('dudidam-provider'):'',aiProvider=apiProviders.includes(savedProvider)?savedProvider:'chatgpt',busy=false,voice=true,selectedVoiceURI='',listening=false,recognition,cameraStream,cameraPending=false,history=[],toastTimer,bubbleTimer,speechTimer,drag,offset={x:0,y:0},ttsActive=false,ttsEnergy=0,audioEnergy=0,audioMode='',musicUrl='',wakeRecognition,wakeListening=false,wakeEnabled=desktop?localStorage.getItem('dudidam-wake-enabled')==='true':false,wakeRestartTimer,wakeHealthVerified=false,wakeRetryBlocked=false,wakeNetworkFailures=0,summoning=false,dismissing=false,transitionSerial=0,hold5Timer,hold5Fired=false;
+let aiReady=false,savedProvider=desktop?localStorage.getItem('dudidam-provider'):'',aiProvider=selectDefaultConversationProvider({desktop:Boolean(desktop),savedProvider,providers:['chatgpt',...apiProviders]}),busy=false,voice=true,selectedVoiceURI='',listening=false,recognition,cameraStream,cameraPending=false,history=[],toastTimer,bubbleTimer,speechTimer,drag,offset={x:0,y:0},ttsActive=false,ttsEnergy=0,audioEnergy=0,audioMode='',musicUrl='',wakeRecognition,wakeListening=false,wakeEnabled=desktop?localStorage.getItem('dudidam-wake-enabled')==='true':false,wakeRestartTimer,wakeHealthVerified=false,wakeRetryBlocked=false,wakeNetworkFailures=0,summoning=false,dismissing=false,transitionSerial=0,hold5Timer,hold5Fired=false;
 let wakeStartGeneration=0;
 let micProbeGeneration=0,micChecking=false;
 let remoteSpeechEnergy=0;
@@ -702,7 +703,7 @@ function setPersona(provider=aiProvider){
  const persona=provider==='copilot'?'copilot':provider==='chatgpt'?'chatgpt':'dudidam';
  document.body.dataset.persona=persona;avatar.persona=persona;
  if(persona==='copilot')avatar.setAccent?.('cyan');else if(persona==='chatgpt')avatar.setAccent?.('cyan');
- $('#personaBadge').textContent=persona==='copilot'?'HUMANALE GOD ENGINE · GITHUB COPILOT':persona==='chatgpt'?'HUMANALE GOD ENGINE · CHATGPT':'HUMANALE GOD ENGINE · '+provider.toUpperCase();
+ $('#personaBadge').textContent=!desktop?'ALECORE AI · MODE WEB':provider==='alecore-local'?'ALECORE AI · MODEL LOKAL':persona==='copilot'?'HUMANALE GOD ENGINE · GITHUB COPILOT':persona==='chatgpt'?'HUMANALE GOD ENGINE · CHATGPT':'HUMANALE GOD ENGINE · '+provider.toUpperCase();
  if(panelOnly)panelChannel?.postMessage({type:'persona',provider});
 }
 function getIndonesianVoices(){
@@ -840,8 +841,8 @@ async function submit(text,image){text=text.trim();if(!text||busy)return;message
   }
   return;
  }
- if(!aiReady){const missing={copilot:'GitHub Copilot CLI belum tersedia. Pasang dan login Copilot, lalu tekan Periksa lagi.',openai:'OpenAI API belum aktif. Atur OPENAI_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',grok:'Grok belum aktif. Atur XAI_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',gemini:'Gemini belum aktif. Atur GEMINI_API_KEY atau GOOGLE_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',claude:'Claude belum aktif. Atur ANTHROPIC_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',deepseek:'DeepSeek belum aktif. Atur DEEPSEEK_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',askcodi:'AskCodi belum aktif. Atur ASKCODI_API_KEY dan ASKCODI_MODEL, buka ulang HumanALE god egine, lalu tekan Periksa lagi.'}[aiProvider]||'Silakan pilih Login ChatGPT pada kontrol avatar, selesaikan login di browser, lalu Periksa lagi.';message(missing,'assistant',false);return;}
- busy=true;stopSpeech();$('#send').disabled=true;$('#look').disabled=true;state('Berpikir…');const providerName={copilot:'GitHub Copilot',openai:'OpenAI API',grok:'Grok',gemini:'Gemini',claude:'Claude',deepseek:'DeepSeek',askcodi:'AskCodi'}[aiProvider]||'ChatGPT';$('#liveText').textContent=providerName+' sedang merespons…';
+ if(!aiReady){const missing={'alecore-local':'AleCore Local belum siap. Jalankan Ollama dan unduh model qwen3.5:2b, lalu tekan Periksa lagi.',copilot:'GitHub Copilot CLI belum tersedia. Pasang dan login Copilot, lalu tekan Periksa lagi.',openai:'OpenAI API belum aktif. Atur OPENAI_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',grok:'Grok belum aktif. Atur XAI_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',gemini:'Gemini belum aktif. Atur GEMINI_API_KEY atau GOOGLE_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',claude:'Claude belum aktif. Atur ANTHROPIC_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',deepseek:'DeepSeek belum aktif. Atur DEEPSEEK_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',askcodi:'AskCodi belum aktif. Atur ASKCODI_API_KEY dan ASKCODI_MODEL, buka ulang HumanALE god egine, lalu tekan Periksa lagi.'}[aiProvider]||'Silakan pilih Login ChatGPT pada kontrol avatar, selesaikan login di browser, lalu Periksa lagi.';message(missing,'assistant',false);return;}
+ busy=true;stopSpeech();$('#send').disabled=true;$('#look').disabled=true;state('Berpikir…');const providerName={'alecore-local':'AleCore Local',copilot:'GitHub Copilot',openai:'OpenAI API',grok:'Grok',gemini:'Gemini',claude:'Claude',deepseek:'DeepSeek',askcodi:'AskCodi'}[aiProvider]||'ChatGPT';$('#liveText').textContent=providerName+' sedang merespons…';
  try{const memoryContext=await prepareEffectiveMemoryContext(text,'reasoner');const result=await desktop.ask({provider:aiProvider,message:text,history:history.slice(-10),image,memoryContext});if(result.error)throw new Error(result.error);history.push({role:'user',content:text},{role:'assistant',content:result.text});history=history.slice(-10);panelChannel?.postMessage({type:'history',history});message(result.text);}
  catch(e){message(e.message||('Koneksi '+providerName+' gagal. Coba lagi.'),'assistant',false);}finally{busy=false;avatar.thinking=false;$('#send').disabled=false;$('#look').disabled=false;$('#liveText').textContent='';if(!avatar.speaking&&!listening)state();}
 }
@@ -854,6 +855,7 @@ async function checkAI(){
  $('#login').hidden=desktop&&!hasLogin;$('#login').textContent=aiProvider==='copilot'?'Login Copilot':'Login ChatGPT';$('#chatgptLink').hidden=desktop&&aiProvider!=='chatgpt';$('#camera').disabled=noImage;
   if(noImage&&cameraStream)stopCamera();
  const details={
+  'alecore-local':{label:'AleCore Local',missing:'runtime atau model lokal belum siap',ready:'AleCore Local menjawab menggunakan model Qwen yang berjalan di komputer ini. Prompt dan riwayat tidak dikirim ke layanan AI cloud.',setup:'Pasang Ollama untuk Windows, lalu jalankan `ollama pull qwen3.5:2b` di PowerShell. Setelah model selesai diunduh, tekan Periksa lagi.',note:'Model lokal qwen3.5:2b · tanpa API key atau login ChatGPT · percakapan tetap di komputer ini.'},
   copilot:{label:'GitHub Copilot',missing:'CLI belum terpasang',ready:'Percakapan memakai GitHub Copilot CLI lokal. Login dan akses Copilot diperiksa saat pesan pertama dikirim.',setup:'Pasang GitHub Copilot CLI resmi, login sebagai akun GitHub yang memiliki akses Copilot, lalu Periksa lagi.',note:'GitHub Copilot CLI · riwayat percakapan hanya di memori aplikasi · foto belum didukung.'},
    openai:{label:'OpenAI API',missing:'OPENAI_API_KEY diperlukan',ready:'Percakapan dan foto dikirim dari proses desktop langsung ke OpenAI Responses API. API key tidak dikirim ke renderer.',setup:'Atur OPENAI_API_KEY pada environment Windows lalu buka ulang HumanALE god egine. Model default: gpt-5.4-mini.',note:'OpenAI Responses API · riwayat percakapan di memori aplikasi · foto kamera didukung.'},
    grok:{label:'Grok',missing:'XAI_API_KEY diperlukan',ready:'Percakapan dikirim dari proses desktop langsung ke xAI API. XAI_API_KEY tidak dikirim ke renderer.',setup:'Atur XAI_API_KEY pada environment Windows lalu buka ulang HumanALE god egine. Model default: grok-4.6.',note:'Grok via xAI API · riwayat percakapan di memori aplikasi · foto belum diaktifkan.'},
@@ -864,12 +866,14 @@ async function checkAI(){
   };
   const meta=details[aiProvider];
   if(meta){
-   $('#aiStatus').textContent=aiReady?meta.label+' · '+(data.verified?(data.evidence==='successful-request'?'permintaan sebelumnya berhasil':'login lokal terverifikasi'):'siap diuji'):meta.label+' · '+meta.missing;
-   $('#apiDetail').textContent=aiReady?meta.ready:meta.setup;
+   const localRuntimeMissing=aiProvider==='alecore-local'&&!data.runtimeAvailable;
+   const localModelMissing=aiProvider==='alecore-local'&&data.runtimeAvailable&&!data.modelAvailable;
+   $('#aiStatus').textContent=aiReady?meta.label+' · '+(data.verified?(data.evidence==='successful-request'?'permintaan sebelumnya berhasil':'runtime lokal siap'):'siap diuji'):meta.label+' · '+(localRuntimeMissing?'Ollama belum berjalan':localModelMissing?'model belum terpasang':meta.missing);
+   $('#apiDetail').textContent=aiReady?meta.ready:localRuntimeMissing?'Pasang dan jalankan Ollama untuk Windows. Model lokal belum dapat diperiksa.':localModelMissing?'Ollama aktif, tetapi model belum ditemukan. Jalankan `ollama pull qwen3.5:2b` di PowerShell.':meta.setup;
    $('#chatNote').textContent=meta.note;
   }else{
    $('#aiStatus').textContent=aiReady?(data.verified?(data.evidence==='successful-request'?'ChatGPT · permintaan sebelumnya berhasil':'ChatGPT · login lokal terverifikasi · tanpa API key'):'ChatGPT · sesi belum diverifikasi'):desktop?'Login ChatGPT diperlukan':data.signedIn?'Login Sites aktif':'Login Sites';
-   $('#apiDetail').textContent=desktop?(aiReady?'Percakapan memakai login ChatGPT melalui Codex CLI lokal dan mengikuti batas penggunaan akun. Riwayat chatgpt.com tidak diimpor.':'Klik Login ChatGPT untuk membuka alur resmi. Setelah selesai, tekan Periksa lagi. Tidak perlu API key.'):'Versi Sites menampilkan avatar dan mengenali login. Percakapan model tersedia pada aplikasi HumanALE god egine Desktop lokal.';
+   $('#apiDetail').textContent=desktop?(aiReady?'Percakapan memakai login ChatGPT melalui Codex CLI lokal dan mengikuti batas penggunaan akun. Riwayat chatgpt.com tidak diimpor.':'Klik Login ChatGPT untuk membuka alur resmi. Setelah selesai, tekan Periksa lagi. Tidak perlu API key.'):'Versi Sites menampilkan avatar dan mengenali login. Percakapan model tersedia di AleCore AI Desktop.';
    $('#chatNote').textContent=desktop?'ChatGPT via Codex CLI · riwayat percakapan di memori aplikasi.':'Versi web: perintah dasar. Percakapan model langsung tersedia di desktop.';
   }
   if(data.statusError){
