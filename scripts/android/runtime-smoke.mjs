@@ -10,6 +10,17 @@ export function assertLoadedPage(state) {
   if (state.ready !== 'complete' || !state.avatar || !state.prompt || !state.chat || state.ownerGate || !state.sendEnabled) throw new Error(`HumanALE did not reach a usable page: ${JSON.stringify(state)}`);
 }
 
+export function assertAndroidProviderState({platform, persona, detail, note} = {}) {
+  if (platform !== 'android') return;
+  if (persona !== 'ALECORE AI · MODE WEB') {
+    throw new Error('Android must not present a desktop-only or local-model persona.');
+  }
+  const copy = [detail, note].filter(Boolean).join(' ');
+  if (!/desktop/i.test(copy) || /ollama|alecore local|model lokal/i.test(copy)) {
+    throw new Error('Android provider status must clearly identify desktop-only model availability.');
+  }
+}
+
 export async function captureScreenshotEvidence(cdp, directory, name, report, {timeoutMs=5000}={}) {
   try {
     const result = await cdp.call('Page.captureScreenshot', {format: 'png'}, timeoutMs);
@@ -136,6 +147,11 @@ export async function runAndroidRuntimeSmoke(base, directory) {
         try { assertLoadedPage(state); return true; } catch { return false; }
       }, 'usable HumanALE page');
       await screenshot('loaded');
+    });
+    await check('Android clearly reports that model conversation requires AleCore AI Desktop', async () => {
+      const state = await evaluate(`({platform:window.Capacitor?.getPlatform?.(),persona:document.querySelector('#personaBadge')?.textContent||'',detail:document.querySelector('#apiDetail')?.textContent||'',note:document.querySelector('#chatNote')?.textContent||''})`);
+      report.providerAvailability = state;
+      assertAndroidProviderState(state);
     });
     await check('Settings opens and closes through browser input', async () => {
       await click('#conversationSettings');

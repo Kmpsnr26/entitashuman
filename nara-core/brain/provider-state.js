@@ -1,4 +1,5 @@
 const MODES=Object.freeze({
+  'alecore-local':'alecore-local',
   chatgpt:'chatgpt-login',copilot:'copilot-cli',codex:'codex-cli',
   openai:'openai-api',gemini:'gemini-api',grok:'grok-api',
   claude:'claude-api',deepseek:'deepseek-api',askcodi:'askcodi-api'

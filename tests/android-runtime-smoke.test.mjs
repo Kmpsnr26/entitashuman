@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {assertLoadedPage, assertNativeEvidence, shouldCaptureCDPScreenshots, waitFor} from '../scripts/android/runtime-smoke.mjs';
+import {assertAndroidProviderState, assertLoadedPage, assertNativeEvidence, shouldCaptureCDPScreenshots, waitFor} from '../scripts/android/runtime-smoke.mjs';
 import {setTimeout as delay} from 'node:timers/promises';
 
 const loaded = {origin: 'https://localhost', platform: 'android', ready: 'complete', avatar: true, prompt: true, chat: true, ownerGate: false, sendEnabled: true};
@@ -36,4 +36,33 @@ test('Android CDP screenshot evidence is opt-in and does not gate runtime checks
   assert.equal(shouldCaptureCDPScreenshots({}), false);
   assert.equal(shouldCaptureCDPScreenshots({HUMANALE_ANDROID_CDP_SCREENSHOTS: '0'}), false);
   assert.equal(shouldCaptureCDPScreenshots({HUMANALE_ANDROID_CDP_SCREENSHOTS: '1'}), true);
+});
+
+test('Android provider copy cannot claim Ollama or a local model is available on mobile', () => {
+  assert.doesNotThrow(() => assertAndroidProviderState({
+    platform: 'android',
+    persona: 'ALECORE AI · MODE WEB',
+    detail: 'Percakapan model tersedia di AleCore AI Desktop.',
+    note: 'Versi web: perintah dasar. Percakapan model tersedia di desktop.'
+  }));
+  assert.throws(() => assertAndroidProviderState({
+    platform: 'android',
+    persona: 'ALECORE AI · MODEL LOKAL',
+    detail: 'Ollama belum berjalan.'
+  }));
+  assert.throws(() => assertAndroidProviderState({
+    platform: 'android',
+    persona: 'ALECORE AI · MODE WEB',
+    detail: 'Ollama belum berjalan di komputer ini.'
+  }));
+  assert.throws(() => assertAndroidProviderState({
+    platform: 'android',
+    persona: 'ALECORE AI · MODE WEB',
+    detail: 'Model belum tersedia.'
+  }));
+  assert.doesNotThrow(() => assertAndroidProviderState({
+    platform: 'windows',
+    persona: 'ALECORE AI · MODEL LOKAL',
+    detail: 'Ollama berjalan di komputer ini.'
+  }));
 });

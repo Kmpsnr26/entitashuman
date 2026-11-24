@@ -17,16 +17,20 @@ import {normalizedAudioLevel} from '../public/audio-reactor.js';
 import {isExplicitProjectWorkRequest} from '../public/work-intent.js';
 import {IndonesianStt} from '../desktop/indonesian-stt.mjs';
 import {IndonesianTts} from '../desktop/indonesian-tts.mjs';
-import {HUMANALE_CORE_PROMPT,reasoningGuidance,humanaleSystemPrompt} from '../desktop/humanale-brain.mjs';
+import {ALECORE_CORE_PROMPT,HUMANALE_CORE_PROMPT,reasoningGuidance,humanaleSystemPrompt} from '../desktop/humanale-brain.mjs';
 import {captureScreenshotEvidence} from '../scripts/android/runtime-smoke.mjs';
 test('commands do not mistake normal conversation for gestures',()=>{assert.equal(parseCommand('Tolong menggelengkan kepala'),'shake');assert.equal(parseCommand('Coba berkedip!'),'blink');assert.equal(parseCommand('Jelaskan mengapa manusia berkedip'),null);});
 
-test('HumanALE god egine Brain Core uses bounded adaptive logical reasoning',()=>{
- assert.match(HUMANALE_CORE_PROMPT,/Berpikir secara logis/);
- assert.match(HUMANALE_CORE_PROMPT,/pisahkan fakta dari asumsi/);
- assert.match(HUMANALE_CORE_PROMPT,/Jangan menampilkan chain-of-thought/);
- assert.match(HUMANALE_CORE_PROMPT,/koreksi eksplisit/);
- assert.match(HUMANALE_CORE_PROMPT,/tidak boleh mengklaim dapat mengubah model dasarnya/);
+test('AleCore AI Brain Core uses its own identity and bounded adaptive logical reasoning',()=>{
+ assert.equal(HUMANALE_CORE_PROMPT,ALECORE_CORE_PROMPT);
+ assert.match(ALECORE_CORE_PROMPT,/Kamu AleCore AI/);
+ assert.match(ALECORE_CORE_PROMPT,/model fondasi Qwen/);
+ assert.doesNotMatch(ALECORE_CORE_PROMPT,/Kamu HumanALE god egine/);
+ assert.match(ALECORE_CORE_PROMPT,/Berpikir secara logis/);
+ assert.match(ALECORE_CORE_PROMPT,/pisahkan fakta dari asumsi/);
+ assert.match(ALECORE_CORE_PROMPT,/Jangan menampilkan chain-of-thought/);
+ assert.match(ALECORE_CORE_PROMPT,/koreksi eksplisit/);
+ assert.match(ALECORE_CORE_PROMPT,/tidak boleh mengklaim dapat mengubah model fondasi Qwen/);
  assert.match(reasoningGuidance('halo'),/ringan/);
  assert.match(reasoningGuidance('cek bug dan error secara mendalam lalu analisis risiko dan solusi'),/mendalam/);
  const prompt=humanaleSystemPrompt('mengapa ini error dan bagaimana solusi terbaik?','Jangan akses file.');
@@ -658,4 +662,41 @@ test('Android screenshot evidence is saved when CDP capture succeeds',async t=>{
  assert.equal(captured,true);
  assert.deepEqual(await readFile(join(directory,'loaded.png')),bytes);
  assert.deepEqual(report.evidenceWarnings,[]);
+});
+
+test('AleCore Local is the first-party offline desktop conversation provider',async()=>{
+ const [local,desktop,state,html,app]=await Promise.all([
+  readFile(new URL('../desktop/alecore-local.mjs',import.meta.url),'utf8'),
+  readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8'),
+  readFile(new URL('../nara-core/brain/provider-state.js',import.meta.url),'utf8'),
+  readFile(new URL('../public/index.html',import.meta.url),'utf8'),
+  readFile(new URL('../public/app.js',import.meta.url),'utf8')
+ ]);
+ assert.match(local,/http:\/\/127\.0\.0\.1:11434/);
+ assert.match(local,/qwen3\.5:2b/);
+ assert.match(local,/humanaleSystemPrompt/);
+ assert.match(local,/Kamu adalah AleCore AI/);
+ assert.match(local,/stream:\s*false/);
+ assert.match(desktop,/AleCoreLocalBridge/);
+ assert.match(desktop,/alecore-local/);
+ assert.match(state,/alecore-local/);
+ assert.match(html,/value="alecore-local"/);
+ assert.match(app,/aiProvider=apiProviders\.includes\(savedProvider\)\?savedProvider:'alecore-local'/);
+ assert.match(app,/AleCore Local/);
+ assert.doesNotMatch(local,/OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY/);
+});
+
+test('AleCore Local Windows setup helper preserves existing data and exposes only loopback',async()=>{
+ const [script,packager,installer]=await Promise.all([
+  readFile(new URL('../scripts/Setup-AleCore-Local.ps1',import.meta.url),'utf8'),
+  readFile(new URL('../package-desktop.mjs',import.meta.url),'utf8'),
+  readFile(new URL('../electron-builder.yml',import.meta.url),'utf8')
+ ]);
+ assert.match(script,/OLLAMA_MODELS/);
+ assert.match(script,/D:\\AleCoreAI\\Models/);
+ assert.match(script,/127\.0\.0\.1:11434\/api\/tags/);
+ assert.match(script,/ollama.*pull|pull.*\$Model/i);
+ assert.doesNotMatch(script,/0\.0\.0\.0|Remove-Item|Move-Item/);
+ assert.match(packager,/Setup-AleCore-Local\.ps1/);
+ assert.match(installer,/from: scripts\/Setup-AleCore-Local\.ps1/);
 });
