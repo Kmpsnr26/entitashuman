@@ -41,8 +41,8 @@ function fallbackPolicy(runtime={},reason='nara.idle'){
 export function reduceHumanALEPolicy(previous=createHumanALEPolicy(),event='',payload={},runtime={}){
   const name=String(event||'');
   if(name==='provider.status'||name==='startup.connections')return previous;
-  if(name==='nara.start')return basePolicy('idle',name,.12);
-  if(name==='nara.shutdown')return basePolicy('idle',name,0);
+  if(name==='alecore.start'||name==='nara.start')return basePolicy('idle',name,.12);
+  if(name==='alecore.shutdown'||name==='nara.shutdown')return basePolicy('idle',name,0);
 
   if(ERROR_EVENTS.has(name))return basePolicy('error',name,1);
   if(name==='reason.start')return basePolicy('thinking',name,1);
