@@ -706,7 +706,7 @@ else{
   });
   ipcMain.handle('dudidam:terminal-write',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.write(value?.sessionId,value?.data);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:terminal-resize',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.resize(value?.sessionId,value?.cols,value?.rows);}catch(error){return {error:error.message};}});
-  ipcMain.handle('dudidam:terminal-kill',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.kill(value?.sessionId);}catch(error){return {error:error.message};}});
+  ipcMain.handle('dudidam:terminal-kill',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.kill(value?.sessionId);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:terminal-restart',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return await terminalManager.restart(value?.sessionId);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:terminal-clear',async(e,value)=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};try{return terminalManager.clear(value?.sessionId);}catch(error){return {error:error.message};}});
   ipcMain.handle('dudidam:terminal-list',async e=>{if(!ownerTrusted(e))return {error:'Akses ditolak.'};return {sessions:terminalManager.list()};});
@@ -966,5 +966,26 @@ else{
   console.log('HumanALE god egine desktop ready: transparent=true; frame=false; alwaysOnTop=true; tray=true; systemAudio=loopback');
  }).catch(error=>{console.error('HumanALE god egine startup failed:',error);app.exit(1);});
  app.on('window-all-closed',()=>{});
-  app.on('before-quit',()=>{quitting=true;globalShortcut.unregisterAll();clearTimeout(saveTimer);clearInterval(pointerTimer);clearInterval(backdropTimer);Object.values(bridges||{}).forEach(item=>item?.stop());agentHub?.stop();terminalManager?.killAll?.();indonesianStt?.stop();indonesianTts?.stop();panelWin?.destroy();server?.close();tray?.destroy();});
+  let terminalShutdownReady=false,terminalShutdownPromise=null;
+  app.on('before-quit',event=>{
+   if(terminalManager&&!terminalShutdownReady){
+    event.preventDefault();
+    if(!terminalShutdownPromise){
+     terminalShutdownPromise=terminalManager.killAll().then(()=>{
+      terminalShutdownReady=true;
+      terminalShutdownPromise=null;
+      app.quit();
+     }).catch(error=>{
+      terminalShutdownPromise=null;
+      console.error('[TERMINAL SHUTDOWN]',error?.message||'Terminal sessions did not stop.');
+      if(win&&!win.isDestroyed()){
+       win.show();win.focus();
+       void dialog.showMessageBox(win,{type:'error',title:'Terminal belum berhenti',message:'AleCore AI belum dapat ditutup karena ada proses terminal yang belum mengonfirmasi penghentian.',detail:String(error?.message||error)+'\\nPeriksa terminal yang masih aktif, lalu coba tutup aplikasi kembali.',buttons:['Mengerti'],defaultId:0}).catch(()=>{});
+      }
+     });
+    }
+    return;
+   }
+   quitting=true;globalShortcut.unregisterAll();clearTimeout(saveTimer);clearInterval(pointerTimer);clearInterval(backdropTimer);Object.values(bridges||{}).forEach(item=>item?.stop());agentHub?.stop();indonesianStt?.stop();indonesianTts?.stop();panelWin?.destroy();server?.close();tray?.destroy();
+  });
 }
