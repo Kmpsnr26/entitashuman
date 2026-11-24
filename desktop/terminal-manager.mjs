@@ -64,7 +64,7 @@ function powershellLiteral(value){return "'"+String(value).replace(/'/g,"''")+"'
 export class TerminalManager{
  constructor({workspace=process.cwd(),onData=()=>{},onExit=()=>{},commandLocator=locateCommand,ptyLoader=loadDesktopPty,stopTimeoutMs=DEFAULT_STOP_TIMEOUT_MS}={}){
   this.workspace=resolve(workspace||process.cwd());this.onData=onData;this.onExit=onExit;this.sessions=new Map();this.sequence=0;
-  this.commandLocator=commandLocator;this.ptyLoader=ptyLoader;
+  this.commandLocator=commandLocator;this.ptyLoader=ptyLoader;this.pendingCreates=0;
   const timeout=Number(stopTimeoutMs);
   this.stopTimeoutMs=Number.isFinite(timeout)?Math.max(10,Math.min(30000,timeout)):DEFAULT_STOP_TIMEOUT_MS;
  }
@@ -93,31 +93,54 @@ export class TerminalManager{
   if(!isAbsolute(target)||!await isDirectory(target))throw new Error('Folder kerja terminal tidak ditemukan.');
   return target;
  }
- async create(options={}){
-  if(this.sessions.size>=MAX_TERMINAL_SESSIONS)throw new Error('Batas '+MAX_TERMINAL_SESSIONS+' sesi terminal tercapai. Tutup sesi yang tidak dipakai sebelum membuka sesi baru.');
-  const shell=await this.resolveShell(options.shell||'auto');
-  const profile=options.profile?await this.resolveProfile(options.profile):null;
-  const cwd=await this.resolveCwd(options.cwd);
-  const cols=cleanSize(options.cols,120,20,400),rows=cleanSize(options.rows,30,5,200);
-  const id='term-'+Date.now().toString(36)+'-'+(++this.sequence).toString(36);
-  const pty=await this.ptyLoader();
-  let terminal;
-  try{terminal=pty.spawn(shell.executable,[],{name:'xterm-256color',cols,rows,cwd,env:{...process.env,TERM:'xterm-256color'}});}
-  catch(error){if((options.shell||'auto')!=='auto')return this.create({...options,shell:'auto'});throw new Error('Terminal PTY tidak dapat dibuat: '+error.message);}
-  let resolveExit;
-  const exitPromise=new Promise(resolvePromise=>{resolveExit=resolvePromise;});
-  const session={id,shell:shell.id,shellLabel:shell.label,cwd,pid:terminal.pid,title:cleanTitle(options.title,profile?.label||shell.label),profile:profile?.id||null,status:'running',terminal,recent:'',exitPromise,resolveExit,exitEvent:null,killRequested:false,stopPromise:null,restartPromise:null};
-  this.sessions.set(id,session);
-  terminal.onData(data=>{session.recent=(session.recent+String(data)).slice(-60000);this.onData(id,String(data));});
-  terminal.onExit(({exitCode,signal})=>{
-   if(session.status==='stopped')return;
-   session.status='stopped';session.exitCode=Number.isInteger(exitCode)?exitCode:null;session.signal=signal??null;
-   session.exitEvent={exitCode:session.exitCode,signal:session.signal};
-   session.resolveExit(session.exitEvent);
-   try{this.onExit(id,session.exitCode);}catch(error){console.warn('[TERMINAL EXIT CALLBACK]',error?.message||'Exit callback failed.');}
-  });
-  if(profile)terminal.write(executableLine(shell.id,profile.executable)+'\r');
-  return this.publicSession(session);
+ async create(options={}, {replacingSessionId}={}){
+  const replacementKey=replacingSessionId?String(replacingSessionId):null;
+  const replacingSession=replacementKey?this.sessions.get(replacementKey):null;
+  const replacingStoppedSession=replacingSession?.status==='stopped';
+  if(this.sessions.size+this.pendingCreates-(replacingStoppedSession?1:0)>=MAX_TERMINAL_SESSIONS){
+   throw new Error('Batas '+MAX_TERMINAL_SESSIONS+' sesi terminal tercapai. Tutup sesi yang tidak dipakai sebelum membuka sesi baru.');
+  }
+  this.pendingCreates+=1;
+  try{
+   let shell=await this.resolveShell(options.shell||'auto');
+   const profile=options.profile?await this.resolveProfile(options.profile):null;
+   const cwd=await this.resolveCwd(options.cwd);
+   const cols=cleanSize(options.cols,120,20,400),rows=cleanSize(options.rows,30,5,200);
+   const id='term-'+Date.now().toString(36)+'-'+(++this.sequence).toString(36);
+   const pty=await this.ptyLoader();
+   const spawnOptions={name:'xterm-256color',cols,rows,cwd,env:{...process.env,TERM:'xterm-256color'}};
+   let terminal;
+   try{
+    terminal=pty.spawn(shell.executable,[],spawnOptions);
+   }catch(error){
+    if((options.shell||'auto')==='auto')throw new Error('Terminal PTY tidak dapat dibuat: '+error.message);
+    try{
+     shell=await this.resolveShell('auto');
+     terminal=pty.spawn(shell.executable,[],spawnOptions);
+    }catch(fallbackError){
+     throw new Error('Terminal PTY tidak dapat dibuat: '+fallbackError.message+' (fallback awal: '+error.message+')');
+    }
+   }
+   let resolveExit;
+   const exitPromise=new Promise(resolvePromise=>{resolveExit=resolvePromise;});
+   const session={id,shell:shell.id,shellLabel:shell.label,cwd,pid:terminal.pid,title:cleanTitle(options.title,profile?.label||shell.label),profile:profile?.id||null,status:'running',terminal,recent:'',exitPromise,resolveExit,exitEvent:null,killRequested:false,stopPromise:null,restartPromise:null};
+   terminal.onData(data=>{session.recent=(session.recent+String(data)).slice(-60000);this.onData(id,String(data));});
+   terminal.onExit(({exitCode,signal})=>{
+    if(session.status==='stopped')return;
+    session.status='stopped';session.exitCode=Number.isInteger(exitCode)?exitCode:null;session.signal=signal??null;
+    session.exitEvent={exitCode:session.exitCode,signal:session.signal};
+    session.resolveExit(session.exitEvent);
+    try{this.onExit(id,session.exitCode);}catch(error){console.warn('[TERMINAL EXIT CALLBACK]',error?.message||'Exit callback failed.');}
+   });
+   if(profile)terminal.write(executableLine(shell.id,profile.executable)+'\\r');
+   if(replacingStoppedSession&&this.sessions.get(replacementKey)===replacingSession){
+    this.sessions.delete(replacementKey);
+   }
+   this.sessions.set(id,session);
+   return this.publicSession(session);
+  }finally{
+   this.pendingCreates-=1;
+  }
  }
  publicSession(session){return {id:session.id,shell:session.shell,shellLabel:session.shellLabel,cwd:session.cwd,pid:session.pid,title:session.title,profile:session.profile||null,status:session.status,exitCode:session.exitCode??null};}
  list(){return [...this.sessions.values()].map(session=>this.publicSession(session));}
@@ -158,9 +181,7 @@ export class TerminalManager{
   const options={shell:session.shell,cwd:session.cwd,title:session.title,profile:session.profile||undefined};
   session.restartPromise=(async()=>{
    await this.kill(key,{remove:false});
-   const replacement=await this.create(options);
-   if(this.sessions.get(key)===session)this.sessions.delete(key);
-   return replacement;
+   return this.create(options,{replacingSessionId:key});
   })();
   try{return await session.restartPromise;}
   catch(error){session.restartPromise=null;throw error;}
