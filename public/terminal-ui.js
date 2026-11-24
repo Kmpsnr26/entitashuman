@@ -60,10 +60,17 @@
   }catch(error){setStatus('⚠ '+(error?.message||'Terminal gagal dibuat.'));return null;}
  }
  async function closeSession(id){
-  try{await desktop.terminalKill(id);}catch{}
-  const item=sessions.get(id);if(!item)return;
+  try{
+   const result=await desktop.terminalKill(id);
+   if(result?.error)throw new Error(result.error);
+  }catch(error){
+   setStatus('⚠ Terminal belum dapat ditutup: '+(error?.message||'proses belum berhenti.'));
+   return false;
+  }
+  const item=sessions.get(id);if(!item)return true;
   item.term.dispose();item.view.remove();item.tab.remove();sessions.delete(id);
   if(activeId===id){const next=[...sessions.keys()].at(-1)||'';activeId='';if(next)activate(next);else setStatus('○ Stopped');}
+  return true;
  }
  async function restartActive(){
   if(!activeId)return;
