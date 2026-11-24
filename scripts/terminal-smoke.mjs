@@ -45,7 +45,7 @@ try{
  if(restartedEnded.id!==restarted.id)throw new Error('Exit sesi restart tidak cocok.');
  if(manager.list().length)throw new Error('Sesi PTY tidak bersih setelah ditutup eksplisit.');
  await manager.killAll();
- await new Promise((resolve,reject)=>process.stdout.write('HumanALE god egine terminal PTY smoke passed: CMD interactive input, realtime output, Git PATH, stopped-session recovery, restart, and confirmed process exit.\n',error=>error?reject(error):resolve()));
+ await new Promise((resolve,reject)=>process.stdout.write('HumanALE god egine terminal PTY smoke passed: CMD interactive input, realtime output, Git PATH, stopped-session recovery, restart, and confirmed PTY exit.\n',error=>error?reject(error):resolve()));
  process.exit(0);
 }catch(error){
  clearTimeout(timer);
