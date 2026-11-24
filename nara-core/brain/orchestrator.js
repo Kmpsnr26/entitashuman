@@ -7,6 +7,7 @@ import {createAuthorityPolicy} from './authority-policy.js';
 import {evaluateNaraIntegrationReadiness,readinessCertificate} from './integration-readiness.js';
 import {describeHumanALEIntegrationContract,evaluateHumanALEIntegrationRequest} from './humanale-integration-contract.js';
 import {describeHumanALEIntegrationDryRun,previewHumanALEIntegrationRoute} from './humanale-integration-router.js';
+import {ALECORE_LIFECYCLE_EVENTS} from './lifecycle-events.js';
 import {
   createSensoryFusion,
   createCapabilityBroker,
@@ -83,29 +84,29 @@ export class AleCoreOrchestrator{
       this.sensory.consume(envelope);
     });
     this.running=true;
-    this.bus.emit('nara.start',{source:'orchestrator'});
+    this.bus.emit(ALECORE_LIFECYCLE_EVENTS.start,{source:'orchestrator'});
     return this.snapshot();
   }
 
   stop(){
     if(!this.running)return this.snapshot();
-    this.bus.emit('nara.shutdown',{source:'orchestrator'});
+    this.bus.emit(ALECORE_LIFECYCLE_EVENTS.shutdown,{source:'orchestrator'});
     this.unsubscribe?.();this.unsubscribe=null;this.running=false;
     return this.snapshot();
   }
 
   dispatch(event,payload={},meta={}){
-    if(!this.running)throw new Error('NARA Orchestrator belum dijalankan.');
+    if(!this.running)throw new Error('AleCore AI Orchestrator belum dijalankan.');
     const envelope=this.bus.emit(event,payload,meta);
     return {event:envelope,state:this.snapshot()};
   }
 
   selectRegion(region){
-    if(!isRegionId(region))throw new Error('Region NARA tidak dikenal: '+region);
+    if(!isRegionId(region))throw new Error('Region AleCore AI tidak dikenal: '+region);
     return this.dispatch('brain.region.select',{region});
   }
 
-  startWork({id='',label='Pekerjaan NARA'}={}){
+  startWork({id='',label='Pekerjaan AleCore AI'}={}){
     return this.dispatch('work.start',{id,label});
   }
 
@@ -116,7 +117,7 @@ export class AleCoreOrchestrator{
   connection(name,connected=true){
     const region=String(name||'').toUpperCase();
     const events=connectionEvents[region];
-    if(!events)throw new Error('Koneksi NARA tidak dikenal: '+region);
+    if(!events)throw new Error('Koneksi AleCore AI tidak dikenal: '+region);
     return this.dispatch(connected?events[0]:events[1],{region});
   }
 

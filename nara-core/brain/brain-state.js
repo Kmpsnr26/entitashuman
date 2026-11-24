@@ -2,6 +2,7 @@ import {NARA_REGIONS,isRegionId} from './regions.js';
 import {createHumanALEPolicy,reduceHumanALEPolicy} from './humanale-policy.js';
 import {getSkill} from './skill-registry.js';
 import {normalizeProviderStatus,normalizeStartupConnections} from './provider-state.js';
+import {canonicalLifecycleEvent} from './lifecycle-events.js';
 
 const clamp01=value=>Math.max(0,Math.min(1,Number(value)||0));
 const connectionEvents=Object.freeze({
@@ -98,16 +99,19 @@ export class NaraBrainState{
 
   applyEvent(envelope){
     if(!envelope?.event)return null;
-    const {event,payload={}}=envelope;
-    this.state.lastEvent={id:envelope.id,event,timestamp:envelope.timestamp};
-    this.state.humanale=reduceHumanALEPolicy(this.state.humanale,event,payload,this.state);
+    const {event:rawEvent,payload={}}=envelope;
+    const event=canonicalLifecycleEvent(rawEvent);
+    // Preserve the emitted event for diagnostics/storage while interpreting both
+    // canonical and legacy lifecycle names through one transition path.
+    this.state.lastEvent={id:envelope.id,event:rawEvent,timestamp:envelope.timestamp};
+    this.state.humanale=reduceHumanALEPolicy(this.state.humanale,rawEvent,payload,this.state);
 
-    if(event==='nara.start'){
+    if(event==='alecore.start'){
       this.state.lifecycle='active';
-      this.setRegion('NARA_CORE',{status:'active',activity:1,message:'AleCore AI aktif'},event);
-    }else if(event==='nara.shutdown'){
+      this.setRegion('NARA_CORE',{status:'active',activity:1,message:'AleCore AI aktif'},rawEvent);
+    }else if(event==='alecore.shutdown'){
       this.state.lifecycle='offline';
-      this.setRegion('NARA_CORE',{status:'offline',activity:0,message:'AleCore AI dihentikan'},event);
+      this.setRegion('NARA_CORE',{status:'offline',activity:0,message:'AleCore AI dihentikan'},rawEvent);
     }else if(event==='brain.region.select'&&isRegionId(payload.region)){
       this.selectRegion(payload.region,event);
     }else if(event==='context.prepare'){
