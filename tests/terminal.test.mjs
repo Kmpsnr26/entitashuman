@@ -13,15 +13,17 @@ class FakeTerminal {
  write(value){this.lastWrite=value;}
  resize(cols,rows){this.lastSize={cols,rows};}
  kill(){this.killCalls+=1;}
+ data(value){this.dataListener?.(value);}
  exit({exitCode=0,signal=null}={}){this.exitListener?.({exitCode,signal});}
 }
 
-function createFakeTerminalManager({stopTimeoutMs=100,failSpawnAt=0}={}){
+function createFakeTerminalManager({stopTimeoutMs=100,failSpawnAt=0,onData=()=>{}}={}){
  const failedSpawns=new Set(Array.isArray(failSpawnAt)?failSpawnAt:[failSpawnAt]);
  const terminals=[];
  let spawnCount=0;
  const manager=new TerminalManager({
   workspace:process.cwd(),
+  onData,
   commandLocator:async command=>command==='pwsh.exe'?'C:\\Fake\\pwsh.exe':null,
   stopTimeoutMs,
   ptyLoader:async()=>({spawn:()=>{
@@ -124,7 +126,7 @@ test('terminal startup is restricted to detected CLI profiles and cannot accept 
  assert.match(manager,/session\.killRequested/);
  assert.match(manager,/async killAll\(/);
  assert.match(manager,/async shutdown\(/);
- assert.match(manager,/waitForPendingCreates\(/);
+ assert.match(manager,/waitForPendingCreates\(timeoutMs=this.stopTimeoutMs\)/);
  assert.match(manager,/async resolveProfile\(profile\)/);
  assert.match(manager,/if\(profile\)terminal\.write\(executableLine/);
  assert.doesNotMatch(manager,/options\.startupCommand/);
@@ -376,4 +378,44 @@ test('TerminalManager reopens create gate after shutdown timeout and permits saf
  assert.equal(result.closed,2);
  assert.equal(manager.list().length,0);
  assert.equal(manager.closing,true);
+});
+
+
+test('TerminalManager shutdown timeout restores the create gate while in-flight PTY creation completes',async()=>{
+ const {manager,terminals}=createFakeTerminalManager();
+ let releasePty;
+ manager.ptyLoader=()=>new Promise(resolvePromise=>{
+  releasePty=()=>resolvePromise({spawn:()=>{
+   const terminal=new FakeTerminal();
+   terminals.push(terminal);
+   return terminal;
+  }});
+ });
+ const creating=manager.create({shell:'auto'});
+ for(let attempt=0;attempt<20&&!releasePty;attempt++)await delay(5);
+ assert.equal(typeof releasePty,'function');
+ await assert.rejects(manager.shutdown({timeoutMs:30}),/Pembuatan terminal belum selesai/);
+ assert.equal(manager.closing,false);
+ releasePty();
+ const created=await creating;
+ assert.ok(created.id);
+ assert.equal(manager.list().length,1);
+ const closing=manager.shutdown({timeoutMs:200});
+ await delay(10);
+ terminals[0].exit({exitCode:0});
+ await closing;
+ assert.equal(manager.list().length,0);
+ assert.equal(manager.closing,true);
+});
+
+test('TerminalManager contains exceptions from terminal data callbacks',async()=>{
+ const {manager,terminals}=createFakeTerminalManager({
+  onData:()=>{throw new Error('simulated renderer callback failure');}
+ });
+ const session=await manager.create({shell:'auto'});
+ assert.doesNotThrow(()=>terminals[0].data('bounded terminal output'));
+ assert.match(manager.getRecentOutput(session.id),/bounded terminal output/);
+ const closing=manager.kill(session.id);
+ terminals[0].exit({exitCode:0});
+ await closing;
 });
