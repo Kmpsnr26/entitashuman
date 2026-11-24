@@ -17,6 +17,7 @@ class FakeTerminal {
 }
 
 function createFakeTerminalManager({stopTimeoutMs=100,failSpawnAt=0}={}){
+ const failedSpawns=new Set(Array.isArray(failSpawnAt)?failSpawnAt:[failSpawnAt]);
  const terminals=[];
  let spawnCount=0;
  const manager=new TerminalManager({
@@ -25,7 +26,7 @@ function createFakeTerminalManager({stopTimeoutMs=100,failSpawnAt=0}={}){
   stopTimeoutMs,
   ptyLoader:async()=>({spawn:()=>{
    spawnCount+=1;
-   if(failSpawnAt&&spawnCount===failSpawnAt)throw new Error('simulated PTY spawn failure');
+   if(failedSpawns.has(spawnCount))throw new Error('simulated PTY spawn failure');
    const terminal=new FakeTerminal();terminals.push(terminal);return terminal;
   }})
  });
@@ -116,7 +117,10 @@ test('terminal startup is restricted to detected CLI profiles and cannot accept 
   readFile(new URL('../public/terminal-ui.js',import.meta.url),'utf8')
  ]);
  assert.match(manager,/MAX_TERMINAL_SESSIONS=12/);
- assert.match(manager,/runningCount>=MAX_TERMINAL_SESSIONS/);\n assert.match(manager,/async kill\(/);\n assert.match(manager,/session\.killRequested/);\n assert.match(manager,/async killAll\(/);
+ assert.match(manager,/this\.sessions\.size>=MAX_TERMINAL_SESSIONS/);
+ assert.match(manager,/async kill\(/);
+ assert.match(manager,/session\.killRequested/);
+ assert.match(manager,/async killAll\(/);
  assert.match(manager,/async resolveProfile\(profile\)/);
  assert.match(manager,/if\(profile\)terminal\.write\(executableLine/);
  assert.doesNotMatch(manager,/options\.startupCommand/);
@@ -125,7 +129,8 @@ test('terminal startup is restricted to detected CLI profiles and cannot accept 
  assert.match(manager,/Set-Location -LiteralPath/);
  assert.match(manager,/\.humanale','cli-hub\.json/);
  assert.match(manager,/\.dudiddam','cli-hub\.json/);
- assert.match(ui,/terminalRecent/);\n assert.match(ui,/Terminal belum dapat ditutup/);
+ assert.match(ui,/terminalRecent/);
+ assert.match(ui,/Terminal belum dapat ditutup/);
  assert.match(ui,/terminalList/);
 });
 
@@ -238,7 +243,7 @@ test('TerminalManager concurrent restarts share one replacement operation',async
 });
 
 test('TerminalManager restart preserves the stopped session when replacement spawn fails',async()=>{
- const {manager,terminals}=createFakeTerminalManager({failSpawnAt:2});
+ const {manager,terminals}=createFakeTerminalManager({failSpawnAt:[2,3]});
  const session=await manager.create({shell:'auto'});
  const restart=manager.restart(session.id);
  await delay(10);
