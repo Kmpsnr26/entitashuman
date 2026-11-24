@@ -213,15 +213,34 @@ export class TerminalManager{
   for(const id of Object.keys(SHELLS)){let found=null;for(const command of SHELLS[id].commands){found=await this.commandLocator(command);if(found)break;}shells[id]={id,label:SHELLS[id].label,state:found?'READY':'NOT FOUND',path:found};}
   return {workspace:this.workspace,shells,registry};
  }
- waitForPendingCreates(){
+ waitForPendingCreates(timeoutMs=this.stopTimeoutMs){
   if(this.pendingCreates===0)return Promise.resolve();
-  return new Promise(resolvePromise=>this.pendingCreateWaiters.push(resolvePromise));
+  const requested=Number(timeoutMs);
+  const timeout=Number.isFinite(requested)?Math.max(10,Math.min(30000,requested)):this.stopTimeoutMs;
+  return new Promise((resolvePromise,rejectPromise)=>{
+   let settled=false;
+   let timer;
+   const finish=()=>{
+    if(settled)return;
+    settled=true;
+    clearTimeout(timer);
+    resolvePromise();
+   };
+   timer=setTimeout(()=>{
+    if(settled)return;
+    settled=true;
+    const index=this.pendingCreateWaiters.indexOf(finish);
+    if(index!==-1)this.pendingCreateWaiters.splice(index,1);
+    rejectPromise(new Error('Pembuatan terminal belum selesai dalam '+timeout+' ms. Aplikasi belum akan ditutup.'));
+   },timeout);
+   this.pendingCreateWaiters.push(finish);
+  });
  }
  async shutdown({timeoutMs=this.stopTimeoutMs}={}){
   if(this.shutdownPromise)return this.shutdownPromise;
   this.closing=true;
   const operation=(async()=>{
-   await this.waitForPendingCreates();
+   await this.waitForPendingCreates(timeoutMs);
    return this.killAll({timeoutMs});
   })();
   this.shutdownPromise=operation;
