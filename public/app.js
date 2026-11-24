@@ -703,7 +703,7 @@ function setPersona(provider=aiProvider){
  const persona=provider==='copilot'?'copilot':provider==='chatgpt'?'chatgpt':'dudidam';
  document.body.dataset.persona=persona;avatar.persona=persona;
  if(persona==='copilot')avatar.setAccent?.('cyan');else if(persona==='chatgpt')avatar.setAccent?.('cyan');
- $('#personaBadge').textContent=provider==='alecore-local'?'ALECORE AI · MODEL LOKAL':persona==='copilot'?'HUMANALE GOD ENGINE · GITHUB COPILOT':persona==='chatgpt'?'HUMANALE GOD ENGINE · CHATGPT':'HUMANALE GOD ENGINE · '+provider.toUpperCase();
+ $('#personaBadge').textContent=!desktop?'ALECORE AI · MODE WEB':provider==='alecore-local'?'ALECORE AI · MODEL LOKAL':persona==='copilot'?'HUMANALE GOD ENGINE · GITHUB COPILOT':persona==='chatgpt'?'HUMANALE GOD ENGINE · CHATGPT':'HUMANALE GOD ENGINE · '+provider.toUpperCase();
  if(panelOnly)panelChannel?.postMessage({type:'persona',provider});
 }
 function getIndonesianVoices(){
@@ -873,7 +873,7 @@ async function checkAI(){
    $('#chatNote').textContent=meta.note;
   }else{
    $('#aiStatus').textContent=aiReady?(data.verified?(data.evidence==='successful-request'?'ChatGPT · permintaan sebelumnya berhasil':'ChatGPT · login lokal terverifikasi · tanpa API key'):'ChatGPT · sesi belum diverifikasi'):desktop?'Login ChatGPT diperlukan':data.signedIn?'Login Sites aktif':'Login Sites';
-   $('#apiDetail').textContent=desktop?(aiReady?'Percakapan memakai login ChatGPT melalui Codex CLI lokal dan mengikuti batas penggunaan akun. Riwayat chatgpt.com tidak diimpor.':'Klik Login ChatGPT untuk membuka alur resmi. Setelah selesai, tekan Periksa lagi. Tidak perlu API key.'):'Versi Sites menampilkan avatar dan mengenali login. Percakapan model tersedia pada aplikasi HumanALE god egine Desktop lokal.';
+   $('#apiDetail').textContent=desktop?(aiReady?'Percakapan memakai login ChatGPT melalui Codex CLI lokal dan mengikuti batas penggunaan akun. Riwayat chatgpt.com tidak diimpor.':'Klik Login ChatGPT untuk membuka alur resmi. Setelah selesai, tekan Periksa lagi. Tidak perlu API key.'):'Versi Sites menampilkan avatar dan mengenali login. Percakapan model tersedia di AleCore AI Desktop.';
    $('#chatNote').textContent=desktop?'ChatGPT via Codex CLI · riwayat percakapan di memori aplikasi.':'Versi web: perintah dasar. Percakapan model langsung tersedia di desktop.';
   }
   if(data.statusError){
