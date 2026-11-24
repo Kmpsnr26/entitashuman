@@ -12,7 +12,7 @@ $ErrorActionPreference = 'Stop'
 $installer = (Resolve-Path -LiteralPath $InstallerPath -ErrorAction Stop).Path
 $runnerTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP)
 $target = [IO.Path]::GetFullPath($InstallRoot)
-$tempPrefix = $runnerTemp.TrimEnd('\') + '\'
+$tempPrefix = $runnerTemp.TrimEnd([char[]]@([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)) + [IO.Path]::DirectorySeparatorChar
 
 if (-not $target.StartsWith($tempPrefix, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'InstallRoot must be a child of RUNNER_TEMP. Refusing to install or clean another directory.'
