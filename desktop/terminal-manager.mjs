@@ -64,7 +64,7 @@ function powershellLiteral(value){return "'"+String(value).replace(/'/g,"''")+"'
 export class TerminalManager{
  constructor({workspace=process.cwd(),onData=()=>{},onExit=()=>{},commandLocator=locateCommand,ptyLoader=loadDesktopPty,stopTimeoutMs=DEFAULT_STOP_TIMEOUT_MS}={}){
   this.workspace=resolve(workspace||process.cwd());this.onData=onData;this.onExit=onExit;this.sessions=new Map();this.sequence=0;
-  this.commandLocator=commandLocator;this.ptyLoader=ptyLoader;this.pendingCreates=0;
+  this.commandLocator=commandLocator;this.ptyLoader=ptyLoader;this.pendingCreates=0;this.pendingCreateWaiters=[];this.closing=false;this.shutdownPromise=null;
   const timeout=Number(stopTimeoutMs);
   this.stopTimeoutMs=Number.isFinite(timeout)?Math.max(10,Math.min(30000,timeout)):DEFAULT_STOP_TIMEOUT_MS;
  }
@@ -94,6 +94,7 @@ export class TerminalManager{
   return target;
  }
  async create(options={}, {replacingSessionId}={}){
+  if(this.closing)throw new Error('Terminal manager sedang dalam proses shutdown.');
   const replacementKey=replacingSessionId?String(replacingSessionId):null;
   const replacingSession=replacementKey?this.sessions.get(replacementKey):null;
   const replacingStoppedSession=replacingSession?.status==='stopped';
@@ -124,7 +125,7 @@ export class TerminalManager{
    let resolveExit;
    const exitPromise=new Promise(resolvePromise=>{resolveExit=resolvePromise;});
    const session={id,shell:shell.id,shellLabel:shell.label,cwd,pid:terminal.pid,title:cleanTitle(options.title,profile?.label||shell.label),profile:profile?.id||null,status:'running',terminal,recent:'',exitPromise,resolveExit,exitEvent:null,killRequested:false,stopPromise:null,restartPromise:null};
-   terminal.onData(data=>{session.recent=(session.recent+String(data)).slice(-60000);this.onData(id,String(data));});
+   terminal.onData(data=>{session.recent=(session.recent+String(data)).slice(-60000);try{this.onData(id,String(data));}catch(error){console.warn('[TERMINAL DATA CALLBACK]',error?.message||'Data callback failed.');}});
    terminal.onExit(({exitCode,signal})=>{
     if(session.status==='stopped')return;
     session.status='stopped';session.exitCode=Number.isInteger(exitCode)?exitCode:null;session.signal=signal??null;
@@ -140,6 +141,10 @@ export class TerminalManager{
    return this.publicSession(session);
   }finally{
    this.pendingCreates-=1;
+   if(this.pendingCreates===0&&this.pendingCreateWaiters.length){
+    const waiters=this.pendingCreateWaiters.splice(0);
+    waiters.forEach(resolvePromise=>resolvePromise());
+   }
   }
  }
  publicSession(session){return {id:session.id,shell:session.shell,shellLabel:session.shellLabel,cwd:session.cwd,pid:session.pid,title:session.title,profile:session.profile||null,status:session.status,exitCode:session.exitCode??null};}
@@ -207,6 +212,28 @@ export class TerminalManager{
   const shells={};
   for(const id of Object.keys(SHELLS)){let found=null;for(const command of SHELLS[id].commands){found=await this.commandLocator(command);if(found)break;}shells[id]={id,label:SHELLS[id].label,state:found?'READY':'NOT FOUND',path:found};}
   return {workspace:this.workspace,shells,registry};
+ }
+ waitForPendingCreates(){
+  if(this.pendingCreates===0)return Promise.resolve();
+  return new Promise(resolvePromise=>this.pendingCreateWaiters.push(resolvePromise));
+ }
+ async shutdown({timeoutMs=this.stopTimeoutMs}={}){
+  if(this.shutdownPromise)return this.shutdownPromise;
+  this.closing=true;
+  const operation=(async()=>{
+   await this.waitForPendingCreates();
+   return this.killAll({timeoutMs});
+  })();
+  this.shutdownPromise=operation;
+  try{
+   return await operation;
+  }catch(error){
+   if(this.shutdownPromise===operation){
+    this.shutdownPromise=null;
+    this.closing=false;
+   }
+   throw error;
+  }
  }
  async killAll({timeoutMs=this.stopTimeoutMs}={}){
   const ids=[...this.sessions.keys()];
