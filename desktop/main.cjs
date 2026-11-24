@@ -971,7 +971,7 @@ else{
    if(terminalManager&&!terminalShutdownReady){
     event.preventDefault();
     if(!terminalShutdownPromise){
-     terminalShutdownPromise=terminalManager.killAll().then(()=>{
+     terminalShutdownPromise=terminalManager.shutdown().then(()=>{
       terminalShutdownReady=true;
       terminalShutdownPromise=null;
       app.quit();
