@@ -38,18 +38,18 @@ try{
  const restarted=await manager.restart(session.id);
  if(!restarted?.pid||restarted.id===session.id||restarted.status!=='running')throw new Error('Restart PTY tidak membuat sesi baru yang aktif.');
  const restartedExited=waitForExit(restarted.id);
- manager.kill(restarted.id);
+ await manager.kill(restarted.id);
  const restartTimeout=new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('PTY restart tidak berhenti dalam 12 detik.')),12000);});
  const restartedEnded=await Promise.race([restartedExited,restartTimeout]);
  clearTimeout(timer);
  if(restartedEnded.id!==restarted.id)throw new Error('Exit sesi restart tidak cocok.');
  if(manager.list().length)throw new Error('Sesi PTY tidak bersih setelah ditutup eksplisit.');
- manager.killAll();
+ await manager.killAll();
  await new Promise((resolve,reject)=>process.stdout.write('HumanALE god egine terminal PTY smoke passed: CMD interactive input, realtime output, Git PATH, stopped-session recovery, restart, and confirmed process exit.\n',error=>error?reject(error):resolve()));
  process.exit(0);
 }catch(error){
  clearTimeout(timer);
- try{manager?.killAll();}catch{}
+ try{await manager?.killAll();}catch(cleanupError){console.error('PTY cleanup after smoke failure:',cleanupError?.message||'cleanup failed');}
  console.error('HumanALE god egine terminal PTY smoke failed:',error);
  process.exit(1);
 }
