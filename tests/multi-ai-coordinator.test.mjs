@@ -321,6 +321,8 @@ test('desktop UI and IPC are connected to the privacy-gated coordinator', async 
   assert.match(main, /multiAiCoordinator\.run\(\{\.\.\.payload,mode:collaborationMode,allowCloud:value\?\.allowCloud===true\}\)/);
   assert.match(main, /provider!=='alecore-local'&&value\?\.allowCloud!==true/);
   assert.match(app, /collaborationMode==='local-only'\|\|!allowCloudForThisMessage/);
+  assert.match(app, /data\.verified===true/);
+  assert.match(app, /Tugas Developer Agent Hub/);
   assert.match(preload, /ask:payload=>ipcRenderer\.invoke\('dudidam:ask',payload\)/);
   assert.match(app, /desktop\.ask\(\{provider:aiProvider,collaborationMode,allowCloud:allowCloudForThisMessage/);
   assert.match(app, /if\(desktop&&collaborationMode!=='manual'\)aiProvider='alecore-local'/);
@@ -365,5 +367,6 @@ test('Copilot login success is retained as a verified collaborator state', async
   const status = await bridge.status();
   assert.deepEqual(login, { ok: true });
   assert.equal(status.configured, true);
+  assert.equal(status.installed, true);
   assert.equal(status.verified, true);
 });
