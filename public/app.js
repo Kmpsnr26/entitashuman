@@ -847,7 +847,7 @@ async function submit(text,image){text=text.trim();if(!text||busy)return;const a
   busy=true;stopSpeech();$('#send').disabled=true;$('#look').disabled=true;state('Memeriksa executor CLI…');$('#liveText').textContent='Memeriksa kesiapan Mode Kerja dan koneksi agent…';
   let workSucceeded=false;setEvolutionVisual('start');
   try{
-   const result=await runProjectWork(text);
+   const result=await runProjectWork(text,{allowCloud:allowCloudForThisMessage});
    if(result?.error)throw new Error(result.error);
    const answer=result?.text||'Agent selesai tanpa output teks.';
    history.push({role:'user',content:text},{role:'assistant',content:answer});history=history.slice(-10);panelChannel?.postMessage({type:'history',history});message(answer);
@@ -956,6 +956,9 @@ function setEvolutionVisual(mode='start'){
 }
 async function runDeveloperAgent(event){
  event.preventDefault();if(!desktop)return;
+ const allowCloudForAgentTask=$('#allowCloudCollaboration').checked===true;
+ $('#allowCloudCollaboration').checked=false;
+ if(collaborationMode==='local-only'||!allowCloudForAgentTask){toast('Agent eksternal memerlukan izin cloud untuk tugas ini. Centang izin sebelum menjalankan agent.');return;}
  const id=$('#agentSelect').value,prompt=$('#agentPrompt').value.trim(),mode=$('#agentMode').value;
  if(!id||!prompt)return;
  if(mode==='work'&&!['humanale-orchestrator','github-copilot','codex','cursor','claude'].includes(id)){toast('Mode Kerja hanya tersedia untuk HumanALE Orchestrator, GitHub Copilot, OpenAI Codex, Cursor, atau Claude Code.');return;}
@@ -971,7 +974,7 @@ async function runDeveloperAgent(event){
   }
   selectedDeveloperAgentId=id;
   const payload=await createAgentTaskPayload({id,prompt,mode,prepareMemory:prepareEffectiveMemoryContext});
-  const result=await desktop.runAgent(payload);
+  const result=await desktop.runAgent({...payload,allowCloud:true,collaborationMode});
   if(result?.error)throw new Error(result.error);
   $('#agentOutput').textContent=result?.text||'Agent selesai tanpa output.';
   desktopMemory?.remember({
@@ -1015,7 +1018,7 @@ function buildProjectWorkPrompt(text){
  const prompt='Pengguna secara eksplisit meminta perubahan proyek dari percakapan HumanALE god egine. Gunakan konteks berikut untuk memahami target visual/bug, lalu benar-benar edit file yang relevan di checkout proyek. Jangan hanya memberi rencana.\n\n'+(context?context+'\n':'')+'PENGGUNA SEKARANG: '+text+'\n\nSetelah mengedit, jalankan test yang relevan dan laporkan file yang diubah serta hasilnya.';
  return prompt.slice(-3900);
 }
-async function runProjectWork(text){
+async function runProjectWork(text,{allowCloud=false}={}){
  const status=await desktop.agents();
  latestAgentStatus=status;
  let executor;
@@ -1027,8 +1030,9 @@ async function runProjectWork(text){
  state(executor.name+' mengerjakan proyek…');$('#liveText').textContent=executor.name+' · Mode Kerja';
  const prompt=buildProjectWorkPrompt(text);
  try{
+  if(!allowCloud||collaborationMode==='local-only')throw new Error('Mode Kerja Agent Hub memerlukan izin cloud untuk pesan ini.');
   const payload=await createAgentTaskPayload({id:executor.id,mode:'work',prompt});
-  const result=await desktop.runAgent(payload);
+  const result=await desktop.runAgent({...payload,allowCloud:true,collaborationMode});
   if(!result?.error)desktopMemory?.remember({
    type:'task',title:executor.name+' · mode kerja',
    summary:'Permintaan kerja agent selesai. Prompt dan output mentah tidak disimpan otomatis.',
