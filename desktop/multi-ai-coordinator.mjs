@@ -307,8 +307,8 @@ export class AleCoreMultiAICoordinator {
             const copilotStatus = await this.statusOf('copilot');
             if (executors.includes('github-copilot') && copilotStatus.installed === true && copilotStatus.verified !== true) {
               unavailable('Copilot tersedia tetapi login belum diverifikasi; hubungkan Copilot atau nonaktifkan dulu dari Agent Hub');
-            } else if (!executors.length) {
-              unavailable('Tidak ada executor spesialis terverifikasi (Codex, Copilot, Cursor, atau Claude Code)');
+            } else if (executors.length < 2) {
+              unavailable('Pipeline Planner → Worker → Reviewer memerlukan minimal dua executor berbeda yang siap');
             } else {
               const specialistRequest = {
                 id: 'humanale-orchestrator',
