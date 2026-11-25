@@ -29,8 +29,8 @@ export class CopilotBridge{
  constructor({runImpl=run,findExecutable=findCopilot}={}){this.pending=false;this.verified=false;this.children=new Set();this.run=runImpl;this.findExecutable=findExecutable;}
  async status(){
   const executable=await this.findExecutable();
-  try{const result=await this.run(executable,['--version'],{timeout:12000,children:this.children});return {configured:result.code===0,mode:'copilot-cli',verified:this.verified,model:'GitHub Copilot CLI',busy:this.pending,statusError:result.code===0?'':'STATUS_FAILED'};}
-  catch{return {configured:false,mode:'copilot-cli',statusError:'STATUS_FAILED'};}
+  try{const result=await this.run(executable,['--version'],{timeout:12000,children:this.children});const installed=result.code===0;return {configured:installed,installed,mode:'copilot-cli',verified:this.verified,model:'GitHub Copilot CLI',busy:this.pending,statusError:installed?'':'STATUS_FAILED'};}
+  catch{return {configured:false,installed:false,mode:'copilot-cli',verified:false,statusError:'STATUS_FAILED'};}
  }
  async login(){
   if(this.pending)return {error:'Tunggu permintaan Copilot sebelumnya selesai.'};
