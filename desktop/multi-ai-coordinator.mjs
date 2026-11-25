@@ -87,7 +87,7 @@ function summarize(mode, participants, cloudShared, reason) {
   let line = 'Kolaborasi ' + mode.toUpperCase() + ' · ';
   line += completed.length ? 'berhasil: ' + completed.join(', ') : 'AleCore Local saja';
   if (waiting.length) line += ' · belum tersedia: ' + waiting.join('; ');
-  if (cloudShared) line += ' · pesan dan draf dibagikan ke provider cloud yang berhasil dipanggil';
+  if (cloudShared) line += ' · permintaan dan draf dibagikan ke AI cloud atau agent eksternal yang berhasil dipanggil';
   else if (reason === 'cloud-consent-required') line += ' · cloud tidak dipanggil karena izin berbagi belum diberikan';
   else if (reason === 'image-kept-local') line += ' · foto tetap diproses lokal';
   else if (reason === 'simple-request') line += ' · pertanyaan sederhana tidak perlu provider cloud';
@@ -315,6 +315,7 @@ export class AleCoreMultiAICoordinator {
                 mode: 'analyze',
                 prompt: specialistPrompt(data.message, primary.text, reviews)
               };
+              cloudShared = true;
               const result = this.agentCoordinator?.run
                 ? await this.agentCoordinator.run(specialistRequest)
                 : await this.agentHub.run(specialistRequest);
