@@ -297,6 +297,8 @@ export class AleCoreMultiAICoordinator {
         unavailable('Agent Hub tidak terhubung ke koordinator percakapan');
       } else if (this.agentHub.pending) {
         unavailable('Developer Agent Hub sedang mengerjakan tugas lain');
+      } else if (this.agentCoordinator?.canRun && !this.agentCoordinator.canRun()) {
+        unavailable('NARA Autopilot memiliki task lain yang masih aktif atau antre');
       } else {
         try {
           const rootReady = await this.agentHub.projectRootReady();
@@ -315,10 +317,13 @@ export class AleCoreMultiAICoordinator {
                 mode: 'analyze',
                 prompt: specialistPrompt(data.message, primary.text, reviews)
               };
-              cloudShared = true;
+              if (this.agentCoordinator?.run && this.agentCoordinator?.canRun) {
+                if (!this.agentCoordinator.canRun()) throw new Error('NARA Autopilot tidak lagi siap.');
+              }
               const result = this.agentCoordinator?.run
                 ? await this.agentCoordinator.run(specialistRequest)
                 : await this.agentHub.run(specialistRequest);
+              if (result?.nara || (typeof result?.text === 'string' && result.text.trim())) cloudShared = true;
               const specialistText = typeof result?.text === 'string' ? result.text.trim() : '';
               if (!specialistText) {
                 throw new Error('Specialist Agent Hub tidak mengembalikan hasil analisis.');
