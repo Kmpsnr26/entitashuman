@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { NaraAgentCoordinator } from '../desktop/nara-agent-coordinator.mjs';
 
-test('NARA Agent Coordinator refuses to run while unrelated tasks are queued', async () => {
+test('NARA Agent Coordinator reports specialist readiness as blocked by unrelated queued tasks', async () => {
   let createGoalCalled = false;
   const nara = {
     registerAutopilotHandler() {},
