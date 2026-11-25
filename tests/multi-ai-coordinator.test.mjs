@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { CopilotBridge } from '../desktop/copilot.mjs';
 import {
   AleCoreMultiAICoordinator,
   isComplexCollaborationRequest
@@ -255,4 +256,22 @@ test('desktop UI and IPC are connected to the privacy-gated coordinator', async 
   assert.match(app, /if\(desktop&&collaborationMode!=='manual'\)aiProvider='alecore-local'/);
   assert.match(html, /id="collaborationMode"/);
   assert.match(html, /id="allowCloudCollaboration"/);
+});
+
+
+test('Copilot login success is retained as a verified collaborator state', async () => {
+  const bridge = new CopilotBridge({
+    findExecutable: async () => 'copilot-test',
+    runImpl: async (_executable, args) => ({
+      code: 0,
+      stdout: args[0] === '--version' ? 'GitHub Copilot CLI test' : 'Login completed',
+      stderr: ''
+    })
+  });
+
+  const login = await bridge.login();
+  const status = await bridge.status();
+  assert.deepEqual(login, { ok: true });
+  assert.equal(status.configured, true);
+  assert.equal(status.verified, true);
 });
