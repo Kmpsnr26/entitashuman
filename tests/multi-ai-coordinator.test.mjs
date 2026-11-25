@@ -303,6 +303,84 @@ test('coordinator rejects overlapping conversation runs and releases its lock', 
   assert.equal(coordinator.pending, false);
 });
 
+test('FULL TEAM includes the read-only Specialist Agent Hub through NARA', async () => {
+  const local = fakeBridge({ responses: ['Draf lokal.', 'Jawaban final sintesis.'] });
+  const chatgpt = fakeBridge({ configured: false });
+  const copilot = fakeBridge({ configured: false });
+  const calls = [];
+  const agentHub = {
+    pending: false,
+    async projectRootReady() { return true; },
+    async availableStructuredExecutors() { return ['codex']; },
+    async run() { throw new Error('NARA coordinator should own the specialist run'); }
+  };
+  const agentCoordinator = {
+    async run(value) {
+      calls.push(value);
+      return {
+        text: 'Planner, Worker, dan Reviewer menemukan risiko dependensi.',
+        stages: [
+          { role: 'planner', agent: 'codex' },
+          { role: 'worker', agent: 'cursor' },
+          { role: 'reviewer', agent: 'claude' }
+        ]
+      };
+    }
+  };
+  const coordinator = new AleCoreMultiAICoordinator({
+    bridges: { 'alecore-local': local, chatgpt, copilot },
+    agentHub,
+    agentCoordinator
+  });
+
+  const result = await coordinator.run({
+    mode: 'full-team',
+    allowCloud: true,
+    message: 'Analisis arsitektur aplikasi dan risiko dependensi.'
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].id, 'humanale-orchestrator');
+  assert.equal(calls[0].mode, 'analyze');
+  assert.equal(local.calls.length, 2);
+  assert.ok(result.collaboration.participants.some(item =>
+    item.provider === 'specialist-agents'
+      && item.status === 'completed'
+      && /Planner → Worker → Reviewer/.test(item.detail)
+  ));
+  assert.equal(result.text, 'Jawaban final sintesis.');
+});
+
+test('Specialist Agent Hub stays unavailable until a Git checkout is selected', async () => {
+  const local = fakeBridge({ responses: ['Draf lokal.'] });
+  const agentHub = {
+    pending: false,
+    async projectRootReady() { return false; },
+    async availableStructuredExecutors() { return ['codex']; },
+    async run() { throw new Error('must not run without a checkout'); }
+  };
+  const agentCoordinator = {
+    async run() { throw new Error('must not run without a checkout'); }
+  };
+  const coordinator = new AleCoreMultiAICoordinator({
+    bridges: { 'alecore-local': local },
+    agentHub,
+    agentCoordinator
+  });
+
+  const result = await coordinator.run({
+    mode: 'full-team',
+    allowCloud: true,
+    message: 'Analisis arsitektur secara menyeluruh.'
+  });
+
+  assert.ok(result.collaboration.participants.some(item =>
+    item.provider === 'specialist-agents'
+      && item.status === 'unavailable'
+      && /Pilih checkout Git/.test(item.detail)
+  ));
+});
+
 test('complexity detection recognizes technical work but not a short greeting', () => {
   assert.equal(isComplexCollaborationRequest('Halo, apa kabar?'), false);
   assert.equal(isComplexCollaborationRequest('Tolong audit keamanan dan review arsitektur repository.'), true);
@@ -317,7 +395,7 @@ test('desktop UI and IPC are connected to the privacy-gated coordinator', async 
     readFile(new URL('../public/index.html', import.meta.url), 'utf8')
   ]);
 
-  assert.match(main, /new AleCoreMultiAICoordinator\(\{bridges\}\)/);
+  assert.match(main, /new AleCoreMultiAICoordinator\(\{bridges,agentHub,agentCoordinator:naraAgentCoordinator\}\)/);
   assert.match(main, /multiAiCoordinator\.run\(\{\.\.\.payload,mode:collaborationMode,allowCloud:value\?\.allowCloud===true\}\)/);
   assert.match(main, /provider!=='alecore-local'&&value\?\.allowCloud!==true/);
   assert.match(app, /collaborationMode==='local-only'\|\|!allowCloudForThisMessage/);
