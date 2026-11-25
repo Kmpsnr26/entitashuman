@@ -375,7 +375,6 @@ else{
   },2000);
   dataFlowTimer.unref?.();
   bridges={'alecore-local':new AleCoreLocalBridge(),chatgpt:new ChatGPTBridge(),copilot:new CopilotBridge(),openai:new OpenAIBridge(),grok:new GrokBridge(),gemini:new GeminiBridge(),claude:new ClaudeBridge(),deepseek:new DeepSeekBridge(),askcodi:new AskCodiBridge()};
-  multiAiCoordinator=new AleCoreMultiAICoordinator({bridges});
   try{
    const configuredOrigins=resolveAleCoreCloudOrigins(process.env);
    const cloudOrigin=normalizeOrigin(configuredOrigins.cloudOrigin);
@@ -393,6 +392,7 @@ else{
    cloudMemory=new AleCoreCloudContextClient({origin:''});
   }
   agentHub=new DeveloperAgentHub();
+  multiAiCoordinator=new AleCoreMultiAICoordinator({bridges,agentHub});
   naraAgentCoordinator=createAleCoreAgentCoordinator({nara,agentHub}).bind();
   const savedProjectRoot=await readProjectRoot();if(savedProjectRoot)agentHub.setProjectRoot(savedProjectRoot);
   void bootstrapNaraConnections({bridges,agentHub,nara}).catch(()=>{
