@@ -14,6 +14,7 @@ function fakeBridge({
   failAsk = false,
   verified = true,
   installed = false,
+  authenticated = false,
   busy = false
 } = {}) {
   const calls = [];
@@ -22,7 +23,7 @@ function fakeBridge({
     calls,
     pending: false,
     async status() {
-      return statusResult || { configured, verified, installed, busy };
+      return statusResult || { configured, verified, installed, authenticated, busy };
     },
     async ask(payload) {
       calls.push(payload);
@@ -360,7 +361,7 @@ test('FULL TEAM includes the read-only Specialist Agent Hub through NARA', async
 
 test('Specialist Agent Hub excludes unverified Copilot but can use other ready executors', async () => {
   const local = fakeBridge({ responses: ['Draf lokal.', 'Sintesis lokal.'] });
-  const copilot = fakeBridge({ configured: true, installed: true, verified: false });
+  const copilot = fakeBridge({ configured: true, installed: true, verified: false, authenticated: false });
   const calls = [];
   const agentHub = {
     pending: false,
@@ -484,7 +485,7 @@ test('AUTO does not call Copilot until its login state is verified', async () =>
   ));
 });
 
-test('Copilot login success is retained as a verified collaborator state', async () => {
+test('Copilot login success is retained as authenticated but not request-verified state', async () => {
   const bridge = new CopilotBridge({
     findExecutable: async () => 'copilot-test',
     runImpl: async (_executable, args) => ({
