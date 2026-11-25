@@ -87,7 +87,7 @@ function summarize(mode, participants, cloudShared, reason) {
   let line = 'Kolaborasi ' + mode.toUpperCase() + ' · ';
   line += completed.length ? 'berhasil: ' + completed.join(', ') : 'AleCore Local saja';
   if (waiting.length) line += ' · belum tersedia: ' + waiting.join('; ');
-  if (cloudShared) line += ' · permintaan dan draf dibagikan ke AI cloud atau agent eksternal yang berhasil dipanggil';
+  if (cloudShared) line += ' · data permintaan/draf telah diserahkan ke AI cloud atau agent eksternal (respons bisa berhasil atau gagal)';
   else if (reason === 'cloud-consent-required') line += ' · cloud tidak dipanggil karena izin berbagi belum diberikan';
   else if (reason === 'image-kept-local') line += ' · foto tetap diproses lokal';
   else if (reason === 'simple-request') line += ' · pertanyaan sederhana tidak perlu provider cloud';
@@ -254,6 +254,7 @@ export class AleCoreMultiAICoordinator {
       }
 
       const ready = readiness.filter(isReady);
+      if (ready.length) cloudShared = true;
       const outcomes = await Promise.all(ready.map(async item => {
         try {
           const result = await this.bridges[item.provider].ask({
@@ -270,7 +271,6 @@ export class AleCoreMultiAICoordinator {
 
       for (const outcome of outcomes) {
         if (outcome.status === 'completed') {
-          cloudShared = true;
           reviews.push(outcome);
           participants.push({
             provider: outcome.provider,
@@ -320,10 +320,10 @@ export class AleCoreMultiAICoordinator {
               if (this.agentCoordinator?.run && this.agentCoordinator?.canRun) {
                 if (!this.agentCoordinator.canRun()) throw new Error('NARA Autopilot tidak lagi siap.');
               }
+              cloudShared = true;
               const result = this.agentCoordinator?.run
                 ? await this.agentCoordinator.run(specialistRequest)
                 : await this.agentHub.run(specialistRequest);
-              if (result?.nara || (typeof result?.text === 'string' && result.text.trim())) cloudShared = true;
               const specialistText = typeof result?.text === 'string' ? result.text.trim() : '';
               if (!specialistText) {
                 throw new Error('Specialist Agent Hub tidak mengembalikan hasil analisis.');
