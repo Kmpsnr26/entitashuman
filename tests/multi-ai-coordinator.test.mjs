@@ -12,7 +12,8 @@ function fakeBridge({
   responses = ['jawaban'],
   statusResult = null,
   failAsk = false,
-  verified = true
+  verified = true,
+  busy = false
 } = {}) {
   const calls = [];
   let index = 0;
@@ -20,7 +21,7 @@ function fakeBridge({
     calls,
     pending: false,
     async status() {
-      return statusResult || { configured, verified };
+      return statusResult || { configured, verified, busy };
     },
     async ask(payload) {
       calls.push(payload);
@@ -236,6 +237,72 @@ test('manual mode uses only the provider explicitly selected by the user', async
   assert.equal(result.collaboration.cloudShared, true);
 });
 
+test('manual cloud providers require explicit consent', async () => {
+  const local = fakeBridge();
+  const chatgpt = fakeBridge();
+  const coordinator = new AleCoreMultiAICoordinator({
+    bridges: { 'alecore-local': local, chatgpt }
+  });
+
+  await assert.rejects(
+    coordinator.run({
+      mode: 'manual',
+      provider: 'chatgpt',
+      allowCloud: false,
+      message: 'Jawab menggunakan ChatGPT.'
+    }),
+    /izin cloud untuk pesan ini belum diberikan/
+  );
+  assert.equal(chatgpt.calls.length, 0);
+});
+
+test('busy collaborators are reported unavailable rather than called concurrently', async () => {
+  const local = fakeBridge();
+  const chatgpt = fakeBridge({ configured: true, busy: true });
+  const coordinator = new AleCoreMultiAICoordinator({
+    bridges: { 'alecore-local': local, chatgpt }
+  });
+
+  const result = await coordinator.run({
+    mode: 'full-team',
+    allowCloud: true,
+    message: 'Buat analisis lengkap.'
+  });
+
+  assert.equal(chatgpt.calls.length, 0);
+  assert.ok(result.collaboration.participants.some(item =>
+    item.provider === 'chatgpt'
+      && item.status === 'unavailable'
+      && /sedang mengerjakan/.test(item.detail)
+  ));
+});
+
+test('coordinator rejects overlapping conversation runs and releases its lock', async () => {
+  let release;
+  const local = {
+    pending: false,
+    async status() { return { configured: true }; },
+    async ask() {
+      return new Promise(resolve => { release = resolve; });
+    }
+  };
+  const coordinator = new AleCoreMultiAICoordinator({
+    bridges: { 'alecore-local': local }
+  });
+  const first = coordinator.run({ mode: 'local-only', message: 'Analisis satu.' });
+  await new Promise(resolve => setImmediate(resolve));
+
+  await assert.rejects(
+    coordinator.run({ mode: 'local-only', message: 'Analisis dua.' }),
+    /Tunggu kolaborasi AleCore AI sebelumnya selesai/
+  );
+
+  release({ text: 'Selesai.' });
+  const result = await first;
+  assert.equal(result.text, 'Selesai.');
+  assert.equal(coordinator.pending, false);
+});
+
 test('complexity detection recognizes technical work but not a short greeting', () => {
   assert.equal(isComplexCollaborationRequest('Halo, apa kabar?'), false);
   assert.equal(isComplexCollaborationRequest('Tolong audit keamanan dan review arsitektur repository.'), true);
@@ -252,6 +319,8 @@ test('desktop UI and IPC are connected to the privacy-gated coordinator', async 
 
   assert.match(main, /new AleCoreMultiAICoordinator\(\{bridges\}\)/);
   assert.match(main, /multiAiCoordinator\.run\(\{\.\.\.payload,mode:collaborationMode,allowCloud:value\?\.allowCloud===true\}\)/);
+  assert.match(main, /provider!=='alecore-local'&&value\?\.allowCloud!==true/);
+  assert.match(app, /collaborationMode==='local-only'\|\|!allowCloudForThisMessage/);
   assert.match(preload, /ask:payload=>ipcRenderer\.invoke\('dudidam:ask',payload\)/);
   assert.match(app, /desktop\.ask\(\{provider:aiProvider,collaborationMode,allowCloud:allowCloudForThisMessage/);
   assert.match(app, /if\(desktop&&collaborationMode!=='manual'\)aiProvider='alecore-local'/);
