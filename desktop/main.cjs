@@ -643,6 +643,9 @@ else{
    const collaborationMode=['auto','full-team','local-only','manual'].includes(value?.collaborationMode)?value.collaborationMode:'auto';
    const reportedProvider=collaborationMode==='manual'?provider:'alecore-local';
    nara.dispatch('reason.start',{label:collaborationMode==='manual'?'Memproses jawaban melalui '+provider:'AleCore Local · mode '+collaborationMode,source:'chat'});
+   if(collaborationMode==='manual'&&provider!=='alecore-local'&&value?.allowCloud!==true){
+    return {error:'Provider cloud dipilih secara manual, tetapi izin cloud untuk pesan ini belum diberikan. Centang izin lalu kirim ulang.'};
+   }
    try{
     const payload={...value,memoryContext};delete payload.provider;
     const result=collaborationMode==='manual'
