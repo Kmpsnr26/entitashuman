@@ -549,8 +549,21 @@ const audioReactor=new AudioReactor(level=>{audioEnergy=level;syncFaceAudio();sy
  avatar.setEarSpectrum(bands);syncNaraHearing();
  if(panelOnly&&(Math.max(bands.low,bands.mid,bands.high)===0||performance.now()-lastBandsSent>80)){panelChannel?.postMessage({type:'ear-spectrum',bands});lastBandsSent=performance.now();}
 });
-if(desktop){document.body.classList.add('desktop');$('.desktop-actions').hidden=false;$('#providerRow').hidden=collaborationMode!=='manual';$('#provider').value=aiProvider;$('#collaborationModeRow').hidden=false;$('#collaborationMode').value=collaborationMode;$('#cloudConsentRow').hidden=collaborationMode==='local-only';$('#collaborationNote').hidden=false;$('#collaborationLoginActions').hidden=collaborationMode==='local-only'||collaborationMode==='manual';$('#collaborationProviderStatus').hidden=collaborationMode==='local-only'||collaborationMode==='manual';$('#popup').hidden=true;if(panelOnly)document.body.classList.add('detached-panel');updateDesktopMemoryContextUi();}else $('#systemAudio').hidden=true;
+if(desktop){document.body.classList.add('desktop');$('.desktop-actions').hidden=false;$('#providerRow').hidden=collaborationMode!=='manual';$('#provider').value=aiProvider;$('#collaborationModeRow').hidden=false;$('#collaborationMode').value=collaborationMode;$('#cloudConsentRow').hidden=collaborationMode==='local-only';$('#collaborationNote').hidden=false;$('#collaborationLoginActions').hidden=collaborationMode==='local-only'||collaborationMode==='manual';$('#collaborationProviderStatus').hidden=collaborationMode==='local-only'||collaborationMode==='manual';updateCollaborationNotice();$('#popup').hidden=true;if(panelOnly)document.body.classList.add('detached-panel');updateDesktopMemoryContextUi();}else $('#systemAudio').hidden=true;
 if(popup){document.body.classList.add('popup-widget');$('#popup').hidden=true;}
+function updateCollaborationNotice(){
+ const note=$('#collaborationNote');
+ if(collaborationMode==='local-only'){
+  note.textContent='LOCAL ONLY: semua percakapan tetap di AleCore Local. Tidak ada pesan, riwayat, memory, foto, atau tugas yang dikirim ke provider cloud. Tugas Developer Agent eksternal diblokir.';
+ }else if(collaborationMode==='manual'&&aiProvider!=='alecore-local'){
+  const label=({'chatgpt':'ChatGPT','copilot':'GitHub Copilot','openai':'OpenAI API','grok':'Grok','gemini':'Gemini','claude':'Claude','deepseek':'DeepSeek','askcodi':'AskCodi'})[aiProvider]||aiProvider;
+  note.textContent='MANUAL: '+label+' menerima pesan langsung hanya setelah izin cloud untuk pesan ini dicentang. Riwayat, memory context, dan foto dapat ikut dikirim sesuai kemampuan provider yang dipilih.';
+ }else if(collaborationMode==='manual'){
+  note.textContent='MANUAL · AleCore Local: percakapan tetap lokal. Untuk tugas proyek, Developer Agent Hub dapat memakai executor cloud hanya setelah izin cloud untuk pesan tersebut dicentang.';
+ }else{
+  note.textContent='AUTO/FULL TEAM: AleCore Local membuat draf. Setelah izin per pesan, reviewer cloud menerima teks permintaan dan draf lokal saja; riwayat mentah, paket memory, dan lampiran foto tidak diteruskan. Tugas proyek eksternal juga memerlukan izin.';
+ }
+}
 async function refreshCollaborationProviderStatus(){if(!desktop)return;const status=$('#collaborationProviderStatus');status.textContent='Memeriksa koneksi ChatGPT dan GitHub Copilot…';try{const [chatgpt,copilot]=await Promise.all([desktop.status('chatgpt'),desktop.status('copilot')]);const chatLabel=chatgpt?.configured?'ChatGPT · login terverifikasi':'ChatGPT · belum login';const copilotLabel=!copilot?.configured?'Copilot CLI · belum terpasang':copilot?.verified?'Copilot · login terverifikasi':'Copilot CLI · terdeteksi, autentikasi diuji saat permintaan';status.textContent=chatLabel+'  |  '+copilotLabel;}catch{status.textContent='Status kolaborator belum dapat diperiksa.';}}
 async function loginCollaborationProvider(provider){if(!desktop)return;const button=provider==='copilot'?$('#collabLoginCopilot'):$('#collabLoginChatGPT');button.disabled=true;try{const result=provider==='copilot'?await desktop.loginCopilot():await desktop.login();if(result?.error)toast(result.error);else toast((provider==='copilot'?'GitHub Copilot':'ChatGPT')+' berhasil dihubungkan.');await refreshCollaborationProviderStatus();}catch{toast('Login provider belum selesai. Coba lagi.');}finally{button.disabled=false;}}
 function applyAvatarSize(value){
@@ -1247,11 +1260,11 @@ $('#wakeToggle').onchange=e=>{if(panelOnly){panelChannel?.postMessage({type:'wak
 $('#camera').onclick=toggleCamera;
 $('#center').onclick=center;
 $('#refreshStatus').onclick=()=>{checkAI();refreshCloudMemoryStatus();};
-$('#collaborationMode').onchange=e=>{const next=['auto','full-team','local-only','manual'].includes(e.target.value)?e.target.value:'auto';collaborationMode=next;localStorage.setItem('alecore-collaboration-mode',next);$('#providerRow').hidden=next!=='manual';$('#cloudConsentRow').hidden=next==='local-only';$('#collaborationLoginActions').hidden=next==='local-only'||next==='manual';$('#collaborationProviderStatus').hidden=next==='local-only'||next==='manual';if(next!=='manual'){aiProvider='alecore-local';$('#provider').value=aiProvider;setPersona(aiProvider);}checkAI();};
+$('#collaborationMode').onchange=e=>{const next=['auto','full-team','local-only','manual'].includes(e.target.value)?e.target.value:'auto';collaborationMode=next;localStorage.setItem('alecore-collaboration-mode',next);$('#providerRow').hidden=next!=='manual';$('#cloudConsentRow').hidden=next==='local-only';$('#collaborationLoginActions').hidden=next==='local-only'||next==='manual';$('#collaborationProviderStatus').hidden=next==='local-only'||next==='manual';if(next!=='manual'){aiProvider='alecore-local';$('#provider').value=aiProvider;setPersona(aiProvider);}updateCollaborationNotice();checkAI();};
 $('#collabCheckProviders').onclick=refreshCollaborationProviderStatus;
 $('#collabLoginChatGPT').onclick=()=>loginCollaborationProvider('chatgpt');
 $('#collabLoginCopilot').onclick=()=>loginCollaborationProvider('copilot');
-$('#provider').onchange=e=>{aiProvider=['chatgpt',...apiProviders].includes(e.target.value)?e.target.value:'chatgpt';collaborationMode='manual';localStorage.setItem('alecore-collaboration-mode','manual');$('#collaborationMode').value='manual';$('#providerRow').hidden=false;$('#cloudConsentRow').hidden=false;localStorage.setItem('dudidam-provider',aiProvider);history=[];stopCamera();setPersona(aiProvider);checkAI();};
+$('#provider').onchange=e=>{aiProvider=['chatgpt',...apiProviders].includes(e.target.value)?e.target.value:'chatgpt';collaborationMode='manual';localStorage.setItem('alecore-collaboration-mode','manual');$('#collaborationMode').value='manual';$('#providerRow').hidden=false;$('#cloudConsentRow').hidden=false;updateCollaborationNotice();localStorage.setItem('dudidam-provider',aiProvider);history=[];stopCamera();setPersona(aiProvider);checkAI();};
 $('#agentHub').onclick=async()=>{if(!desktop)return;showDialog('#agentDialog');await loadAgents();};
 $('#agentRefresh').onclick=loadAgents;
 $('#projectPick').onclick=chooseProjectFolder;
