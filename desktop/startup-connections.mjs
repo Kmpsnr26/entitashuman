@@ -15,7 +15,7 @@ export function recordNaraAgentHubStatus({nara,hub={},pending=false,now=()=>Date
   const authenticatedExecutors=[];
   if(provider.ready)authenticatedExecutors.push('codex');
   const copilotSession=nara&&providerSessions.get(nara)?.get('copilot');
-  if(copilotSession?.ready||copilotSession?.authenticated)authenticatedExecutors.push('github-copilot');
+  if(copilotSession?.configured&&(copilotSession.ready||copilotSession.authenticated))authenticatedExecutors.push('github-copilot');
   const startupConnections=normalizeStartupConnections({pending:false,checkedAt:now(),
     projectRootReady:hub.workReady??hub.projectRootReady,authenticatedExecutors});
   safeDispatch(nara,'startup.connections',startupConnections);
@@ -50,7 +50,7 @@ export function recordNaraProviderStatus({nara,id,raw={},busy=false,statusError=
     evidence:requestSucceeded||copilotEvidence||(previousSuccess&&verified)?'successful-request':
       id==='chatgpt'?'login-status':'none'
   });
-  const authenticated=id==='copilot'&&(
+  const authenticated=id==='copilot'&&configured&&(
     typeof raw?.authenticated==='boolean'?raw.authenticated:
     requestSucceeded?true:
     clearEvidence?false:
@@ -101,7 +101,7 @@ export async function bootstrapNaraConnections({bridges={},agentHub=null,nara=nu
   safeDispatch(nara,'provider.status',providers.codex);
   const authenticatedExecutors=[];
   if(providers.codex.ready)authenticatedExecutors.push('codex');
-  if(providers.copilot.ready||providers.copilot.authenticated)authenticatedExecutors.push('github-copilot');
+  if(providers.copilot.configured&&(providers.copilot.ready||providers.copilot.authenticated))authenticatedExecutors.push('github-copilot');
   const startupConnections=normalizeStartupConnections({
     pending:false,checkedAt:now(),projectRootReady:hub.workReady??hub.projectRootReady,
     authenticatedExecutors
