@@ -38,14 +38,14 @@ Complexity routing is heuristic. It is deliberately conservative and should be r
 - The Specialist Agent Hub receives a bounded request, local draft, and bounded review notes. It is only invoked after the same per-message permission is granted.
 - Images remain local in AUTO and FULL TEAM; cloud collaboration is skipped for image-bearing requests.
 - Manual mode sends data to the provider the user selected. Depending on that provider's capabilities, the message, history, memory context, and supported image attachments may be sent. The same explicit permission is required for a cloud provider.
-- Explicit Developer Agent project-work requests also require the per-message permission. LOCAL ONLY blocks that route.
+- Explicit Developer Agent analysis and project-work requests also require the per-message permission, enforced both in the renderer and the main-process IPC boundary. LOCAL ONLY blocks that route.
 - Provider failures and missing prerequisites are reported as unavailable or failed; they are never labeled as completed.
 
 ## Provider readiness
 
 - AleCore Local: Ollama must be running on loopback and the configured model must be installed.
 - ChatGPT: this desktop integration uses the existing ChatGPT/Codex CLI bridge and its login status; it is not a ChatGPT API-key connection.
-- GitHub Copilot: the CLI must be installed and its login must be verified in the current desktop session. Installation alone is not enough for team routing.
+- GitHub Copilot: the CLI must be installed and the current desktop session must have completed the login flow. A successful login is reported separately from a successful prompt; a real request still verifies account access and subscription. Installation alone is not enough for team routing.
 - Specialist Agent Hub: a Git checkout must be selected and at least two structured executors must be available. The existing pool is Codex, GitHub Copilot, Cursor, and Claude Code. Only executors actually detected by the local Agent Hub can participate.
 
 The local model and any CLI tools remain separate installations; this feature does not bundle model weights or grant provider subscriptions.
