@@ -336,12 +336,15 @@ test('FULL TEAM includes the read-only Specialist Agent Hub through NARA', async
   const result = await coordinator.run({
     mode: 'full-team',
     allowCloud: true,
-    message: 'Analisis arsitektur aplikasi dan risiko dependensi.'
+    message: 'Analisis arsitektur aplikasi dan risiko dependensi.',
+    history: [{ role: 'user', content: 'KONTEKS RAHASIA JANGAN DITERUSKAN' }],
+    memoryContext: null
   });
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].id, 'humanale-orchestrator');
   assert.equal(calls[0].mode, 'analyze');
+  assert.doesNotMatch(calls[0].prompt, /KONTEKS RAHASIA/);
   assert.equal(local.calls.length, 2);
   assert.ok(result.collaboration.participants.some(item =>
     item.provider === 'specialist-agents'
@@ -349,6 +352,7 @@ test('FULL TEAM includes the read-only Specialist Agent Hub through NARA', async
       && /Planner → Worker → Reviewer/.test(item.detail)
   ));
   assert.equal(result.text, 'Jawaban final sintesis.');
+  assert.equal(result.collaboration.cloudShared, true);
 });
 
 test('Specialist Agent Hub stays unavailable until a Git checkout is selected', async () => {
