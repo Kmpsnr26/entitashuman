@@ -289,6 +289,29 @@ async function providerIpcFixture(){
     get askCalls(){return askCalls;},get loginCalls(){return loginCalls;}};
 }
 
+test('production Agent Hub IPC blocks missing consent and LOCAL ONLY before NARA execution',async()=>{
+  const fx=await providerIpcFixture();
+  const run=fx.handlers.get('dudidam:agent-run');
+  const localOnly=await run({},{
+    id:'humanale-orchestrator',
+    mode:'analyze',
+    collaborationMode:'local-only',
+    allowCloud:true,
+    prompt:'Read-only analysis.'
+  });
+  assert.match(localOnly.error,/LOCAL ONLY/);
+  const noConsent=await run({},{
+    id:'humanale-orchestrator',
+    mode:'work',
+    collaborationMode:'auto',
+    allowCloud:false,
+    prompt:'Change a test.'
+  });
+  assert.match(noConsent.error,/izin cloud eksplisit/);
+  assert.equal(fx.nara.snapshot().engine.autopilot.scheduler.tasks.length,0);
+  fx.nara.stop();
+});
+
 test('production owner-gated ask records usable API success, preserves it on local polls, clears on failure',async()=>{
   for(const id of ['openai','gemini']){
     const fx=await providerIpcFixture();
