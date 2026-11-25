@@ -36,7 +36,7 @@ export class CopilotBridge{
   if(this.pending)return {error:'Tunggu permintaan Copilot sebelumnya selesai.'};
   this.verified=false;
   this.pending=true;
-  try{const result=await this.run(await this.findExecutable(),['login','--web-flow'],{timeout:240000,children:this.children});return result.code===0?{ok:true}:{error:'Login GitHub Copilot belum selesai.'};}
+  try{const result=await this.run(await this.findExecutable(),['login','--web-flow'],{timeout:240000,children:this.children});if(result.code===0){this.verified=true;return {ok:true};}return {error:'Login GitHub Copilot belum selesai.'};}
   finally{this.pending=false;}
  }
  async ask(value){
