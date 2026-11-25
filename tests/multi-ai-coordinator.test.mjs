@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   AleCoreMultiAICoordinator,
   isComplexCollaborationRequest
@@ -236,4 +237,22 @@ test('manual mode uses only the provider explicitly selected by the user', async
 test('complexity detection recognizes technical work but not a short greeting', () => {
   assert.equal(isComplexCollaborationRequest('Halo, apa kabar?'), false);
   assert.equal(isComplexCollaborationRequest('Tolong audit keamanan dan review arsitektur repository.'), true);
+});
+
+
+test('desktop UI and IPC are connected to the privacy-gated coordinator', async () => {
+  const [main, preload, app, html] = await Promise.all([
+    readFile(new URL('../desktop/main.cjs', import.meta.url), 'utf8'),
+    readFile(new URL('../desktop/preload.cjs', import.meta.url), 'utf8'),
+    readFile(new URL('../public/app.js', import.meta.url), 'utf8'),
+    readFile(new URL('../public/index.html', import.meta.url), 'utf8')
+  ]);
+
+  assert.match(main, /new AleCoreMultiAICoordinator\(\{bridges\}\)/);
+  assert.match(main, /multiAiCoordinator\.run\(\{\.\.\.payload,mode:collaborationMode,allowCloud:value\?\.allowCloud===true\}\)/);
+  assert.match(preload, /ask:payload=>ipcRenderer\.invoke\('dudidam:ask',payload\)/);
+  assert.match(app, /desktop\.ask\(\{provider:aiProvider,collaborationMode,allowCloud:allowCloudForThisMessage/);
+  assert.match(app, /if\(desktop&&collaborationMode!=='manual'\)aiProvider='alecore-local'/);
+  assert.match(html, /id="collaborationMode"/);
+  assert.match(html, /id="allowCloudCollaboration"/);
 });
