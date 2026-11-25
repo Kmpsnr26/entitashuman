@@ -7,6 +7,7 @@ import {OpenAIBridge} from '../desktop/openai-api.mjs';
 import {GeminiBridge} from '../desktop/gemini.mjs';
 import {CopilotBridge} from '../desktop/copilot.mjs';
 import {AleCoreLocalBridge} from '../desktop/alecore-local.mjs';
+import {AleCoreMultiAICoordinator} from '../desktop/multi-ai-coordinator.mjs';
 import {createOrchestrator} from '../nara-core/brain/index.js';
 import {normalizeProviderStatus} from '../nara-core/brain/provider-state.js';
 
@@ -274,7 +275,9 @@ async function providerIpcFixture(){
     ask:async()=>{askCalls++;if(response instanceof Error)throw response;return response;},
     pending:false
   };
-  const context={nara,bridges:{'alecore-local':localBridge,openai:bridge,gemini:bridge,copilot:bridge,chatgpt:bridge},
+  const bridges={'alecore-local':localBridge,openai:bridge,gemini:bridge,copilot:bridge,chatgpt:bridge};
+  const multiAiCoordinator=new AleCoreMultiAICoordinator({bridges});
+  const context={nara,bridges,multiAiCoordinator,
     ipcMain:{handle:(name,handler)=>handlers.set(name,handler)},
     ownerTrusted:()=>allowed,recordNaraProviderStatus,
     validateMemoryContext:()=>null,dataFlowMeter:{recordIn(){},recordOut(){}}
@@ -290,7 +293,7 @@ test('production owner-gated ask records usable API success, preserves it on loc
   for(const id of ['openai','gemini']){
     const fx=await providerIpcFixture();
     const ask=fx.handlers.get('dudidam:ask'),status=fx.handlers.get('dudidam:status');
-    assert.equal((await ask({}, {provider:id,message:'fixture'})).text,'usable response');
+    assert.equal((await ask({}, {provider:id,collaborationMode:'manual',allowCloud:true,message:'fixture'})).text,'usable response');
     let provider=fx.nara.snapshot().providers[id];
     assert.equal(provider.ready,true);
     assert.equal(provider.evidence,'successful-request');
@@ -299,7 +302,7 @@ test('production owner-gated ask records usable API success, preserves it on loc
     assert.equal(provider.verified,true,'configuration-only poll preserves session evidence');
     const marker='DO_NOT_STORE_PROVIDER_ERROR';
     fx.response=new Error(marker);
-    await ask({}, {provider:id,message:'fixture'});
+    await ask({}, {provider:id,collaborationMode:'manual',allowCloud:true,message:'fixture'});
     provider=fx.nara.snapshot().providers[id];
     assert.equal(provider.configured,true);
     assert.equal(provider.verified,false);
@@ -308,7 +311,7 @@ test('production owner-gated ask records usable API success, preserves it on loc
     provider=await status({},id);
     assert.equal(provider.auth,'unknown','configuration alone cannot erase failed-request uncertainty');
     fx.response={text:'recovered'};
-    await ask({}, {provider:id,message:'fixture'});
+    await ask({}, {provider:id,collaborationMode:'manual',allowCloud:true,message:'fixture'});
     assert.equal(fx.nara.snapshot().providers[id].ready,true);
     assert.equal(fx.nara.snapshot().startupConnections.armed,false);
     fx.configured=false;
@@ -324,7 +327,7 @@ test('production ask rejects empty/malformed/error responses as verification evi
   const ask=fx.handlers.get('dudidam:ask');
   for(const response of [null,{}, {text:' '}, {text:42}, {text:'partial',error:'DO_NOT_STORE_RETURNED_ERROR'}]){
     fx.response=response;
-    const result=await ask({}, {provider:'openai',message:'fixture'});
+    const result=await ask({}, {provider:'openai',collaborationMode:'manual',allowCloud:true,message:'fixture'});
     assert.ok(result.error);
     assert.equal(fx.nara.snapshot().providers.openai.verified,false);
   }
@@ -332,7 +335,7 @@ test('production ask rejects empty/malformed/error responses as verification evi
   const calls=fx.askCalls;
   const snapshot=fx.nara.snapshot();
   fx.allowed=false;
-  await ask({}, {provider:'openai',message:'fixture'});
+  await ask({}, {provider:'openai',collaborationMode:'manual',allowCloud:true,message:'fixture'});
   await fx.handlers.get('dudidam:status')({},'openai');
   await fx.handlers.get('dudidam:login')({});
   assert.equal(fx.askCalls,calls);
@@ -345,8 +348,8 @@ test('production ask rejects empty/malformed/error responses as verification evi
 test('production login clears earlier successful request evidence, store is isolated by runtime/provider',async()=>{
   const fx=await providerIpcFixture();
   const ask=fx.handlers.get('dudidam:ask');
-  await ask({}, {provider:'copilot',message:'fixture'});
-  await ask({}, {provider:'openai',message:'fixture'});
+  await ask({}, {provider:'copilot',collaborationMode:'manual',allowCloud:true,message:'fixture'});
+  await ask({}, {provider:'openai',collaborationMode:'manual',allowCloud:true,message:'fixture'});
   await fx.handlers.get('dudidam:login-copilot')({});
   assert.equal(fx.nara.snapshot().providers.copilot.verified,false);
   assert.equal(fx.nara.snapshot().providers.openai.verified,true);
