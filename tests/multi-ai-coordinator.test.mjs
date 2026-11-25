@@ -356,6 +356,49 @@ test('FULL TEAM includes the read-only Specialist Agent Hub through NARA', async
   assert.equal(result.collaboration.cloudShared, true);
 });
 
+test('Specialist Agent Hub excludes unverified Copilot but can use other ready executors', async () => {
+  const local = fakeBridge({ responses: ['Draf lokal.', 'Sintesis lokal.'] });
+  const copilot = fakeBridge({ configured: true, installed: true, verified: false });
+  const calls = [];
+  const agentHub = {
+    pending: false,
+    async projectRootReady() { return true; },
+    async availableStructuredExecutors() { return ['github-copilot', 'codex', 'cursor']; },
+    async run() { throw new Error('NARA coordinator should run the specialist'); }
+  };
+  const agentCoordinator = {
+    canRun() { return true; },
+    async run(value) {
+      calls.push(value);
+      return {
+        text: 'Analisis spesialis selesai.',
+        stages: [
+          { role: 'planner', agent: 'codex' },
+          { role: 'worker', agent: 'cursor' },
+          { role: 'reviewer', agent: 'codex' }
+        ]
+      };
+    }
+  };
+  const coordinator = new AleCoreMultiAICoordinator({
+    bridges: { 'alecore-local': local, chatgpt: fakeBridge({ configured: false }), copilot },
+    agentHub,
+    agentCoordinator
+  });
+
+  const result = await coordinator.run({
+    mode: 'full-team',
+    allowCloud: true,
+    message: 'Analisis arsitektur dan keamanan sistem.'
+  });
+
+  assert.equal(copilot.calls.length, 0);
+  assert.equal(calls.length, 1);
+  assert.ok(result.collaboration.participants.some(item =>
+    item.provider === 'specialist-agents' && item.status === 'completed'
+  ));
+});
+
 test('Specialist Agent Hub stays unavailable until a Git checkout is selected', async () => {
   const local = fakeBridge({ responses: ['Draf lokal.'] });
   const agentHub = {
