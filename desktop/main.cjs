@@ -662,13 +662,14 @@ else{
      const successfulProviders=new Set(participants.filter(item=>item?.status==='completed').map(item=>item.provider));
      if(!successfulProviders.size)successfulProviders.add(reportedProvider);
      for(const id of successfulProviders){if(bridges[id])recordNaraProviderStatus({nara,id,raw:{configured:true},requestSucceeded:true});}
-     for(const item of participants){if(item?.status==='failed'&&bridges[item.provider])recordNaraProviderStatus({nara,id:item.provider,requestFailed:true});}
+     for(const item of participants){if(item?.status==='failed'&&bridges[item.provider]){let raw={};try{raw=await bridges[item.provider].status?.()||{};}catch{}recordNaraProviderStatus({nara,id:item.provider,raw,requestFailed:true});}}
      nara.dispatch('reason.complete',{source:'chat'});
     }
     dataFlowMeter?.recordOut(result);
     return result;
    }catch(error){
-    recordNaraProviderStatus({nara,id:reportedProvider,requestFailed:true});
+    let failedStatus={};try{failedStatus=await bridges[reportedProvider]?.status?.()||{};}catch{}
+    recordNaraProviderStatus({nara,id:reportedProvider,raw:failedStatus,requestFailed:true});
     nara.dispatch('reason.complete',{source:'chat'});
     nara.dispatch('error.detected',{message:'Permintaan provider belum berhasil.',source:'chat'});
     return {error:error.message};
