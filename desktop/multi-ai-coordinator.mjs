@@ -305,11 +305,12 @@ export class AleCoreMultiAICoordinator {
           if (!rootReady) {
             unavailable('Pilih checkout Git proyek sebelum mengaktifkan Specialist Agent Hub');
           } else {
-            const executors = await this.agentHub.availableStructuredExecutors();
+            let executors = await this.agentHub.availableStructuredExecutors();
             const copilotStatus = await this.statusOf('copilot');
-            if (executors.includes('github-copilot') && copilotStatus.installed === true && copilotStatus.verified !== true) {
-              unavailable('Copilot tersedia tetapi login belum diverifikasi; hubungkan Copilot atau nonaktifkan dulu dari Agent Hub');
-            } else if (executors.length < 2) {
+            if (copilotStatus.installed === true && copilotStatus.verified !== true) {
+              executors = executors.filter(id => id !== 'github-copilot');
+            }
+            if (executors.length < 2) {
               unavailable('Pipeline Planner → Worker → Reviewer memerlukan minimal dua executor berbeda yang siap');
             } else {
               const specialistRequest = {
