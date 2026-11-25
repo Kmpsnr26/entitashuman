@@ -564,7 +564,7 @@ function updateCollaborationNotice(){
   note.textContent='AUTO/FULL TEAM: AleCore Local membuat draf. Setelah izin per pesan, reviewer cloud dan Specialist Agent Hub menerima teks permintaan, draf lokal, serta catatan review terbatas; riwayat mentah, paket memory, dan lampiran foto tidak diteruskan. Tugas proyek eksternal juga memerlukan izin.';
  }
 }
-async function refreshCollaborationProviderStatus(){if(!desktop)return;const status=$('#collaborationProviderStatus');status.textContent='Memeriksa koneksi ChatGPT dan GitHub Copilot…';try{const [chatgpt,copilot]=await Promise.all([desktop.status('chatgpt'),desktop.status('copilot')]);const chatLabel=chatgpt?.configured?'ChatGPT · login terverifikasi':'ChatGPT · belum login';const copilotLabel=!copilot?.installed?'Copilot CLI · belum terpasang':copilot?.verified?'Copilot · login terverifikasi':'Copilot CLI · terpasang, login belum terverifikasi · hubungkan dahulu';status.textContent=chatLabel+'  |  '+copilotLabel;}catch{status.textContent='Status kolaborator belum dapat diperiksa.';}}
+async function refreshCollaborationProviderStatus(){if(!desktop)return;const status=$('#collaborationProviderStatus');status.textContent='Memeriksa koneksi ChatGPT dan GitHub Copilot…';try{const [chatgpt,copilot]=await Promise.all([desktop.status('chatgpt'),desktop.status('copilot')]);const chatLabel=chatgpt?.configured?'ChatGPT · login terverifikasi':'ChatGPT · belum login';const copilotLabel=!copilot?.installed?'Copilot CLI · belum terpasang':copilot?.verified?'Copilot · permintaan berhasil':copilot?.authenticated?'Copilot · login berhasil, menunggu uji permintaan':'Copilot CLI · terpasang, login belum terverifikasi · hubungkan dahulu';status.textContent=chatLabel+'  |  '+copilotLabel;}catch{status.textContent='Status kolaborator belum dapat diperiksa.';}}
 async function loginCollaborationProvider(provider){if(!desktop)return;const button=provider==='copilot'?$('#collabLoginCopilot'):$('#collabLoginChatGPT');button.disabled=true;try{const result=provider==='copilot'?await desktop.loginCopilot():await desktop.login();if(result?.error)toast(result.error);else toast((provider==='copilot'?'GitHub Copilot':'ChatGPT')+' berhasil dihubungkan.');await refreshCollaborationProviderStatus();}catch{toast('Login provider belum selesai. Coba lagi.');}finally{button.disabled=false;}}
 function applyAvatarSize(value){
  const size=Math.max(180,Math.min(540,Number(value)||DEFAULT_AVATAR_SIZE));
@@ -873,7 +873,7 @@ async function submit(text,image){text=text.trim();if(!text||busy)return;const a
 async function checkAI(){
  try{
   const data=desktop?await desktop.status(aiProvider):await (await fetch('/api/status',{cache:'no-store'})).json();
-  aiReady=!!data.configured&&!!desktop&&data.busy!==true&&(aiProvider!=='copilot'||data.verified===true);
+  aiReady=!!data.configured&&!!desktop&&data.busy!==true&&(aiProvider!=='copilot'||data.verified===true||data.authenticated===true);
  const hasLogin=aiProvider==='chatgpt'||aiProvider==='copilot';
  const noImage=['copilot','grok','claude','deepseek','askcodi'].includes(aiProvider);
  $('#login').hidden=desktop&&!hasLogin;$('#login').textContent=aiProvider==='copilot'?'Login Copilot':'Login ChatGPT';$('#chatgptLink').hidden=desktop&&aiProvider!=='chatgpt';$('#camera').disabled=noImage;
@@ -892,12 +892,13 @@ async function checkAI(){
   if(meta){
    const localRuntimeMissing=aiProvider==='alecore-local'&&!data.runtimeAvailable;
    const localModelMissing=aiProvider==='alecore-local'&&data.runtimeAvailable&&!data.modelAvailable;
-   const copilotNeedsLogin=aiProvider==='copilot'&&data.installed===true&&data.verified!==true;
-   $('#aiStatus').textContent=aiReady?meta.label+' · '+(data.verified?(data.evidence==='successful-request'?'permintaan sebelumnya berhasil':'runtime lokal siap'):'siap diuji'):meta.label+' · '+(copilotNeedsLogin?'login belum terverifikasi':data.busy===true?'provider sedang sibuk':localRuntimeMissing?'Ollama belum berjalan':localModelMissing?'model belum terpasang':meta.missing);
-   $('#apiDetail').textContent=aiReady?meta.ready:copilotNeedsLogin?'Copilot CLI terpasang, tetapi status login belum diverifikasi. Klik Login Copilot untuk menghubungkan akun.':data.busy===true?'Provider sedang memproses permintaan lain. Tunggu sampai selesai.':localRuntimeMissing?'Pasang dan jalankan Ollama untuk Windows. Model lokal belum dapat diperiksa.':localModelMissing?'Ollama aktif, tetapi model belum ditemukan. Jalankan `ollama pull qwen3.5:2b` di PowerShell.':meta.setup;
+   const copilotNeedsLogin=aiProvider==='copilot'&&data.installed===true&&data.verified!==true&&data.authenticated!==true;
+   const copilotNeedsRequest=aiProvider==='copilot'&&data.authenticated===true&&data.verified!==true;
+   $('#aiStatus').textContent=aiReady?meta.label+' · '+(copilotNeedsRequest?'login terhubung · akses diuji saat permintaan pertama':data.verified?(data.evidence==='successful-request'?'permintaan sebelumnya berhasil':'runtime lokal siap'):'siap diuji'):meta.label+' · '+(copilotNeedsLogin?'login belum terverifikasi':data.busy===true?'provider sedang sibuk':localRuntimeMissing?'Ollama belum berjalan':localModelMissing?'model belum terpasang':meta.missing);
+   $('#apiDetail').textContent=aiReady?meta.ready:copilotNeedsLogin?'Copilot CLI terpasang, tetapi status login belum diverifikasi. Klik Login Copilot untuk menghubungkan akun.':copilotNeedsRequest?'Login Copilot berhasil. Permintaan pertama akan menguji akses akun dan subscription.':data.busy===true?'Provider sedang memproses permintaan lain. Tunggu sampai selesai.':localRuntimeMissing?'Pasang dan jalankan Ollama untuk Windows. Model lokal belum dapat diperiksa.':localModelMissing?'Ollama aktif, tetapi model belum ditemukan. Jalankan `ollama pull qwen3.5:2b` di PowerShell.':meta.setup;
    $('#chatNote').textContent=meta.note;
   }else{
-   $('#aiStatus').textContent=aiReady?(data.verified?(data.evidence==='successful-request'?'ChatGPT · permintaan sebelumnya berhasil':'ChatGPT · login lokal terverifikasi · tanpa API key'):'ChatGPT · sesi belum diverifikasi'):desktop?'Login ChatGPT diperlukan':data.signedIn?'Login Sites aktif':'Login Sites';
+   $('#aiStatus').textContent=aiReady?(data.verified?(data.evidence==='successful-request'?'ChatGPT · permintaan sebelumnya berhasil':'ChatGPT · login lokal terverifikasi · tanpa API key'):'ChatGPT · sesi belum diverifikasi'):desktop?(data.busy===true?'ChatGPT · sesi belum diverifikasi':'Login ChatGPT diperlukan'):data.signedIn?'Login Sites aktif':'Login Sites';
    $('#apiDetail').textContent=desktop?(aiReady?'Percakapan memakai login ChatGPT melalui Codex CLI lokal dan mengikuti batas penggunaan akun. Riwayat chatgpt.com tidak diimpor.':'Klik Login ChatGPT untuk membuka alur resmi. Setelah selesai, tekan Periksa lagi. Tidak perlu API key.'):'Versi Sites menampilkan avatar dan mengenali login. Percakapan model tersedia di AleCore AI Desktop.';
    $('#chatNote').textContent=desktop?'ChatGPT via Codex CLI · riwayat percakapan di memori aplikasi.':'Versi web: perintah dasar. Percakapan model langsung tersedia di desktop.';
   }
