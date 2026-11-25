@@ -237,14 +237,14 @@ export class AleCoreMultiAICoordinator {
       })));
       const isReady = item => item.status.configured === true
         && item.status.busy !== true
-        && (item.provider !== 'copilot' || item.status.verified === true);
+        && (item.provider !== 'copilot' || item.status.verified === true || item.status.authenticated === true);
 
       for (const item of readiness) {
         if (!isReady(item)) {
           participants.push({
             provider: item.provider,
             status: 'unavailable',
-            detail: item.provider === 'copilot' && item.status.configured === true && item.status.verified !== true
+            detail: item.provider === 'copilot' && item.status.configured === true && item.status.verified !== true && item.status.authenticated !== true
               ? 'CLI tersedia tetapi login Copilot belum terverifikasi'
               : item.status.busy === true
                 ? 'provider sedang mengerjakan permintaan lain'
@@ -307,7 +307,7 @@ export class AleCoreMultiAICoordinator {
           } else {
             let executors = await this.agentHub.availableStructuredExecutors();
             const copilotStatus = await this.statusOf('copilot');
-            if (copilotStatus.installed === true && copilotStatus.verified !== true) {
+            if (copilotStatus.installed === true && copilotStatus.verified !== true && copilotStatus.authenticated !== true) {
               executors = executors.filter(id => id !== 'github-copilot');
             }
             if (executors.length < 2) {
