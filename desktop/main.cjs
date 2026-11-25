@@ -9,7 +9,7 @@ const {randomUUID}=require('node:crypto');
 const {spawn}=require('node:child_process');
 
 let voiceRequests;
-let win,panelWin,cloudLoginWin,naraNetworkWin,naraNetworkStudio,createNaraStudioServer,server,origin,bridges,cloudMemory,agentHub,naraAgentCoordinator,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,humanaleRuntime,ownerStore,ownerGate,systemObserver,dataFlowMeter,experienceStore,experienceSaveTimer,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer,naraVisualTestRunning=false,naraSkillCache={at:0,agents:[]};
+let win,panelWin,cloudLoginWin,naraNetworkWin,naraNetworkStudio,createNaraStudioServer,server,origin,bridges,cloudMemory,agentHub,naraAgentCoordinator,multiAiCoordinator,terminalManager,terminalPolicy,indonesianStt,indonesianTts,nara,naraVoice,humanaleRuntime,ownerStore,ownerGate,systemObserver,dataFlowMeter,experienceStore,experienceSaveTimer,stopSystemObserver,dataFlowTimer,tray,saveTimer,pointerTimer,backdropTimer,naraVisualTestRunning=false,naraSkillCache={at:0,agents:[]};
 let cloudAllowedOrigins=new Set();
 let announceNaraEvent=()=>{};
 let networkStudioStopPromise=null,networkStudioOpenPromise=null,networkStudioQuitReady=false,ciSmokeOwnerPassword='';
@@ -318,6 +318,7 @@ if(!app.requestSingleInstanceLock())app.quit();
 else{
  app.on('second-instance',showAvatar);
  app.whenReady().then(async()=>{
+  const {AleCoreMultiAICoordinator}=await import('./multi-ai-coordinator.mjs');
   const [{AleCoreLocalBridge},{ChatGPTBridge},{CopilotBridge},{OpenAIBridge},{GrokBridge},{GeminiBridge},{ClaudeBridge},{DeepSeekBridge},{AskCodiBridge},{DeveloperAgentHub,agentDefinitions},{validateMemoryContext},{AleCoreCloudContextClient,normalizeOrigin},{resolveAleCoreCloudOrigins},{resolveAleCoreCreatorCredentials},{TerminalManager},policyModule,{IndonesianStt},{IndonesianTts},{createSystemObserver,createDataFlowMeter}]=await Promise.all([import('./alecore-local.mjs'),import('./bridge.mjs'),import('./copilot.mjs'),import('./openai-api.mjs'),import('./grok.mjs'),import('./gemini.mjs'),import('./claude.mjs'),import('./deepseek.mjs'),import('./askcodi.mjs'),import('./agent-hub.mjs'),import('./memory-context.mjs'),import('./nara-cloud-context.mjs'),import('./alecore-cloud-env.mjs'),import('../nara-core/studio/creator-env.mjs'),import('./terminal-manager.mjs'),import('./terminal-policy.mjs'),import('./indonesian-stt.mjs'),import('./indonesian-tts.mjs'),import('./system-observer.mjs')]);
   const [{createOrchestrator,createExperienceModel,getHumanALETestScenario,listHumanALETestScenarios,createSkillSnapshot},{createVoiceFeedback},{createExperienceStore},{createOwnerStore},{createHumanALERuntimeHost},{createAleCoreAgentCoordinator},{createHumanALEOwnerGate,isOwnerTargetUnlocked,authorizedDisplayMediaTarget},{createNaraStudioServer:studioServerFactory},{bootstrapNaraConnections,recordNaraProviderStatus,recordNaraAgentHubStatus}]=await Promise.all([
    import('../nara-core/brain/index.js'),
@@ -374,6 +375,7 @@ else{
   },2000);
   dataFlowTimer.unref?.();
   bridges={'alecore-local':new AleCoreLocalBridge(),chatgpt:new ChatGPTBridge(),copilot:new CopilotBridge(),openai:new OpenAIBridge(),grok:new GrokBridge(),gemini:new GeminiBridge(),claude:new ClaudeBridge(),deepseek:new DeepSeekBridge(),askcodi:new AskCodiBridge()};
+  multiAiCoordinator=new AleCoreMultiAICoordinator({bridges});
   try{
    const configuredOrigins=resolveAleCoreCloudOrigins(process.env);
    const cloudOrigin=normalizeOrigin(configuredOrigins.cloudOrigin);
@@ -638,10 +640,14 @@ else{
    if(memoryContext)nara.dispatch('context.used',{target:'reasoner',count:memoryContext.count,chars:memoryContext.chars,source:'desktop'});
    nara.dispatch('observe.start',{label:'Menerima permintaan pengguna',source:'chat'});
    nara.dispatch('observe.complete',{source:'chat'});
-   nara.dispatch('reason.start',{label:'Memproses jawaban melalui '+provider,source:'chat'});
+   const collaborationMode=['auto','full-team','local-only','manual'].includes(value?.collaborationMode)?value.collaborationMode:'auto';
+   const reportedProvider=collaborationMode==='manual'?provider:'alecore-local';
+   nara.dispatch('reason.start',{label:collaborationMode==='manual'?'Memproses jawaban melalui '+provider:'AleCore Local · mode '+collaborationMode,source:'chat'});
    try{
     const payload={...value,memoryContext};delete payload.provider;
-    const result=await bridges[provider].ask(payload);
+    const result=collaborationMode==='manual'
+     ? await bridges[provider].ask(payload)
+     : await multiAiCoordinator.run({...payload,mode:collaborationMode,allowCloud:value?.allowCloud===true});
     const usableResponse=!result?.error&&typeof result?.text==='string'&&Boolean(result.text.trim());
     if(!usableResponse){
      recordNaraProviderStatus({nara,id:provider,requestFailed:true});
@@ -649,13 +655,17 @@ else{
      nara.dispatch('error.detected',{message:'Permintaan provider belum berhasil.',source:'chat'});
      return {error:'Provider belum memberikan balasan teks yang dapat digunakan.'};
     }else{
-     recordNaraProviderStatus({nara,id:provider,raw:{configured:true},requestSucceeded:true});
+     const participants=Array.isArray(result?.collaboration?.participants)?result.collaboration.participants:[];
+     const successfulProviders=new Set(participants.filter(item=>item?.status==='completed').map(item=>item.provider));
+     if(!successfulProviders.size)successfulProviders.add(reportedProvider);
+     for(const id of successfulProviders){if(bridges[id])recordNaraProviderStatus({nara,id,raw:{configured:true},requestSucceeded:true});}
+     for(const item of participants){if(item?.status==='failed'&&bridges[item.provider])recordNaraProviderStatus({nara,id:item.provider,requestFailed:true});}
      nara.dispatch('reason.complete',{source:'chat'});
     }
     dataFlowMeter?.recordOut(result);
     return result;
    }catch(error){
-    recordNaraProviderStatus({nara,id:provider,requestFailed:true});
+    recordNaraProviderStatus({nara,id:reportedProvider,requestFailed:true});
     nara.dispatch('reason.complete',{source:'chat'});
     nara.dispatch('error.detected',{message:'Permintaan provider belum berhasil.',source:'chat'});
     return {error:error.message};
