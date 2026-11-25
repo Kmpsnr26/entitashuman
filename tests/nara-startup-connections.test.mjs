@@ -7,6 +7,7 @@ import {OpenAIBridge} from '../desktop/openai-api.mjs';
 import {GeminiBridge} from '../desktop/gemini.mjs';
 import {CopilotBridge} from '../desktop/copilot.mjs';
 import {AleCoreLocalBridge} from '../desktop/alecore-local.mjs';
+import {AleCoreMultiAICoordinator} from '../desktop/multi-ai-coordinator.mjs';
 import {createOrchestrator} from '../nara-core/brain/index.js';
 import {normalizeProviderStatus} from '../nara-core/brain/provider-state.js';
 
@@ -101,6 +102,28 @@ test('Copilot --version proves installation only and bootstrap never invokes log
   assert.equal(result.providers.copilot.auth,'unverified');
   assert.deepEqual(result.startupConnections.authenticatedExecutors,[]);
   assert.equal(result.startupConnections.armed,false);
+});
+
+test('Copilot login state reaches desktop provider status without claiming a successful request',async()=>{
+  const bridge=new CopilotBridge({
+    findExecutable:async()=>'fake-copilot',
+    runImpl:async(_executable,args)=>({code:0,stdout:args[0]==='--version'?'copilot test version':'Login completed',stderr:''})
+  });
+  await bridge.login();
+  const nara=naraFixture();
+  const result=await bootstrapNaraConnections({
+    bridges:{copilot:bridge},
+    agentHub:hub(),
+    nara
+  });
+
+  assert.equal(result.providers.copilot.configured,true);
+  assert.equal(result.providers.copilot.authenticated,true);
+  assert.equal(result.providers.copilot.verified,false);
+  assert.equal(result.providers.copilot.ready,false);
+  assert.deepEqual(result.startupConnections.authenticatedExecutors,['github-copilot']);
+  assert.equal(nara.snapshot().providers.copilot.verified,false);
+  nara.stop();
 });
 
 test('local ChatGPT/Codex login evidence is recorded without arming a maintenance worker',async()=>{
@@ -260,7 +283,7 @@ test('production owner-gated IPC routes AleCore Local status and conversation to
 
 async function providerIpcFixture(){
   const main=await readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8');
-  const source=main.slice(main.indexOf('  const pickProvider='),main.indexOf("  ipcMain.handle('dudidam:stt-status'"));
+  const source=main.slice(main.indexOf('  const pickProvider='),main.indexOf("  ipcMain.handle('dudidam:agent-open'"));
   const handlers=new Map();
   const nara=naraFixture();
   let response={text:'usable response'},statusCalls=0,askCalls=0,loginCalls=0,allowed=true,configured=true;
@@ -274,23 +297,66 @@ async function providerIpcFixture(){
     ask:async()=>{askCalls++;if(response instanceof Error)throw response;return response;},
     pending:false
   };
-  const context={nara,bridges:{'alecore-local':localBridge,openai:bridge,gemini:bridge,copilot:bridge,chatgpt:bridge},
+  const bridges={'alecore-local':localBridge,openai:bridge,gemini:bridge,copilot:bridge,chatgpt:bridge};
+  const multiAiCoordinator=new AleCoreMultiAICoordinator({bridges});
+  const context={nara,bridges,multiAiCoordinator,
     ipcMain:{handle:(name,handler)=>handlers.set(name,handler)},
     ownerTrusted:()=>allowed,recordNaraProviderStatus,
     validateMemoryContext:()=>null,dataFlowMeter:{recordIn(){},recordOut(){}}
   };
   vm.createContext(context);
   vm.runInContext(source,context);
-  return {nara,handlers,set response(value){response=value;},set allowed(value){allowed=value;},
+  return {nara,handlers,bridges,set response(value){response=value;},set allowed(value){allowed=value;},
     set configured(value){configured=value;},get statusCalls(){return statusCalls;},
     get askCalls(){return askCalls;},get loginCalls(){return loginCalls;}};
 }
+
+test('production provider status exposes Copilot authentication separately from request verification',async()=>{
+  const fx=await providerIpcFixture();
+  fx.bridges.copilot.status=async()=>({
+    configured:true,
+    installed:true,
+    authenticated:true,
+    verified:false
+  });
+  const status=await fx.handlers.get('dudidam:status')({},'copilot');
+
+  assert.equal(status.configured,true);
+  assert.equal(status.authenticated,true);
+  assert.equal(status.verified,false);
+  assert.equal(status.ready,false);
+  assert.equal(fx.nara.snapshot().providers.copilot.verified,false);
+  fx.nara.stop();
+});
+
+test('production Agent Hub IPC blocks missing consent and LOCAL ONLY before NARA execution',async()=>{
+  const fx=await providerIpcFixture();
+  const run=fx.handlers.get('dudidam:agent-run');
+  const localOnly=await run({},{
+    id:'humanale-orchestrator',
+    mode:'analyze',
+    collaborationMode:'local-only',
+    allowCloud:true,
+    prompt:'Read-only analysis.'
+  });
+  assert.match(localOnly.error,/LOCAL ONLY/);
+  const noConsent=await run({},{
+    id:'humanale-orchestrator',
+    mode:'work',
+    collaborationMode:'auto',
+    allowCloud:false,
+    prompt:'Change a test.'
+  });
+  assert.match(noConsent.error,/izin cloud eksplisit/);
+  assert.equal(fx.nara.snapshot().engine?.autopilot?.scheduler?.tasks?.length||0,0);
+  fx.nara.stop();
+});
 
 test('production owner-gated ask records usable API success, preserves it on local polls, clears on failure',async()=>{
   for(const id of ['openai','gemini']){
     const fx=await providerIpcFixture();
     const ask=fx.handlers.get('dudidam:ask'),status=fx.handlers.get('dudidam:status');
-    assert.equal((await ask({}, {provider:id,message:'fixture'})).text,'usable response');
+    assert.equal((await ask({}, {provider:id,collaborationMode:'manual',allowCloud:true,message:'fixture'})).text,'usable response');
     let provider=fx.nara.snapshot().providers[id];
     assert.equal(provider.ready,true);
     assert.equal(provider.evidence,'successful-request');
@@ -299,7 +365,7 @@ test('production owner-gated ask records usable API success, preserves it on loc
     assert.equal(provider.verified,true,'configuration-only poll preserves session evidence');
     const marker='DO_NOT_STORE_PROVIDER_ERROR';
     fx.response=new Error(marker);
-    await ask({}, {provider:id,message:'fixture'});
+    await ask({}, {provider:id,collaborationMode:'manual',allowCloud:true,message:'fixture'});
     provider=fx.nara.snapshot().providers[id];
     assert.equal(provider.configured,true);
     assert.equal(provider.verified,false);
@@ -308,7 +374,7 @@ test('production owner-gated ask records usable API success, preserves it on loc
     provider=await status({},id);
     assert.equal(provider.auth,'unknown','configuration alone cannot erase failed-request uncertainty');
     fx.response={text:'recovered'};
-    await ask({}, {provider:id,message:'fixture'});
+    await ask({}, {provider:id,collaborationMode:'manual',allowCloud:true,message:'fixture'});
     assert.equal(fx.nara.snapshot().providers[id].ready,true);
     assert.equal(fx.nara.snapshot().startupConnections.armed,false);
     fx.configured=false;
@@ -324,7 +390,7 @@ test('production ask rejects empty/malformed/error responses as verification evi
   const ask=fx.handlers.get('dudidam:ask');
   for(const response of [null,{}, {text:' '}, {text:42}, {text:'partial',error:'DO_NOT_STORE_RETURNED_ERROR'}]){
     fx.response=response;
-    const result=await ask({}, {provider:'openai',message:'fixture'});
+    const result=await ask({}, {provider:'openai',collaborationMode:'manual',allowCloud:true,message:'fixture'});
     assert.ok(result.error);
     assert.equal(fx.nara.snapshot().providers.openai.verified,false);
   }
@@ -332,7 +398,7 @@ test('production ask rejects empty/malformed/error responses as verification evi
   const calls=fx.askCalls;
   const snapshot=fx.nara.snapshot();
   fx.allowed=false;
-  await ask({}, {provider:'openai',message:'fixture'});
+  await ask({}, {provider:'openai',collaborationMode:'manual',allowCloud:true,message:'fixture'});
   await fx.handlers.get('dudidam:status')({},'openai');
   await fx.handlers.get('dudidam:login')({});
   assert.equal(fx.askCalls,calls);
@@ -345,8 +411,8 @@ test('production ask rejects empty/malformed/error responses as verification evi
 test('production login clears earlier successful request evidence, store is isolated by runtime/provider',async()=>{
   const fx=await providerIpcFixture();
   const ask=fx.handlers.get('dudidam:ask');
-  await ask({}, {provider:'copilot',message:'fixture'});
-  await ask({}, {provider:'openai',message:'fixture'});
+  await ask({}, {provider:'copilot',collaborationMode:'manual',allowCloud:true,message:'fixture'});
+  await ask({}, {provider:'openai',collaborationMode:'manual',allowCloud:true,message:'fixture'});
   await fx.handlers.get('dudidam:login-copilot')({});
   assert.equal(fx.nara.snapshot().providers.copilot.verified,false);
   assert.equal(fx.nara.snapshot().providers.openai.verified,true);

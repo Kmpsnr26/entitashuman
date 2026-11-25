@@ -41,6 +41,12 @@ export class NaraAgentCoordinator{
     return this;
   }
 
+  canRun(){
+    if(this.pending.size)return false;
+    const tasks=this.nara.snapshot?.().engine?.autopilot?.scheduler?.tasks||[];
+    return !tasks.some(item=>item?.status==='queued'||item?.status==='running');
+  }
+
   normalize(value={}){
     const id=safeText(value.id||'humanale-orchestrator',80);
     const prompt=String(value.prompt||'').trim();
@@ -154,7 +160,6 @@ export class NaraAgentCoordinator{
       'Agent '+input.id+' · '+(input.mode==='work'?'mode kerja':'analisis'),
       180
     );
-
     this.nara.createGoal({
       id:goalId,
       label,

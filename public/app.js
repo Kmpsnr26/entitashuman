@@ -384,8 +384,10 @@ const SUMMON_DURATION_MS=4200;
 const DISMISS_DURATION_MS=3000;
 const DEFAULT_AVATAR_SIZE=420;
 let panelZoomFactor=1,latestNaraBrainState=null,latestNaraSkillSnapshot=null,latestHumanALERuntime=null,selectedBrainRegion='NARA_CORE',humanaleVisualFrame={fps:0,points:0},lastVisualStudioBroadcast=0,humanaleVisualEvents=[],lastHumanaleVisualEventId=null;
+let collaborationMode=desktop&&['auto','full-team','local-only','manual'].includes(localStorage.getItem('alecore-collaboration-mode'))?localStorage.getItem('alecore-collaboration-mode'):'auto';
 let aiReady=false,savedProvider=desktop?localStorage.getItem('dudidam-provider'):'',aiProvider=selectDefaultConversationProvider({desktop:Boolean(desktop),savedProvider,providers:['chatgpt',...apiProviders]}),busy=false,voice=true,selectedVoiceURI='',listening=false,recognition,cameraStream,cameraPending=false,history=[],toastTimer,bubbleTimer,speechTimer,drag,offset={x:0,y:0},ttsActive=false,ttsEnergy=0,audioEnergy=0,audioMode='',musicUrl='',wakeRecognition,wakeListening=false,wakeEnabled=desktop?localStorage.getItem('dudidam-wake-enabled')==='true':false,wakeRestartTimer,wakeHealthVerified=false,wakeRetryBlocked=false,wakeNetworkFailures=0,summoning=false,dismissing=false,transitionSerial=0,hold5Timer,hold5Fired=false;
 let wakeStartGeneration=0;
+if(desktop&&collaborationMode!=='manual')aiProvider='alecore-local';
 let micProbeGeneration=0,micChecking=false;
 let remoteSpeechEnergy=0;
 let localRecorder,localStream,localChunks=[],localTimer,localCaptureGeneration=0;
@@ -547,8 +549,23 @@ const audioReactor=new AudioReactor(level=>{audioEnergy=level;syncFaceAudio();sy
  avatar.setEarSpectrum(bands);syncNaraHearing();
  if(panelOnly&&(Math.max(bands.low,bands.mid,bands.high)===0||performance.now()-lastBandsSent>80)){panelChannel?.postMessage({type:'ear-spectrum',bands});lastBandsSent=performance.now();}
 });
-if(desktop){document.body.classList.add('desktop');$('.desktop-actions').hidden=false;$('#providerRow').hidden=false;$('#provider').value=aiProvider;$('#popup').hidden=true;if(panelOnly)document.body.classList.add('detached-panel');updateDesktopMemoryContextUi();}else $('#systemAudio').hidden=true;
+if(desktop){document.body.classList.add('desktop');$('.desktop-actions').hidden=false;$('#providerRow').hidden=collaborationMode!=='manual';$('#provider').value=aiProvider;$('#collaborationModeRow').hidden=false;$('#collaborationMode').value=collaborationMode;$('#cloudConsentRow').hidden=collaborationMode==='local-only';$('#collaborationNote').hidden=false;$('#collaborationLoginActions').hidden=collaborationMode==='local-only'||collaborationMode==='manual';$('#collaborationProviderStatus').hidden=collaborationMode==='local-only'||collaborationMode==='manual';updateCollaborationNotice();$('#popup').hidden=true;if(panelOnly)document.body.classList.add('detached-panel');updateDesktopMemoryContextUi();}else $('#systemAudio').hidden=true;
 if(popup){document.body.classList.add('popup-widget');$('#popup').hidden=true;}
+function updateCollaborationNotice(){
+ const note=$('#collaborationNote');
+ if(collaborationMode==='local-only'){
+  note.textContent='LOCAL ONLY: semua percakapan tetap di AleCore Local. Tidak ada pesan, riwayat, memory, foto, atau tugas yang dikirim ke provider cloud. Tugas Developer Agent eksternal diblokir.';
+ }else if(collaborationMode==='manual'&&aiProvider!=='alecore-local'){
+  const label=({'chatgpt':'ChatGPT','copilot':'GitHub Copilot','openai':'OpenAI API','grok':'Grok','gemini':'Gemini','claude':'Claude','deepseek':'DeepSeek','askcodi':'AskCodi'})[aiProvider]||aiProvider;
+  note.textContent='MANUAL: '+label+' menerima pesan langsung hanya setelah izin cloud untuk pesan ini dicentang. Riwayat, memory context, dan foto dapat ikut dikirim sesuai kemampuan provider yang dipilih.';
+ }else if(collaborationMode==='manual'){
+  note.textContent='MANUAL · AleCore Local: percakapan tetap lokal. Untuk tugas proyek, Developer Agent Hub dapat memakai executor cloud hanya setelah izin cloud untuk pesan tersebut dicentang.';
+ }else{
+  note.textContent='AUTO/FULL TEAM: AleCore Local membuat draf. Setelah izin per pesan, reviewer cloud dan Specialist Agent Hub menerima teks permintaan, draf lokal, serta catatan review terbatas; riwayat mentah, paket memory, dan lampiran foto tidak diteruskan. Tugas proyek eksternal juga memerlukan izin.';
+ }
+}
+async function refreshCollaborationProviderStatus(){if(!desktop)return;const status=$('#collaborationProviderStatus');status.textContent='Memeriksa koneksi ChatGPT dan GitHub Copilot…';try{const [chatgpt,copilot]=await Promise.all([desktop.status('chatgpt'),desktop.status('copilot')]);const chatLabel=chatgpt?.configured?'ChatGPT · login terverifikasi':'ChatGPT · belum login';const copilotLabel=!copilot?.installed?'Copilot CLI · belum terpasang':copilot?.verified?'Copilot · permintaan berhasil':copilot?.authenticated?'Copilot · login berhasil, menunggu uji permintaan':'Copilot CLI · terpasang, login belum terverifikasi · hubungkan dahulu';status.textContent=chatLabel+'  |  '+copilotLabel;}catch{status.textContent='Status kolaborator belum dapat diperiksa.';}}
+async function loginCollaborationProvider(provider){if(!desktop)return;const button=provider==='copilot'?$('#collabLoginCopilot'):$('#collabLoginChatGPT');button.disabled=true;try{const result=provider==='copilot'?await desktop.loginCopilot():await desktop.login();if(result?.error)toast(result.error);else toast((provider==='copilot'?'GitHub Copilot':'ChatGPT')+' berhasil dihubungkan.');await refreshCollaborationProviderStatus();}catch{toast('Login provider belum selesai. Coba lagi.');}finally{button.disabled=false;}}
 function applyAvatarSize(value){
  const size=Math.max(180,Math.min(540,Number(value)||DEFAULT_AVATAR_SIZE));
  document.documentElement.style.setProperty('--avatar-size',size+'px');
@@ -823,13 +840,14 @@ async function startMicrophoneVisual(){if(audioMode==='microphone'){stopReactive
 async function startSystemAudio(){if(audioMode==='system'){stopReactiveAudio();return;}stopReactiveAudio();if(!desktop||!navigator.mediaDevices?.getDisplayMedia){toast('Audio perangkat tersedia pada HumanALE god egine Desktop Windows.');return;}try{const stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});stream.getVideoTracks().forEach(track=>track.stop());if(!stream.getAudioTracks().length)throw new Error('no-audio');await audioReactor.useStream(stream);for(const track of stream.getAudioTracks())track.addEventListener('ended',()=>updateAudioUi(),{once:true});updateAudioUi('system','Audio perangkat bereaksi');}catch{stopReactiveAudio();toast('Audio perangkat tidak tersedia. Putar musik dari file atau gunakan mikrofon visual.');}}
 async function playMusic(file){if(!file)return;stopReactiveAudio();const player=$('#musicPlayer');try{musicUrl=URL.createObjectURL(file);player.src=musicUrl;player.hidden=false;await audioReactor.useElement(player);await player.play();updateAudioUi('music','Musik bereaksi');}catch{stopReactiveAudio();toast('File audio tidak dapat diputar. Pilih MP3, WAV, atau format yang didukung.');}}
 function message(text,role='assistant',say=true,broadcast=true){const a=document.createElement('article');a.className='message '+role;const b=document.createElement('b');b.textContent=role==='assistant'?'HUMANALE GOD ENGINE':'KAMU';const p=document.createElement('p');p.textContent=text;a.append(b,p);$('#messages').append(a);$('#messages').scrollTop=$('#messages').scrollHeight;if(role==='assistant'){$('#bubble').textContent=text;$('#bubble').hidden=!panelOnly&&$('#chatDialog').open;clearTimeout(bubbleTimer);bubbleTimer=setTimeout(()=>$('#bubble').hidden=true,15000);if(emotionChoice==='auto')applyEmotion(emotionFromText(text),broadcast);if(say)speak(text);}if(broadcast)panelChannel?.postMessage({type:'message',text,role});}
-async function submit(text,image){text=text.trim();if(!text||busy)return;message(text,'user',false);const cmd=!image&&parseCommand(text);if(cmd){let answer='';if(['blink','nod','shake'].includes(cmd)){avatar.trigger(cmd);answer={blink:'Saya berkedip.',nod:'Baik, saya mengangguk.',shake:'Saya menggelengkan kepala.'}[cmd];}if(cmd==='stop'){stopSpeech();stopListening();answer='Baik. Suara dihentikan.';}if(cmd==='hello'){avatar.trigger('nod');answer='Halo, saya HumanALE god egine. Saya mendengarkan.';}if(cmd==='help')answer='Klik kanan atau tekan H untuk kontrol, Enter untuk percakapan. B berkedip, N mengangguk, G menggeleng, M mikrofon, R tengahkan. Tombol 1 sampai 5 mengganti gaya biner dan neural. Ukuran avatar dapat diatur dari kontrol. Seret wajah untuk memindahkan.';if(cmd==='time')answer='Sekarang pukul '+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})+'.';if(cmd==='date')answer='Hari ini '+new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'.';if(cmd==='pet'){document.querySelectorAll('dialog[open]').forEach(d=>d.close());answer='Panel disembunyikan.';}message(answer,'assistant',cmd!=='stop');return;}
+async function submit(text,image){text=text.trim();if(!text||busy)return;const allowCloudForThisMessage=$('#allowCloudCollaboration').checked===true;$('#allowCloudCollaboration').checked=false;message(text,'user',false);const cmd=!image&&parseCommand(text);if(cmd){let answer='';if(['blink','nod','shake'].includes(cmd)){avatar.trigger(cmd);answer={blink:'Saya berkedip.',nod:'Baik, saya mengangguk.',shake:'Saya menggelengkan kepala.'}[cmd];}if(cmd==='stop'){stopSpeech();stopListening();answer='Baik. Suara dihentikan.';}if(cmd==='hello'){avatar.trigger('nod');answer='Halo, saya HumanALE god egine. Saya mendengarkan.';}if(cmd==='help')answer='Klik kanan atau tekan H untuk kontrol, Enter untuk percakapan. B berkedip, N mengangguk, G menggeleng, M mikrofon, R tengahkan. Tombol 1 sampai 5 mengganti gaya biner dan neural. Ukuran avatar dapat diatur dari kontrol. Seret wajah untuk memindahkan.';if(cmd==='time')answer='Sekarang pukul '+new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})+'.';if(cmd==='date')answer='Hari ini '+new Date().toLocaleDateString('id-ID',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'.';if(cmd==='pet'){document.querySelectorAll('dialog[open]').forEach(d=>d.close());answer='Panel disembunyikan.';}message(answer,'assistant',cmd!=='stop');return;}
  if(!desktop){message('Login Sites hanya mengenali akun. Untuk percakapan model gunakan HumanALE god egine Desktop.','assistant',false);return;}
  if(!image&&isExplicitProjectWorkRequest(text)){
+  if(collaborationMode==='local-only'||!allowCloudForThisMessage){message(collaborationMode==='local-only'?'Mode LOCAL ONLY menahan tugas ini. Developer Agent Hub tidak akan dijalankan dan tidak ada data yang dikirim ke provider luar.':'Tugas proyek menggunakan Developer Agent Hub dan dapat melibatkan provider AI eksternal. Centang izin cloud untuk pesan ini lalu kirim ulang. Belum ada agent proyek yang dijalankan.','assistant',false);return;}
   busy=true;stopSpeech();$('#send').disabled=true;$('#look').disabled=true;state('Memeriksa executor CLI…');$('#liveText').textContent='Memeriksa kesiapan Mode Kerja dan koneksi agent…';
   let workSucceeded=false;setEvolutionVisual('start');
   try{
-   const result=await runProjectWork(text);
+   const result=await runProjectWork(text,{allowCloud:allowCloudForThisMessage});
    if(result?.error)throw new Error(result.error);
    const answer=result?.text||'Agent selesai tanpa output teks.';
    history.push({role:'user',content:text},{role:'assistant',content:answer});history=history.slice(-10);panelChannel?.postMessage({type:'history',history});message(answer);
@@ -842,14 +860,20 @@ async function submit(text,image){text=text.trim();if(!text||busy)return;message
   return;
  }
  if(!aiReady){const missing={'alecore-local':'AleCore Local belum siap. Jalankan Ollama dan unduh model qwen3.5:2b, lalu tekan Periksa lagi.',copilot:'GitHub Copilot CLI belum tersedia. Pasang dan login Copilot, lalu tekan Periksa lagi.',openai:'OpenAI API belum aktif. Atur OPENAI_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',grok:'Grok belum aktif. Atur XAI_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',gemini:'Gemini belum aktif. Atur GEMINI_API_KEY atau GOOGLE_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',claude:'Claude belum aktif. Atur ANTHROPIC_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',deepseek:'DeepSeek belum aktif. Atur DEEPSEEK_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',askcodi:'AskCodi belum aktif. Atur ASKCODI_API_KEY dan ASKCODI_MODEL, buka ulang HumanALE god egine, lalu tekan Periksa lagi.'}[aiProvider]||'Silakan pilih Login ChatGPT pada kontrol avatar, selesaikan login di browser, lalu Periksa lagi.';message(missing,'assistant',false);return;}
- busy=true;stopSpeech();$('#send').disabled=true;$('#look').disabled=true;state('Berpikir…');const providerName={'alecore-local':'AleCore Local',copilot:'GitHub Copilot',openai:'OpenAI API',grok:'Grok',gemini:'Gemini',claude:'Claude',deepseek:'DeepSeek',askcodi:'AskCodi'}[aiProvider]||'ChatGPT';$('#liveText').textContent=providerName+' sedang merespons…';
- try{const memoryContext=await prepareEffectiveMemoryContext(text,'reasoner');const result=await desktop.ask({provider:aiProvider,message:text,history:history.slice(-10),image,memoryContext});if(result.error)throw new Error(result.error);history.push({role:'user',content:text},{role:'assistant',content:result.text});history=history.slice(-10);panelChannel?.postMessage({type:'history',history});message(result.text);}
+ busy=true;stopSpeech();$('#send').disabled=true;$('#look').disabled=true;state('Berpikir…');const providerName=collaborationMode==='manual'?({'alecore-local':'AleCore Local',copilot:'GitHub Copilot',openai:'OpenAI API',grok:'Grok',gemini:'Gemini',claude:'Claude',deepseek:'DeepSeek',askcodi:'AskCodi'}[aiProvider]||'ChatGPT'):'AleCore Local';const modeLabel={'auto':'AUTO COLLABORATION','full-team':'FULL TEAM','local-only':'LOCAL ONLY'}[collaborationMode]||'MANUAL';$('#liveText').textContent=collaborationMode==='manual'?providerName+' sedang merespons…':providerName+' memproses · '+modeLabel+'…';
+ try{
+  const memoryContext=await prepareEffectiveMemoryContext(text,'reasoner');
+  const result=await desktop.ask({provider:aiProvider,collaborationMode,allowCloud:allowCloudForThisMessage,message:text,history:history.slice(-10),image,memoryContext});
+  if(result.error)throw new Error(result.error);
+  const answer=result.text+(result.collaboration?.summary?'\n\n'+result.collaboration.summary:'');
+  history.push({role:'user',content:text},{role:'assistant',content:answer});history=history.slice(-10);panelChannel?.postMessage({type:'history',history});message(answer);
+ }
  catch(e){message(e.message||('Koneksi '+providerName+' gagal. Coba lagi.'),'assistant',false);}finally{busy=false;avatar.thinking=false;$('#send').disabled=false;$('#look').disabled=false;$('#liveText').textContent='';if(!avatar.speaking&&!listening)state();}
 }
 async function checkAI(){
  try{
   const data=desktop?await desktop.status(aiProvider):await (await fetch('/api/status',{cache:'no-store'})).json();
-  aiReady=!!data.configured&&!!desktop;
+  aiReady=!!data.configured&&!!desktop&&data.busy!==true&&(aiProvider!=='copilot'||data.verified===true||data.authenticated===true);
  const hasLogin=aiProvider==='chatgpt'||aiProvider==='copilot';
  const noImage=['copilot','grok','claude','deepseek','askcodi'].includes(aiProvider);
  $('#login').hidden=desktop&&!hasLogin;$('#login').textContent=aiProvider==='copilot'?'Login Copilot':'Login ChatGPT';$('#chatgptLink').hidden=desktop&&aiProvider!=='chatgpt';$('#camera').disabled=noImage;
@@ -868,11 +892,13 @@ async function checkAI(){
   if(meta){
    const localRuntimeMissing=aiProvider==='alecore-local'&&!data.runtimeAvailable;
    const localModelMissing=aiProvider==='alecore-local'&&data.runtimeAvailable&&!data.modelAvailable;
-   $('#aiStatus').textContent=aiReady?meta.label+' · '+(data.verified?(data.evidence==='successful-request'?'permintaan sebelumnya berhasil':'runtime lokal siap'):'siap diuji'):meta.label+' · '+(localRuntimeMissing?'Ollama belum berjalan':localModelMissing?'model belum terpasang':meta.missing);
-   $('#apiDetail').textContent=aiReady?meta.ready:localRuntimeMissing?'Pasang dan jalankan Ollama untuk Windows. Model lokal belum dapat diperiksa.':localModelMissing?'Ollama aktif, tetapi model belum ditemukan. Jalankan `ollama pull qwen3.5:2b` di PowerShell.':meta.setup;
+   const copilotNeedsLogin=aiProvider==='copilot'&&data.installed===true&&data.verified!==true&&data.authenticated!==true;
+   const copilotNeedsRequest=aiProvider==='copilot'&&data.authenticated===true&&data.verified!==true;
+   $('#aiStatus').textContent=aiReady?meta.label+' · '+(copilotNeedsRequest?'login terhubung · akses diuji saat permintaan pertama':data.verified?(data.evidence==='successful-request'?'permintaan sebelumnya berhasil':'runtime lokal siap'):'siap diuji'):meta.label+' · '+(copilotNeedsLogin?'login belum terverifikasi':data.busy===true?'provider sedang sibuk':localRuntimeMissing?'Ollama belum berjalan':localModelMissing?'model belum terpasang':meta.missing);
+   $('#apiDetail').textContent=aiReady?meta.ready:copilotNeedsLogin?'Copilot CLI terpasang, tetapi status login belum diverifikasi. Klik Login Copilot untuk menghubungkan akun.':copilotNeedsRequest?'Login Copilot berhasil. Permintaan pertama akan menguji akses akun dan subscription.':data.busy===true?'Provider sedang memproses permintaan lain. Tunggu sampai selesai.':localRuntimeMissing?'Pasang dan jalankan Ollama untuk Windows. Model lokal belum dapat diperiksa.':localModelMissing?'Ollama aktif, tetapi model belum ditemukan. Jalankan `ollama pull qwen3.5:2b` di PowerShell.':meta.setup;
    $('#chatNote').textContent=meta.note;
   }else{
-   $('#aiStatus').textContent=aiReady?(data.verified?(data.evidence==='successful-request'?'ChatGPT · permintaan sebelumnya berhasil':'ChatGPT · login lokal terverifikasi · tanpa API key'):'ChatGPT · sesi belum diverifikasi'):desktop?'Login ChatGPT diperlukan':data.signedIn?'Login Sites aktif':'Login Sites';
+   $('#aiStatus').textContent=aiReady?(data.verified?(data.evidence==='successful-request'?'ChatGPT · permintaan sebelumnya berhasil':'ChatGPT · login lokal terverifikasi · tanpa API key'):'ChatGPT · sesi belum diverifikasi'):desktop?(data.busy===true?'ChatGPT · sesi belum diverifikasi':'Login ChatGPT diperlukan'):data.signedIn?'Login Sites aktif':'Login Sites';
    $('#apiDetail').textContent=desktop?(aiReady?'Percakapan memakai login ChatGPT melalui Codex CLI lokal dan mengikuti batas penggunaan akun. Riwayat chatgpt.com tidak diimpor.':'Klik Login ChatGPT untuk membuka alur resmi. Setelah selesai, tekan Periksa lagi. Tidak perlu API key.'):'Versi Sites menampilkan avatar dan mengenali login. Percakapan model tersedia di AleCore AI Desktop.';
    $('#chatNote').textContent=desktop?'ChatGPT via Codex CLI · riwayat percakapan di memori aplikasi.':'Versi web: perintah dasar. Percakapan model langsung tersedia di desktop.';
   }
@@ -930,6 +956,9 @@ function setEvolutionVisual(mode='start'){
 }
 async function runDeveloperAgent(event){
  event.preventDefault();if(!desktop)return;
+ const allowCloudForAgentTask=$('#allowCloudCollaboration').checked===true;
+ $('#allowCloudCollaboration').checked=false;
+ if(collaborationMode==='local-only'||!allowCloudForAgentTask){toast('Agent eksternal memerlukan izin cloud untuk tugas ini. Centang izin sebelum menjalankan agent.');return;}
  const id=$('#agentSelect').value,prompt=$('#agentPrompt').value.trim(),mode=$('#agentMode').value;
  if(!id||!prompt)return;
  if(mode==='work'&&!['humanale-orchestrator','github-copilot','codex','cursor','claude'].includes(id)){toast('Mode Kerja hanya tersedia untuk HumanALE Orchestrator, GitHub Copilot, OpenAI Codex, Cursor, atau Claude Code.');return;}
@@ -945,7 +974,7 @@ async function runDeveloperAgent(event){
   }
   selectedDeveloperAgentId=id;
   const payload=await createAgentTaskPayload({id,prompt,mode,prepareMemory:prepareEffectiveMemoryContext});
-  const result=await desktop.runAgent(payload);
+  const result=await desktop.runAgent({...payload,allowCloud:true,collaborationMode});
   if(result?.error)throw new Error(result.error);
   $('#agentOutput').textContent=result?.text||'Agent selesai tanpa output.';
   desktopMemory?.remember({
@@ -989,7 +1018,7 @@ function buildProjectWorkPrompt(text){
  const prompt='Pengguna secara eksplisit meminta perubahan proyek dari percakapan HumanALE god egine. Gunakan konteks berikut untuk memahami target visual/bug, lalu benar-benar edit file yang relevan di checkout proyek. Jangan hanya memberi rencana.\n\n'+(context?context+'\n':'')+'PENGGUNA SEKARANG: '+text+'\n\nSetelah mengedit, jalankan test yang relevan dan laporkan file yang diubah serta hasilnya.';
  return prompt.slice(-3900);
 }
-async function runProjectWork(text){
+async function runProjectWork(text,{allowCloud=false}={}){
  const status=await desktop.agents();
  latestAgentStatus=status;
  let executor;
@@ -1001,8 +1030,9 @@ async function runProjectWork(text){
  state(executor.name+' mengerjakan proyek…');$('#liveText').textContent=executor.name+' · Mode Kerja';
  const prompt=buildProjectWorkPrompt(text);
  try{
+  if(!allowCloud||collaborationMode==='local-only')throw new Error('Mode Kerja Agent Hub memerlukan izin cloud untuk pesan ini.');
   const payload=await createAgentTaskPayload({id:executor.id,mode:'work',prompt});
-  const result=await desktop.runAgent(payload);
+  const result=await desktop.runAgent({...payload,allowCloud:true,collaborationMode});
   if(!result?.error)desktopMemory?.remember({
    type:'task',title:executor.name+' · mode kerja',
    summary:'Permintaan kerja agent selesai. Prompt dan output mentah tidak disimpan otomatis.',
@@ -1236,7 +1266,11 @@ $('#wakeToggle').onchange=e=>{if(panelOnly){panelChannel?.postMessage({type:'wak
 $('#camera').onclick=toggleCamera;
 $('#center').onclick=center;
 $('#refreshStatus').onclick=()=>{checkAI();refreshCloudMemoryStatus();};
-$('#provider').onchange=e=>{aiProvider=['chatgpt',...apiProviders].includes(e.target.value)?e.target.value:'chatgpt';localStorage.setItem('dudidam-provider',aiProvider);history=[];stopCamera();setPersona(aiProvider);checkAI();};
+$('#collaborationMode').onchange=e=>{const next=['auto','full-team','local-only','manual'].includes(e.target.value)?e.target.value:'auto';collaborationMode=next;localStorage.setItem('alecore-collaboration-mode',next);$('#providerRow').hidden=next!=='manual';$('#cloudConsentRow').hidden=next==='local-only';$('#collaborationLoginActions').hidden=next==='local-only'||next==='manual';$('#collaborationProviderStatus').hidden=next==='local-only'||next==='manual';if(next!=='manual'){aiProvider='alecore-local';$('#provider').value=aiProvider;setPersona(aiProvider);}updateCollaborationNotice();checkAI();};
+$('#collabCheckProviders').onclick=refreshCollaborationProviderStatus;
+$('#collabLoginChatGPT').onclick=()=>loginCollaborationProvider('chatgpt');
+$('#collabLoginCopilot').onclick=()=>loginCollaborationProvider('copilot');
+$('#provider').onchange=e=>{aiProvider=['chatgpt',...apiProviders].includes(e.target.value)?e.target.value:'chatgpt';collaborationMode='manual';localStorage.setItem('alecore-collaboration-mode','manual');$('#collaborationMode').value='manual';$('#providerRow').hidden=false;$('#cloudConsentRow').hidden=false;updateCollaborationNotice();localStorage.setItem('dudidam-provider',aiProvider);history=[];stopCamera();setPersona(aiProvider);checkAI();};
 $('#agentHub').onclick=async()=>{if(!desktop)return;showDialog('#agentDialog');await loadAgents();};
 $('#agentRefresh').onclick=loadAgents;
 $('#projectPick').onclick=chooseProjectFolder;
