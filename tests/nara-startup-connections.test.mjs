@@ -283,7 +283,7 @@ test('production owner-gated IPC routes AleCore Local status and conversation to
 
 async function providerIpcFixture(){
   const main=await readFile(new URL('../desktop/main.cjs',import.meta.url),'utf8');
-  const source=main.slice(main.indexOf('  const pickProvider='),main.indexOf("  ipcMain.handle('dudidam:stt-status'"));
+  const source=main.slice(main.indexOf('  const pickProvider='),main.indexOf("  ipcMain.handle('dudidam:agent-open'"));
   const handlers=new Map();
   const nara=naraFixture();
   let response={text:'usable response'},statusCalls=0,askCalls=0,loginCalls=0,allowed=true,configured=true;
