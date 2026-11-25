@@ -456,6 +456,7 @@ test('desktop UI and IPC are connected to the privacy-gated coordinator', async 
   assert.match(app, /desktop\.runAgent\(\{\.\.\.payload,allowCloud:true,collaborationMode\}\)/);
   assert.match(app, /collaborationMode==='local-only'\|\|!allowCloudForThisMessage/);
   assert.match(app, /data\.verified===true/);
+  assert.match(app, /data\.authenticated===true/);
   assert.match(app, /isExplicitProjectWorkRequest\(text\)/);
   assert.match(preload, /ask:payload=>ipcRenderer\.invoke\('dudidam:ask',payload\)/);
   assert.match(app, /desktop\.ask\(\{provider:aiProvider,collaborationMode,allowCloud:allowCloudForThisMessage/);
@@ -485,6 +486,33 @@ test('AUTO does not call Copilot until its login state is verified', async () =>
       && item.status === 'unavailable'
       && /belum terverifikasi/.test(item.detail)
   ));
+});
+
+test('AUTO can route to Copilot after login succeeds before the first prompt', async () => {
+  const local = fakeBridge({ responses: ['Draf awal lokal.'] });
+  const copilot = fakeBridge({
+    configured: true,
+    installed: true,
+    authenticated: true,
+    verified: false,
+    responses: ['Ulasan Copilot setelah login.']
+  });
+  const chatgpt = fakeBridge({ configured: false });
+  const coordinator = new AleCoreMultiAICoordinator({
+    bridges: { 'alecore-local': local, copilot, chatgpt }
+  });
+
+  const result = await coordinator.run({
+    mode: 'auto',
+    allowCloud: true,
+    message: 'Perbaiki bug dan review kode repository ini.'
+  });
+
+  assert.equal(copilot.calls.length, 1);
+  assert.ok(result.collaboration.participants.some(item =>
+    item.provider === 'copilot' && item.status === 'completed'
+  ));
+  assert.equal(result.collaboration.cloudShared, true);
 });
 
 test('Copilot login success is retained as authenticated but not request-verified state', async () => {
