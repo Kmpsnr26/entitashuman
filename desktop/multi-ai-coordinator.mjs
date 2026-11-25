@@ -119,6 +119,9 @@ export class AleCoreMultiAICoordinator {
 
     if (mode === 'manual') {
       const provider = String(value.provider || 'chatgpt');
+      if (provider !== 'alecore-local' && value.allowCloud !== true) {
+        throw new Error('Provider cloud dipilih secara manual, tetapi izin cloud untuk pesan ini belum diberikan.');
+      }
       const bridge = this.bridges[provider];
       if (!bridge || typeof bridge.ask !== 'function') {
         throw new Error('Provider manual tidak tersedia.');
@@ -210,6 +213,7 @@ export class AleCoreMultiAICoordinator {
         status: await this.statusOf(provider)
       })));
       const isReady = item => item.status.configured === true
+        && item.status.busy !== true
         && (item.provider !== 'copilot' || item.status.verified === true);
 
       for (const item of readiness) {
