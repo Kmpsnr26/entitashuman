@@ -213,13 +213,15 @@ export class AleCoreMultiAICoordinator {
         && (item.provider !== 'copilot' || item.status.verified === true);
 
       for (const item of readiness) {
-        if (item.status.configured !== true) {
+        if (!isReady(item)) {
           participants.push({
             provider: item.provider,
             status: 'unavailable',
             detail: item.provider === 'copilot' && item.status.configured === true && item.status.verified !== true
               ? 'CLI tersedia tetapi login Copilot belum terverifikasi'
-              : 'belum siap atau belum terautentikasi'
+              : item.status.busy === true
+                ? 'provider sedang mengerjakan permintaan lain'
+                : 'belum siap atau belum terautentikasi'
           });
         }
       }
