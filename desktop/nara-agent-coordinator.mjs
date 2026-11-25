@@ -154,6 +154,10 @@ export class NaraAgentCoordinator{
       'Agent '+input.id+' · '+(input.mode==='work'?'mode kerja':'analisis'),
       180
     );
+    const queuedTasks=this.nara.snapshot?.().engine?.autopilot?.scheduler?.tasks||[];
+    if(queuedTasks.some(item=>item.id&&item.status==='queued'||item.status==='running')){
+      throw new Error('NARA Autopilot sedang memiliki task lain. Selesaikan antrean aktif sebelum menjalankan Specialist Agent Hub.');
+    }
 
     this.nara.createGoal({
       id:goalId,
@@ -179,7 +183,9 @@ export class NaraAgentCoordinator{
       let outcome=null;
       let retried=false;
       for(let cycle=0;cycle<3;cycle++){
-        outcome=await this.nara.runAutopilotOnce();
+        outcome=typeof this.nara.autopilot?.runTask==='function'
+          ?await this.nara.autopilot.runTask(taskId)
+          :await this.nara.runAutopilotOnce();
         if(outcome.ok)break;
         if(outcome.reason==='autopilot-busy')break;
         if(outcome.decision?.action!=='retry')break;
