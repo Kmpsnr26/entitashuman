@@ -530,5 +530,6 @@ test('Copilot login success is retained as authenticated but not request-verifie
   assert.deepEqual(login, { ok: true });
   assert.equal(status.configured, true);
   assert.equal(status.installed, true);
-  assert.equal(status.verified, true);
+  assert.equal(status.verified, false);
+  assert.equal(status.authenticated, true);
 });
