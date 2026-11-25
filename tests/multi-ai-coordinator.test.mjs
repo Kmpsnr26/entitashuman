@@ -134,7 +134,8 @@ test('FULL TEAM honors the cloud consent gate and reports unavailable providers 
   });
   assert.equal(chatgpt.calls.length, 0);
   assert.equal(copilot.calls.length, 1);
-  assert.equal(permitted.collaboration.cloudShared, false);
+  assert.equal(permitted.collaboration.cloudShared, true);
+  assert.match(permitted.collaboration.summary, /respons bisa berhasil atau gagal/);
   assert.ok(permitted.collaboration.participants.some(item =>
     item.provider === 'chatgpt' && item.status === 'unavailable'
   ));
