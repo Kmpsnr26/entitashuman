@@ -82,6 +82,7 @@ export class AleCoreMultiAICoordinator {
       throw new TypeError('AleCore Multi-AI Coordinator membutuhkan kumpulan provider bridge.');
     }
     this.bridges = bridges;
+    this.pending = false;
   }
 
   async statusOf(provider) {
@@ -100,6 +101,16 @@ export class AleCoreMultiAICoordinator {
   }
 
   async run(value = {}) {
+    if (this.pending) throw new Error('Tunggu kolaborasi AleCore AI sebelumnya selesai.');
+    this.pending = true;
+    try {
+      return await this.execute(value);
+    } finally {
+      this.pending = false;
+    }
+  }
+
+  async execute(value = {}) {
     const data = validateChat(value);
     const requestedMode = String(value.mode || 'auto');
     const mode = ALECORE_COLLABORATION_MODES.includes(requestedMode)
