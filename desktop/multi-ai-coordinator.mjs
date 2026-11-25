@@ -37,8 +37,8 @@ function reviewPrompt(provider, request, draft) {
     'Nilai ketepatan draf, temukan asumsi yang lemah, risiko, dan koreksi penting. Jangan sekadar menyetujui.',
     'Balas dalam Bahasa Indonesia. Bedakan fakta, dugaan, dan hal yang perlu diverifikasi.',
     'Provider reviewer: ' + PROVIDER_LABELS[provider] + '.',
-    'PERMINTAAN PENGGUNA:\n' + bounded(request, 1600),
-    'DRAF AWAL ALECORE LOCAL:\n' + bounded(draft, 1600)
+    'PERMINTAAN PENGGUNA:\n' + bounded(request, MAX_COLLABORATOR_CHARS),
+    'DRAF AWAL ALECORE LOCAL:\n' + bounded(draft, MAX_COLLABORATOR_CHARS)
   ].join('\n\n').slice(0, 3900);
 }
 
