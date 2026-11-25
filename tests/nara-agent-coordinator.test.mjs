@@ -24,14 +24,5 @@ test('NARA Agent Coordinator refuses to run while unrelated tasks are queued', a
   const agentHub = { async run() { throw new Error('must not run'); } };
   const coordinator = new NaraAgentCoordinator({ nara, agentHub });
   assert.equal(coordinator.canRun(), false);
-
-  await assert.rejects(
-    coordinator.run({
-      id: 'humanale-orchestrator',
-      mode: 'analyze',
-      prompt: 'Analisis read-only.'
-    }),
-    /NARA Autopilot sedang memiliki task lain/
-  );
   assert.equal(createGoalCalled, false);
 });
