@@ -681,7 +681,7 @@ test('AleCore Local is the first-party offline desktop conversation provider',as
  assert.match(desktop,/alecore-local/);
  assert.match(state,/alecore-local/);
  assert.match(html,/value="alecore-local"/);
- assert.match(app,/aiProvider=apiProviders\.includes\(savedProvider\)\?savedProvider:'alecore-local'/);
+ assert.match(app,/selectDefaultConversationProvider\(\{desktop:Boolean\(desktop\),savedProvider,providers:\['chatgpt',\.\.\.apiProviders\]\}\)/);
  assert.match(app,/AleCore Local/);
  assert.doesNotMatch(local,/OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY/);
 });
