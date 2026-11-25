@@ -452,6 +452,8 @@ test('desktop UI and IPC are connected to the privacy-gated coordinator', async 
   assert.match(main, /new AleCoreMultiAICoordinator\(\{bridges,agentHub,agentCoordinator:naraAgentCoordinator\}\)/);
   assert.match(main, /multiAiCoordinator\.run\(\{\.\.\.payload,mode:collaborationMode,allowCloud:value\?\.allowCloud===true\}\)/);
   assert.match(main, /provider!=='alecore-local'&&value\?\.allowCloud!==true/);
+  assert.match(main, /dudidam:agent-run'[\s\S]*?value\?\.collaborationMode==='local-only'\|\|value\?\.allowCloud!==true/);
+  assert.match(app, /desktop\.runAgent\(\{\.\.\.payload,allowCloud:true,collaborationMode\}\)/);
   assert.match(app, /collaborationMode==='local-only'\|\|!allowCloudForThisMessage/);
   assert.match(app, /data\.verified===true/);
   assert.match(app, /isExplicitProjectWorkRequest\(text\)/);
