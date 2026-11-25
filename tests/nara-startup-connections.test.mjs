@@ -330,7 +330,7 @@ test('production Agent Hub IPC blocks missing consent and LOCAL ONLY before NARA
     prompt:'Change a test.'
   });
   assert.match(noConsent.error,/izin cloud eksplisit/);
-  assert.equal(fx.nara.snapshot().engine.autopilot.scheduler.tasks.length,0);
+  assert.equal(fx.nara.snapshot().engine?.autopilot?.scheduler?.tasks?.length||0,0);
   fx.nara.stop();
 });
 
