@@ -11,7 +11,8 @@ function fakeBridge({
   configured = true,
   responses = ['jawaban'],
   statusResult = null,
-  failAsk = false
+  failAsk = false,
+  verified = true
 } = {}) {
   const calls = [];
   let index = 0;
@@ -19,7 +20,7 @@ function fakeBridge({
     calls,
     pending: false,
     async status() {
-      return statusResult || { configured };
+      return statusResult || { configured, verified };
     },
     async ask(payload) {
       calls.push(payload);
@@ -258,6 +259,28 @@ test('desktop UI and IPC are connected to the privacy-gated coordinator', async 
   assert.match(html, /id="allowCloudCollaboration"/);
 });
 
+
+test('AUTO does not call Copilot until its login state is verified', async () => {
+  const local = fakeBridge({ responses: ['Draf lokal.'] });
+  const chatgpt = fakeBridge({ configured: false });
+  const copilot = fakeBridge({ configured: true, verified: false });
+  const coordinator = new AleCoreMultiAICoordinator({
+    bridges: { 'alecore-local': local, chatgpt, copilot }
+  });
+
+  const result = await coordinator.run({
+    mode: 'auto',
+    allowCloud: true,
+    message: 'Perbaiki bug dan review kode repository ini.'
+  });
+
+  assert.equal(copilot.calls.length, 0);
+  assert.ok(result.collaboration.participants.some(item =>
+    item.provider === 'copilot'
+      && item.status === 'unavailable'
+      && /belum terverifikasi/.test(item.detail)
+  ));
+});
 
 test('Copilot login success is retained as a verified collaborator state', async () => {
   const bridge = new CopilotBridge({
