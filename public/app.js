@@ -561,7 +561,7 @@ function updateCollaborationNotice(){
  }else if(collaborationMode==='manual'){
   note.textContent='MANUAL · AleCore Local: percakapan tetap lokal. Untuk tugas proyek, Developer Agent Hub dapat memakai executor cloud hanya setelah izin cloud untuk pesan tersebut dicentang.';
  }else{
-  note.textContent='AUTO/FULL TEAM: AleCore Local membuat draf. Setelah izin per pesan, reviewer cloud menerima teks permintaan dan draf lokal saja; riwayat mentah, paket memory, dan lampiran foto tidak diteruskan. Tugas proyek eksternal juga memerlukan izin.';
+  note.textContent='AUTO/FULL TEAM: AleCore Local membuat draf. Setelah izin per pesan, reviewer cloud dan Specialist Agent Hub menerima teks permintaan, draf lokal, serta catatan review terbatas; riwayat mentah, paket memory, dan lampiran foto tidak diteruskan. Tugas proyek eksternal juga memerlukan izin.';
  }
 }
 async function refreshCollaborationProviderStatus(){if(!desktop)return;const status=$('#collaborationProviderStatus');status.textContent='Memeriksa koneksi ChatGPT dan GitHub Copilot…';try{const [chatgpt,copilot]=await Promise.all([desktop.status('chatgpt'),desktop.status('copilot')]);const chatLabel=chatgpt?.configured?'ChatGPT · login terverifikasi':'ChatGPT · belum login';const copilotLabel=!copilot?.installed?'Copilot CLI · belum terpasang':copilot?.verified?'Copilot · login terverifikasi':'Copilot CLI · terpasang, login belum terverifikasi · hubungkan dahulu';status.textContent=chatLabel+'  |  '+copilotLabel;}catch{status.textContent='Status kolaborator belum dapat diperiksa.';}}
