@@ -649,7 +649,7 @@ else{
    try{
     const payload={...value,memoryContext};delete payload.provider;
     const result=collaborationMode==='manual'
-     ? await bridges[provider].ask(payload)
+     ? await multiAiCoordinator.run({...payload,mode:'manual',provider,allowCloud:value?.allowCloud===true})
      : await multiAiCoordinator.run({...payload,mode:collaborationMode,allowCloud:value?.allowCloud===true});
     const usableResponse=!result?.error&&typeof result?.text==='string'&&Boolean(result.text.trim());
     if(!usableResponse){
