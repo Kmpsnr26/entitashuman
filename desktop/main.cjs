@@ -696,6 +696,7 @@ else{
   });
   ipcMain.handle('dudidam:agent-run',async(e,value)=>{
    if(!ownerTrusted(e))return {error:'Akses ditolak.'};
+   if(value?.collaborationMode==='local-only'||value?.allowCloud!==true)return {error:'Agent eksternal memerlukan izin cloud eksplisit untuk tugas ini. Mode LOCAL ONLY tidak mengizinkan Agent Hub.'};
    let memoryContext=null;
    try{memoryContext=validateMemoryContext(value?.memoryContext,{allowedTargets:['planner','agent']});}
    catch(error){
