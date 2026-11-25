@@ -384,8 +384,10 @@ const SUMMON_DURATION_MS=4200;
 const DISMISS_DURATION_MS=3000;
 const DEFAULT_AVATAR_SIZE=420;
 let panelZoomFactor=1,latestNaraBrainState=null,latestNaraSkillSnapshot=null,latestHumanALERuntime=null,selectedBrainRegion='NARA_CORE',humanaleVisualFrame={fps:0,points:0},lastVisualStudioBroadcast=0,humanaleVisualEvents=[],lastHumanaleVisualEventId=null;
+let collaborationMode=desktop&&['auto','full-team','local-only','manual'].includes(localStorage.getItem('alecore-collaboration-mode'))?localStorage.getItem('alecore-collaboration-mode'):'auto';
 let aiReady=false,savedProvider=desktop?localStorage.getItem('dudidam-provider'):'',aiProvider=selectDefaultConversationProvider({desktop:Boolean(desktop),savedProvider,providers:['chatgpt',...apiProviders]}),busy=false,voice=true,selectedVoiceURI='',listening=false,recognition,cameraStream,cameraPending=false,history=[],toastTimer,bubbleTimer,speechTimer,drag,offset={x:0,y:0},ttsActive=false,ttsEnergy=0,audioEnergy=0,audioMode='',musicUrl='',wakeRecognition,wakeListening=false,wakeEnabled=desktop?localStorage.getItem('dudidam-wake-enabled')==='true':false,wakeRestartTimer,wakeHealthVerified=false,wakeRetryBlocked=false,wakeNetworkFailures=0,summoning=false,dismissing=false,transitionSerial=0,hold5Timer,hold5Fired=false;
 let wakeStartGeneration=0;
+if(desktop&&collaborationMode!=='manual')aiProvider='alecore-local';
 let micProbeGeneration=0,micChecking=false;
 let remoteSpeechEnergy=0;
 let localRecorder,localStream,localChunks=[],localTimer,localCaptureGeneration=0;
@@ -547,7 +549,7 @@ const audioReactor=new AudioReactor(level=>{audioEnergy=level;syncFaceAudio();sy
  avatar.setEarSpectrum(bands);syncNaraHearing();
  if(panelOnly&&(Math.max(bands.low,bands.mid,bands.high)===0||performance.now()-lastBandsSent>80)){panelChannel?.postMessage({type:'ear-spectrum',bands});lastBandsSent=performance.now();}
 });
-if(desktop){document.body.classList.add('desktop');$('.desktop-actions').hidden=false;$('#providerRow').hidden=false;$('#provider').value=aiProvider;$('#popup').hidden=true;if(panelOnly)document.body.classList.add('detached-panel');updateDesktopMemoryContextUi();}else $('#systemAudio').hidden=true;
+if(desktop){document.body.classList.add('desktop');$('.desktop-actions').hidden=false;$('#providerRow').hidden=collaborationMode!=='manual';$('#provider').value=aiProvider;$('#collaborationModeRow').hidden=false;$('#collaborationMode').value=collaborationMode;$('#cloudConsentRow').hidden=collaborationMode==='local-only'||collaborationMode==='manual';$('#collaborationNote').hidden=false;$('#popup').hidden=true;if(panelOnly)document.body.classList.add('detached-panel');updateDesktopMemoryContextUi();}else $('#systemAudio').hidden=true;
 if(popup){document.body.classList.add('popup-widget');$('#popup').hidden=true;}
 function applyAvatarSize(value){
  const size=Math.max(180,Math.min(540,Number(value)||DEFAULT_AVATAR_SIZE));
@@ -842,8 +844,16 @@ async function submit(text,image){text=text.trim();if(!text||busy)return;message
   return;
  }
  if(!aiReady){const missing={'alecore-local':'AleCore Local belum siap. Jalankan Ollama dan unduh model qwen3.5:2b, lalu tekan Periksa lagi.',copilot:'GitHub Copilot CLI belum tersedia. Pasang dan login Copilot, lalu tekan Periksa lagi.',openai:'OpenAI API belum aktif. Atur OPENAI_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',grok:'Grok belum aktif. Atur XAI_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',gemini:'Gemini belum aktif. Atur GEMINI_API_KEY atau GOOGLE_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',claude:'Claude belum aktif. Atur ANTHROPIC_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',deepseek:'DeepSeek belum aktif. Atur DEEPSEEK_API_KEY pada environment Windows, buka ulang HumanALE god egine, lalu tekan Periksa lagi.',askcodi:'AskCodi belum aktif. Atur ASKCODI_API_KEY dan ASKCODI_MODEL, buka ulang HumanALE god egine, lalu tekan Periksa lagi.'}[aiProvider]||'Silakan pilih Login ChatGPT pada kontrol avatar, selesaikan login di browser, lalu Periksa lagi.';message(missing,'assistant',false);return;}
- busy=true;stopSpeech();$('#send').disabled=true;$('#look').disabled=true;state('Berpikir…');const providerName={'alecore-local':'AleCore Local',copilot:'GitHub Copilot',openai:'OpenAI API',grok:'Grok',gemini:'Gemini',claude:'Claude',deepseek:'DeepSeek',askcodi:'AskCodi'}[aiProvider]||'ChatGPT';$('#liveText').textContent=providerName+' sedang merespons…';
- try{const memoryContext=await prepareEffectiveMemoryContext(text,'reasoner');const result=await desktop.ask({provider:aiProvider,message:text,history:history.slice(-10),image,memoryContext});if(result.error)throw new Error(result.error);history.push({role:'user',content:text},{role:'assistant',content:result.text});history=history.slice(-10);panelChannel?.postMessage({type:'history',history});message(result.text);}
+ busy=true;stopSpeech();$('#send').disabled=true;$('#look').disabled=true;state('Berpikir…');const providerName=collaborationMode==='manual'?({'alecore-local':'AleCore Local',copilot:'GitHub Copilot',openai:'OpenAI API',grok:'Grok',gemini:'Gemini',claude:'Claude',deepseek:'DeepSeek',askcodi:'AskCodi'}[aiProvider]||'ChatGPT'):'AleCore Local';const modeLabel={'auto':'AUTO COLLABORATION','full-team':'FULL TEAM','local-only':'LOCAL ONLY'}[collaborationMode]||'MANUAL';$('#liveText').textContent=collaborationMode==='manual'?providerName+' sedang merespons…':providerName+' memproses · '+modeLabel+'…';
+ try{
+  const memoryContext=await prepareEffectiveMemoryContext(text,'reasoner');
+  const allowCloud=$('#allowCloudCollaboration').checked===true;
+  $('#allowCloudCollaboration').checked=false;
+  const result=await desktop.ask({provider:aiProvider,collaborationMode,allowCloud,message:text,history:history.slice(-10),image,memoryContext});
+  if(result.error)throw new Error(result.error);
+  const answer=result.text+(result.collaboration?.summary?'\n\n'+result.collaboration.summary:'');
+  history.push({role:'user',content:text},{role:'assistant',content:answer});history=history.slice(-10);panelChannel?.postMessage({type:'history',history});message(answer);
+ }
  catch(e){message(e.message||('Koneksi '+providerName+' gagal. Coba lagi.'),'assistant',false);}finally{busy=false;avatar.thinking=false;$('#send').disabled=false;$('#look').disabled=false;$('#liveText').textContent='';if(!avatar.speaking&&!listening)state();}
 }
 async function checkAI(){
@@ -1236,7 +1246,8 @@ $('#wakeToggle').onchange=e=>{if(panelOnly){panelChannel?.postMessage({type:'wak
 $('#camera').onclick=toggleCamera;
 $('#center').onclick=center;
 $('#refreshStatus').onclick=()=>{checkAI();refreshCloudMemoryStatus();};
-$('#provider').onchange=e=>{aiProvider=['chatgpt',...apiProviders].includes(e.target.value)?e.target.value:'chatgpt';localStorage.setItem('dudidam-provider',aiProvider);history=[];stopCamera();setPersona(aiProvider);checkAI();};
+$('#collaborationMode').onchange=e=>{const next=['auto','full-team','local-only','manual'].includes(e.target.value)?e.target.value:'auto';collaborationMode=next;localStorage.setItem('alecore-collaboration-mode',next);$('#providerRow').hidden=next!=='manual';$('#cloudConsentRow').hidden=next==='local-only'||next==='manual';if(next!=='manual'){aiProvider='alecore-local';$('#provider').value=aiProvider;setPersona(aiProvider);}checkAI();};
+$('#provider').onchange=e=>{aiProvider=['chatgpt',...apiProviders].includes(e.target.value)?e.target.value:'chatgpt';collaborationMode='manual';localStorage.setItem('alecore-collaboration-mode','manual');$('#collaborationMode').value='manual';$('#providerRow').hidden=false;$('#cloudConsentRow').hidden=true;localStorage.setItem('dudidam-provider',aiProvider);history=[];stopCamera();setPersona(aiProvider);checkAI();};
 $('#agentHub').onclick=async()=>{if(!desktop)return;showDialog('#agentDialog');await loadAgents();};
 $('#agentRefresh').onclick=loadAgents;
 $('#projectPick').onclick=chooseProjectFolder;
