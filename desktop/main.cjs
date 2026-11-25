@@ -392,8 +392,8 @@ else{
    cloudMemory=new AleCoreCloudContextClient({origin:''});
   }
   agentHub=new DeveloperAgentHub();
-  multiAiCoordinator=new AleCoreMultiAICoordinator({bridges,agentHub});
   naraAgentCoordinator=createAleCoreAgentCoordinator({nara,agentHub}).bind();
+  multiAiCoordinator=new AleCoreMultiAICoordinator({bridges,agentHub,agentCoordinator:naraAgentCoordinator});
   const savedProjectRoot=await readProjectRoot();if(savedProjectRoot)agentHub.setProjectRoot(savedProjectRoot);
   void bootstrapNaraConnections({bridges,agentHub,nara}).catch(()=>{
    try{nara.dispatch('startup.connections',{pending:false},{source:'startup-connections'});}catch{}
