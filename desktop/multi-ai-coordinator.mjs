@@ -120,7 +120,7 @@ export class AleCoreMultiAICoordinator {
         ...result,
         collaboration: {
           mode,
-          cloudShared: CLOUD_PROVIDERS.includes(provider),
+          cloudShared: provider !== 'alecore-local',
           participants: [{ provider, status: 'completed', detail: 'provider manual dipilih pengguna' }],
           summary: 'Mode manual · ' + (PROVIDER_LABELS[provider] || provider)
         }
