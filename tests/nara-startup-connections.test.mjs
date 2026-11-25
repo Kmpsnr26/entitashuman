@@ -104,6 +104,28 @@ test('Copilot --version proves installation only and bootstrap never invokes log
   assert.equal(result.startupConnections.armed,false);
 });
 
+test('Copilot login state reaches desktop provider status without claiming a successful request',async()=>{
+  const bridge=new CopilotBridge({
+    findExecutable:async()=>'fake-copilot',
+    runImpl:async(_executable,args)=>({code:0,stdout:args[0]==='--version'?'copilot test version':'Login completed',stderr:''})
+  });
+  await bridge.login();
+  const nara=naraFixture();
+  const result=await bootstrapNaraConnections({
+    bridges:{copilot:bridge},
+    agentHub:hub(),
+    nara
+  });
+
+  assert.equal(result.providers.copilot.configured,true);
+  assert.equal(result.providers.copilot.authenticated,true);
+  assert.equal(result.providers.copilot.verified,false);
+  assert.equal(result.providers.copilot.ready,false);
+  assert.deepEqual(result.startupConnections.authenticatedExecutors,['github-copilot']);
+  assert.equal(nara.snapshot().providers.copilot.verified,false);
+  nara.stop();
+});
+
 test('local ChatGPT/Codex login evidence is recorded without arming a maintenance worker',async()=>{
   const nara=naraFixture();
   const result=await bootstrapNaraConnections({
