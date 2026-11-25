@@ -13,6 +13,7 @@ function fakeBridge({
   statusResult = null,
   failAsk = false,
   verified = true,
+  installed = false,
   busy = false
 } = {}) {
   const calls = [];
@@ -21,7 +22,7 @@ function fakeBridge({
     calls,
     pending: false,
     async status() {
-      return statusResult || { configured, verified, busy };
+      return statusResult || { configured, verified, installed, busy };
     },
     async ask(payload) {
       calls.push(payload);
@@ -393,6 +394,9 @@ test('Specialist Agent Hub excludes unverified Copilot but can use other ready e
   });
 
   assert.equal(copilot.calls.length, 0);
+  assert.ok(result.collaboration.participants.some(item =>
+    item.provider === 'copilot' && item.status === 'unavailable'
+  ));
   assert.equal(calls.length, 1);
   assert.ok(result.collaboration.participants.some(item =>
     item.provider === 'specialist-agents' && item.status === 'completed'
