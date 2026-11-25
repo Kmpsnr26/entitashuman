@@ -198,18 +198,22 @@ export class AleCoreMultiAICoordinator {
         provider,
         status: await this.statusOf(provider)
       })));
+      const isReady = item => item.status.configured === true
+        && (item.provider !== 'copilot' || item.status.verified === true);
 
       for (const item of readiness) {
         if (item.status.configured !== true) {
           participants.push({
             provider: item.provider,
             status: 'unavailable',
-            detail: 'belum siap atau belum terautentikasi'
+            detail: item.provider === 'copilot' && item.status.configured === true && item.status.verified !== true
+              ? 'CLI tersedia tetapi login Copilot belum terverifikasi'
+              : 'belum siap atau belum terautentikasi'
           });
         }
       }
 
-      const ready = readiness.filter(item => item.status.configured === true);
+      const ready = readiness.filter(isReady);
       const outcomes = await Promise.all(ready.map(async item => {
         try {
           const result = await this.bridges[item.provider].ask({
