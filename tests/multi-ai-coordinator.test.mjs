@@ -211,7 +211,7 @@ test('local unavailability blocks collaboration instead of silently falling back
       allowCloud: true,
       message: 'Audit keamanan kode repository secara menyeluruh.'
     }),
-    /tidak ada fallback otomatis ke cloud/
+    /tidak ada fallback otomatis ke cloud/i
   );
   assert.equal(local.calls.length, 0);
   assert.equal(chatgpt.calls.length, 0);
@@ -229,6 +229,7 @@ test('manual mode uses only the provider explicitly selected by the user', async
   const result = await coordinator.run({
     mode: 'manual',
     provider: 'chatgpt',
+    allowCloud: true,
     message: 'Jawab langsung.'
   });
 
@@ -452,7 +453,7 @@ test('desktop UI and IPC are connected to the privacy-gated coordinator', async 
   assert.match(main, /provider!=='alecore-local'&&value\?\.allowCloud!==true/);
   assert.match(app, /collaborationMode==='local-only'\|\|!allowCloudForThisMessage/);
   assert.match(app, /data\.verified===true/);
-  assert.match(app, /Tugas Developer Agent Hub/);
+  assert.match(app, /isExplicitProjectWorkRequest\(text\)/);
   assert.match(preload, /ask:payload=>ipcRenderer\.invoke\('dudidam:ask',payload\)/);
   assert.match(app, /desktop\.ask\(\{provider:aiProvider,collaborationMode,allowCloud:allowCloudForThisMessage/);
   assert.match(app, /if\(desktop&&collaborationMode!=='manual'\)aiProvider='alecore-local'/);
