@@ -311,7 +311,7 @@ test('FULL TEAM includes the read-only Specialist Agent Hub through NARA', async
   const agentHub = {
     pending: false,
     async projectRootReady() { return true; },
-    async availableStructuredExecutors() { return ['codex']; },
+    async availableStructuredExecutors() { return ['codex', 'cursor']; },
     async run() { throw new Error('NARA coordinator should own the specialist run'); }
   };
   const agentCoordinator = {
