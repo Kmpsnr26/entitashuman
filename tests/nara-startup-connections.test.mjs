@@ -306,10 +306,28 @@ async function providerIpcFixture(){
   };
   vm.createContext(context);
   vm.runInContext(source,context);
-  return {nara,handlers,set response(value){response=value;},set allowed(value){allowed=value;},
+  return {nara,handlers,bridges,set response(value){response=value;},set allowed(value){allowed=value;},
     set configured(value){configured=value;},get statusCalls(){return statusCalls;},
     get askCalls(){return askCalls;},get loginCalls(){return loginCalls;}};
 }
+
+test('production provider status exposes Copilot authentication separately from request verification',async()=>{
+  const fx=await providerIpcFixture();
+  fx.bridges.copilot.status=async()=>({
+    configured:true,
+    installed:true,
+    authenticated:true,
+    verified:false
+  });
+  const status=await fx.handlers.get('dudidam:status')({},'copilot');
+
+  assert.equal(status.configured,true);
+  assert.equal(status.authenticated,true);
+  assert.equal(status.verified,false);
+  assert.equal(status.ready,false);
+  assert.equal(fx.nara.snapshot().providers.copilot.verified,false);
+  fx.nara.stop();
+});
 
 test('production Agent Hub IPC blocks missing consent and LOCAL ONLY before NARA execution',async()=>{
   const fx=await providerIpcFixture();
